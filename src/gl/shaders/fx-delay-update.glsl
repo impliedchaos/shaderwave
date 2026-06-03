@@ -1,3 +1,4 @@
+#version 300 es
 // Stereo feedback delay — ring-buffer UPDATE pass.
 //
 // The delay line is a persistent 2D texture (uW × uH, linearised as a ring of
@@ -8,7 +9,6 @@
 // computed in parallel.
 //
 //   w[n] = x[n] + feedback · w[n-D]
-export const FX_DELAY_UPDATE = /* glsl */`#version 300 es
 precision highp float;
 precision highp int;
 
@@ -37,4 +37,3 @@ void main(){
     outColor = texelFetch(uPrevDelay, ivec2(x, y), 0); // carry history forward
   }
 }
-`;

@@ -1,0 +1,15 @@
+{
+  "name": "shaderwave",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "WebGL2 synthesizer & tracker — instruments synthesized entirely on the GPU.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "vite": "^6.0.0"
+  }
+}

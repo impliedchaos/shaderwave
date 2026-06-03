@@ -3,9 +3,9 @@
 // in persistent ping-pong "ring" textures (see the fx-*-update shaders).
 import { createProgram, drawQuad } from './program.js';
 import { BLOCK } from '../constants.js';
-import { FX_DELAY_UPDATE } from './shaders/fx-delay-update.js';
-import { FX_FDN_UPDATE } from './shaders/fx-fdn-update.js';
-import { FX_OUTPUT } from './shaders/fx-output.js';
+import FX_DELAY_UPDATE from './shaders/fx-delay-update.glsl?raw';
+import FX_FDN_UPDATE from './shaders/fx-fdn-update.glsl?raw';
+import FX_OUTPUT from './shaders/fx-output.glsl?raw';
 
 // Delay ring: 2D (width-limited) layout, ~2.7s at 48k.
 const DELAY_W = 2048, DELAY_H = 64, DELAY_LEN = DELAY_W * DELAY_H;
@@ -16,6 +16,13 @@ const FDN_LENS = [1557, 1617, 1491, 1422];
 export function defaultFxParams() {
   return {
     enabled: true,
+    // Per-effect bypass switches (the whole chain is also gated by `enabled`).
+    distOn: true,
+    chorusOn: true,
+    tremoloOn: true,
+    delayOn: true,
+    reverbOn: true,
+    widthOn: true,
     dist: 1.4,
     tone: 0.5,
     level: 1.0,
@@ -128,21 +135,25 @@ export class EffectsChain {
     gl.uniform1i(op.u('uW'), DELAY_W); gl.uniform1i(op.u('uLen'), DELAY_LEN); gl.uniform1i(op.u('uLenF'), FDN_LEN);
     gl.uniform1i(op.u('uWpos'), wposD); gl.uniform1i(op.u('uWposF'), wposF);
     gl.uniform1i(op.u('uBlock'), BLOCK); gl.uniform1i(op.u('uDelaySamples'), D);
-    gl.uniform1f(op.u('uDelayMix'), p.enabled ? p.delayMix : 0.0);
-    gl.uniform1f(op.u('uReverbMix'), p.enabled ? p.reverbMix : 0.0);
-    gl.uniform1f(op.u('uDist'), p.enabled ? p.dist : 0.001);
-    gl.uniform1f(op.u('uTone'), p.enabled ? p.tone : 0.5);
-    gl.uniform1f(op.u('uDistLevel'), p.enabled ? p.level : 1.0);
-    gl.uniform1f(op.u('uWidth'), p.enabled ? p.width : 1.0);
+    // An effect is live only if the whole chain is enabled AND its own switch is
+    // on. A missing per-effect flag (older songs) counts as on. When off, each
+    // effect is driven to its neutral/bypass value.
+    const on = (flag) => p.enabled && p[flag] !== false;
+    gl.uniform1f(op.u('uDelayMix'), on('delayOn') ? p.delayMix : 0.0);
+    gl.uniform1f(op.u('uReverbMix'), on('reverbOn') ? p.reverbMix : 0.0);
+    gl.uniform1f(op.u('uDist'), on('distOn') ? p.dist : 0.001);
+    gl.uniform1f(op.u('uTone'), on('distOn') ? p.tone : 0.5);
+    gl.uniform1f(op.u('uDistLevel'), on('distOn') ? p.level : 1.0);
+    gl.uniform1f(op.u('uWidth'), on('widthOn') ? p.width : 1.0);
     gl.uniform1f(op.u('uMaster'), p.master * masterScale);
-    
+
     // Chorus & Tremolo Uniforms
     gl.uniform1i(op.u('uBlockStart'), blockStart);
     gl.uniform1f(op.u('uSampleRate'), this.sampleRate);
-    gl.uniform1f(op.u('uChorusMix'), p.enabled ? p.chorusMix : 0.0);
+    gl.uniform1f(op.u('uChorusMix'), on('chorusOn') ? p.chorusMix : 0.0);
     gl.uniform1f(op.u('uChorusRate'), p.chorusRate);
     gl.uniform1f(op.u('uChorusDepth'), p.chorusDepth);
-    gl.uniform1f(op.u('uTremoloMix'), p.enabled ? p.tremoloMix : 0.0);
+    gl.uniform1f(op.u('uTremoloMix'), on('tremoloOn') ? p.tremoloMix : 0.0);
     gl.uniform1f(op.u('uTremoloRate'), p.tremoloRate);
     
     gl.viewport(0, 0, BLOCK, 1); drawQuad(gl);

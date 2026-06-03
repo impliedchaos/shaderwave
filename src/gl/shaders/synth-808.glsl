@@ -5,10 +5,33 @@
 // Params (per voice):
 //   uP0 = (drumType, tone 0..1, decay 0..1, snappy 0..1)
 // drumType: 0 BD  1 SD  2 CH  3 OH  4 CLAP  5 LOTOM  6 MIDTOM  7 HITOM  8 COWBELL
-export const SYNTH_808 = /* glsl */`
+
 // Swept-sine phase, integrated analytically: f(t) = f1 + (f0-f1)·e^(−t/τ).
 float sweepPhase(float t, float f0, float f1, float tau){
   return f1 * t + (f0 - f1) * tau * (1.0 - exp(-t / tau));
+}
+
+// Boxcar (moving-average) lowpass of white noise. noise1 is a pure function of
+// absolute sample index, so we can average the previous k samples pointwise. A
+// k-tap average rolls off above ~SR/(2k). Crucially this still sounds like HISS,
+// not a tone — value noise at these rates reads as a pitched wobble, which is
+// exactly the "slowed-down" artifact we're avoiding.
+float boxNoise(float n, int k, float seed){
+  float acc = 0.0;
+  for (int j = 0; j < 64; j++){
+    if (j >= k) break;
+    acc += noise1(n - float(j) + seed);
+  }
+  return acc / float(k);   // amplitude ∝ band energy (std ≈ 1/sqrt(k))
+}
+
+// Band-passed white noise between loHz and hiHz: the difference of two boxcar
+// lowpasses (bright minus dark). Brighter cutoff = shorter window. n is the
+// absolute sample frame so the noise is continuous across blocks.
+float bandNoise(float n, float loHz, float hiHz, float seed){
+  int kHi = int(clamp(uSampleRate / (2.0 * hiHz), 1.0, 63.0));
+  int kLo = int(clamp(uSampleRate / (2.0 * loHz), 1.0, 63.0));
+  return boxNoise(n, kHi, seed) - boxNoise(n, kLo, seed);
 }
 
 void main(){
@@ -35,24 +58,26 @@ void main(){
     float click = nz * exp(-t * 350.0) * 0.4;
     s = body + click;
   } else if (drum == 1) {                  // snare
-    // Body: two sine tones at 180 + 330 Hz (808 snare drum tuning)
-    float tone1 = oscSine(180.0 * t) * 0.65;
-    float tone2 = oscSine(330.0 * t) * 0.35;
-    float snareBody = (tone1 + tone2) * exp(-t / 0.055);
+    // Matched to a real TR-808 SD sample: BODY-dominated. Two tuned partials at
+    // ~180 + 330 Hz carry most of the energy (real spectral centroid ≈ 860 Hz),
+    // with a quieter band of "snare wire" noise layered on top. tone bends the
+    // body pitch slightly; snappy adds wire noise; decay lengthens the tails.
+    float n = uBlockStart + float(x);
+    float bodyF = 1.0 + (tone - 0.5) * 0.4;             // ±20% pitch trim
+    float shellEnv = exp(-t * 33.0);                    // ≈ -20 dB @ 70 ms (matches ref)
+    float shell = (oscSine(180.0 * bodyF * t) * 0.6
+                 + oscSine(330.0 * bodyF * t) * 0.4) * shellEnv;
 
-    // Noise rattle: ring-modulate raw noise with a HF sine to push energy
-    // into the 3–8 kHz "sizzle" range without FIR artifacts.
-    float noiseBase = nz;
-    float rattleNoise = noiseBase * sin(TAU * 5500.0 * t) * 0.7
-                      + noiseBase * sin(TAU * 3200.0 * t) * 0.3;
+    // Wires: mid-band noise (~1.5–6 kHz), decaying a touch faster than the body.
+    float wires = bandNoise(n, 1500.0, 6000.0, float(v) * 17.0)
+                * exp(-t * mix(34.0, 16.0, decay));
 
-    float rattleDecay = mix(0.06, 0.35, decay);
-    float rattleVol = snap * 1.2;
-    float bodyVol = 0.85 - snap * 0.3;
+    // Onset crack: a very short broadband tick for the attack transient.
+    float crack = bandNoise(n, 1000.0, 10000.0, float(v) * 17.0 + 3.0) * exp(-t * 500.0);
 
-    float click = nz * exp(-t * 600.0) * 0.15;
-    s = (snareBody * bodyVol + click
-       + rattleNoise * exp(-t / rattleDecay) * rattleVol) * 1.1;
+    // Wires/crack stay well below the body so the snare keeps its "thock", not hiss.
+    float wireAmt = 0.18 + snap * 0.35;
+    s = (shell * 1.5 + (wires + crack * 0.4) * wireAmt) * 0.8;
   } else if (drum == 2 || drum == 3) {     // closed / open hat
     float dec = drum == 2 ? mix(0.02, 0.08, decay) : mix(0.15, 0.5, decay);
     
@@ -84,29 +109,25 @@ void main(){
     
     s = (hpMetal * 1.5 + hpNoise * 0.45) * exp(-t / dec);
   } else if (drum == 4) {                  // clap
-    // TR-808 clap: bandpass-range noise through two parallel envelope paths.
-    // Ring-modulate noise with sines at ~1 kHz and ~1.5 kHz to move energy
-    // into the mid-range band that defines the 808 clap character.
-    float n2 = noise1(uBlockStart + float(x) + float(v) * 131.0 + 7919.0);
-    float bpNoise = nz  * sin(TAU * 1000.0 * t) * 0.55
-                  + n2  * sin(TAU * 1500.0 * t) * 0.35
-                  + nz  * sin(TAU * 2200.0 * t) * 0.10;
+    // Matched to a real TR-808 CP sample: a fairly narrow noise band centred
+    // ~1.1 kHz (energy 500–2400 Hz, almost nothing above 3.5 kHz), gated by the
+    // classic "multiple hands" gesture — three fast bursts ~10 ms apart, then a
+    // long room tail (~-40 dB by ~300 ms). tone shifts the band, decay the tail.
+    float n = uBlockStart + float(x);
+    float hi = mix(2800.0, 3800.0, tone);
+    float band = bandNoise(n, 750.0, hi, float(v) * 23.0 + 5.0);
 
-    // --- Path 1: multi-trigger snap (4 bursts, ~8 ms apart) ---
-    float snapEnv = 0.0;
-    float burstDecay = 180.0;
-    snapEnv += exp(-t * burstDecay);
-    if (t > 0.008) snapEnv += 0.85 * exp(-(t - 0.008) * burstDecay);
-    if (t > 0.016) snapEnv += 0.70 * exp(-(t - 0.016) * burstDecay);
-    if (t > 0.024) snapEnv += 0.55 * exp(-(t - 0.024) * burstDecay);
-    snapEnv = min(snapEnv, 1.0);
+    // --- Path 1: three sharp bursts (~3 ms each, 10 ms apart) ---
+    float burstDecay = 320.0;
+    float burst = exp(-t * burstDecay);
+    if (t > 0.010) burst += 0.95 * exp(-(t - 0.010) * burstDecay);
+    if (t > 0.020) burst += 0.90 * exp(-(t - 0.020) * burstDecay);
+    burst = min(burst, 1.0);
 
-    // --- Path 2: reverb tail ---
-    float tailDec = mix(0.08, 0.4, decay);
-    float tailEnv = 0.45 * exp(-t / tailDec);
+    // --- Path 2: room tail ---
+    float tail = 0.55 * exp(-t / mix(0.04, 0.12, decay));
 
-    float env = snapEnv + tailEnv;
-    s = bpNoise * env * 3.5;
+    s = band * (burst + tail) * 2.0;
   } else if (drum >= 5 && drum <= 7) {     // toms (low/mid/high)
     float base = drum == 5 ? 90.0 : (drum == 6 ? 140.0 : 200.0);
     base *= (0.7 + tone * 0.6);
@@ -121,4 +142,3 @@ void main(){
 
   outAudio = vec4(tanh(s * vel * 1.4), 0.0, 0.0, 1.0);
 }
-`;

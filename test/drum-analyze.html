@@ -1,0 +1,111 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>pending</title></head>
+<body><pre id="out">running…</pre>
+<script type="module">
+import { createGL } from '../src/gl/context.js';
+import { SynthRenderer } from '../src/gl/synth-renderer.js';
+import { BLOCK, VOICES } from '../src/constants.js';
+
+const out = document.getElementById('out');
+const lines = [];
+const log = (s) => { lines.push(s); out.textContent = lines.join('\n'); console.log(s); };
+
+const SR = 48000;
+const INST_808 = 2;
+
+function makeVD(drum, tone, decay, snap) {
+  const z4 = () => new Float32Array(VOICES * 4);
+  const p0 = z4(), p1 = z4();
+  p0[0] = drum; p0[1] = tone; p0[2] = decay; p0[3] = snap;   // (drumType, tone, decay, snappy)
+  return {
+    active: Int32Array.of(1, 0, 0, 0, 0, 0, 0, 0),
+    inst: Int32Array.of(INST_808, 0, 0, 0, 0, 0, 0, 0),
+    freq: Float32Array.of(220, 0, 0, 0, 0, 0, 0, 0),
+    vel: Float32Array.of(1, 0, 0, 0, 0, 0, 0, 0),
+    onRel: Float32Array.of(0, 0, 0, 0, 0, 0, 0, 0),     // note-on at frame 0
+    offRel: Float32Array.of(1e9, 0, 0, 0, 0, 0, 0, 0),
+    p0, p1,
+    gain: new Float32Array(VOICES).fill(1),
+    pan: new Float32Array(VOICES).fill(0.5),
+    master: 1.0,
+  };
+}
+
+// Render `nBlocks` and return voice-0's RAW synth samples (pre-mix, pre-FX).
+function renderVoice(r, gl, vd, nBlocks) {
+  const fbo = gl.createFramebuffer();
+  const row = new Float32Array(BLOCK * 4);
+  const sig = new Float32Array(nBlocks * BLOCK);
+  for (let b = 0; b < nBlocks; b++) {
+    const bs = b * BLOCK;
+    r.renderBlock(vd, bs);                       // runs the synth pass into inst.audio
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, r.inst[INST_808].audio, 0);
+    gl.readPixels(0, 0, BLOCK, 1, gl.RGBA, gl.FLOAT, row);   // row y=0 = voice 0, R=sample
+    for (let i = 0; i < BLOCK; i++) sig[b * BLOCK + i] = row[i * 4];
+  }
+  return sig;
+}
+
+// Goertzel magnitude at frequency f over signal.
+function mag(sig, f) {
+  const w = 2 * Math.PI * f / SR;
+  const c = 2 * Math.cos(w);
+  let s0 = 0, s1 = 0, s2 = 0;
+  for (let i = 0; i < sig.length; i++) { s0 = sig[i] + c * s1 - s2; s2 = s1; s1 = s0; }
+  return Math.sqrt(s1 * s1 + s2 * s2 - c * s1 * s2) / sig.length;
+}
+
+function analyze(name, sig) {
+  let peak = 0, sum = 0, dc = 0, clip = 0, zc = 0;
+  for (let i = 0; i < sig.length; i++) {
+    const v = sig[i];
+    peak = Math.max(peak, Math.abs(v)); sum += v * v; dc += v;
+    if (Math.abs(v) > 0.985) clip++;
+    if (i > 0 && (sig[i] >= 0) !== (sig[i - 1] >= 0)) zc++;
+  }
+  dc /= sig.length;
+  const rms = Math.sqrt(sum / sig.length);
+  const zcRate = (zc / sig.length) * SR / 2;   // approx dominant freq if periodic
+
+  // Coarse log-spaced spectrum + centroid.
+  const bands = [100, 150, 220, 330, 500, 750, 1100, 1600, 2400, 3500, 5000, 7500, 11000, 16000];
+  const mags = bands.map(f => mag(sig, f));
+  let cw = 0, cm = 0;
+  bands.forEach((f, i) => { cw += f * mags[i]; cm += mags[i]; });
+  const centroid = cw / (cm || 1);
+
+  // Normalized autocorrelation: scan lags 20..1200 (40Hz..2400Hz). A strong peak
+  // ⇒ the signal is PITCHED (bad for a snare/clap). Flat ⇒ noise-like (good).
+  let energy = 0;
+  for (let i = 0; i < sig.length; i++) energy += sig[i] * sig[i];
+  let bestR = 0, bestLag = 0;
+  for (let lag = 20; lag < 1200; lag++) {
+    let acc = 0;
+    for (let i = 0; i + lag < sig.length; i++) acc += sig[i] * sig[i + lag];
+    const r = acc / (energy || 1);
+    if (r > bestR) { bestR = r; bestLag = lag; }
+  }
+
+  log(`\n### ${name}`);
+  log(`peak=${peak.toFixed(3)} rms=${rms.toFixed(4)} dc=${dc.toFixed(4)} clipped=${clip}/${sig.length} (${(100*clip/sig.length).toFixed(1)}%)`);
+  log(`zeroCrossRate≈${zcRate.toFixed(0)}Hz  spectralCentroid≈${centroid.toFixed(0)}Hz`);
+  log(`autocorr: peak=${bestR.toFixed(3)} @lag=${bestLag} (=${(SR/bestLag).toFixed(0)}Hz)  ${bestR > 0.3 ? '<<< PITCHED!' : bestR > 0.15 ? '(somewhat tonal)' : '(noise-like, good)'}`);
+  log('spectrum: ' + bands.map((f, i) => `${f}:${(mags[i]/(cm||1)*100).toFixed(0)}`).join(' '));
+}
+
+try {
+  const gl = createGL(document.createElement('canvas'));
+  const N = 28;   // ~0.3s
+  // Fresh renderer per voice so block-state / FX rings don't bleed across.
+  analyze('CLOSED HIHAT (reference, sounds good)', renderVoice(new SynthRenderer(gl, SR), gl, makeVD(2, 0.5, 0.5, 0.5), N));
+  analyze('SNARE', renderVoice(new SynthRenderer(gl, SR), gl, makeVD(1, 0.5, 0.5, 0.7), N));
+  analyze('CLAP',  renderVoice(new SynthRenderer(gl, SR), gl, makeVD(4, 0.5, 0.5, 0.5), N));
+  document.title = 'DONE';
+  log('\n=== DONE ===');
+} catch (e) {
+  document.title = 'ERROR';
+  log('FATAL: ' + e.message + '\n' + (e.stack || ''));
+}
+</script>
+</body></html>

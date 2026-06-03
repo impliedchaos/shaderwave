@@ -1,7 +1,7 @@
+#version 300 es
 // Mix pass: reads a single instrument's per-voice audio texture (BLOCK×VOICES),
 // sums its voice rows with per-voice gain + equal-power pan, and writes one
 // stereo row (BLOCK×1, R=left G=right).
-export const MIX_FS = /* glsl */`#version 300 es
 precision highp float;
 precision highp int;
 #define VOICES 8
@@ -24,4 +24,3 @@ void main(){
   }
   outColor = vec4(l, r, 0.0, 1.0);
 }
-`;

@@ -5,7 +5,7 @@
 // Params (per voice):
 //   uP0 = (cutoffHz, resonance 0..1, filterEnvAmt 0..1, _)
 //   uP1 = (detuneCents, ampSustain 0..1, filterDecay s, ampDecay s)
-export const SYNTH_MOOG = /* glsl */`
+
 void main(){
   int x = int(gl_FragCoord.x);
   int v = int(gl_FragCoord.y);
@@ -41,4 +41,3 @@ void main(){
   outAudio = vec4(y * vel, 0.0, 0.0, 1.0);
   outState = st;
 }
-`;

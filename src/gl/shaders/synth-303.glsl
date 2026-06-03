@@ -5,7 +5,7 @@
 // Params (per voice):
 //   uP0 = (cutoffHz, resonance 0..1, envMod 0..1, accent 0..1)
 //   uP1 = (wave[0=saw,1=square], filterDecay s, ampDecay s, _)
-export const SYNTH_303 = /* glsl */`
+
 void main(){
   int x = int(gl_FragCoord.x);
   int v = int(gl_FragCoord.y);
@@ -38,4 +38,3 @@ void main(){
   outAudio = vec4(y * vel, 0.0, 0.0, 1.0);
   outState = st;
 }
-`;

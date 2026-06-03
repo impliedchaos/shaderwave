@@ -3,15 +3,15 @@
 <body><pre id="out">running…</pre>
 <script type="module">
 import { createProgram } from '../src/gl/program.js';
-import { COMMON } from '../src/gl/shaders/common.js';
-import { SYNTH_303 } from '../src/gl/shaders/synth-303.js';
-import { SYNTH_DX7 } from '../src/gl/shaders/synth-dx7.js';
-import { SYNTH_808 } from '../src/gl/shaders/synth-808.js';
-import { SYNTH_MOOG } from '../src/gl/shaders/synth-moog.js';
-import { MIX_FS } from '../src/gl/shaders/mix.js';
-import { FX_DELAY_UPDATE } from '../src/gl/shaders/fx-delay-update.js';
-import { FX_FDN_UPDATE } from '../src/gl/shaders/fx-fdn-update.js';
-import { FX_OUTPUT } from '../src/gl/shaders/fx-output.js';
+import COMMON from '../src/gl/shaders/common.glsl?raw';
+import SYNTH_303 from '../src/gl/shaders/synth-303.glsl?raw';
+import SYNTH_DX7 from '../src/gl/shaders/synth-dx7.glsl?raw';
+import SYNTH_808 from '../src/gl/shaders/synth-808.glsl?raw';
+import SYNTH_MOOG from '../src/gl/shaders/synth-moog.glsl?raw';
+import MIX_FS from '../src/gl/shaders/mix.glsl?raw';
+import FX_DELAY_UPDATE from '../src/gl/shaders/fx-delay-update.glsl?raw';
+import FX_FDN_UPDATE from '../src/gl/shaders/fx-fdn-update.glsl?raw';
+import FX_OUTPUT from '../src/gl/shaders/fx-output.glsl?raw';
 
 const out = document.getElementById('out');
 const lines = [];

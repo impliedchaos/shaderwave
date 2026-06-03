@@ -1,7 +1,7 @@
+#version 300 es
 // Effects OUTPUT pass — BLOCK×1 stereo. Reads the dry mix plus the (already
 // updated) delay and FDN rings, sums them, then applies stereo chorus,
 // Roland DS-1 diode hard-clipping distortion, auto-pan tremolo, and width.
-export const FX_OUTPUT = /* glsl */`#version 300 es
 precision highp float;
 precision highp int;
 
@@ -128,4 +128,3 @@ void main(){
   float side = (driven.x - driven.y) * 0.5 * uWidth;
   outColor = vec4(vec2(mid + side, mid - side) * uMaster, 0.0, 1.0);
 }
-`;

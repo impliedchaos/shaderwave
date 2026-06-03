@@ -562,7 +562,7 @@
     box-shadow: 0 0 14px var(--accent);
   }
   
-  #fx-toggle {
+  #fx-toggle, .fx-cat-toggle {
     background: rgba(16, 22, 34, 0.6);
     color: var(--dim);
     border: 1px solid var(--panel-border);
@@ -577,8 +577,13 @@
     transition: all 0.3s;
     box-shadow: 0 1px 3px rgba(0,0,0,0.2);
   }
-  
-  #fx-toggle.on {
+
+  .fx-cat-toggle {
+    font-size: 10px;
+    padding: 1px 7px;
+  }
+
+  #fx-toggle.on, .fx-cat-toggle.on {
     color: var(--accent);
     border-color: var(--accent);
     background: rgba(57, 255, 20, 0.05);

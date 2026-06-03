@@ -1,3 +1,4 @@
+#version 300 es
 // Reverb — feedback delay network (FDN) UPDATE pass.
 //
 // Four delay lines (one per texture row, ring length uLenF) with a 4×4
@@ -7,7 +8,6 @@
 //
 //   s_j[n] = send·x[n] + decay · (M · d)[j],   d_k = lp(line_k[n - len_k])
 //   M = I − 0.5·11ᵀ   (Householder, energy-preserving)
-export const FX_FDN_UPDATE = /* glsl */`#version 300 es
 precision highp float;
 precision highp int;
 
@@ -43,4 +43,3 @@ void main(){
   float fb = d[row] - 0.5 * sum;            // (M·d)[row]
   outColor = vec4(xin + uDecay * fb, 0.0, 0.0, 1.0);
 }
-`;

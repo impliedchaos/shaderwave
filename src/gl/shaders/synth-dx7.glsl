@@ -6,7 +6,7 @@
 // Params (per voice):
 //   uP0 = (carrierRatio, modRatio, modIndex, feedback 0..1)
 //   uP1 = (algorithm[1..32], modDecay s, ampDecay s, ratioC)
-export const SYNTH_DX7 = /* glsl */`
+
 uniform float uOpCoarse[6];
 uniform float uOpFine[6];
 uniform float uOpLevel[6];
@@ -380,4 +380,3 @@ void main(){
 
   outAudio = vec4(s * vel * 0.88, 0.0, 0.0, 1.0);
 }
-`;

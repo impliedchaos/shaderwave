@@ -121,30 +121,30 @@ class App {
 
   _buildFxPanel(itName) {
     const defs = [
-      { category: 'Boss DS-1 Distortion' },
+      { category: 'Boss DS-1 Distortion', enableKey: 'distOn' },
       { label: 'Tone', key: 'tone', min: 0, max: 1, step: 0.01 },
       { label: 'Level', key: 'level', min: 0, max: 2, step: 0.01 },
       { label: 'Dist', key: 'dist', min: 0.001, max: 20, step: 0.1 },
-      
-      { category: 'Stereo Field & Output' },
+
+      { category: 'Stereo Field & Output', enableKey: 'widthOn' },
       { label: 'Width', key: 'width', min: 0, max: 2, step: 0.01 },
       { label: 'Master', key: 'master', min: 0, max: 1.5, step: 0.01 },
-      
-      { category: 'Stereo Chorus' },
+
+      { category: 'Stereo Chorus', enableKey: 'chorusOn' },
       { label: 'Cho Mix', key: 'chorusMix', min: 0, max: 1, step: 0.01 },
       { label: 'Cho Rate', key: 'chorusRate', min: 0.1, max: 5.0, step: 0.05 },
       { label: 'Cho Depth', key: 'chorusDepth', min: 0.5, max: 5.0, step: 0.1 },
-      
-      { category: 'Stereo Tremolo (Auto-Pan)' },
+
+      { category: 'Stereo Tremolo (Auto-Pan)', enableKey: 'tremoloOn' },
       { label: 'Trem Mix', key: 'tremoloMix', min: 0, max: 1, step: 0.01 },
       { label: 'Trem Rate', key: 'tremoloRate', min: 0.5, max: 15.0, step: 0.1 },
-      
-      { category: 'Tempo Delay' },
+
+      { category: 'Tempo Delay', enableKey: 'delayOn' },
       { label: 'Dly Time', key: 'delayTime', min: 0.02, max: 1.2, step: 0.01 },
       { label: 'Dly FB', key: 'delayFeedback', min: 0, max: 0.9, step: 0.01 },
       { label: 'Dly Mix', key: 'delayMix', min: 0, max: 1, step: 0.01 },
-      
-      { category: 'Reverb Space' },
+
+      { category: 'Reverb Space', enableKey: 'reverbOn' },
       { label: 'Rev Decay', key: 'reverbDecay', min: 0, max: 0.97, step: 0.01 },
       { label: 'Rev Damp', key: 'reverbDamp', min: 0, max: 0.95, step: 0.01 },
       { label: 'Rev Mix', key: 'reverbMix', min: 0, max: 1, step: 0.01 },
@@ -156,6 +156,19 @@ class App {
       if (d.category) {
         const cat = document.createElement('h3');
         cat.textContent = d.category;
+        if (d.enableKey) {
+          if (params[d.enableKey] === undefined) params[d.enableKey] = true;
+          const btn = document.createElement('button');
+          btn.className = 'fx-cat-toggle';
+          const sync = () => {
+            const isOn = params[d.enableKey] !== false;
+            btn.className = 'fx-cat-toggle' + (isOn ? ' on' : '');
+            btn.textContent = isOn ? 'on' : 'off';
+          };
+          sync();
+          btn.onclick = () => { params[d.enableKey] = (params[d.enableKey] === false); sync(); };
+          cat.appendChild(btn);
+        }
         host.appendChild(cat);
         continue;
       }

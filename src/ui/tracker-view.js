@@ -184,9 +184,10 @@ export class TrackerView {
       ctx.quadraticCurveTo(bx, by, bx + radius, by);
       ctx.closePath();
       
+      // Muted badge matches the "off" FX toggle button; active badge matches "on".
       if (isMuted) {
-        ctx.fillStyle = 'rgba(255, 0, 127, 0.12)';
-        ctx.strokeStyle = 'rgba(255, 0, 127, 0.5)';
+        ctx.fillStyle = 'rgba(16, 22, 34, 0.6)';
+        ctx.strokeStyle = C('--panel-border');
       } else {
         ctx.fillStyle = C('--accent-glow');
         ctx.strokeStyle = C('--accent');
@@ -195,12 +196,14 @@ export class TrackerView {
       ctx.fill();
       ctx.stroke();
 
-      ctx.font = 'bold 10px "JetBrains Mono", monospace';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       if (isMuted) {
-        ctx.fillStyle = C('--hot');
+        ctx.font = 'bold 10px "Rajdhani", sans-serif';
+        ctx.letterSpacing = '1px';
+        ctx.fillStyle = C('--dim');
       } else {
+        ctx.font = 'bold 10px "JetBrains Mono", monospace';
         ctx.fillStyle = C('--accent');
       }
       ctx.fillText(text, bx + bw / 2, by + bh / 2);
@@ -260,7 +263,10 @@ export class TrackerView {
               };
               ctx.fillStyle = instColors[instName] || C('--accent');
             }
-            ctx.fillText(instName.toUpperCase(), x + 42, y + ROW_H / 2);
+            // Display-only label overrides (keeps the underlying instrument id).
+            const INST_LABELS = { 'moog': 'MŌG' };
+            const instLabel = INST_LABELS[instName] || instName.toUpperCase();
+            ctx.fillText(instLabel, x + 42, y + ROW_H / 2);
 
             // Draw volume data (percentage value 00..99)
             const volVal = Math.round(p.vol[idx] * 99);

@@ -6,17 +6,20 @@ and streamed to the audio device through a lock-free ring buffer.
 
 ## Run
 
-Any ordinary static webserver works — no special headers, no build step. Serve the
-project root and open it in a WebGL2 browser, then click **▶ Play**. For example:
+The project is built with [Vite](https://vite.dev). In a WebGL2 browser:
 
 ```bash
-python3 -m http.server 8080      # → http://localhost:8080
-# or:  npx serve .   ·   node server.js   ·   any static host (GitHub Pages, S3, nginx…)
+npm install
+npm run dev        # dev server with HMR → http://localhost:5173
+npm run build      # production bundle → dist/
+npm run preview    # serve the production build locally
 ```
 
-`server.js` is included as a convenience but is **not** required: audio is delivered
-to the AudioWorklet via `postMessage` (no `SharedArrayBuffer`), so the page needs no
-cross-origin-isolation (`COOP`/`COEP`) headers.
+Then click **▶ Play**. The `dist/` output is plain static files — host it anywhere
+(GitHub Pages, S3, nginx…). No special headers are needed: audio is delivered to the
+AudioWorklet via `postMessage` (no `SharedArrayBuffer`), so no cross-origin-isolation
+(`COOP`/`COEP`) headers are required. The build uses a relative `base`, so it works
+served from a domain root or a subpath.
 
 ### Controls
 
@@ -146,36 +149,42 @@ optimisation is a checkpoint/scan — noted for later.
 ## Layout
 
 ```
-server.js                  dev server (COOP/COEP, MIME)
-index.html                 app shell, tracker grid, sidebar controls
+index.html                 app shell, tracker grid, sidebar controls (Vite entry)
+vite.config.js             build config (relative base, worklet emitted as a file)
+public/                    static assets copied verbatim (favicon, sysex banks)
 src/constants.js           shared sizes, note→freq, ring layout
 src/main.js                app init, song loading, UI sync
 src/gl/                    context, program helpers, SynthRenderer, shaders/
-  shaders/synth-303.js       acid bass synth
-  shaders/synth-808.js       drum machine
-  shaders/synth-moog.js      analog polysynth
-  shaders/synth-dx7.js       6-op FM (all 32 algorithms)
-  shaders/fx-output.js       distortion, chorus, tremolo, width, master
-  shaders/fx-delay-update.js stereo delay ring
-  shaders/fx-fdn-update.js   FDN reverb
-  shaders/mix.js             voice mixdown
-  shaders/common.js          shared ADSR, noise, filter utilities
+  shaders/*.glsl             raw GLSL, imported as strings via Vite's ?raw
+  shaders/synth-303.glsl       acid bass synth
+  shaders/synth-808.glsl       drum machine
+  shaders/synth-moog.glsl      analog polysynth
+  shaders/synth-dx7.glsl       6-op FM (all 32 algorithms)
+  shaders/fx-output.glsl       distortion, chorus, tremolo, width, master
+  shaders/fx-delay-update.glsl stereo delay ring
+  shaders/fx-fdn-update.glsl   FDN reverb
+  shaders/mix.glsl             voice mixdown
+  shaders/common.glsl          shared ADSR, noise, filter utilities (the prelude)
 src/gl/effects.js          effects chain orchestration
 src/audio/                 worklet.js (classic script), pipeline.js
 src/tracker/               pattern, song (+ demo songs), engine (BPM clock)
 src/ui/                    tracker-view (canvas grid), controls (sidebar + SysEx loader)
-sysex/DX7/                 .syx patch banks (ROM 1A–4B, Bass)
+public/sysex/DX7/          .syx patch banks (ROM 1A–4B, Bass)
 test/                      headless GLSL / render / audio harnesses
 ```
 
 ## Tests (headless Chrome + SwiftShader)
 
+The harnesses are plain ES-module pages — serve them with the dev server
+(`npm run dev`) and load over `localhost:5173`:
+
 ```bash
 # shaders compile & link
 google-chrome --headless=new --enable-unsafe-swiftshader --dump-dom \
-  http://localhost:8080/test/glsl-check.html
+  http://localhost:5173/test/glsl-check.html
 # full GPU render path produces finite signal:  test/render-check.html
 # live audio ring/worklet drains with no underruns:  test/audio-check.html
+# drum spectrum / autocorrelation vs reference:   test/drum-analyze.html
 ```
 
 ## Known Limitations / Next Steps

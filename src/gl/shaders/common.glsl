@@ -1,3 +1,4 @@
+#version 300 es
 // Shared GLSL prelude prepended to every instrument fragment shader. It declares
 // the uniform contract, the two MRT outputs, and a library of audio primitives
 // (band-limited oscillators, noise, ADSR, the transistor ladder filter).
@@ -11,7 +12,6 @@
 //
 // Times are all relative to note-on (uOnRel), which keeps float magnitudes small
 // and makes oscillator phase reset cleanly at each note.
-export const COMMON = /* glsl */`#version 300 es
 precision highp float;
 precision highp int;
 #define VOICES 8
@@ -37,7 +37,11 @@ const float PI  = 3.14159265358979;
 const float TAU = 6.28318530717959;
 
 // --- noise -----------------------------------------------------------------
-float hash11(float p){ p = fract(p * 0.3183099); p *= p + 33.33; p *= p + p; return fract(p); }
+// NB: the multiplier must not be a rational approximation of anything with a
+// short period. 1/π (0.3183099) is fatal here — 355·(1/π) ≈ 113, so fract()
+// repeats every 355 samples and "noise" becomes a 135 Hz buzz. 0.1031 (Dave
+// Hoskins' hash) has no such short period.
+float hash11(float p){ p = fract(p * 0.1031); p *= p + 33.33; p *= p + p; return fract(p); }
 float noise1(float x){ return hash11(x) * 2.0 - 1.0; }
 
 // --- band-limited oscillators (polyBLEP) -----------------------------------
@@ -91,4 +95,3 @@ float cutoffToG(float fcHz){
 
 // Is this fragment a live voice for the current instrument program?
 bool voiceLive(int v){ return uActive[v] == 1 && uInst[v] == uInstId; }
-`;

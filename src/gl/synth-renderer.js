@@ -10,12 +10,12 @@
 import { createProgram, drawQuad } from './program.js';
 import { EffectsChain } from './effects.js';
 import { BLOCK, VOICES, INSTRUMENTS } from '../constants.js';
-import { COMMON } from './shaders/common.js';
-import { SYNTH_303 } from './shaders/synth-303.js';
-import { SYNTH_DX7 } from './shaders/synth-dx7.js';
-import { SYNTH_808 } from './shaders/synth-808.js';
-import { SYNTH_MOOG } from './shaders/synth-moog.js';
-import { MIX_FS } from './shaders/mix.js';
+import COMMON from './shaders/common.glsl?raw';
+import SYNTH_303 from './shaders/synth-303.glsl?raw';
+import SYNTH_DX7 from './shaders/synth-dx7.glsl?raw';
+import SYNTH_808 from './shaders/synth-808.glsl?raw';
+import SYNTH_MOOG from './shaders/synth-moog.glsl?raw';
+import MIX_FS from './shaders/mix.glsl?raw';
 
 // Order MUST match INSTRUMENTS in constants.js — the index is the instrument id.
 const SYNTH_SRC = { '303': SYNTH_303, 'dx7': SYNTH_DX7, '808': SYNTH_808, 'moog': SYNTH_MOOG };
