@@ -43,6 +43,11 @@ void main(){
   float t = (float(x) - uOnRel[v]) / uSampleRate;
   if (t < 0.0) { outAudio = vec4(0.0); return; }
 
+  // Samples since note-on. Use THIS (not the absolute frame uBlockStart+x) to
+  // seed noise so a drum sounds identical every time it triggers, instead of
+  // picking up a different slice of the noise stream depending on wall-clock.
+  float rel = float(x) - uOnRel[v];
+
   int   drum  = int(uP0[v].x + 0.5);
   float tone  = uP0[v].y;
   float decay = uP0[v].z;
@@ -62,22 +67,24 @@ void main(){
     // ~180 + 330 Hz carry most of the energy (real spectral centroid ≈ 860 Hz),
     // with a quieter band of "snare wire" noise layered on top. tone bends the
     // body pitch slightly; snappy adds wire noise; decay lengthens the tails.
-    float n = uBlockStart + float(x);
+    float n = rel;                                      // onset-locked noise index
     float bodyF = 1.0 + (tone - 0.5) * 0.4;             // ±20% pitch trim
     float shellEnv = exp(-t * 33.0);                    // ≈ -20 dB @ 70 ms (matches ref)
     float shell = (oscSine(180.0 * bodyF * t) * 0.6
                  + oscSine(330.0 * bodyF * t) * 0.4) * shellEnv;
 
-    // Wires: mid-band noise (~1.5–6 kHz), decaying a touch faster than the body.
-    float wires = bandNoise(n, 1500.0, 6000.0, float(v) * 17.0)
+    // Wires: the snare "sizzle" — a broad noise shelf (~1.5–7 kHz, like the real
+    // 808's 2.4–7.5 kHz band), decaying a touch faster than the body.
+    float wires = bandNoise(n, 1500.0, 7000.0, float(v) * 17.0)
                 * exp(-t * mix(34.0, 16.0, decay));
 
     // Onset crack: a very short broadband tick for the attack transient.
     float crack = bandNoise(n, 1000.0, 10000.0, float(v) * 17.0 + 3.0) * exp(-t * 500.0);
 
-    // Wires/crack stay well below the body so the snare keeps its "thock", not hiss.
-    float wireAmt = 0.18 + snap * 0.35;
-    s = (shell * 1.5 + (wires + crack * 0.4) * wireAmt) * 0.8;
+    // snappy balances wires against the body. The body still leads so it reads as
+    // a snare ("thock + sizzle"), not hiss — but the wires are clearly present.
+    float wireAmt = 0.7 + snap * 0.9;
+    s = (shell * 1.3 + (wires + crack * 0.5) * wireAmt) * 0.8;
   } else if (drum == 2 || drum == 3) {     // closed / open hat
     float dec = drum == 2 ? mix(0.02, 0.08, decay) : mix(0.15, 0.5, decay);
     
@@ -109,25 +116,30 @@ void main(){
     
     s = (hpMetal * 1.5 + hpNoise * 0.45) * exp(-t / dec);
   } else if (drum == 4) {                  // clap
-    // Matched to a real TR-808 CP sample: a fairly narrow noise band centred
-    // ~1.1 kHz (energy 500–2400 Hz, almost nothing above 3.5 kHz), gated by the
-    // classic "multiple hands" gesture — three fast bursts ~10 ms apart, then a
-    // long room tail (~-40 dB by ~300 ms). tone shifts the band, decay the tail.
-    float n = uBlockStart + float(x);
-    float hi = mix(2800.0, 3800.0, tone);
-    float band = bandNoise(n, 750.0, hi, float(v) * 23.0 + 5.0);
+    // Matched to a real TR-808 CP sample: a narrow noise band centred ~1.1 kHz
+    // (energy 500–2400 Hz, little above 3.5 kHz). The envelope is the key — three
+    // sharp bursts with near-silent gaps, then a delayed "spread" tail that is
+    // actually the loudest part. tone shifts the band, decay the tail length.
+    float n = rel;                                      // onset-locked noise index
+    float hi = mix(3200.0, 4200.0, tone);
+    float band = bandNoise(n, 850.0, hi, float(v) * 23.0 + 5.0);
 
-    // --- Path 1: three sharp bursts (~3 ms each, 10 ms apart) ---
-    float burstDecay = 320.0;
-    float burst = exp(-t * burstDecay);
-    if (t > 0.010) burst += 0.95 * exp(-(t - 0.010) * burstDecay);
-    if (t > 0.020) burst += 0.90 * exp(-(t - 0.020) * burstDecay);
-    burst = min(burst, 1.0);
+    // --- Path 1: three well-separated bursts (the "multiple hands" flam). ~2 ms
+    // decay — sharp enough to leave near-silent gaps, but fat enough that each
+    // "clap" is actually audible. Those distinct hits are what make it a clap.
+    float bd = 480.0;
+    float burst = exp(-t * bd);
+    if (t > 0.012) burst += exp(-(t - 0.012) * bd);
+    if (t > 0.024) burst += exp(-(t - 0.024) * bd);
+    burst *= 1.1;
 
-    // --- Path 2: room tail ---
-    float tail = 0.55 * exp(-t / mix(0.04, 0.12, decay));
+    // --- Path 2: the "spread" — a single longer noise tail that only onsets
+    // AFTER the flam (~26 ms) so it doesn't fill the gaps. It's the loudest part
+    // in a real 808. smoothstep = 4 ms fade-in (no click); decay = tail length.
+    float td = t - 0.026;
+    float tail = td > 0.0 ? smoothstep(0.0, 0.004, td) * 1.15 * exp(-td / mix(0.045, 0.11, decay)) : 0.0;
 
-    s = band * (burst + tail) * 2.0;
+    s = band * (burst + tail) * 1.1;
   } else if (drum >= 5 && drum <= 7) {     // toms (low/mid/high)
     float base = drum == 5 ? 90.0 : (drum == 6 ? 140.0 : 200.0);
     base *= (0.7 + tone * 0.6);

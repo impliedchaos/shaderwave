@@ -1,0 +1,38 @@
+<!doctype html><html><head><meta charset="utf-8"><title>pending</title></head>
+<body><pre id="out">running…</pre>
+<script type="module">
+import { createGL } from '/src/gl/context.js';
+import { SynthRenderer } from '/src/gl/synth-renderer.js';
+import { BLOCK, VOICES } from '/src/constants.js';
+const out=document.getElementById('out'); const log=s=>{out.textContent+=s+'\n';console.log(s);};
+const SR=48000, INST=2;
+function vd(drum, onsetAbs){ const z=()=>new Float32Array(VOICES*4); const p0=z(),p1=z();
+  p0[0]=drum;p0[1]=0.5;p0[2]=0.5;p0[3]=0.5; return {
+  active:Int32Array.of(1,0,0,0,0,0,0,0), inst:Int32Array.of(INST,0,0,0,0,0,0,0),
+  freq:Float32Array.of(220,0,0,0,0,0,0,0), vel:Float32Array.of(1,0,0,0,0,0,0,0),
+  onRel:Float32Array.of(0,0,0,0,0,0,0,0), offRel:Float32Array.of(1e9,0,0,0,0,0,0,0),
+  p0,p1, gain:new Float32Array(VOICES).fill(1), pan:new Float32Array(VOICES).fill(0.5), master:1.0,
+  _onsetAbs:onsetAbs };
+}
+// Render `drum` triggered at absolute frame `onset`, capture voice-0 raw samples for `nb` blocks from onset.
+function render(r,gl,drum,onset,nb){ const fbo=gl.createFramebuffer(); const row=new Float32Array(BLOCK*4); const sig=new Float32Array(nb*BLOCK);
+  for(let b=0;b<nb;b++){ const bs=onset + b*BLOCK; const d=vd(drum,onset);
+    d.onRel[0] = onset - bs;           // note-on at absolute `onset`, relative to this block
+    r.renderBlock(d,bs);
+    gl.bindFramebuffer(gl.FRAMEBUFFER,fbo);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,r.inst[INST].audio,0);
+    gl.readPixels(0,0,BLOCK,1,gl.RGBA,gl.FLOAT,row);
+    for(let i=0;i<BLOCK;i++) sig[b*BLOCK+i]=row[i*4]; }
+  return sig;
+}
+try{
+  const gl=createGL(document.createElement('canvas'));
+  for(const drum of [{n:'CLAP',id:4},{n:'SNARE',id:1}]){
+    const a=render(new SynthRenderer(gl,SR),gl,drum.id,0,6);
+    const b=render(new SynthRenderer(gl,SR),gl,drum.id,7331,6);  // odd, non-block-aligned onset
+    let maxDiff=0,sa=0,sb=0; for(let i=0;i<a.length;i++){maxDiff=Math.max(maxDiff,Math.abs(a[i]-b[i]));sa+=a[i]*a[i];sb+=b[i]*b[i];}
+    log(`${drum.n}: maxAbsDiff between onset@0 and onset@7331 = ${maxDiff.toExponential(3)}  rmsA=${Math.sqrt(sa/a.length).toFixed(4)} rmsB=${Math.sqrt(sb/b.length).toFixed(4)}  ${maxDiff<1e-5?'IDENTICAL ✓':'DIFFERS ✗'}`);
+  }
+  document.title='DONE'; log('=== DONE ===');
+}catch(e){document.title='ERROR';log('FATAL: '+e.message+'\n'+(e.stack||''));}
+</script></body></html>

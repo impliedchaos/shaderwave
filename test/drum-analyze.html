@@ -38,6 +38,7 @@ function renderVoice(r, gl, vd, nBlocks) {
   const sig = new Float32Array(nBlocks * BLOCK);
   for (let b = 0; b < nBlocks; b++) {
     const bs = b * BLOCK;
+    vd.onRel[0] = -bs;                           // note-on at absolute frame 0 → t advances across blocks
     r.renderBlock(vd, bs);                       // runs the synth pass into inst.audio
     gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, r.inst[INST_808].audio, 0);
@@ -92,6 +93,18 @@ function analyze(name, sig) {
   log(`zeroCrossRate≈${zcRate.toFixed(0)}Hz  spectralCentroid≈${centroid.toFixed(0)}Hz`);
   log(`autocorr: peak=${bestR.toFixed(3)} @lag=${bestLag} (=${(SR/bestLag).toFixed(0)}Hz)  ${bestR > 0.3 ? '<<< PITCHED!' : bestR > 0.15 ? '(somewhat tonal)' : '(noise-like, good)'}`);
   log('spectrum: ' + bands.map((f, i) => `${f}:${(mags[i]/(cm||1)*100).toFixed(0)}`).join(' '));
+
+  // RMS envelope @ 2ms/char over the first 120ms — reveals burst/transient shape.
+  const win = Math.round(SR * 0.002);
+  const env = [];
+  for (let i = 0; i < Math.min(sig.length, Math.round(0.12 * SR)); i += win) {
+    let s = 0, c = 0; for (let j = i; j < i + win && j < sig.length; j++) { s += sig[j] * sig[j]; c++; }
+    env.push(Math.sqrt(s / c));
+  }
+  const emax = Math.max(...env), epi = env.indexOf(emax);
+  const glyph = ' .:-=+*#%@';
+  const spark = env.map(e => glyph[Math.min(9, Math.floor(e / emax * 9.999))]).join('');
+  log(`env(2ms/char,0-120ms) peak@${(epi * 2)}ms: ${spark}`);
 }
 
 try {
