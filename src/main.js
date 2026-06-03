@@ -10,7 +10,7 @@ import { TrackerView } from './ui/tracker-view.js';
 import { Controls, bindKnob } from './ui/controls.js';
 import { demoSong, DEMO_SONGS, loadSongInstruments } from './tracker/song.js';
 import { instGlow } from './constants.js';
-import { EMPTY, OFF } from './tracker/pattern.js';
+import { OFF } from './tracker/pattern.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -29,7 +29,7 @@ const KEY_SEMI = {
 // For 808, keys select drum slots rather than pitches.
 const DRUM_KEYS = [36, 38, 42, 46, 39, 41, 45, 48, 56];
 
-class App {
+export class App {
   constructor() {
     // GL renders audio entirely into FBOs (read back via readPixels), so its
     // canvas is never displayed — and it MUST be separate from the 2D grid
@@ -269,6 +269,8 @@ class App {
 
           this.view.cursor.row = 0;
           this.view.cursor.ch = 0;
+          this.view.selection = null;
+          this.view.scroll = 0;
           const lenInput = $('pattern-len');
           if (lenInput) lenInput.value = this.view.pattern.rows;
           this.view.draw();
@@ -284,6 +286,14 @@ class App {
   _bindKeys() {
     document.addEventListener('keydown', (e) => {
       if (e.target.tagName === 'INPUT') return;
+      // Copy / cut / paste of a selected block (intercept before note entry,
+      // since C/X/V are also piano keys).
+      if ((e.ctrlKey || e.metaKey) && !e.altKey) {
+        if (e.code === 'KeyC') { e.preventDefault(); this._copyBlock(false); return; }
+        if (e.code === 'KeyX') { e.preventDefault(); this._copyBlock(true); return; }
+        if (e.code === 'KeyV') { e.preventDefault(); this._pasteBlock(); return; }
+      }
+      if (e.code === 'Escape') { this.view.selection = null; return; }
       if (e.code === 'Space') { e.preventDefault(); return this._togglePlay(); }
       if (e.code === 'BracketLeft') {
         e.preventDefault();
@@ -297,7 +307,8 @@ class App {
         input.value = Math.max(+input.min || 0, Math.min(+input.max || 8, (+input.value || 4) + 1));
         return;
       }
-      if (this._handleCursor(e)) return;
+      if (this._handleCursor(e)) { e.preventDefault(); return; }
+      if (this._handleEdit(e)) return;
 
       if (e.repeat) return;
       const note = this._keyToNote(e.code);
@@ -335,36 +346,97 @@ class App {
 
   _handleCursor(e) {
     const c = this.view.cursor, p = this.view.pattern;
-    if (e.shiftKey) {
-      if (e.code === 'ArrowUp') {
-        const idx = p.idx(c.row, c.ch);
-        if (p.notes[idx] !== EMPTY) {
-          p.vol[idx] = Math.min(1.0, Math.max(0.0, p.vol[idx] + 0.05));
-        }
-        return true;
+    // Shift+Up/Down: fine volume nudge on the note under the cursor.
+    if (e.shiftKey && (e.code === 'ArrowUp' || e.code === 'ArrowDown')) {
+      const idx = p.idx(c.row, c.ch);
+      if (p.notes[idx] >= 0) {
+        const d = e.code === 'ArrowUp' ? 0.05 : -0.05;
+        p.vol[idx] = Math.min(1.0, Math.max(0.0, p.vol[idx] + d));
       }
-      if (e.code === 'ArrowDown') {
-        const idx = p.idx(c.row, c.ch);
-        if (p.notes[idx] !== EMPTY) {
-          p.vol[idx] = Math.min(1.0, Math.max(0.0, p.vol[idx] - 0.05));
-        }
-        return true;
-      }
+      return true;
     }
     switch (e.code) {
-      case 'ArrowUp': c.row = (c.row - 1 + p.rows) % p.rows; return true;
-      case 'ArrowDown': c.row = (c.row + 1) % p.rows; return true;
-      case 'ArrowLeft': c.ch = (c.ch - 1 + p.channels) % p.channels; return true;
-      case 'ArrowRight': c.ch = (c.ch + 1) % p.channels; return true;
+      case 'ArrowUp': c.row = (c.row - 1 + p.rows) % p.rows; this.view.revealCursor(); this._digitEntry = null; return true;
+      case 'ArrowDown': c.row = (c.row + 1) % p.rows; this.view.revealCursor(); this._digitEntry = null; return true;
+      case 'PageUp': c.row = Math.max(0, c.row - this.view._viewRows()); this.view.revealCursor(); this._digitEntry = null; return true;
+      case 'PageDown': c.row = Math.min(p.rows - 1, c.row + this.view._viewRows()); this.view.revealCursor(); this._digitEntry = null; return true;
+      case 'Home': c.row = 0; this.view.revealCursor(); this._digitEntry = null; return true;
+      case 'End': c.row = p.rows - 1; this.view.revealCursor(); this._digitEntry = null; return true;
+      // Left/Right step through the note → instrument → volume sub-columns,
+      // wrapping to the adjacent channel at the ends.
+      case 'ArrowLeft':
+        if (c.col > 0) c.col--; else { c.ch = (c.ch - 1 + p.channels) % p.channels; c.col = 2; }
+        this._digitEntry = null; return true;
+      case 'ArrowRight':
+        if (c.col < 2) c.col++; else { c.ch = (c.ch + 1) % p.channels; c.col = 0; }
+        this._digitEntry = null; return true;
       case 'Delete': case 'Backspace': p.clear(c.row, c.ch); this._advanceCursorRow(); return true;
       case 'Equal': p.set(c.row, c.ch, OFF, this.controls.selected); this._advanceCursorRow(); return true;
       default: return false;
     }
   }
 
+  // Digit keys edit the instrument (col 1) or volume (col 2) of the note under
+  // the cursor, two-digit accumulation per field (e.g. "2" then "5" → 25).
+  _handleEdit(e) {
+    const m = /^(?:Digit|Numpad)([0-9])$/.exec(e.code);
+    if (!m) return false;
+    const c = this.view.cursor;
+    if (c.col === 0) return false;                 // note column: let piano keys handle it
+    e.preventDefault();
+    const p = this.view.pattern;
+    const idx = p.idx(c.row, c.ch);
+    if (p.notes[idx] < 0) return true;             // no real note here — nothing to edit
+    const d = +m[1];
+    const same = this._digitEntry && this._digitEntry.idx === idx && this._digitEntry.col === c.col;
+    const val = same ? this._digitEntry.first * 10 + d : d;
+    this._digitEntry = same ? null : { idx, col: c.col, first: d };
+    if (c.col === 1) p.inst[idx] = Math.min(val, this.engine.instruments.length - 1);
+    else p.vol[idx] = Math.min(99, val) / 99;
+    return true;
+  }
+
   _advanceCursorRow() {
     const p = this.view.pattern;
     this.view.cursor.row = (this.view.cursor.row + 1) % p.rows;
+    this.view.revealCursor();
+    this._digitEntry = null;
+  }
+
+  // Copy the selected block (or the single cursor cell) into the clipboard.
+  // `cut` also clears the source cells.
+  _copyBlock(cut) {
+    const p = this.view.pattern, s = this.view.selection, c = this.view.cursor;
+    const r0 = s ? s.r0 : c.row, r1 = s ? s.r1 : c.row;
+    const c0 = s ? s.c0 : c.ch,  c1 = s ? s.c1 : c.ch;
+    const cells = [];
+    for (let r = r0; r <= r1; r++) {
+      const rowCells = [];
+      for (let ch = c0; ch <= c1; ch++) {
+        const i = p.idx(r, ch);
+        rowCells.push({ note: p.notes[i], inst: p.inst[i], vol: p.vol[i] });
+        if (cut) p.clear(r, ch);
+      }
+      cells.push(rowCells);
+    }
+    this._clipboard = { rows: r1 - r0 + 1, chans: c1 - c0 + 1, cells };
+  }
+
+  // Paste the clipboard block with its top-left at the cursor, clipped to bounds.
+  _pasteBlock() {
+    const cb = this._clipboard;
+    if (!cb) return;
+    const p = this.view.pattern, c = this.view.cursor;
+    for (let dr = 0; dr < cb.rows; dr++) {
+      const r = c.row + dr;
+      if (r >= p.rows) break;
+      for (let dc = 0; dc < cb.chans; dc++) {
+        const ch = c.ch + dc;
+        if (ch >= p.channels) break;
+        const cell = cb.cells[dr][dc], i = p.idx(r, ch);
+        p.notes[i] = cell.note; p.inst[i] = cell.inst; p.vol[i] = cell.vol;
+      }
+    }
   }
 
   async _togglePlay() {
@@ -516,9 +588,12 @@ class App {
   }
 }
 
-try {
-  new App();
-} catch (err) {
-  $('gl-status').innerHTML = `gl: <span class="err">${err.message}</span>`;
-  console.error(err);
+// Auto-start on the real app page; skip when imported by a test harness.
+if (document.getElementById('grid')) {
+  try {
+    new App();
+  } catch (err) {
+    $('gl-status').innerHTML = `gl: <span class="err">${err.message}</span>`;
+    console.error(err);
+  }
 }

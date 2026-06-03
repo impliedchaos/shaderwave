@@ -23,15 +23,30 @@ served from a domain root or a subpath.
 
 ### Controls
 
-| Key                         | Action                                      |
-| --------------------------- | ------------------------------------------- |
-| **Z–M** / **S,D,G,H,J**    | Piano keys — writes to cursor cell & plays  |
-| **Arrows**                  | Move cursor                                 |
-| **Del**                     | Clear cell                                  |
-| **=**                       | Note-off                                    |
-| **Space**                   | Play / Stop                                 |
+| Key                         | Action                                                        |
+| --------------------------- | ------------------------------------------------------------- |
+| **Z–M** / **S,D,G,H,J**    | Piano keys — write a note to the cursor cell & preview        |
+| **Arrows**                  | Move cursor; **←/→** step note → instrument → volume columns  |
+| **0–9**                     | On the instrument / volume column, set that field (2-digit)   |
+| **Shift+↑/↓**              | Nudge the note's volume ±5%                                   |
+| **PageUp/Dn**, **Home/End** | Page / jump the cursor; **mouse wheel** scrolls the grid      |
+| **Click+drag**              | Select a block of cells                                       |
+| **Ctrl/⌘+C/X/V**           | Copy / cut / paste the selected block (or cursor cell)        |
+| **Del**                     | Clear cell                                                    |
+| **=**                       | Note-off                                                      |
+| **Space**                   | Play / Stop                                                   |
+| **[ / ]**                   | Octave down / up                                              |
 
-Pick an instrument and tweak its parameters in the sidebar panel.
+The transport bar's **LEN** field sets the current pattern's row count.
+
+### Instruments & the instrument table
+
+The sidebar lists an **instrument table** — instances you play from. Each note in a
+pattern references one. Use **+ Add** to add another instance of any engine type
+(e.g. a second 303 with a different cutoff, or three DX7s on different patches);
+right-click an instance to remove it. Each instance has its own color so duplicates
+are distinguishable in the grid. Pick an instance and tweak its parameters in the
+sidebar; a song shows only the instruments it uses.
 
 ## Instruments
 
@@ -185,6 +200,8 @@ google-chrome --headless=new --enable-unsafe-swiftshader --dump-dom \
 # full GPU render path produces finite signal:  test/render-check.html
 # live audio ring/worklet drains with no underruns:  test/audio-check.html
 # drum spectrum / autocorrelation vs reference:   test/drum-analyze.html
+# two instances of one engine render differently:  test/instance-check.html
+# a drum sounds identical on every trigger:         test/onset-check.html
 ```
 
 ## Known Limitations / Next Steps

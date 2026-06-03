@@ -22,10 +22,14 @@ export class TrackerView {
     this.canvas = canvas;
     this.engine = engine;
     this.ctx = canvas.getContext('2d');
-    this.cursor = { row: 0, ch: 0 };
+    this.cursor = { row: 0, ch: 0, col: 0 };   // col: 0 note · 1 instrument · 2 volume
+    this.selection = null;                      // { r0, c0, r1, c1 } (normalized) or null
+    this._dragAnchor = null;
+    this.scroll = 0;                            // top visible row (when stopped)
     this.dpr = Math.min(window.devicePixelRatio || 1, 2);
 
-    canvas.addEventListener('mousedown', (e) => this._onClick(e));
+    canvas.addEventListener('mousedown', (e) => this._onMouseDown(e));
+    canvas.addEventListener('wheel', (e) => { e.preventDefault(); this.scrollBy(Math.sign(e.deltaY) * 3); }, { passive: false });
     this._resize();
     window.addEventListener('resize', () => this._resize());
   }
@@ -38,32 +42,94 @@ export class TrackerView {
     this.canvas.height = Math.floor(r.height * this.dpr);
   }
 
-  _onClick(e) {
+  // Map a mouse event to a {row, ch, col} cell, with row/ch clamped into range.
+  _cellAt(e) {
     const r = this.canvas.getBoundingClientRect();
     const x = e.clientX - r.left, y = e.clientY - r.top;
-    const ch = Math.floor((x - NUM_W) / CH_W);
+    const p = this.pattern;
+    const ch = Math.max(0, Math.min(p.channels - 1, Math.floor((x - NUM_W) / CH_W)));
+    const row = Math.max(0, Math.min(p.rows - 1,
+      Math.floor((y - this._topPad()) / ROW_H) + this._firstVisibleRow()));
+    const local = (x - NUM_W) - ch * CH_W;
+    const col = local >= 70 ? 2 : local >= 38 ? 1 : 0;
+    return { row, ch, col };
+  }
+
+  _onMouseDown(e) {
+    const r = this.canvas.getBoundingClientRect();
+    const x = e.clientX - r.left, y = e.clientY - r.top;
     const p = this.pattern;
 
-    // Click on channel header toggles mute state
+    // Click on channel header toggles mute state.
     if (y >= 0 && y < this._topPad()) {
-      if (ch >= 0 && ch < p.channels) {
-        this.engine.muted[ch] = !this.engine.muted[ch];
-      }
+      const ch = Math.floor((x - NUM_W) / CH_W);
+      if (ch >= 0 && ch < p.channels) this.engine.muted[ch] = !this.engine.muted[ch];
       return;
     }
 
-    const row = Math.floor((y - this._topPad()) / ROW_H) + this._firstVisibleRow();
-    if (ch >= 0 && ch < p.channels && row >= 0 && row < p.rows) {
-      this.cursor.row = row; this.cursor.ch = ch;
-    }
+    const hit = this._cellAt(e);
+    this.cursor.row = hit.row; this.cursor.ch = hit.ch; this.cursor.col = hit.col;
+    this._dragAnchor = { row: hit.row, ch: hit.ch };
+    this.selection = null;                          // a real selection appears once the drag moves
+
+    const move = (ev) => this._onMouseDrag(ev);
+    const up = () => {
+      window.removeEventListener('mousemove', move);
+      window.removeEventListener('mouseup', up);
+      this._dragAnchor = null;
+    };
+    window.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', up);
+  }
+
+  _onMouseDrag(e) {
+    const a = this._dragAnchor;
+    if (!a) return;
+    const hit = this._cellAt(e);
+    this.cursor.row = hit.row; this.cursor.ch = hit.ch;
+    if (hit.row === a.row && hit.ch === a.ch) { this.selection = null; return; }
+    this.selection = {
+      r0: Math.min(a.row, hit.row), r1: Math.max(a.row, hit.row),
+      c0: Math.min(a.ch, hit.ch), c1: Math.max(a.ch, hit.ch),
+    };
+  }
+
+  // x-rect of a cursor sub-field (note/inst/vol) within a channel column at x.
+  static colRect(x, col) {
+    if (col === 1) return [x + 38, 32];
+    if (col === 2) return [x + 70, CH_W - 72];
+    return [x + 2, 36];
   }
 
   _topPad() { return 26; } // header height in CSS px
+
+  _viewRows() {
+    return Math.max(1, Math.floor((this.canvas.height / this.dpr - this._topPad()) / ROW_H));
+  }
+  _maxScroll() { return Math.max(0, this.pattern.rows - this._viewRows()); }
+
   _firstVisibleRow() {
-    // Keep the playhead/cursor roughly centred when the pattern is taller than view.
-    const viewRows = Math.floor((this.canvas.height / this.dpr - this._topPad()) / ROW_H);
-    const focus = this.engine.playing ? this.engine.displayRow : this.cursor.row;
-    return Math.max(0, Math.min(this.pattern.rows - viewRows, focus - Math.floor(viewRows / 2)));
+    // While playing, follow the playhead (centred) and keep `scroll` synced so
+    // stopping doesn't jump. While stopped, the user controls `scroll` (wheel /
+    // PageUp-Down / cursor reveal).
+    if (this.engine.playing) {
+      this.scroll = this.engine.displayRow - Math.floor(this._viewRows() / 2);
+    }
+    this.scroll = Math.max(0, Math.min(this._maxScroll(), this.scroll));
+    return this.scroll;
+  }
+
+  // Scroll by N rows (mouse wheel / paging).
+  scrollBy(rows) {
+    this.scroll = Math.max(0, Math.min(this._maxScroll(), this.scroll + rows));
+  }
+
+  // Adjust scroll so the cursor row stays within the visible window.
+  revealCursor() {
+    const vr = this._viewRows();
+    if (this.cursor.row < this.scroll) this.scroll = this.cursor.row;
+    else if (this.cursor.row >= this.scroll + vr) this.scroll = this.cursor.row - vr + 1;
+    this.scroll = Math.max(0, Math.min(this._maxScroll(), this.scroll));
   }
 
   draw() {
@@ -134,6 +200,20 @@ export class TrackerView {
     }
     ctx.stroke();
 
+    // 3b. Draw drag-selection block (under the cursor highlight).
+    if (this.selection) {
+      const s = this.selection;
+      const sx = NUM_W + s.c0 * CH_W;
+      const sw = (s.c1 - s.c0 + 1) * CH_W;
+      ctx.fillStyle = 'rgba(140, 175, 255, 0.18)';
+      for (let i = 0; i < viewRows; i++) {
+        const row = first + i;
+        if (row >= p.rows) break;
+        if (row < s.r0 || row > s.r1) continue;
+        ctx.fillRect(sx, pad + i * ROW_H, sw, ROW_H);
+      }
+    }
+
     // 4. Draw cursor cell highlight
     for (let i = 0; i < viewRows; i++) {
       const row = first + i;
@@ -143,11 +223,12 @@ export class TrackerView {
       for (let ch = 0; ch < p.channels; ch++) {
         if (row === this.cursor.row && ch === this.cursor.ch) {
           const x = NUM_W + ch * CH_W;
+          const [fx, fw] = TrackerView.colRect(x, this.cursor.col);
           ctx.fillStyle = C('--cursor');
-          ctx.fillRect(x + 0.5, y + 0.5, CH_W - 1, ROW_H - 1);
+          ctx.fillRect(fx + 0.5, y + 0.5, fw - 1, ROW_H - 1);
           ctx.strokeStyle = C('--cursor-border');
           ctx.lineWidth = 1.5;
-          ctx.strokeRect(x + 0.5, y + 0.5, CH_W - 1, ROW_H - 1);
+          ctx.strokeRect(fx + 0.5, y + 0.5, fw - 1, ROW_H - 1);
         }
       }
     }
