@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>ALL_OK</title></head>
+<body><pre id="out">webgl2: OK
+color_buffer_float: true
+MAX_DRAW_BUFFERS: 6
+MAX_FRAGMENT_UNIFORM_VECTORS: 4096
+synth 303: OK
+synth 808: OK
+synth dx7: OK
+synth moog: OK
+mix: OK
+fx-delay: OK
+fx-fdn: OK
+fx-output: OK
+
+=== ALL SHADERS OK ===</pre>
+<script type="module">
+import { createProgram } from '../src/gl/program.js';
+import { COMMON } from '../src/gl/shaders/common.js';
+import { SYNTH_303 } from '../src/gl/shaders/synth-303.js';
+import { SYNTH_DX7 } from '../src/gl/shaders/synth-dx7.js';
+import { SYNTH_808 } from '../src/gl/shaders/synth-808.js';
+import { SYNTH_MOOG } from '../src/gl/shaders/synth-moog.js';
+import { MIX_FS } from '../src/gl/shaders/mix.js';
+import { FX_DELAY_UPDATE } from '../src/gl/shaders/fx-delay-update.js';
+import { FX_FDN_UPDATE } from '../src/gl/shaders/fx-fdn-update.js';
+import { FX_OUTPUT } from '../src/gl/shaders/fx-output.js';
+
+const out = document.getElementById('out');
+const lines = [];
+const log = (s) => { lines.push(s); out.textContent = lines.join('\n'); console.log(s); };
+
+try {
+  const c = document.createElement('canvas');
+  const gl = c.getContext('webgl2');
+  if (!gl) throw new Error('no webgl2 context');
+  log('webgl2: OK');
+  log('color_buffer_float: ' + !!gl.getExtension('EXT_color_buffer_float'));
+  log('MAX_DRAW_BUFFERS: ' + gl.getParameter(gl.MAX_DRAW_BUFFERS));
+  log('MAX_FRAGMENT_UNIFORM_VECTORS: ' + gl.getParameter(gl.MAX_FRAGMENT_UNIFORM_VECTORS));
+
+  const progs = { '303': SYNTH_303, dx7: SYNTH_DX7, '808': SYNTH_808, moog: SYNTH_MOOG };
+  let fail = 0;
+  for (const [k, src] of Object.entries(progs)) {
+    try { createProgram(gl, COMMON + src); log('synth ' + k + ': OK'); }
+    catch (e) { fail++; log('synth ' + k + ': FAIL\n' + e.message); }
+  }
+  try { createProgram(gl, MIX_FS); log('mix: OK'); }
+  catch (e) { fail++; log('mix: FAIL\n' + e.message); }
+
+  for (const [k, src] of [['fx-delay', FX_DELAY_UPDATE], ['fx-fdn', FX_FDN_UPDATE], ['fx-output', FX_OUTPUT]]) {
+    try { createProgram(gl, src); log(k + ': OK'); }
+    catch (e) { fail++; log(k + ': FAIL\n' + e.message); }
+  }
+
+  document.title = fail === 0 ? 'ALL_OK' : ('FAILED_' + fail);
+  log(fail === 0 ? '\n=== ALL SHADERS OK ===' : '\n=== ' + fail + ' FAILURES ===');
+} catch (e) {
+  document.title = 'ERROR';
+  log('FATAL: ' + e.message);
+}
+</script>
+
+</body></html>

@@ -1,0 +1,113 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>pending</title></head>
+<body><pre id="out">running…</pre>
+<script type="module">
+import { createGL } from '../src/gl/context.js';
+import { SynthRenderer } from '../src/gl/synth-renderer.js';
+import { Engine } from '../src/tracker/engine.js';
+import { demoSong, defaultParams } from '../src/tracker/song.js';
+import { BLOCK, VOICES, INSTRUMENTS } from '../src/constants.js';
+
+const out = document.getElementById('out');
+const lines = [];
+const log = (s) => { lines.push(s); out.textContent = lines.join('\n'); console.log(s); };
+
+function stats(buf) {
+  let peak = 0, sum = 0, nan = 0;
+  for (let i = 0; i < buf.length; i++) {
+    const v = buf[i];
+    if (!Number.isFinite(v)) { nan++; continue; }
+    peak = Math.max(peak, Math.abs(v));
+    sum += v * v;
+  }
+  return { peak, rms: Math.sqrt(sum / buf.length), nan };
+}
+
+// Build a voice-data object with a single active voice of one instrument.
+function makeVD(instId, freq, blockStart, params) {
+  const z4 = () => new Float32Array(VOICES * 4);
+  const p0 = z4(), p1 = z4();
+  const name = INSTRUMENTS[instId];
+  for (let k = 0; k < 4; k++) { p0[k] = params[name].p0[k]; p1[k] = params[name].p1[k]; }
+  return {
+    active: Int32Array.of(1, 0, 0, 0, 0, 0, 0, 0),
+    inst: Int32Array.of(instId, 0, 0, 0, 0, 0, 0, 0),
+    freq: Float32Array.of(freq, 0, 0, 0, 0, 0, 0, 0),
+    vel: Float32Array.of(1, 0, 0, 0, 0, 0, 0, 0),
+    onRel: Float32Array.of(-blockStart, 0, 0, 0, 0, 0, 0, 0), // note-on at frame 0
+    offRel: Float32Array.of(1e9, 0, 0, 0, 0, 0, 0, 0),
+    p0, p1,
+    gain: new Float32Array(VOICES).fill(1),
+    pan: new Float32Array(VOICES).fill(0.5),
+    master: 1.0,
+  };
+}
+
+try {
+  const gl = createGL(document.createElement('canvas'));
+  const r = new SynthRenderer(gl, 48000);
+  const params = defaultParams();
+
+  // 1) Per-instrument isolation: 8 consecutive blocks (tests state carry too).
+  log('--- per-instrument (A4=440, 8 blocks) ---');
+  for (let id = 0; id < INSTRUMENTS.length; id++) {
+    let peak = 0, nan = 0, rmsLast = 0;
+    for (let b = 0; b < 8; b++) {
+      const bs = b * BLOCK;
+      const o = r.renderBlock(makeVD(id, 440, bs, params), bs);
+      const s = stats(o);
+      peak = Math.max(peak, s.peak); nan += s.nan; rmsLast = s.rms;
+    }
+    log(`${INSTRUMENTS[id].padEnd(5)} peak=${peak.toFixed(4)} rmsLast=${rmsLast.toFixed(4)} NaN=${nan} ${peak > 1e-4 && nan === 0 ? 'OK' : 'FAIL'}`);
+  }
+
+  // 2) Full demo song through the engine for ~2 seconds.
+  log('\n--- demo song (engine, ~2s) ---');
+  const eng = new Engine(48000);
+  eng.loadSong(demoSong());
+  eng.play();
+  let peak = 0, nan = 0, active = 0, nblocks = 0;
+  for (let b = 0; b * BLOCK < 48000 * 2; b++) {
+    const bs = b * BLOCK;
+    const vd = eng.advance(bs);
+    const o = r.renderBlock(vd, bs);
+    const s = stats(o);
+    peak = Math.max(peak, s.peak); nan += s.nan;
+    active = Math.max(active, vd.active.reduce((a, x) => a + x, 0));
+    nblocks++;
+  }
+  log(`blocks=${nblocks} peak=${peak.toFixed(4)} maxActiveVoices=${active} NaN=${nan} ${peak > 1e-4 && nan === 0 ? 'OK' : 'FAIL'}`);
+
+  // 3) Effects tail: a short 303 burst, then silence. With delay+reverb on, the
+  //    output must keep ringing after the note stops and then decay toward zero.
+  log('\n--- FX tail (303 burst → silence) ---');
+  const r2 = new SynthRenderer(gl, 48000); // fresh rings, FX on by default
+  let burstPeak = 0, tailAfter = 0, tailEnd = 0, fxNan = 0;
+  const TOTAL = 300;          // ~3.2s
+  const BURST = 12;           // ~128ms of note
+  for (let b = 0; b < TOTAL; b++) {
+    const bs = b * BLOCK;
+    let vd;
+    if (b < BURST) { vd = makeVD(0, 110, bs, params); }       // 303 low note
+    else {                                                     // silence: no active voice
+      vd = makeVD(0, 110, bs, params); vd.active[0] = 0;
+    }
+    const o = r2.renderBlock(vd, bs);
+    const s = stats(o);
+    fxNan += s.nan;
+    if (b < BURST) burstPeak = Math.max(burstPeak, s.peak);
+    if (b === BURST + 20) tailAfter = s.peak;                  // ~half a second later
+    if (b === TOTAL - 1) tailEnd = s.peak;
+  }
+  const tailOk = burstPeak > 1e-3 && tailAfter > 1e-4 && tailEnd < tailAfter && fxNan === 0;
+  log(`burstPeak=${burstPeak.toFixed(4)} tail@+0.5s=${tailAfter.toFixed(5)} tail@end=${tailEnd.toFixed(6)} NaN=${fxNan} ${tailOk ? 'OK' : 'FAIL'}`);
+
+  const ok = peak > 1e-4 && nan === 0 && tailOk;
+  document.title = ok ? 'ALL_OK' : 'FAILED';
+  log(ok ? '\n=== RENDER OK ===' : '\n=== RENDER FAILED ===');
+} catch (e) {
+  document.title = 'ERROR';
+  log('FATAL: ' + e.message + '\n' + (e.stack || ''));
+}
+</script>
+</body></html>

@@ -1,0 +1,49 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>pending</title></head>
+<body><pre id="out">running…</pre>
+<script type="module">
+import { AudioPipeline } from '../src/audio/pipeline.js';
+import { BLOCK, PREBUFFER_BLOCKS } from '../src/constants.js';
+
+const out = document.getElementById('out');
+const log = (s) => { out.textContent += '\n' + s; console.log('AUDIOCHK ' + s); };
+
+(async () => {
+  try {
+    // This page is intended to be served WITHOUT cross-origin-isolation headers,
+    // so SharedArrayBuffer should be unavailable — and audio should work anyway.
+    log('crossOriginIsolated=' + self.crossOriginIsolated);
+    log('SharedArrayBuffer=' + (typeof SharedArrayBuffer !== 'undefined'));
+
+    const pipe = new AudioPipeline();
+    pipe.onStats = () => {};
+    const sr = await pipe.init();
+    log('sampleRate=' + sr);
+
+    // Pure 440Hz sine producer — exercises producer → postMessage → worklet.
+    let phase = 0;
+    const inc = 2 * Math.PI * 440 / sr;
+    await pipe.start((blockStart) => {
+      const buf = new Float32Array(BLOCK * 2);
+      for (let i = 0; i < BLOCK; i++) { const s = Math.sin(phase) * 0.2; phase += inc; buf[i*2]=s; buf[i*2+1]=s; }
+      return buf;
+    });
+
+    await new Promise(r => setTimeout(r, 1500));
+
+    const target = PREBUFFER_BLOCKS * BLOCK;
+    const draining = pipe.writtenFrames > target * 2 && pipe.consumedFrames > 0;
+    log('writtenFrames=' + pipe.writtenFrames + ' consumedFrames=' + pipe.consumedFrames);
+    log('underruns=' + pipe.underruns);
+    log('consumerDraining=' + draining);
+    const ok = draining && pipe.underruns < 50;
+    log(ok ? 'RESULT_OK' : 'RESULT_FAIL');
+    document.title = ok ? 'ALL_OK' : 'FAILED';
+    pipe.stop();
+  } catch (e) {
+    log('FATAL ' + e.message);
+    document.title = 'ERROR';
+  }
+})();
+</script>
+</body></html>
