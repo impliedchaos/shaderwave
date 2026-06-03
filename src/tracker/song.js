@@ -2195,6 +2195,288 @@ export const DEMO_SONGS = [
       };
     }
   },
+  {
+    name: "Nonconsensual Assisted Suicide",
+    bpm: 78,
+    params: [
+      // 0: DX7 Lush Pad — wide ethereal FM pad with long release
+      {
+        name: "DX7 Lush Pad",
+        type: "dx7",
+        p0: [1, 1.5, 2.0, 0.35],
+        p1: [1, 0.7, 0.95, 2],
+        ops: [
+          { coarse: 1.0, fine: 0, level: 99, detune: 3,  decay: 3.5,  mode: 0, sustain: 0.85, release: 2.5 },
+          { coarse: 2.0, fine: 1, level: 75, detune: -3, decay: 3.8,  mode: 0, sustain: 0.80, release: 2.8 },
+          { coarse: 1.0, fine: 0, level: 60, detune: 7,  decay: 4.0,  mode: 0, sustain: 0.75, release: 3.0 },
+          { coarse: 3.0, fine: 0, level: 45, detune: 0,  decay: 2.5,  mode: 0, sustain: 0.60, release: 2.0 },
+          { coarse: 5.0, fine: 0, level: 30, detune: -1, decay: 1.5,  mode: 0, sustain: 0.40, release: 1.5 },
+          { coarse: 4.0, fine: 0, level: 20, detune: 2,  decay: 1.0,  mode: 0, sustain: 0.30, release: 1.0 }
+        ]
+      },
+      // 1: Moog Warm Bass — deep, rounded, slow filter
+      { name: "Moog Warm Bass", type: "moog", p0: [180, 0.15, 0.7, 0], p1: [2.0, 0.95, 0.8, 1.2] },
+      // 2: 303 Shimmer — high cutoff, low res, airy texture
+      { name: "303 Shimmer", type: "303", p0: [1800, 0.25, 0.3, 0.15], p1: [1.0, 0.1, 0.6, 0] },
+      // 3: DX7 Bell Arp — glassy FM bells for arpeggiated sparkle
+      {
+        name: "DX7 Glass Bell",
+        type: "dx7",
+        p0: [1, 4.0, 5.0, 0.5],
+        p1: [1, 0.5, 0.7, 5],
+        ops: [
+          { coarse: 1.0, fine: 0, level: 99, detune: 0,  decay: 1.2,  mode: 0, sustain: 0.20, release: 1.8 },
+          { coarse: 4.0, fine: 0, level: 70, detune: 1,  decay: 0.8,  mode: 0, sustain: 0.10, release: 1.5 },
+          { coarse: 7.0, fine: 0, level: 50, detune: -1, decay: 0.5,  mode: 0, sustain: 0.05, release: 1.0 },
+          { coarse: 11.0,fine: 0, level: 35, detune: 2,  decay: 0.3,  mode: 0, sustain: 0.0,  release: 0.8 },
+          { coarse: 1.0, fine: 0, level: 0,  detune: 0,  decay: 0.5,  mode: 0, sustain: 0.5,  release: 0.25 },
+          { coarse: 1.0, fine: 0, level: 0,  detune: 0,  decay: 0.5,  mode: 0, sustain: 0.5,  release: 0.25 }
+        ]
+      },
+      // 4: Moog Ethereal Sub — very low cutoff sub-pad drone
+      { name: "Moog Ethereal Sub", type: "moog", p0: [120, 0.08, 0.85, 0], p1: [1.0, 0.98, 1.2, 1.5] },
+    ],
+    fxParams: {
+      '303': Object.assign(defaultFxParams(), { chorusMix: 0.6, chorusRate: 0.5, chorusDepth: 3.5, delayMix: 0.45, delayTime: 0.6, delayFeedback: 0.55, reverbMix: 0.7, reverbDecay: 0.95 }),
+      'dx7': Object.assign(defaultFxParams(), { chorusMix: 0.5, chorusRate: 0.4, chorusDepth: 3.0, delayMix: 0.4, delayTime: 0.5, delayFeedback: 0.45, reverbMix: 0.75, reverbDecay: 0.95 }),
+      '808': defaultFxParams(),
+      'moog': Object.assign(defaultFxParams(), { chorusMix: 0.35, chorusRate: 0.3, chorusDepth: 2.5, delayMix: 0.3, delayTime: 0.45, delayFeedback: 0.4, reverbMix: 0.65, reverbDecay: 0.93 }),
+    },
+    data: () => {
+      // 8 patterns × 128 rows × 8 channels = ~5:15 at 78 BPM
+      // No drums. Dreamy, atmospheric, warm, uplifting.
+      //
+      // Key: D major
+      // Chord progressions:
+      //   Verse:   D  - Bm  - G  - A      (I  - vi - IV - V)
+      //   Bridge:  Em - G   - A  - F#m    (ii - IV - V  - iii)
+      //   Climax:  D  - A   - Bm - G      (I  - V  - vi - IV)
+      //   Outro:   G  - A   - D  - D      (IV - V  - I  - I)
+
+      const CH = 8;
+      const I_pad = 0, I_bass = 1, I_shimmer = 2, I_bell = 3, I_sub = 4;
+
+      const p = [];
+      for (let i = 0; i < 8; i++) p.push(new Pattern(128, CH));
+
+      // --- MIDI note references ---
+      // D2=38, E2=40, F#2=42, G2=43, A2=45, B2=47
+      // D3=50, E3=52, F#3=54, G3=55, A3=57, B3=59
+      // D4=62, E4=64, F#4=66, G4=67, A4=69, B4=71
+      // D5=74, E5=76, F#5=78, G5=79, A5=81, B5=83
+
+      // Chord voicings (mid register, 3 notes)
+      const chords = {
+        D:   [62, 66, 69],  // D4, F#4, A4
+        Bm:  [59, 62, 66],  // B3, D4, F#4
+        G:   [55, 59, 62],  // G3, B3, D4
+        A:   [57, 61, 64],  // A3, C#4, E4
+        Em:  [52, 55, 59],  // E3, G3, B3
+        Fm:  [54, 57, 61],  // F#3, A3, C#4
+      };
+
+      // High voicings for shimmer layer (octave up)
+      const highChords = {
+        D:   [74, 78, 81],  // D5, F#5, A5
+        Bm:  [71, 74, 78],  // B4, D5, F#5
+        G:   [67, 71, 74],  // G4, B4, D5
+        A:   [69, 73, 76],  // A4, C#5, E5
+        Em:  [64, 67, 71],  // E4, G4, B4
+        Fm:  [66, 69, 73],  // F#4, A4, C#5
+      };
+
+      // Bass notes (octave 2-3)
+      const bassNotes = {
+        D: 38, Bm: 47, G: 43, A: 45, Em: 40, Fm: 42,
+      };
+
+      // Sub-bass drone notes (octave 1-2)
+      const subNotes = {
+        D: 38, Bm: 35, G: 31, A: 33, Em: 28, Fm: 30,
+      };
+
+      // --- Helper: write sustained pad chords across a pattern ---
+      const writePadChords = (pat, progression, vol = 0.5) => {
+        progression.forEach((chordName, barIdx) => {
+          const startRow = barIdx * 16;
+          const chord = chords[chordName];
+          // Sustain for full bar, release on last row
+          chord.forEach((note, ni) => {
+            pat.set(startRow, 0 + ni, note, I_pad, vol);  // spread across ch 0,1,2
+          });
+          // Note-off just before next chord
+          if (barIdx < progression.length - 1) {
+            chord.forEach((_, ni) => {
+              pat.set(startRow + 15, 0 + ni, OFF, I_pad);
+            });
+          } else {
+            // Last bar: let ring to end
+            chord.forEach((_, ni) => {
+              pat.set(127, 0 + ni, OFF, I_pad);
+            });
+          }
+        });
+      };
+
+      // --- Helper: write bass line (whole notes with gentle movement) ---
+      const writeBassLine = (pat, progression, vol = 0.65) => {
+        progression.forEach((chordName, barIdx) => {
+          const startRow = barIdx * 16;
+          const rootNote = bassNotes[chordName];
+          // Root on beat 1
+          pat.set(startRow, 3, rootNote, I_bass, vol);
+          // Gentle octave movement on beat 3
+          pat.set(startRow + 8, 3, rootNote + 12, I_bass, vol * 0.8);
+          // Walk to next note on beat 4.5
+          if (barIdx < progression.length - 1) {
+            const nextRoot = bassNotes[progression[barIdx + 1]];
+            // approach note: chromatic step below next root
+            pat.set(startRow + 14, 3, nextRoot - 1, I_bass, vol * 0.5);
+          }
+        });
+      };
+
+      // --- Helper: write sub-bass drone (one per 2 bars, very slow) ---
+      const writeSubDrone = (pat, progression, vol = 0.4) => {
+        for (let barIdx = 0; barIdx < progression.length; barIdx += 2) {
+          const startRow = barIdx * 16;
+          const note = subNotes[progression[barIdx]];
+          pat.set(startRow, 7, note, I_sub, vol);
+          // Release after 2 bars
+          pat.set(startRow + 31, 7, OFF, I_sub);
+        }
+      };
+
+      // --- Helper: write shimmer arpeggios ---
+      const writeShimmerArp = (pat, progression, vol = 0.3) => {
+        progression.forEach((chordName, barIdx) => {
+          const startRow = barIdx * 16;
+          const notes = highChords[chordName];
+          // Gentle arpeggio: hit every 4th row, cycling through chord tones
+          for (let step = 0; step < 16; step += 4) {
+            const noteIdx = (step / 4) % notes.length;
+            pat.set(startRow + step, 4, notes[noteIdx], I_shimmer, vol);
+            pat.set(startRow + step + 3, 4, OFF, I_shimmer);
+          }
+        });
+      };
+
+      // --- Helper: write bell melody (sparse, dreamy) ---
+      const writeBellMelody = (pat, melody, vol = 0.35) => {
+        // melody: array of [row, note, duration]
+        melody.forEach(([row, note, dur]) => {
+          pat.set(row, 5, note, I_bell, vol);
+          if (dur) pat.set(row + dur, 5, OFF, I_bell);
+        });
+      };
+
+      // --- Progressions per section ---
+      const verse =  ['D', 'Bm', 'G', 'A',  'D', 'Bm', 'G', 'A'];
+      const bridge = ['Em', 'G', 'A', 'Fm', 'Em', 'G', 'A', 'Fm'];
+      const climax = ['D', 'A', 'Bm', 'G',  'D', 'A', 'Bm', 'G'];
+      const outro =  ['G', 'A', 'D', 'D',   'G', 'A', 'D', 'D'];
+
+      // --- Bell melodies (sparse, pentatonic, yearning) ---
+      // Notes from D major pentatonic: D4=62, E4=64, F#4=66, A4=69, B4=71
+      //                                 D5=74, E5=76, F#5=78, A5=81
+      const bellMelody1 = [
+        [4,  78, 6],   // F#5
+        [16, 81, 8],   // A5
+        [32, 74, 6],   // D5
+        [48, 76, 10],  // E5
+        [68, 78, 6],   // F#5
+        [80, 81, 10],  // A5
+        [100, 74, 6],  // D5
+        [112, 78, 10], // F#5
+      ];
+
+      const bellMelody2 = [
+        [0,  81, 10],  // A5
+        [20, 78, 6],   // F#5
+        [32, 83, 8],   // B5
+        [48, 81, 10],  // A5
+        [64, 74, 8],   // D5
+        [80, 76, 6],   // E5
+        [96, 78, 10],  // F#5
+        [112, 81, 12], // A5
+      ];
+
+      const bellMelody3 = [
+        [8,  74, 8],   // D5
+        [24, 78, 6],   // F#5
+        [40, 81, 10],  // A5
+        [56, 83, 8],   // B5
+        [72, 86, 12],  // D6
+        [96, 83, 8],   // B5
+        [112, 81, 12], // A5
+      ];
+
+      const bellMelodyOutro = [
+        [0,  78, 12],  // F#5
+        [24, 74, 12],  // D5
+        [48, 69, 16],  // A4 — lower, fading
+        [80, 66, 16],  // F#4
+        [112, 62, 16], // D4 — final settling note
+      ];
+
+      // ===== Pattern 0: Awakening — sub drone + very quiet pads =====
+      writeSubDrone(p[0], verse, 0.35);
+      writePadChords(p[0], verse, 0.2);
+
+      // ===== Pattern 1: Breathing — pads swell, bass enters gently =====
+      writePadChords(p[1], verse, 0.4);
+      writeBassLine(p[1], verse, 0.45);
+      writeSubDrone(p[1], verse, 0.35);
+
+      // ===== Pattern 2: Unfolding — shimmer arps + first bell notes =====
+      writePadChords(p[2], verse, 0.5);
+      writeBassLine(p[2], verse, 0.6);
+      writeSubDrone(p[2], verse, 0.35);
+      writeShimmerArp(p[2], verse, 0.2);
+      writeBellMelody(p[2], bellMelody1, 0.3);
+
+      // ===== Pattern 3: Yearning — bridge chords, fuller texture =====
+      writePadChords(p[3], bridge, 0.55);
+      writeBassLine(p[3], bridge, 0.65);
+      writeSubDrone(p[3], bridge, 0.4);
+      writeShimmerArp(p[3], bridge, 0.28);
+      writeBellMelody(p[3], bellMelody2, 0.35);
+
+      // ===== Pattern 4: Ardor — climax chords, everything full =====
+      writePadChords(p[4], climax, 0.6);
+      writeBassLine(p[4], climax, 0.7);
+      writeSubDrone(p[4], climax, 0.45);
+      writeShimmerArp(p[4], climax, 0.35);
+      writeBellMelody(p[4], bellMelody3, 0.4);
+
+      // ===== Pattern 5: Rapture — repeat climax, higher bell melody =====
+      writePadChords(p[5], climax, 0.6);
+      writeBassLine(p[5], climax, 0.7);
+      writeSubDrone(p[5], climax, 0.45);
+      writeShimmerArp(p[5], climax, 0.35);
+      // Transpose bell melody up a 4th for soaring effect
+      writeBellMelody(p[5], bellMelody3.map(([r, n, d]) => [r, n + 5, d]), 0.4);
+
+      // ===== Pattern 6: Afterglow — return to verse, gentle descent =====
+      writePadChords(p[6], verse, 0.45);
+      writeBassLine(p[6], verse, 0.5);
+      writeSubDrone(p[6], verse, 0.35);
+      writeShimmerArp(p[6], verse, 0.22);
+      writeBellMelody(p[6], bellMelody1, 0.28);
+
+      // ===== Pattern 7: Dissolution — outro, fade to sub drone =====
+      writePadChords(p[7], outro, 0.3);
+      writeBassLine(p[7], outro, 0.35);
+      writeSubDrone(p[7], outro, 0.3);
+      writeBellMelody(p[7], bellMelodyOutro, 0.25);
+
+      return {
+        patterns: p,
+        order: [0, 1, 2, 3, 4, 5, 6, 7],
+        rowsPerBeat: 4
+      };
+    }
+  },
 ];
 
 export function demoSong() {

@@ -1274,18 +1274,21 @@ export class App {
     
     let options = { 
       mimeType: 'video/webm;codecs=vp9,opus',
-      videoBitsPerSecond: 2500000
+      audioBitsPerSecond: 192000,
+      videoBitsPerSecond: 1024000
     };
     if (!MediaRecorder.isTypeSupported(options.mimeType)) {
       options = { 
         mimeType: 'video/webm;codecs=vp8,opus',
-        videoBitsPerSecond: 2500000
+        audioBitsPerSecond: 192000,
+        videoBitsPerSecond: 1024000
       };
     }
     if (!MediaRecorder.isTypeSupported(options.mimeType)) {
       options = { 
         mimeType: 'video/webm',
-        videoBitsPerSecond: 2500000
+        audioBitsPerSecond: 192000,
+        videoBitsPerSecond: 1024000
       };
     }
     
@@ -1302,6 +1305,10 @@ export class App {
       if (this.pipeline && this.pipeline.node) {
         this.pipeline.node.port.postMessage({ cmd: 'reset' });
       }
+      // Reset frame counters so the fill loop doesn't think the queue is
+      // already saturated from the export session's accumulated frames.
+      this.pipeline.writtenFrames = 0;
+      this.pipeline.consumedFrames = 0;
       try {
         this.pipeline.analyser.disconnect(dest);
       } catch (e) {}
