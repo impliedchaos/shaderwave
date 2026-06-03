@@ -108,14 +108,8 @@ export class SynthRenderer {
       gl.uniform4fv(p.u('uP1[0]'), vd.p1);
 
       if (it.name === 'dx7' && vd.dx7Ops) {
-        gl.uniform1fv(p.u('uOpCoarse[0]'), vd.dx7Ops.coarse);
-        gl.uniform1fv(p.u('uOpFine[0]'), vd.dx7Ops.fine);
-        gl.uniform1fv(p.u('uOpLevel[0]'), vd.dx7Ops.level);
-        gl.uniform1fv(p.u('uOpDetune[0]'), vd.dx7Ops.detune);
-        gl.uniform1fv(p.u('uOpDecay[0]'), vd.dx7Ops.decay);
-        gl.uniform1fv(p.u('uOpMode[0]'), vd.dx7Ops.mode);
-        gl.uniform1fv(p.u('uOpSustain[0]'), vd.dx7Ops.sustain);
-        gl.uniform1fv(p.u('uOpRelease[0]'), vd.dx7Ops.release);
+        gl.uniform4fv(p.u('uOpA[0]'), vd.dx7Ops.A);   // per-voice (coarse,fine,level,detune)
+        gl.uniform4fv(p.u('uOpB[0]'), vd.dx7Ops.B);   // per-voice (mode,sustain,release,decay)
       }
 
       gl.activeTexture(gl.TEXTURE0);

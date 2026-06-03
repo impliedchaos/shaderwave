@@ -12,6 +12,21 @@ export const PREBUFFER_BLOCKS = 10;
 // Instrument identifiers — also used as the synth shader program keys.
 export const INSTRUMENTS = ['303', 'dx7', '808', 'moog'];
 
+// Per-instance accent colours. The first four match the engine-type accents
+// (303/dx7/808/moog order); later entries distinguish additional instances
+// (e.g. a 2nd DX7) in the tracker grid and the sidebar list.
+export const INSTRUMENT_COLORS = [
+  '#39ff14', '#00f0ff', '#ff007f', '#ffb700',
+  '#ff6a00', '#b14dff', '#00ffa3', '#ffe600',
+  '#ff4d6d', '#4d8bff', '#7cfc00', '#ff9cf0',
+];
+
+// Hex colour → rgba() string for glow/shadow tints.
+export function instGlow(hex, a = 0.2) {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
+}
+
 // MIDI note 69 = A4 = 440Hz.
 export const A4 = 440;
 export function noteToFreq(midi) {

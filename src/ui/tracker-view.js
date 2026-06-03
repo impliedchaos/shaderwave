@@ -2,7 +2,6 @@
 // channel showing note + instrument, with a cursor cell and a moving playhead
 // row. Pure rendering + cursor/hit-testing; key handling lives in main.js.
 import { EMPTY, OFF } from '../tracker/pattern.js';
-import { INSTRUMENTS } from '../constants.js';
 
 const NOTE_NAMES = ['C-', 'C#', 'D-', 'D#', 'E-', 'F-', 'F#', 'G-', 'G#', 'A-', 'A#', 'B-'];
 
@@ -251,17 +250,14 @@ export class TrackerView {
           ctx.fillText(noteName(note), x + 8, y + ROW_H / 2);
 
           if (note !== OFF) {
-            const instName = INSTRUMENTS[p.inst[idx]];
+            // Resolve the instrument-table instance: the engine type drives the
+            // label, the per-instance colour drives the tint (so two DX7s differ).
+            const instr = this.engine.instruments[p.inst[idx]];
+            const instName = instr ? instr.type : '303';
             if (isMuted) {
               ctx.fillStyle = 'rgba(106, 124, 150, 0.25)';
             } else {
-              const instColors = {
-                '303': '#39ff14',
-                'dx7': '#00f0ff',
-                '808': '#ff007f',
-                'moog': '#ffb700'
-              };
-              ctx.fillStyle = instColors[instName] || C('--accent');
+              ctx.fillStyle = (instr && instr.color) || C('--accent');
             }
             // Display-only label overrides (keeps the underlying instrument id).
             const INST_LABELS = { 'moog': 'MŌG' };

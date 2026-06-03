@@ -8,21 +8,13 @@ import { AudioPipeline } from './audio/pipeline.js';
 import { Engine } from './tracker/engine.js';
 import { TrackerView } from './ui/tracker-view.js';
 import { Controls, bindKnob } from './ui/controls.js';
-import { demoSong, DEMO_SONGS } from './tracker/song.js';
-import { INSTRUMENTS } from './constants.js';
+import { demoSong, DEMO_SONGS, loadSongInstruments } from './tracker/song.js';
+import { instGlow } from './constants.js';
 import { EMPTY, OFF } from './tracker/pattern.js';
 
 const $ = (id) => document.getElementById(id);
 
 // Deep-clone song params so slider mutations never corrupt the DEMO_SONGS defs.
-function cloneParams(src) {
-  const dst = {};
-  for (const k in src) {
-    dst[k] = { p0: [...src[k].p0], p1: [...src[k].p1] };
-    if (src[k].ops) dst[k].ops = src[k].ops.map(o => ({ ...o }));
-  }
-  return dst;
-}
 function cloneFx(src) {
   const dst = {};
   for (const k in src) dst[k] = { ...src[k] };
@@ -52,9 +44,10 @@ class App {
     this.engine = new Engine(48000); // sample rate reconciled when audio starts
     this.currentSongIdx = 0;
     const initialSong = DEMO_SONGS[this.currentSongIdx];
-    this.engine.loadSong(initialSong.data());
+    const init = loadSongInstruments(initialSong);
+    this.engine.instruments = init.instruments;
+    this.engine.loadSong(init.data);
     this.engine.bpm = initialSong.bpm;
-    this.engine.params = cloneParams(initialSong.params);
     this.fxParams = cloneFx(initialSong.fxParams);
 
     const bpmInput = $('bpm');
@@ -72,21 +65,15 @@ class App {
       instEl: $('instruments'), paramEl: $('params'),
       app: this,
       onSelect: (idx) => {
-        const name = INSTRUMENTS[idx];
-        
-        // Rebuild FX panel for this specific instrument
-        this._buildFxPanel(name);
+        const instr = this.engine.instruments[idx];
 
-        const colors = {
-          '303': { accent: '#39ff14', glow: 'rgba(57, 255, 20, 0.2)' },
-          'dx7': { accent: '#00f0ff', glow: 'rgba(0, 240, 255, 0.2)' },
-          '808': { accent: '#ff007f', glow: 'rgba(255, 0, 127, 0.2)' },
-          'moog': { accent: '#ffb700', glow: 'rgba(255, 183, 0, 0.2)' },
-        };
-        const c = colors[name] || colors['303'];
-        document.documentElement.style.setProperty('--accent', c.accent);
-        document.documentElement.style.setProperty('--accent-glow', c.glow);
-        document.documentElement.style.setProperty('--cursor-border', c.accent);
+        // FX chains are per engine type
+        this._buildFxPanel(instr.type);
+
+        // Theme the UI accent with this instance's colour.
+        document.documentElement.style.setProperty('--accent', instr.color);
+        document.documentElement.style.setProperty('--accent-glow', instGlow(instr.color, 0.2));
+        document.documentElement.style.setProperty('--cursor-border', instr.color);
       },
       onPresetChange: (instName, fxParams) => {
         if (instName !== 'dx7' && fxParams) {
@@ -121,7 +108,7 @@ class App {
 
   _buildFxPanel(itName) {
     const defs = [
-      { category: 'Boss DS-1 Distortion', enableKey: 'distOn' },
+      { category: 'Distortion', enableKey: 'distOn' },
       { label: 'Tone', key: 'tone', min: 0, max: 1, step: 0.01 },
       { label: 'Level', key: 'level', min: 0, max: 2, step: 0.01 },
       { label: 'Dist', key: 'dist', min: 0.001, max: 20, step: 0.1 },
@@ -139,12 +126,12 @@ class App {
       { label: 'Trem Mix', key: 'tremoloMix', min: 0, max: 1, step: 0.01 },
       { label: 'Trem Rate', key: 'tremoloRate', min: 0.5, max: 15.0, step: 0.1 },
 
-      { category: 'Tempo Delay', enableKey: 'delayOn' },
+      { category: 'Delay', enableKey: 'delayOn' },
       { label: 'Dly Time', key: 'delayTime', min: 0.02, max: 1.2, step: 0.01 },
       { label: 'Dly FB', key: 'delayFeedback', min: 0, max: 0.9, step: 0.01 },
       { label: 'Dly Mix', key: 'delayMix', min: 0, max: 1, step: 0.01 },
 
-      { category: 'Reverb Space', enableKey: 'reverbOn' },
+      { category: 'Reverb', enableKey: 'reverbOn' },
       { label: 'Rev Decay', key: 'reverbDecay', min: 0, max: 0.97, step: 0.01 },
       { label: 'Rev Damp', key: 'reverbDamp', min: 0, max: 0.95, step: 0.01 },
       { label: 'Rev Mix', key: 'reverbMix', min: 0, max: 1, step: 0.01 },
@@ -220,6 +207,17 @@ class App {
         songDef.bpm = val;
       }
     };
+    const lenInput = $('pattern-len');
+    if (lenInput) {
+      lenInput.value = this.view.pattern.rows;
+      lenInput.onchange = (e) => {
+        const val = Math.max(1, Math.min(256, +e.target.value || this.view.pattern.rows));
+        e.target.value = val;
+        this.view.pattern.resize(val);
+        if (this.view.cursor.row >= val) this.view.cursor.row = val - 1;
+        this.view.draw();
+      };
+    }
     const volInput = $('volume');
     const volVal = $('volume-val');
     if (volInput && volVal) {
@@ -231,6 +229,14 @@ class App {
     }
     const songSelect = $('song-select');
     if (songSelect) {
+      // Populate from DEMO_SONGS so the list never drifts out of sync.
+      songSelect.innerHTML = '';
+      DEMO_SONGS.forEach((s, i) => {
+        const o = document.createElement('option');
+        o.value = i; o.textContent = s.name;
+        songSelect.appendChild(o);
+      });
+      songSelect.value = String(this.currentSongIdx);
       songSelect.onchange = (e) => {
         const idx = parseInt(e.target.value);
         const songDef = DEMO_SONGS[idx];
@@ -241,7 +247,10 @@ class App {
             bpmInput.value = songDef.bpm;
           }
           this.engine.bpm = songDef.bpm;
-          this.engine.params = cloneParams(songDef.params);
+          // Build the instrument table for this song, pruned to the engines it
+          // actually uses (also discards any user-added instances).
+          const loaded = loadSongInstruments(songDef);
+          this.engine.instruments = loaded.instruments;
           this.fxParams = cloneFx(songDef.fxParams);
 
           if (this.renderer) {
@@ -249,21 +258,21 @@ class App {
               it.fx.params = this.fxParams[it.name];
             }
           }
-          
+
           const wasPlaying = this.engine.playing;
           this.engine.stop();
-          this.engine.loadSong(songDef.data());
-          
-          // Rebuild active panels for selected instrument
-          const currentInstName = INSTRUMENTS[this.controls.selected];
-          this._buildFxPanel(currentInstName);
-          this.controls._populatePresets();
-          this.controls._buildParams();
+          this.engine.loadSong(loaded.data);
+
+          // Reset to a valid instance and rebuild the selector + all panels.
+          this.controls.selected = 0;
+          this.controls.select(0);
 
           this.view.cursor.row = 0;
           this.view.cursor.ch = 0;
+          const lenInput = $('pattern-len');
+          if (lenInput) lenInput.value = this.view.pattern.rows;
           this.view.draw();
-          
+
           if (wasPlaying) {
             this.engine.play();
           }
@@ -314,7 +323,7 @@ class App {
   }
 
   _keyToNote(code) {
-    if (this.controls.selected === INSTRUMENTS.indexOf('808')) {
+    if (this.engine.instruments[this.controls.selected].type === '808') {
       const semi = KEY_SEMI[code];
       return semi == null ? null : (DRUM_KEYS[semi] ?? null);
     }

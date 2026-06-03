@@ -4,9 +4,9 @@
 //
 // Mapping: tracker channel index == voice index (8 channels → 8 voices, mono per
 // channel). When a new note hits a channel, it overwrites that voice.
-import { VOICES, INSTRUMENTS, noteToFreq, BLOCK } from '../constants.js';
+import { VOICES, INSTRUMENTS, INSTRUMENT_COLORS, noteToFreq, BLOCK } from '../constants.js';
 import { EMPTY, OFF } from './pattern.js';
-import { defaultParams, DRUM_MAP } from './song.js';
+import { defaultParams, instrumentsFromParams, DRUM_MAP } from './song.js';
 
 const HELD = 1e9; // offRel sentinel: note is still held
 
@@ -23,11 +23,15 @@ export class Engine {
     this.displayRow = 0;
     this.displayOrder = 0;
 
-    this.params = defaultParams();
+    // Instrument table: a list of instances, each { name, type, p0, p1, ops? }.
+    // Patterns/voices reference an instance by index. Seeded with one instance per
+    // engine type (INSTRUMENTS order); the UI can append more (e.g. two 303s).
+    this.instruments = instrumentsFromParams(defaultParams());
 
-    // Per-voice runtime state (absolute frames).
+    // Per-voice runtime state (absolute frames). `instrument` = index into
+    // this.instruments; `inst` = engine-type id (for uInst[v] / shader dispatch).
     this.voices = Array.from({ length: VOICES }, () => ({
-      active: false, inst: 0, freq: 440, vel: 0,
+      active: false, inst: 0, instrument: 0, freq: 440, vel: 0,
       onFrame: 0, offFrame: HELD,
     }));
 
@@ -46,15 +50,12 @@ export class Engine {
       gain: new Float32Array(VOICES).fill(1),
       pan: new Float32Array(VOICES).fill(0.5),
       master: 0.32,
+      // Per-voice DX7 operator config, packed into two vec4 arrays (keeps the
+      // fragment-uniform count low vs 8 scalar arrays). Indexed [v*6 + op]:
+      //   A = (coarse, fine, level, detune)   B = (mode, sustain, release, decay)
       dx7Ops: {
-        coarse: new Float32Array(6),
-        fine: new Float32Array(6),
-        level: new Float32Array(6),
-        detune: new Float32Array(6),
-        decay: new Float32Array(6),
-        mode: new Float32Array(6),
-        sustain: new Float32Array(6),
-        release: new Float32Array(6)
+        A: new Float32Array(VOICES * 6 * 4),
+        B: new Float32Array(VOICES * 6 * 4),
       }
     };
 
@@ -81,30 +82,65 @@ export class Engine {
 
   // --- note triggering ----------------------------------------------------
 
+  // `inst` is an index into this.instruments (the instrument table).
   triggerNote(ch, note, inst, vol, frame) {
     const v = this.voices[ch];
     if (note === OFF) { v.offFrame = frame; return; }
+    const idx = this.instruments[inst] ? inst : 0;   // clamp stale/out-of-range
+    const instr = this.instruments[idx];
     v.active = true;
-    v.inst = inst;
+    v.instrument = idx;
+    v.inst = INSTRUMENTS.indexOf(instr.type);         // engine-type id for dispatch
     v.vel = vol;
     v.onFrame = frame;
     v.offFrame = HELD;
-    if (INSTRUMENTS[inst] === '808') {
+    if (instr.type === '808') {
       v.freq = 220; // unused by 808, but keep sane
-      this._writeParams(ch, '808', DRUM_MAP[note] ?? 0);
+      this._writeParams(ch, instr, DRUM_MAP[note] ?? 0);
     } else {
       v.freq = noteToFreq(note);
-      this._writeParams(ch, INSTRUMENTS[inst], null);
+      this._writeParams(ch, instr, null);
     }
   }
 
-  // Copy an instrument's param banks into the voice's slots. For 808, override
-  // the drum-slot field (p0.x) from the note's drum index.
-  _writeParams(ch, instName, drumSlot) {
-    const pr = this.params[instName];
+  // Copy an instrument instance's param banks into the voice's slots. For 808,
+  // override the drum-slot field (p0.x) from the note's drum index.
+  _writeParams(ch, instr, drumSlot) {
     const o = ch * 4;
-    for (let k = 0; k < 4; k++) { this.vd.p0[o + k] = pr.p0[k]; this.vd.p1[o + k] = pr.p1[k]; }
+    for (let k = 0; k < 4; k++) { this.vd.p0[o + k] = instr.p0[k]; this.vd.p1[o + k] = instr.p1[k]; }
     if (drumSlot !== null) this.vd.p0[o] = drumSlot;
+  }
+
+  // Append a new instrument instance of the given engine type; returns its index.
+  addInstrument(type) {
+    const dp = defaultParams()[type];
+    const used = new Set(this.instruments.map((i) => i.color));
+    const color = INSTRUMENT_COLORS.find((c) => !used.has(c))
+      || INSTRUMENT_COLORS[this.instruments.length % INSTRUMENT_COLORS.length];
+    const e = { name: type.toUpperCase(), type, color, p0: [...dp.p0], p1: [...dp.p1] };
+    if (dp.ops) e.ops = dp.ops.map((o) => ({ ...o }));
+    this.instruments.push(e);
+    return this.instruments.length - 1;
+  }
+
+  // Remove an instance (keeps ≥1). Silences voices on it, shifts higher voice/
+  // pattern references down, and remaps cells that pointed at it to instance 0.
+  removeInstrument(idx) {
+    if (this.instruments.length <= 1) return false;
+    this.instruments.splice(idx, 1);
+    for (const v of this.voices) {
+      if (v.instrument === idx) v.active = false;
+      else if (v.instrument > idx) v.instrument--;
+    }
+    if (this.song) {
+      for (const pat of this.song.patterns) {
+        for (let i = 0; i < pat.inst.length; i++) {
+          if (pat.inst[i] === idx) pat.inst[i] = 0;
+          else if (pat.inst[i] > idx) pat.inst[i]--;
+        }
+      }
+    }
+    return true;
   }
 
   // Live keyboard preview — round-robins across voices so chords are possible.
@@ -148,17 +184,21 @@ export class Engine {
     }
 
     this._refreshVoiceData(blockStart);
-    const dxOps = this.params['dx7']?.ops;
-    if (dxOps) {
+
+    // Refresh each active DX7 voice's operator config from ITS instrument, packed
+    // into the per-voice vec4 arrays. Refreshing every block (not just at trigger)
+    // keeps knob edits live; per-voice means two DX7 instances can differ.
+    const { A, B } = this.vd.dx7Ops;
+    for (let v = 0; v < VOICES; v++) {
+      const vc = this.voices[v];
+      if (!vc.active) continue;
+      const instr = this.instruments[vc.instrument];
+      if (!instr || instr.type !== 'dx7' || !instr.ops) continue;
       for (let i = 0; i < 6; i++) {
-        this.vd.dx7Ops.coarse[i] = dxOps[i].coarse;
-        this.vd.dx7Ops.fine[i] = dxOps[i].fine;
-        this.vd.dx7Ops.level[i] = dxOps[i].level;
-        this.vd.dx7Ops.detune[i] = dxOps[i].detune;
-        this.vd.dx7Ops.decay[i] = dxOps[i].decay;
-        this.vd.dx7Ops.mode[i] = dxOps[i].mode !== undefined ? dxOps[i].mode : 0;
-        this.vd.dx7Ops.sustain[i] = dxOps[i].sustain !== undefined ? dxOps[i].sustain : 0.7;
-        this.vd.dx7Ops.release[i] = dxOps[i].release !== undefined ? dxOps[i].release : 0.25;
+        const op = instr.ops[i];
+        const o = (v * 6 + i) * 4;
+        A[o] = op.coarse; A[o + 1] = op.fine; A[o + 2] = op.level; A[o + 3] = op.detune;
+        B[o] = op.mode ?? 0; B[o + 1] = op.sustain ?? 0.7; B[o + 2] = op.release ?? 0.25; B[o + 3] = op.decay;
       }
     }
     return this.vd;

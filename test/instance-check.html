@@ -1,0 +1,59 @@
+<!doctype html><html><head><meta charset="utf-8"><title>pending</title></head>
+<body><pre id="out">running…</pre>
+<script type="module">
+import { createGL } from '/src/gl/context.js';
+import { SynthRenderer } from '/src/gl/synth-renderer.js';
+import { Engine } from '/src/tracker/engine.js';
+import { BLOCK, VOICES, INSTRUMENTS } from '/src/constants.js';
+const out=document.getElementById('out'); const log=s=>{out.textContent+=s+'\n';console.log(s);};
+const SR=48000;
+
+// Render `nb` blocks of an engine, returning the raw per-voice audio rows of the
+// given engine type's program (BLOCK*VOICES). voice row v = channel v.
+function renderRows(eng, r, gl, typeId, nb) {
+  const fbo=gl.createFramebuffer(); const buf=new Float32Array(BLOCK*4);
+  const rows=Array.from({length:VOICES},()=>new Float32Array(nb*BLOCK));
+  for(let b=0;b<nb;b++){ const bs=b*BLOCK; const vd=eng.advance(bs); r.renderBlock(vd,bs);
+    for(let v=0;v<VOICES;v++){
+      gl.bindFramebuffer(gl.FRAMEBUFFER,fbo);
+      gl.framebufferTexture2D(gl.FRAMEBUFFER,gl.COLOR_ATTACHMENT0,gl.TEXTURE_2D,r.inst[typeId].audio,0);
+      gl.readPixels(0,v,BLOCK,1,gl.RGBA,gl.FLOAT,buf);
+      for(let i=0;i<BLOCK;i++) rows[v][b*BLOCK+i]=buf[i*4];
+    }
+  }
+  return rows;
+}
+const diff=(a,b)=>{let m=0,e=0;for(let i=0;i<a.length;i++){m=Math.max(m,Math.abs(a[i]-b[i]));e+=(a[i]-b[i])**2;}return{m,rms:Math.sqrt(e/a.length)};};
+const rms=(a)=>{let e=0;for(let i=0;i<a.length;i++)e+=a[i]*a[i];return Math.sqrt(e/a.length);};
+
+try{
+  const gl=createGL(document.createElement('canvas'));
+  const id303=INSTRUMENTS.indexOf('303'), idDx7=INSTRUMENTS.indexOf('dx7');
+
+  // --- Two 303s with different cutoffs ---
+  {
+    const eng=new Engine(SR); const r=new SynthRenderer(gl,SR);
+    eng.instruments[0].p0[0]=300;                    // instance 0: low cutoff
+    const i2=eng.addInstrument('303'); eng.instruments[i2].p0[0]=3500; // instance: high cutoff
+    eng.triggerNote(0, 45, 0,  1, 0);                // ch0 -> instance 0
+    eng.triggerNote(1, 45, i2, 1, 0);                // ch1 -> high-cutoff instance, same note
+    const rows=renderRows(eng,r,gl,id303,6);
+    const d=diff(rows[0],rows[1]);
+    log(`TWO 303s (cutoff 300 vs 3500): rmsA=${rms(rows[0]).toFixed(4)} rmsB=${rms(rows[1]).toFixed(4)} diffRMS=${d.rms.toFixed(4)}  ${d.rms>1e-3?'DIFFERENT ✓':'IDENTICAL ✗'}`);
+  }
+
+  // --- Two DX7s with different patches ---
+  {
+    const eng=new Engine(SR); const r=new SynthRenderer(gl,SR);
+    const a=eng.addInstrument('dx7'), b=eng.addInstrument('dx7');
+    eng.instruments[a].p1[0]=1;  eng.instruments[a].ops.forEach((o,k)=>{o.coarse=1+k; o.level=k<2?99:0;});
+    eng.instruments[b].p1[0]=32; eng.instruments[b].ops.forEach((o,k)=>{o.coarse=2+k*0.5; o.level=99;}); // all carriers
+    eng.triggerNote(0, 57, a, 1, 0);
+    eng.triggerNote(1, 57, b, 1, 0);
+    const rows=renderRows(eng,r,gl,idDx7,6);
+    const d=diff(rows[0],rows[1]);
+    log(`TWO DX7s (algo1 2-op vs algo32 6-op): rmsA=${rms(rows[0]).toFixed(4)} rmsB=${rms(rows[1]).toFixed(4)} diffRMS=${d.rms.toFixed(4)}  ${d.rms>1e-3?'DIFFERENT ✓':'IDENTICAL ✗'}`);
+  }
+  document.title='DONE'; log('=== DONE ===');
+}catch(e){document.title='ERROR';log('FATAL: '+e.message+'\n'+(e.stack||''));}
+</script></body></html>

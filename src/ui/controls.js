@@ -1,6 +1,7 @@
-// Sidebar: instrument selector + parameter sliders. Editing a slider writes
-// straight into engine.params, which the engine snapshots onto each new note.
-import { INSTRUMENTS } from '../constants.js';
+// Sidebar: instrument selector + parameter sliders. The selector lists the
+// engine's instrument table (instances); editing a slider writes straight into
+// the selected instance, which the engine snapshots onto each new note.
+import { INSTRUMENTS, instGlow } from '../constants.js';
 import { DEMO_SONGS } from '../tracker/song.js';
 
 const DX7_ROMS = [
@@ -120,27 +121,69 @@ export class Controls {
     // Load the first ROM initially
     this.loadRom(DX7_ROMS[0].file);
 
+    this._buildAddMenu();
     this._buildInstruments();
     this._buildParams();
   }
 
+  // The currently selected instrument-table instance and its engine type.
+  get _instr() { return this.engine.instruments[this.selected]; }
+  get _type() { return this._instr.type; }
+
+  // The "+ Add" dropdown (above the list) — pick an engine type to append.
+  _buildAddMenu() {
+    const sel = document.getElementById('inst-add');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">+ Add</option>'
+      + INSTRUMENTS.map((t) => `<option value="${t}">${t.toUpperCase()}</option>`).join('');
+    sel.value = '';
+    sel.onchange = (e) => {
+      const type = e.target.value;
+      e.target.value = '';
+      if (!type) return;
+      const idx = this.engine.addInstrument(type);
+      this.select(idx);   // select() rebuilds the list
+    };
+  }
+
   _buildInstruments() {
     this.instEl.innerHTML = '';
-    INSTRUMENTS.forEach((name, i) => {
+    this.engine.instruments.forEach((instr, i) => {
       const b = document.createElement('button');
-      b.textContent = name.toUpperCase();
-      b.className = i === this.selected ? 'sel' : '';
+      b.textContent = instr.name || instr.type.toUpperCase();
+      const sel = i === this.selected;
+      b.className = sel ? 'sel' : '';
+      // Each instance carries its own colour so duplicate engines are
+      // distinguishable here and in the tracker grid.
+      b.style.color = instr.color;
+      if (sel) {
+        b.style.borderColor = instr.color;
+        b.style.boxShadow = `0 0 12px ${instGlow(instr.color)}, inset 0 0 8px ${instGlow(instr.color)}`;
+        b.style.textShadow = `0 0 8px ${instGlow(instr.color)}`;
+      }
+      b.title = 'Click to select · right-click to remove';
       b.onclick = () => { this.select(i); };
+      b.oncontextmenu = (e) => {
+        e.preventDefault();
+        if (this.engine.removeInstrument(i)) {
+          if (this.selected >= this.engine.instruments.length) {
+            this.selected = this.engine.instruments.length - 1;
+          }
+          this.select(this.selected);   // select() rebuilds the list
+        }
+      };
       this.instEl.appendChild(b);
     });
   }
 
   select(i) {
     this.selected = i;
-    [...this.instEl.children].forEach((b, j) => b.className = j === i ? 'sel' : '');
-    
+    // Rebuild the list so per-instance colours/glow recompute for the new
+    // selection (a plain class toggle would leave the old button's inline glow).
+    this._buildInstruments();
+
     // Toggle UI visibility for ROM and Operator selectors
-    const isDX7 = INSTRUMENTS[i] === 'dx7';
+    const isDX7 = this._type === 'dx7';
     const sysexRow = document.getElementById('sysex-select-row');
     const opRow = document.getElementById('op-select-row');
     if (sysexRow) sysexRow.style.display = isDX7 ? 'flex' : 'none';
@@ -160,8 +203,8 @@ export class Controls {
     if (!presetSelect) return;
     
     presetSelect.innerHTML = '';
-    const instName = INSTRUMENTS[this.selected];
-    
+    const instName = this._type;
+
     if (instName === 'dx7' && this.dx7Patches) {
       this.dx7Patches.forEach((p, idx) => {
         const opt = document.createElement('option');
@@ -180,11 +223,11 @@ export class Controls {
   }
 
   loadPreset(presetIdx) {
-    const instName = INSTRUMENTS[this.selected];
+    const instName = this._type;
     if (instName === 'dx7') {
       if (this.dx7Patches && this.dx7Patches[presetIdx]) {
         const patch = this.dx7Patches[presetIdx];
-        const pr = this.engine.params['dx7'];
+        const pr = this._instr;
         pr.p1[0] = patch.algo;
         pr.p0[3] = patch.feedback;
         for (let k = 0; k < 6; k++) {
@@ -202,7 +245,7 @@ export class Controls {
       const plist = PRESETS[instName];
       if (plist && plist[presetIdx]) {
         const preset = plist[presetIdx];
-        const prDst = this.engine.params[instName];
+        const prDst = this._instr;
         prDst.p0 = [...preset.p0];
         prDst.p1 = [...preset.p1];
         if (this.onPresetChange && preset.fx) {
@@ -222,7 +265,7 @@ export class Controls {
       this.dx7Patches = this.parseSysex(data);
       
       // If active instrument is dx7, refresh presets and select first
-      if (INSTRUMENTS[this.selected] === 'dx7') {
+      if (this._type === 'dx7') {
         this._populatePresets();
         this.loadPreset(0);
       }
@@ -300,8 +343,8 @@ export class Controls {
   }
 
   _buildParams() {
-    const name = INSTRUMENTS[this.selected];
-    const pr = this.engine.params[name];
+    const name = this._type;
+    const pr = this._instr;
     this.paramEl.innerHTML = '';
     
     let defs = PARAM_DEFS[name];

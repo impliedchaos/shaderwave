@@ -347,6 +347,21 @@
     border-radius: 4px;
   }
   
+  .inst-add {
+    float: right;
+    background: rgba(16, 22, 34, 0.6);
+    color: var(--dim);
+    border: 1px solid var(--panel-border);
+    border-radius: 4px;
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 11px; font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 2px 6px;
+    cursor: pointer;
+  }
+  .inst-add:hover { border-color: var(--accent); color: var(--accent); }
+
   .inst-list {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
@@ -706,6 +721,8 @@
       <label>BPM <input id="bpm" type="number" value="174" min="40" max="300" /></label>
       <div class="lcd-divider"></div>
       <label>OCT <input id="octave" type="number" value="4" min="0" max="8" /></label>
+      <div class="lcd-divider"></div>
+      <label>LEN <input id="pattern-len" type="number" value="128" min="1" max="256" /></label>
     </div>
     <div class="control-group">
       <span class="vol-label">VOL</span>
@@ -722,7 +739,7 @@
       <div class="visualizer-card">
         <canvas id="visualizer"></canvas>
       </div>
-      <h2>Instruments <span class="glow-dot"></span></h2>
+      <h2>Instruments <span class="glow-dot"></span><select id="inst-add" class="inst-add" title="Add an instrument"></select></h2>
       <div id="instruments" class="inst-list"></div>
       <h2>Parameters <span class="glow-dot"></span></h2>
       <div id="preset-controls" style="margin-bottom: 12px; display: flex; flex-direction: column; gap: 8px; padding: 0 10px;">

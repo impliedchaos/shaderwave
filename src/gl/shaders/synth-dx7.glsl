@@ -7,20 +7,18 @@
 //   uP0 = (carrierRatio, modRatio, modIndex, feedback 0..1)
 //   uP1 = (algorithm[1..32], modDecay s, ampDecay s, ratioC)
 
-uniform float uOpCoarse[6];
-uniform float uOpFine[6];
-uniform float uOpLevel[6];
-uniform float uOpDetune[6];
-uniform float uOpDecay[6];
-uniform float uOpMode[6];
-uniform float uOpSustain[6];
-uniform float uOpRelease[6];
+// Per-voice operator config, packed into two vec4 arrays (indexed [v*6 + op]) to
+// keep the fragment-uniform-vector count low. Filled by the engine per active voice.
+//   uOpA = (coarse, fine, level, detune)   uOpB = (mode, sustain, release, decay)
+uniform vec4 uOpA[VOICES * 6];
+uniform vec4 uOpB[VOICES * 6];
 
 void main(){
   int x = int(gl_FragCoord.x);
   int v = int(gl_FragCoord.y);
   outState = vec4(0.0);
   if (!voiceLive(v)) { outAudio = vec4(0.0); return; }
+  int b = v * 6;   // base index into the per-voice operator arrays
 
   float t = (float(x) - uOnRel[v]) / uSampleRate;
   if (t < 0.0) { outAudio = vec4(0.0); return; }
@@ -32,39 +30,40 @@ void main(){
   int algo = int(p1.x + 0.5);
   float mDecay = p1.y, aDecay = p1.z, cR2 = p1.w;
 
-  float env1 = adsr(t, tRel, 0.002, uOpDecay[0], uOpSustain[0], uOpRelease[0]);
-  float env2 = adsr(t, tRel, 0.002, uOpDecay[1], uOpSustain[1], uOpRelease[1]);
-  float env3 = adsr(t, tRel, 0.002, uOpDecay[2], uOpSustain[2], uOpRelease[2]);
-  float env4 = adsr(t, tRel, 0.002, uOpDecay[3], uOpSustain[3], uOpRelease[3]);
-  float env5 = adsr(t, tRel, 0.002, uOpDecay[4], uOpSustain[4], uOpRelease[4]);
-  float env6 = adsr(t, tRel, 0.002, uOpDecay[5], uOpSustain[5], uOpRelease[5]);
+  float env1 = adsr(t, tRel, 0.002, uOpB[b+0].w, uOpB[b+0].y, uOpB[b+0].z);
+  float env2 = adsr(t, tRel, 0.002, uOpB[b+1].w, uOpB[b+1].y, uOpB[b+1].z);
+  float env3 = adsr(t, tRel, 0.002, uOpB[b+2].w, uOpB[b+2].y, uOpB[b+2].z);
+  float env4 = adsr(t, tRel, 0.002, uOpB[b+3].w, uOpB[b+3].y, uOpB[b+3].z);
+  float env5 = adsr(t, tRel, 0.002, uOpB[b+4].w, uOpB[b+4].y, uOpB[b+4].z);
+  float env6 = adsr(t, tRel, 0.002, uOpB[b+5].w, uOpB[b+5].y, uOpB[b+5].z);
 
   // DX7 Level to Gain formula: gain = 2^((Level + 99*env - 198) / 8)
-  float lvl1 = uOpLevel[0] <= 0.0 ? 0.0 : exp2((uOpLevel[0] + 99.0 * env1 - 198.0) / 8.0);
-  float lvl2 = uOpLevel[1] <= 0.0 ? 0.0 : exp2((uOpLevel[1] + 99.0 * env2 - 198.0) / 8.0);
-  float lvl3 = uOpLevel[2] <= 0.0 ? 0.0 : exp2((uOpLevel[2] + 99.0 * env3 - 198.0) / 8.0);
-  float lvl4 = uOpLevel[3] <= 0.0 ? 0.0 : exp2((uOpLevel[3] + 99.0 * env4 - 198.0) / 8.0);
-  float lvl5 = uOpLevel[4] <= 0.0 ? 0.0 : exp2((uOpLevel[4] + 99.0 * env5 - 198.0) / 8.0);
-  float lvl6 = uOpLevel[5] <= 0.0 ? 0.0 : exp2((uOpLevel[5] + 99.0 * env6 - 198.0) / 8.0);
+  float lvl1 = uOpA[b+0].z <= 0.0 ? 0.0 : exp2((uOpA[b+0].z + 99.0 * env1 - 198.0) / 8.0);
+  float lvl2 = uOpA[b+1].z <= 0.0 ? 0.0 : exp2((uOpA[b+1].z + 99.0 * env2 - 198.0) / 8.0);
+  float lvl3 = uOpA[b+2].z <= 0.0 ? 0.0 : exp2((uOpA[b+2].z + 99.0 * env3 - 198.0) / 8.0);
+  float lvl4 = uOpA[b+3].z <= 0.0 ? 0.0 : exp2((uOpA[b+3].z + 99.0 * env4 - 198.0) / 8.0);
+  float lvl5 = uOpA[b+4].z <= 0.0 ? 0.0 : exp2((uOpA[b+4].z + 99.0 * env5 - 198.0) / 8.0);
+  float lvl6 = uOpA[b+5].z <= 0.0 ? 0.0 : exp2((uOpA[b+5].z + 99.0 * env6 - 198.0) / 8.0);
 
-  float f1 = uOpMode[0] > 0.5 ?
-             pow(10.0, uOpCoarse[0] + uOpFine[0] * 0.01) * (1.0 + uOpDetune[0] * 0.0002) :
-             freq * (uOpCoarse[0] * (1.0 + uOpFine[0] * 0.01) + uOpDetune[0] * 0.0002);
-  float f2 = uOpMode[1] > 0.5 ?
-             pow(10.0, uOpCoarse[1] + uOpFine[1] * 0.01) * (1.0 + uOpDetune[1] * 0.0002) :
-             freq * (uOpCoarse[1] * (1.0 + uOpFine[1] * 0.01) + uOpDetune[1] * 0.0002);
-  float f3 = uOpMode[2] > 0.5 ?
-             pow(10.0, uOpCoarse[2] + uOpFine[2] * 0.01) * (1.0 + uOpDetune[2] * 0.0002) :
-             freq * (uOpCoarse[2] * (1.0 + uOpFine[2] * 0.01) + uOpDetune[2] * 0.0002);
-  float f4 = uOpMode[3] > 0.5 ?
-             pow(10.0, uOpCoarse[3] + uOpFine[3] * 0.01) * (1.0 + uOpDetune[3] * 0.0002) :
-             freq * (uOpCoarse[3] * (1.0 + uOpFine[3] * 0.01) + uOpDetune[3] * 0.0002);
-  float f5 = uOpMode[4] > 0.5 ?
-             pow(10.0, uOpCoarse[4] + uOpFine[4] * 0.01) * (1.0 + uOpDetune[4] * 0.0002) :
-             freq * (uOpCoarse[4] * (1.0 + uOpFine[4] * 0.01) + uOpDetune[4] * 0.0002);
-  float f6 = uOpMode[5] > 0.5 ?
-             pow(10.0, uOpCoarse[5] + uOpFine[5] * 0.01) * (1.0 + uOpDetune[5] * 0.0002) :
-             freq * (uOpCoarse[5] * (1.0 + uOpFine[5] * 0.01) + uOpDetune[5] * 0.0002);
+  // op freq: B.x=mode (>0.5 = fixed Hz), A.x=coarse, A.y=fine, A.w=detune
+  float f1 = uOpB[b+0].x > 0.5 ?
+             pow(10.0, uOpA[b+0].x + uOpA[b+0].y * 0.01) * (1.0 + uOpA[b+0].w * 0.0002) :
+             freq * (uOpA[b+0].x * (1.0 + uOpA[b+0].y * 0.01) + uOpA[b+0].w * 0.0002);
+  float f2 = uOpB[b+1].x > 0.5 ?
+             pow(10.0, uOpA[b+1].x + uOpA[b+1].y * 0.01) * (1.0 + uOpA[b+1].w * 0.0002) :
+             freq * (uOpA[b+1].x * (1.0 + uOpA[b+1].y * 0.01) + uOpA[b+1].w * 0.0002);
+  float f3 = uOpB[b+2].x > 0.5 ?
+             pow(10.0, uOpA[b+2].x + uOpA[b+2].y * 0.01) * (1.0 + uOpA[b+2].w * 0.0002) :
+             freq * (uOpA[b+2].x * (1.0 + uOpA[b+2].y * 0.01) + uOpA[b+2].w * 0.0002);
+  float f4 = uOpB[b+3].x > 0.5 ?
+             pow(10.0, uOpA[b+3].x + uOpA[b+3].y * 0.01) * (1.0 + uOpA[b+3].w * 0.0002) :
+             freq * (uOpA[b+3].x * (1.0 + uOpA[b+3].y * 0.01) + uOpA[b+3].w * 0.0002);
+  float f5 = uOpB[b+4].x > 0.5 ?
+             pow(10.0, uOpA[b+4].x + uOpA[b+4].y * 0.01) * (1.0 + uOpA[b+4].w * 0.0002) :
+             freq * (uOpA[b+4].x * (1.0 + uOpA[b+4].y * 0.01) + uOpA[b+4].w * 0.0002);
+  float f6 = uOpB[b+5].x > 0.5 ?
+             pow(10.0, uOpA[b+5].x + uOpA[b+5].y * 0.01) * (1.0 + uOpA[b+5].w * 0.0002) :
+             freq * (uOpA[b+5].x * (1.0 + uOpA[b+5].y * 0.01) + uOpA[b+5].w * 0.0002);
 
   // Operator base phases
   float ph1 = fract(f1 * t);

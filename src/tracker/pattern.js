@@ -24,4 +24,20 @@ export class Pattern {
     this.vol[i] = vol;
   }
   clear(row, ch) { this.notes[this.idx(row, ch)] = EMPTY; }
+
+  // Grow or shrink the pattern to `newRows`, preserving existing cells (rows
+  // beyond a shrink are dropped; new rows are empty).
+  resize(newRows) {
+    newRows = Math.max(1, Math.min(256, Math.round(newRows)));
+    if (newRows === this.rows) return;
+    const ch = this.channels, n = newRows * ch;
+    const notes = new Int16Array(n).fill(EMPTY);
+    const inst = new Uint8Array(n);
+    const vol = new Float32Array(n).fill(1);
+    const keep = Math.min(this.rows, newRows) * ch;
+    notes.set(this.notes.subarray(0, keep));
+    inst.set(this.inst.subarray(0, keep));
+    vol.set(this.vol.subarray(0, keep));
+    this.notes = notes; this.inst = inst; this.vol = vol; this.rows = newRows;
+  }
 }

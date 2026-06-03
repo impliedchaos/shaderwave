@@ -1,12 +1,55 @@
 // Song = ordered list of patterns + the default instrument parameter banks, plus
 // a built-in demo so the app makes sound on first load.
-import { Pattern, OFF } from './pattern.js';
-import { INSTRUMENTS } from '../constants.js';
+import { Pattern, OFF, EMPTY } from './pattern.js';
+import { INSTRUMENTS, INSTRUMENT_COLORS } from '../constants.js';
 import { defaultFxParams } from '../gl/effects.js';
 
 // MIDI note → 808 drum slot (GM-ish drum map). The 808 shader reads the slot
 // from uP0.x; the note itself only selects which drum, not a pitch.
 export const DRUM_MAP = { 36: 0, 38: 1, 42: 2, 46: 3, 39: 4, 41: 5, 45: 6, 48: 7, 56: 8 };
+
+// Build the instrument table from a song's per-engine-type param banks. Produces
+// one instance per engine in INSTRUMENTS order, so existing pattern `inst` values
+// (0=303, 1=dx7, 2=808, 3=moog) keep resolving to the right engine + params. The
+// UI can append more instances (e.g. a second 303) on top at runtime.
+export function instrumentsFromParams(params) {
+  return INSTRUMENTS.map((type, i) => {
+    const pr = params[type];
+    const e = { name: type.toUpperCase(), type, color: INSTRUMENT_COLORS[i % INSTRUMENT_COLORS.length], p0: [...pr.p0], p1: [...pr.p1] };
+    if (pr.ops) e.ops = pr.ops.map((o) => ({ ...o }));
+    return e;
+  });
+}
+
+// Load a song's runtime state with its instrument table pruned to only the
+// engines its patterns actually play, remapping pattern instrument-indices to
+// the compact table. Returns { instruments, data } for the engine. (Demo
+// data()/params keep referencing all four engines by INSTRUMENTS order; the
+// prune happens here so the sidebar never shows instruments a song doesn't use.)
+export function loadSongInstruments(songDef) {
+  const full = instrumentsFromParams(songDef.params);   // 4, in INSTRUMENTS order
+  const data = songDef.data();
+
+  const used = new Set();
+  for (const pat of data.patterns) {
+    for (let i = 0; i < pat.inst.length; i++) {
+      if (pat.notes[i] !== EMPTY) used.add(pat.inst[i]);
+    }
+  }
+  if (used.size === 0) used.add(0);                      // always keep ≥1
+
+  const keep = [...used].sort((a, b) => a - b);          // preserve engine order
+  const remap = new Map(keep.map((oldIdx, newIdx) => [oldIdx, newIdx]));
+  const instruments = keep.map((oldIdx) => full[oldIdx]);
+
+  for (const pat of data.patterns) {
+    for (let i = 0; i < pat.inst.length; i++) {
+      const m = remap.get(pat.inst[i]);
+      pat.inst[i] = m === undefined ? 0 : m;             // unused cells → instance 0
+    }
+  }
+  return { instruments, data };
+}
 
 // Default per-instrument param banks (p0, p1). See each shader for the layout.
 export function defaultParams() {
@@ -844,7 +887,7 @@ export const DEMO_SONGS = [
       }
       return { patterns: [p], order: [0], rowsPerBeat: 4 };
     }
-  }
+  },
 ];
 
 export function demoSong() {
