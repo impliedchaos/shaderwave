@@ -267,6 +267,8 @@
     background: #040508;
     border-right: 1px solid var(--panel-border);
     box-shadow: inset 10px 0 30px rgba(0, 0, 0, 0.8);
+    display: flex;
+    flex-direction: column;
   }
   
   #tracker canvas { display: block; width: 100%; height: 100%; }
@@ -686,6 +688,344 @@
     background: var(--panel-solid);
     color: var(--text);
   }
+
+  /* Tracker Tabs & Song Editor UI */
+  .tracker-tabs {
+    display: flex;
+    background: rgba(10, 15, 28, 0.9);
+    border-bottom: 1px solid var(--panel-border);
+    padding: 0 10px;
+    gap: 5px;
+  }
+  
+  .tab-btn {
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--dim);
+    font-family: var(--font-ui);
+    font-size: 13px;
+    font-weight: 600;
+    padding: 12px 18px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    outline: none;
+  }
+  
+  .tab-btn:hover {
+    color: #fff;
+    border-bottom: 2px solid rgba(0, 240, 255, 0.4);
+  }
+  
+  .tab-btn.active {
+    color: var(--accent);
+    border-bottom: 2px solid var(--accent);
+    text-shadow: 0 0 8px var(--accent-glow);
+  }
+  
+  .tab-content {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+  }
+  
+  .pattern-toolbar {
+    display: flex;
+    align-items: center;
+    background: rgba(14, 21, 37, 0.4);
+    border-bottom: 1px solid var(--panel-border);
+    padding: 8px 16px;
+    gap: 16px;
+  }
+
+  .toolbar-divider {
+    height: 18px;
+    width: 1px;
+    background: rgba(45, 60, 85, 0.5);
+  }
+
+  .toolbar-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--dim);
+    letter-spacing: 0.8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    text-transform: uppercase;
+  }
+
+  .toolbar-input {
+    background: rgba(3, 5, 8, 0.6);
+    border: 1px solid rgba(45, 60, 85, 0.6);
+    border-radius: 4px;
+    color: var(--accent);
+    text-shadow: 0 0 6px var(--accent-glow);
+    font-size: 13px;
+    font-weight: 700;
+    padding: 3px 6px;
+    width: 48px;
+    text-align: center;
+    font-family: 'JetBrains Mono', monospace;
+    transition: all 0.3s ease;
+    -moz-appearance: textfield;
+  }
+  
+  .toolbar-input::-webkit-outer-spin-button,
+  .toolbar-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
+  .toolbar-input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 8px var(--accent-glow);
+  }
+
+  .pattern-selector {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .pat-nav-btn {
+    background: rgba(22, 30, 46, 0.6);
+    border: 1px solid var(--panel-border);
+    color: var(--text);
+    border-radius: 4px;
+    padding: 3px 8px;
+    font-size: 10px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  
+  .pat-nav-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    box-shadow: 0 0 8px var(--accent-glow);
+  }
+
+  .pat-num-val {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    font-weight: 700;
+    color: var(--accent);
+    text-shadow: 0 0 6px var(--accent-glow);
+    min-width: 20px;
+    text-align: center;
+  }
+
+  .play-pattern-btn {
+    background: rgba(6, 9, 19, 0.85);
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    border-radius: 6px;
+    padding: 6px 16px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    cursor: pointer;
+    box-shadow: 0 0 10px var(--accent-glow);
+    backdrop-filter: blur(5px);
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  
+  .play-pattern-btn:hover {
+    background: var(--accent);
+    color: #000;
+    box-shadow: 0 0 20px var(--accent);
+    transform: translateY(-1px);
+  }
+
+  .play-pattern-btn.playing {
+    border-color: var(--hot);
+    color: var(--hot);
+    box-shadow: 0 0 10px var(--hot-glow);
+  }
+
+  .play-pattern-btn.playing:hover {
+    background: var(--hot);
+    color: #fff;
+    box-shadow: 0 0 20px var(--hot);
+  }
+  
+  .song-editor-container {
+    display: flex;
+    gap: 20px;
+    height: 100%;
+    padding: 20px;
+    overflow: hidden;
+  }
+  
+  .song-editor-section {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    background: rgba(13, 19, 33, 0.4);
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    padding: 15px;
+  }
+
+  .song-editor-section.timeline-section {
+    flex: 1.5;
+  }
+  
+  .song-editor-section h3 {
+    margin: 0 0 15px 0;
+    font-family: var(--font-heading);
+    font-size: 16px;
+    color: #fff;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    letter-spacing: 1px;
+  }
+  
+  .plus-btn {
+    background: rgba(0, 240, 255, 0.1);
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: 700;
+    transition: all 0.2s ease;
+  }
+  
+  .plus-btn:hover {
+    background: var(--accent);
+    color: #000;
+    box-shadow: 0 0 10px var(--accent);
+  }
+  
+  .arranger-list {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding-right: 5px;
+  }
+  
+  /* Custom scrollbar for arranger lists */
+  .arranger-list::-webkit-scrollbar {
+    width: 6px;
+  }
+  .arranger-list::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .arranger-list::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+  }
+  .arranger-list::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.2);
+  }
+  
+  .arranger-card {
+    background: rgba(20, 28, 45, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 6px;
+    padding: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    transition: all 0.2s ease;
+  }
+
+  .arranger-card.selected-pattern {
+    border-color: var(--accent);
+    background: rgba(0, 240, 255, 0.05);
+    box-shadow: 0 0 10px rgba(0, 240, 255, 0.1);
+  }
+  
+  .arranger-card.active-order {
+    border-color: var(--hot);
+    background: rgba(255, 0, 127, 0.05);
+    box-shadow: 0 0 10px rgba(255, 0, 127, 0.15);
+  }
+  
+  .arranger-card-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    cursor: pointer;
+    flex-grow: 1;
+  }
+  
+  .arranger-card-title {
+    font-weight: 600;
+    font-size: 14px;
+    color: #fff;
+  }
+  
+  .arranger-card-sub {
+    font-size: 11px;
+    color: var(--dim);
+    font-family: 'JetBrains Mono', monospace;
+  }
+  
+  .arranger-card-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  
+  .arranger-btn {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: var(--text);
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  
+  .arranger-btn:hover {
+    background: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 255, 255, 0.3);
+  }
+  
+  .arranger-btn.danger:hover {
+    background: var(--hot);
+    color: #fff;
+    border-color: var(--hot);
+    box-shadow: 0 0 8px var(--hot-glow);
+  }
+
+  .arranger-select {
+    background: #060913;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #fff;
+    font-family: var(--font-ui);
+    font-size: 12px;
+    border-radius: 4px;
+    padding: 3px 6px;
+    outline: none;
+    cursor: pointer;
+  }
+
+  .arranger-select:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 5px var(--accent-glow);
+  }
 </style>
 </head>
 <body>
@@ -693,36 +1033,23 @@
   <header>
     <h1>ShaderWave</h1>
     <div class="control-group">
+      <button id="new-song-btn" title="Create a new blank song">📄 New</button>
+      <button id="export" title="Export Song">📤 Export</button>
+    </div>
+    <div class="control-group">
       <button id="play" class="primary">▶ Play</button>
       <button id="stop">■ Stop</button>
     </div>
     <div class="lcd-display">
       <label>SONG 
         <select id="song-select">
-          <option value="0">Hyperkinetic</option>
-          <option value="1">Ambient Drones</option>
-          <option value="2">Dystopian Industrial</option>
-          <option value="3">Cinematic Soundscape</option>
-          <option value="4">Neo-Noir Synthwave</option>
-          <option value="5">Retro Acid Trance</option>
-          <option value="6">Cyberpunk Club</option>
-          <option value="7">Chillwave Sunset</option>
-          <option value="8">IDM Glitch</option>
-          <option value="9">Synth-Pop Anthem</option>
-          <option value="10">Cosmic Space Ambient</option>
-          <option value="11">Darkwave Electro</option>
-          <option value="12">Minimal Hypnotic</option>
-          <option value="13">Chiptune Arcade</option>
-          <option value="14">Liquid Drum & Bass</option>
-          <option value="15">Future Garage</option>
+          <option>Loading songs...</option>
         </select>
       </label>
       <div class="lcd-divider"></div>
       <label>BPM <input id="bpm" type="number" value="174" min="40" max="300" /></label>
       <div class="lcd-divider"></div>
       <label>OCT <input id="octave" type="number" value="4" min="0" max="8" /></label>
-      <div class="lcd-divider"></div>
-      <label>LEN <input id="pattern-len" type="number" value="128" min="1" max="256" /></label>
     </div>
     <div class="control-group">
       <span class="vol-label">VOL</span>
@@ -733,7 +1060,41 @@
     <span class="hint">Z–M = keys · [ / ] = oct · Shift+↑/↓ = vol · Space = play/stop</span>
   </header>
   <div id="main">
-    <div id="tracker"><canvas id="grid"></canvas></div>
+    <div id="tracker">
+      <div class="tracker-tabs">
+        <button id="tab-pattern" class="tab-btn active">🎹 Pattern Editor</button>
+        <button id="tab-song" class="tab-btn">🎬 Song Arranger</button>
+      </div>
+      <div id="pattern-editor-content" class="tab-content">
+        <div class="pattern-toolbar">
+          <div class="pattern-selector">
+            <span class="toolbar-label">Pattern</span>
+            <button id="pat-prev-btn" class="pat-nav-btn" title="Previous Pattern">◀</button>
+            <span id="pat-num-display" class="pat-num-val">0</span>
+            <button id="pat-next-btn" class="pat-nav-btn" title="Next Pattern">▶</button>
+          </div>
+          <div class="toolbar-divider"></div>
+          <button id="play-pattern" class="play-pattern-btn">🔁 Play Pattern</button>
+          <div class="toolbar-divider"></div>
+          <label class="toolbar-label">Length <input id="pattern-len" class="toolbar-input" type="number" value="128" min="1" max="256" /></label>
+        </div>
+        <div style="flex: 1; min-height: 0; position: relative; display: flex; flex-direction: column;">
+          <canvas id="grid"></canvas>
+        </div>
+      </div>
+      <div id="song-arranger-content" class="tab-content" style="display: none;">
+        <div class="song-editor-container">
+          <div class="song-editor-section">
+            <h3>Patterns <button id="add-pattern-btn" class="plus-btn" title="Create a new blank pattern">+</button></h3>
+            <div id="arranger-pattern-list" class="arranger-list"></div>
+          </div>
+          <div class="song-editor-section timeline-section">
+            <h3>Arrangement Timeline <button id="add-order-btn" class="plus-btn" title="Add pattern slot to song order">+</button></h3>
+            <div id="arranger-order-list" class="arranger-list"></div>
+          </div>
+        </div>
+      </div>
+    </div>
     <aside id="sidebar">
       <h2>Monitor <span class="glow-dot"></span></h2>
       <div class="visualizer-card">
@@ -775,6 +1136,64 @@
     </div>
     <div id="status-right">
       <span id="perf-status"></span>
+    </div>
+  </div>
+  <!-- Export Overlay/Dialog Modal -->
+  <div id="export-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(3, 5, 8, 0.9); z-index: 1000; align-items: center; justify-content: center; flex-direction: column; font-family: var(--font-ui);">
+    <!-- Stage 1: Configuration Form -->
+    <div id="export-config-panel" style="background: var(--panel-solid); border: 2px solid var(--accent); box-shadow: 0 0 30px var(--accent-glow); border-radius: 12px; padding: 30px; width: 440px; display: flex; flex-direction: column; gap: 16px; text-align: left;">
+      <h2 style="margin: 0 0 8px 0; color: #fff; font-size: 18px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; font-family: var(--font-heading); text-align: center;">Export Song</h2>
+      
+      <!-- Metadata Inputs -->
+      <div style="display: flex; flex-direction: column; gap: 6px;">
+        <label style="font-size: 11px; font-weight: 700; color: var(--dim); text-transform: uppercase; letter-spacing: 1px;">Song Title</label>
+        <input id="export-song-title" type="text" style="background: #030508; border: 1px solid rgba(45, 60, 85, 0.6); color: #fff; padding: 8px 12px; border-radius: 6px; outline: none; font-size: 14px;" />
+      </div>
+      
+      <div style="display: flex; flex-direction: column; gap: 6px;">
+        <label style="font-size: 11px; font-weight: 700; color: var(--dim); text-transform: uppercase; letter-spacing: 1px;">Author</label>
+        <input id="export-song-author" type="text" value="AI Slop" style="background: #030508; border: 1px solid rgba(45, 60, 85, 0.6); color: #fff; padding: 8px 12px; border-radius: 6px; outline: none; font-size: 14px;" />
+      </div>
+      
+      <div style="display: flex; flex-direction: column; gap: 6px;">
+        <label style="font-size: 11px; font-weight: 700; color: var(--dim); text-transform: uppercase; letter-spacing: 1px;">Filename</label>
+        <input id="export-filename" type="text" style="background: #030508; border: 1px solid rgba(45, 60, 85, 0.6); color: #fff; padding: 8px 12px; border-radius: 6px; outline: none; font-size: 14px; font-family: 'JetBrains Mono', monospace;" />
+      </div>
+      
+      <!-- Format Selection -->
+      <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 4px;">
+        <label style="font-size: 11px; font-weight: 700; color: var(--dim); text-transform: uppercase; letter-spacing: 1px;">Format</label>
+        <div style="display: flex; gap: 24px; background: rgba(16, 22, 34, 0.4); padding: 8px 16px; border-radius: 8px; border: 1px solid rgba(45, 60, 85, 0.2);">
+          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; font-weight: 600; color: #fff;">
+            <input type="radio" name="export-format" value="wav" style="accent-color: var(--accent);" /> WAV (Audio)
+          </label>
+          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; font-weight: 600; color: #fff;">
+            <input type="radio" name="export-format" value="webm" checked style="accent-color: var(--accent);" /> WebM (Video/Audio)
+          </label>
+        </div>
+      </div>
+      
+      <!-- Visualizer Row -->
+      <div id="export-visualizer-row" style="display: flex; align-items: center; gap: 10px; margin-top: 4px;">
+        <input id="export-include-visualizer" type="checkbox" checked style="width: 18px; height: 18px; accent-color: var(--accent); cursor: pointer;" />
+        <label for="export-include-visualizer" style="font-size: 13px; font-weight: 600; color: #fff; cursor: pointer;">Include circular GL visualizer track</label>
+      </div>
+      
+      <!-- Controls -->
+      <div style="display: flex; justify-content: flex-end; gap: 12px; margin-top: 10px; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 16px;">
+        <button id="export-close-btn" style="border-color: var(--panel-border); color: var(--dim);">Cancel</button>
+        <button id="export-start-btn" class="primary" style="padding: 8px 24px;">Export</button>
+      </div>
+    </div>
+    
+    <!-- Stage 2: Progress Panel -->
+    <div id="export-progress-panel" style="display: none; background: var(--panel-solid); border: 2px solid var(--accent); box-shadow: 0 0 30px var(--accent-glow); border-radius: 12px; padding: 30px; text-align: center; width: 400px; flex-direction: column; gap: 20px;">
+      <h2 id="export-progress-title" style="margin: 0; color: #fff; font-size: 18px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; font-family: var(--font-heading);">Exporting Song</h2>
+      <div style="height: 10px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 5px; overflow: hidden; position: relative;">
+        <div id="export-progress" style="width: 0%; height: 100%; background: var(--accent); box-shadow: 0 0 10px var(--accent); transition: width 0.1s ease;"></div>
+      </div>
+      <div id="export-status-text" style="font-family: 'JetBrains Mono', monospace; font-size: 13px; color: var(--dim);">Rendering block 0...</div>
+      <button id="export-cancel" style="border-color: var(--hot); color: var(--hot); width: fit-content; align-self: center;">Cancel</button>
     </div>
   </div>
 </div>

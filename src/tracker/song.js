@@ -8,11 +8,62 @@ import { defaultFxParams } from '../gl/effects.js';
 // from uP0.x; the note itself only selects which drum, not a pitch.
 export const DRUM_MAP = { 36: 0, 38: 1, 42: 2, 46: 3, 39: 4, 41: 5, 45: 6, 48: 7, 56: 8 };
 
+function makeDemoPatterns(p) {
+  // Pattern 0: Intro (Drums muted)
+  const pIntro = new Pattern(p.rows, p.channels);
+  pIntro.notes.set(p.notes);
+  pIntro.inst.set(p.inst);
+  pIntro.vol.set(p.vol);
+  
+  // Clear channel 0 (Kick), 1 (Snare), and 2 (Hats/Clap) in pIntro
+  for (let r = 0; r < p.rows; r++) {
+    for (let c = 0; c < 3; c++) {
+      const idx = r * p.channels + c;
+      pIntro.notes[idx] = EMPTY;
+      pIntro.inst[idx] = 0;
+      pIntro.vol[idx] = 0;
+    }
+  }
+
+  // Pattern 2: Modulated Variation (Bass/Leads transposed up by a perfect fourth)
+  const pBridge = new Pattern(p.rows, p.channels);
+  pBridge.notes.set(p.notes);
+  pBridge.inst.set(p.inst);
+  pBridge.vol.set(p.vol);
+
+  for (let r = 0; r < p.rows; r++) {
+    for (let c = 0; c < p.channels; c++) {
+      const idx = r * p.channels + c;
+      const note = pBridge.notes[idx];
+      if (note !== EMPTY && note !== OFF) {
+        if (c === 3 || c === 4 || c === 5 || c === 6) {
+          pBridge.notes[idx] = note + 5;
+        }
+      }
+    }
+  }
+
+  return { patterns: [pIntro, p, pBridge], order: [0, 1, 2], rowsPerBeat: 4 };
+}
+
 // Build the instrument table from a song's per-engine-type param banks. Produces
 // one instance per engine in INSTRUMENTS order, so existing pattern `inst` values
 // (0=303, 1=dx7, 2=808, 3=moog) keep resolving to the right engine + params. The
 // UI can append more instances (e.g. a second 303) on top at runtime.
 export function instrumentsFromParams(params) {
+  if (Array.isArray(params)) {
+    return params.map((pr, i) => {
+      const e = {
+        name: pr.name || pr.type.toUpperCase(),
+        type: pr.type,
+        color: pr.color || INSTRUMENT_COLORS[i % INSTRUMENT_COLORS.length],
+        p0: [...pr.p0],
+        p1: [...pr.p1]
+      };
+      if (pr.ops) e.ops = pr.ops.map((o) => ({ ...o }));
+      return e;
+    });
+  }
   return INSTRUMENTS.map((type, i) => {
     const pr = params[type];
     const e = { name: type.toUpperCase(), type, color: INSTRUMENT_COLORS[i % INSTRUMENT_COLORS.length], p0: [...pr.p0], p1: [...pr.p1] };
@@ -215,7 +266,732 @@ export const DEMO_SONGS = [
         }
       }
 
-      return { patterns: [p], order: [0], rowsPerBeat: 4 };
+      return makeDemoPatterns(p);
+    }
+  },
+  {
+    name: "Shitty AI Noise",
+    bpm: 125,
+    params: [
+      { name: "303 Acid", type: "303", p0: [380, 0.75, 0.55, 0.3], p1: [0, 0.4, 0.3, 0] },
+      { name: "DX7 Pad", type: "dx7",
+        p0: [1, 2, 2.0, 0.2], p1: [1, 0.7, 0.8, 4],
+        ops: [
+          { coarse: 1.0, fine: 0, level: 99, detune: 0, decay: 0.9, mode: 0, sustain: 0.8, release: 0.4 },
+          { coarse: 1.0, fine: 0, level: 75, detune: 2, decay: 0.8, mode: 0, sustain: 0.7, release: 0.4 },
+          { coarse: 2.0, fine: 0, level: 60, detune: 1, decay: 0.7, mode: 0, sustain: 0.6, release: 0.4 },
+          { coarse: 3.0, fine: 0, level: 50, detune: 0, decay: 0.6, mode: 0, sustain: 0.5, release: 0.4 },
+          { coarse: 1.0, fine: 0, level: 0,  detune: 0, decay: 0.5, mode: 0, sustain: 0.5, release: 0.4 },
+          { coarse: 1.0, fine: 0, level: 0,  detune: 0, decay: 0.5, mode: 0, sustain: 0.5, release: 0.4 }
+        ]
+      },
+      { name: "808 Kit", type: "808", p0: [0, 0.6, 0.5, 0.6], p1: [0, 0, 0, 0] },
+      { name: "Moog Bass", type: "moog", p0: [200, 0.6, 0.7, 0], p1: [4, 0.9, 0.4, 0.8] },
+      { name: "Moog Lead", type: "moog", p0: [1100, 0.25, 0.3, 0], p1: [12, 0.4, 0.7, 0.4] }
+    ],
+    fxParams: {
+      '303': defaultFxParams(),
+      'dx7': defaultFxParams(),
+      '808': defaultFxParams(),
+      'moog': defaultFxParams(),
+    },
+    data: () => {
+      const p0 = new Pattern(64, 8);
+      const p1 = new Pattern(64, 8);
+      const p2 = new Pattern(128, 8);
+
+      const BD = 36, SD = 38, HH = 42, OH = 46, CLAP = 39;
+      const I_303 = 0, I_dx7 = 1, I_808 = 2, I_moogBass = 3, I_moogLead = 4;
+
+      const getRoot = (bar) => {
+        const progression = [36, 46, 44, 43];
+        return progression[bar % 4];
+      };
+
+      for (let r = 0; r < 64; r += 4) {
+        p0.set(r, 0, BD, I_808, 0.9);
+        if (r % 8 === 4) {
+          p0.set(r, 0, SD, I_808, 0.75);
+        }
+      }
+      for (let r = 0; r < 64; r += 2) {
+        p0.set(r, 2, (r % 4 === 2) ? OH : HH, I_808, 0.4);
+      }
+      for (let r = 0; r < 64; r += 2) {
+        const bar = Math.floor(r / 16);
+        const root = getRoot(bar);
+        const note = (r % 4 === 2) ? root + 12 : root;
+        p0.set(r, 3, note, I_moogBass, 0.85);
+        p0.set(r + 1, 3, OFF, I_moogBass);
+      }
+
+      for (let r = 0; r < 64; r += 4) {
+        p1.set(r, 0, BD, I_808, 0.95);
+      }
+      for (let r = 0; r < 64; r += 2) {
+        p1.set(r, 2, HH, I_808, 0.45);
+      }
+      for (let r = 0; r < 64; r++) {
+        if (r >= 48) {
+          const snareStep = (r - 48);
+          if (snareStep % 2 === 0 || snareStep >= 8) {
+            p1.set(r, 1, SD, I_808, 0.5 + (snareStep / 16) * 0.45);
+          }
+        } else if (r % 8 === 4) {
+          p1.set(r, 1, SD, I_808, 0.75);
+        }
+      }
+      for (let r = 0; r < 64; r += 2) {
+        const bar = Math.floor(r / 16);
+        const root = getRoot(bar);
+        const note = (r % 4 === 2) ? root + 12 : root;
+        p1.set(r, 3, note, I_moogBass, 0.85);
+        p1.set(r + 1, 3, OFF, I_moogBass);
+      }
+      for (let r = 0; r < 64; r += 4) {
+        const bar = Math.floor(r / 16);
+        const root = getRoot(bar);
+        const arp = [0, 3, 7, 10, 12, 15, 19, 22];
+        const step = Math.floor((r % 16) / 2);
+        const note = root + 24 + arp[step % arp.length];
+        p1.set(r, 4, note, I_moogLead, 0.75);
+        p1.set(r + 2, 4, OFF, I_moogLead);
+      }
+
+      for (let r = 0; r < 128; r += 4) {
+        p2.set(r, 0, BD, I_808, 1.0);
+        if (r % 8 === 4) {
+          p2.set(r, 1, SD, I_808, 0.85);
+          if (r % 16 === 12) {
+            p2.set(r + 2, 1, CLAP, I_808, 0.75);
+          }
+        }
+      }
+      for (let r = 0; r < 128; r += 2) {
+        p2.set(r, 2, (r % 4 === 2) ? OH : HH, I_808, 0.5);
+      }
+      for (let r = 0; r < 128; r += 2) {
+        const bar = Math.floor(r / 16);
+        const root = getRoot(bar);
+        const riff = [0, 0, 12, 0, 7, 0, 10, 12];
+        const step = Math.floor((r % 16) / 2);
+        const note = root + riff[step % riff.length];
+        p2.set(r, 3, note, I_moogBass, 0.9);
+        p2.set(r + 1, 3, OFF, I_moogBass);
+      }
+      const melody = [
+        60, 63, 67, 72, 70, 67, 65, 67,
+        60, 63, 67, 72, 74, 75, 79, 74,
+        72, 70, 67, 63, 65, 67, 70, 72,
+        74, 75, 77, 79, 82, 84, 86, 87
+      ];
+      for (let r = 0; r < 128; r += 4) {
+        const idx = Math.floor(r / 4);
+        const note = melody[idx % melody.length];
+        p2.set(r, 4, note, I_moogLead, 0.8);
+        p2.set(r + 3, 4, OFF, I_moogLead);
+      }
+      for (let r = 0; r < 128; r += 16) {
+        const bar = Math.floor(r / 16);
+        const root = getRoot(bar);
+        p2.set(r, 5, root + 24, I_dx7, 0.6);
+        p2.set(r, 5, root + 27, I_dx7, 0.6);
+        p2.set(r, 5, root + 31, I_dx7, 0.6);
+        p2.set(r + 12, 5, OFF, I_dx7);
+      }
+      for (let r = 0; r < 128; r += 2) {
+        if (r % 8 === 0 || r % 8 === 3 || r % 8 === 6) {
+          const bar = Math.floor(r / 16);
+          const root = getRoot(bar);
+          const note = root + 12 + (r % 7);
+          p2.set(r, 6, note, I_303, 0.65);
+          p2.set(r + 1, 6, OFF, I_303);
+        }
+      }
+
+      return { patterns: [p0, p1, p2], order: [0, 1, 2], rowsPerBeat: 4 };
+    }
+  },
+  {
+    name: "Voodoo Beats",
+    bpm: 145,
+    params: [
+      { name: "303 Acid", type: "303", p0: [480, 0.75, 0.6, 0.45], p1: [0, 0.4, 0.4, 0] },
+      { name: "DX7 Pad", type: "dx7",
+        p0: [1, 2, 3.0, 0.25], p1: [1, 0.7, 0.8, 4],
+        ops: [
+          { coarse: 1.0, fine: 0, level: 99, detune: 0, decay: 0.9, mode: 0, sustain: 0.8, release: 0.4 },
+          { coarse: 1.0, fine: 0, level: 75, detune: 2, decay: 0.8, mode: 0, sustain: 0.7, release: 0.4 },
+          { coarse: 2.0, fine: 0, level: 60, detune: 1, decay: 0.7, mode: 0, sustain: 0.6, release: 0.4 },
+          { coarse: 3.0, fine: 0, level: 50, detune: 0, decay: 0.6, mode: 0, sustain: 0.5, release: 0.4 },
+          { coarse: 1.0, fine: 0, level: 0,  detune: 0, decay: 0.5, mode: 0, sustain: 0.5, release: 0.4 },
+          { coarse: 1.0, fine: 0, level: 0,  detune: 0, decay: 0.5, mode: 0, sustain: 0.5, release: 0.4 }
+        ]
+      },
+      { name: "808 Kit", type: "808", p0: [0, 0.6, 0.5, 0.6], p1: [0, 0, 0, 0] },
+      { name: "Moog Bass", type: "moog", p0: [250, 0.55, 0.75, 0], p1: [4, 0.8, 0.5, 0.7] },
+      { name: "Moog Lead", type: "moog", p0: [850, 0.35, 0.5, 0], p1: [12, 0.4, 0.6, 0.4] }
+    ],
+    fxParams: {
+      '303': defaultFxParams(),
+      'dx7': defaultFxParams(),
+      '808': defaultFxParams(),
+      'moog': defaultFxParams(),
+    },
+    data: () => {
+      const p0 = new Pattern(32, 8);
+      const p1 = new Pattern(32, 8);
+      const p2 = new Pattern(32, 8);
+      const p3 = new Pattern(32, 8);
+      const p4 = new Pattern(32, 8);
+      const p5 = new Pattern(32, 8);
+      const p6 = new Pattern(64, 8);
+      const p7 = new Pattern(64, 8);
+      const p8 = new Pattern(32, 8);
+      const p9 = new Pattern(32, 8);
+      const p10 = new Pattern(64, 8);
+      const p11 = new Pattern(32, 8);
+      const p12 = new Pattern(32, 8);
+
+      const BD = 36, SD = 38, HH = 42, OH = 46, CLAP = 39;
+      const I_303 = 0, I_dx7 = 1, I_808 = 2, I_moogBass = 3, I_moogLead = 4;
+
+      const setDrums = (pat, start, end, hasKick, hasSnare, hasHats, hasClap) => {
+        for (let r = start; r < end; r++) {
+          const step = r % 16;
+          if (hasKick) {
+            if (step === 0 || step === 8 || step === 11) pat.set(r, 0, BD, I_808, 0.95);
+          }
+          if (hasSnare) {
+            if (step === 4 || step === 12) pat.set(r, 1, SD, I_808, 0.85);
+          }
+          if (hasClap) {
+            if (step === 12) pat.set(r, 1, CLAP, I_808, 0.8);
+          }
+          if (hasHats) {
+            if (step % 2 === 1) pat.set(r, 2, HH, I_808, 0.4);
+            if (step === 6 || step === 14) pat.set(r, 2, OH, I_808, 0.5);
+          }
+        }
+      };
+
+      const setLead = (pat, start, end, vol = 0.8, octShift = 0) => {
+        const riff = [50, 50, 53, 55, 56, 55, 53, 50, 50, 53, 50, 50, 48, 48, 48, 48];
+        for (let r = start; r < end; r++) {
+          const step = r % 16;
+          const note = riff[step];
+          if (note !== EMPTY) {
+            pat.set(r, 4, note + octShift, I_moogLead, vol);
+            if (step === 1 || step === 3 || step === 5 || step === 7 || step === 9 || step === 11 || step === 13 || step === 15) {
+              pat.set(r, 4, OFF, I_moogLead);
+            }
+          }
+        }
+      };
+
+      const setBass = (pat, start, end, vol = 0.85) => {
+        const bass = [38, 38, 38, 38, 41, 41, 43, 43, 38, 38, 38, 38, 36, 36, 36, 36];
+        for (let r = start; r < end; r += 2) {
+          const step = Math.floor((r % 16) / 2);
+          const note = bass[step];
+          pat.set(r, 3, note, I_moogBass, vol);
+          pat.set(r + 1, 3, OFF, I_moogBass);
+        }
+      };
+
+      const setAcid = (pat, start, end, vol = 0.7) => {
+        for (let r = start; r < end; r += 2) {
+          const step = r % 16;
+          if (step === 0 || step === 3 || step === 6 || step === 8 || step === 11 || step === 14) {
+            const note = 50 + (step === 3 ? 3 : step === 6 ? 6 : step === 8 ? 8 : step === 11 ? 5 : 0);
+            pat.set(r, 6, note, I_303, vol);
+            pat.set(r + 1, 6, OFF, I_303);
+          }
+        }
+      };
+
+      for (let r = 0; r < 32; r += 16) {
+        p0.set(r, 5, 50, I_dx7, 0.6);
+        p0.set(r, 5, 53, I_dx7, 0.6);
+        p0.set(r, 5, 57, I_dx7, 0.6);
+        p0.set(r + 14, 5, OFF, I_dx7);
+      }
+
+      setLead(p1, 0, 32, 0.75);
+
+      setDrums(p2, 0, 32, true, false, false, false);
+      setLead(p2, 0, 32, 0.78);
+      setBass(p2, 0, 32, 0.7);
+
+      setDrums(p3, 0, 32, true, false, true, false);
+      setLead(p3, 0, 32, 0.8);
+      setBass(p3, 0, 32, 0.8);
+
+      setDrums(p4, 0, 32, true, true, true, false);
+      setLead(p4, 0, 32, 0.8);
+      setBass(p4, 0, 32, 0.8);
+
+      setDrums(p5, 0, 32, true, true, true, false);
+      setLead(p5, 0, 32, 0.8);
+      setBass(p5, 0, 32, 0.8);
+      setAcid(p5, 0, 32, 0.6);
+
+      setDrums(p6, 0, 64, true, true, true, true);
+      setLead(p6, 0, 64, 0.85);
+      setBass(p6, 0, 64, 0.85);
+      setAcid(p6, 0, 64, 0.75);
+
+      setDrums(p7, 0, 64, true, true, true, false);
+      setBass(p7, 0, 64, 0.8);
+      setAcid(p7, 0, 64, 0.85);
+      for (let r = 0; r < 64; r += 16) {
+        p7.set(r, 5, 62, I_dx7, 0.65);
+        p7.set(r + 12, 5, OFF, I_dx7);
+      }
+
+      setDrums(p8, 0, 32, false, false, true, false);
+      setBass(p8, 0, 32, 0.6);
+      for (let r = 0; r < 32; r += 8) {
+        p8.set(r, 5, 50, I_dx7, 0.5);
+        p8.set(r + 6, 5, OFF, I_dx7);
+      }
+
+      setLead(p9, 0, 32, 0.75);
+      setBass(p9, 0, 32, 0.75);
+      setAcid(p9, 0, 32, 0.65);
+      for (let r = 0; r < 32; r++) {
+        if (r >= 16) {
+          const buildStep = (r - 16);
+          if (buildStep % 2 === 0 || buildStep >= 8) {
+            p9.set(r, 1, SD, I_808, 0.5 + (buildStep / 16) * 0.45);
+          }
+        }
+      }
+
+      setDrums(p10, 0, 64, true, true, true, true);
+      setLead(p10, 0, 64, 0.9, 12);
+      setBass(p10, 0, 64, 0.9);
+      setAcid(p10, 0, 64, 0.85);
+
+      setDrums(p11, 0, 32, true, false, true, false);
+      setBass(p11, 0, 32, 0.75);
+
+      setBass(p12, 0, 32, 0.5);
+
+      return {
+        patterns: [p0, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12],
+        order: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+        rowsPerBeat: 4
+      };
+    }
+  },
+  {
+    name: "Groove 90 (Hot Trash)",
+    bpm: 125,
+    params: [
+      { name: "303 Bass", type: "303", p0: [280, 0.65, 0.5, 0.3], p1: [0, 0.35, 0.4, 0] },
+      { name: "DX7 Brass", type: "dx7",
+        p0: [1, 2, 2.5, 0.2], p1: [1, 0.7, 0.6, 2],
+        ops: [
+          { coarse: 1.0, fine: 0, level: 99, detune: 0, decay: 0.8, mode: 0, sustain: 0.85, release: 0.3 },
+          { coarse: 1.0, fine: 5, level: 85, detune: 2, decay: 0.4, mode: 0, sustain: 0.7, release: 0.3 },
+          { coarse: 2.0, fine: 0, level: 75, detune: -2, decay: 0.3, mode: 0, sustain: 0.6, release: 0.3 },
+          { coarse: 3.0, fine: 0, level: 60, detune: 0, decay: 0.15, mode: 0, sustain: 0.0, release: 0.3 },
+          { coarse: 1.0, fine: 0, level: 0,  detune: 0, decay: 0.5, mode: 0, sustain: 0.5, release: 0.3 },
+          { coarse: 1.0, fine: 0, level: 0,  detune: 0, decay: 0.5, mode: 0, sustain: 0.5, release: 0.3 }
+        ]
+      },
+      { name: "808 House", type: "808", p0: [0, 0.6, 0.5, 0.6], p1: [0, 0, 0, 0] },
+      { name: "Moog Organ", type: "moog", p0: [900, 0.4, 0.45, 0], p1: [8, 0.7, 0.5, 0.8] },
+      { name: "DX7 Piano", type: "dx7",
+        p0: [1, 1, 1.0, 0.1], p1: [1, 0.8, 0.7, 0],
+        ops: [
+          { coarse: 1.0, fine: 0, level: 99, detune: 0, decay: 0.9, mode: 0, sustain: 0.7, release: 0.3 },
+          { coarse: 1.0, fine: 0, level: 85, detune: 1, decay: 0.6, mode: 0, sustain: 0.6, release: 0.3 },
+          { coarse: 2.0, fine: 0, level: 70, detune: 0, decay: 0.5, mode: 0, sustain: 0.5, release: 0.3 },
+          { coarse: 3.0, fine: 0, level: 65, detune: 0, decay: 0.4, mode: 0, sustain: 0.4, release: 0.3 },
+          { coarse: 4.0, fine: 0, level: 60, detune: 0, decay: 0.3, mode: 0, sustain: 0.3, release: 0.3 },
+          { coarse: 5.0, fine: 0, level: 50, detune: 0, decay: 0.2, mode: 0, sustain: 0.2, release: 0.3 }
+        ]
+      }
+    ],
+    fxParams: {
+      '303': defaultFxParams(),
+      'dx7': defaultFxParams(),
+      '808': defaultFxParams(),
+      'moog': defaultFxParams(),
+    },
+    data: () => {
+      const p0 = new Pattern(32, 8);
+      const p1 = new Pattern(32, 8);
+      const p2 = new Pattern(32, 8);
+      const p3 = new Pattern(32, 8);
+      const p4 = new Pattern(32, 8);
+      const p5 = new Pattern(32, 8);
+      const p6 = new Pattern(32, 8);
+      const p7 = new Pattern(32, 8);
+      const p8 = new Pattern(32, 8);
+      const p9 = new Pattern(32, 8);
+      const p10 = new Pattern(32, 8);
+      const p11 = new Pattern(32, 8);
+      const p12 = new Pattern(32, 8);
+      const p13 = new Pattern(32, 8);
+      const p14 = new Pattern(32, 8);
+      const p15 = new Pattern(32, 8);
+
+      const BD = 36, SD = 38, HH = 42, OH = 46, CLAP = 39;
+      const I_303 = 0, I_dx7Brass = 1, I_808 = 2, I_moogLead = 3, I_dx7Piano = 4;
+
+      const setHouseDrums = (pat, hasKick, hasHats, hasSnare, hasClap) => {
+        for (let r = 0; r < 32; r++) {
+          const step = r % 16;
+          if (hasKick) {
+            if (step === 0 || step === 4 || step === 8 || step === 12) {
+              pat.set(r, 0, BD, I_808, 0.95);
+            }
+          }
+          if (hasHats) {
+            if (step === 2 || step === 6 || step === 10 || step === 14) {
+              pat.set(r, 2, OH, I_808, 0.55);
+            } else if (step % 2 === 0) {
+              pat.set(r, 2, HH, I_808, 0.3);
+            }
+          }
+          if (hasSnare) {
+            if (step === 4 || step === 12) {
+              pat.set(r, 1, SD, I_808, 0.8);
+            }
+          }
+          if (hasClap) {
+            if (step === 12) {
+              pat.set(r, 1, CLAP, I_808, 0.75);
+            }
+          }
+        }
+      };
+
+      const setHouseBass = (pat, vol = 0.8) => {
+        const bassCm = [36, EMPTY, 36, 39, EMPTY, 36, EMPTY, 41, EMPTY, 36, 43, EMPTY, 36, EMPTY, 36, OFF];
+        const bassFm = [41, EMPTY, 41, 44, EMPTY, 41, EMPTY, 46, EMPTY, 41, 48, EMPTY, 41, EMPTY, 41, OFF];
+        for (let r = 0; r < 32; r++) {
+          const note = (r < 16) ? bassCm[r % 16] : bassFm[r % 16];
+          if (note !== EMPTY) {
+            pat.set(r, 3, note, I_303, vol);
+          }
+        }
+      };
+
+      const setPianoChords = (pat, vol = 0.65) => {
+        for (let r = 0; r < 32; r += 8) {
+          const isFm = r >= 16;
+          const root = isFm ? 41 : 36;
+          const third = isFm ? 44 : 39;
+          const fifth = isFm ? 48 : 43;
+          
+          pat.set(r, 5, root + 12, I_dx7Piano, vol);
+          pat.set(r, 5, third + 12, I_dx7Piano, vol);
+          pat.set(r, 5, fifth + 12, I_dx7Piano, vol);
+          
+          pat.set(r + 3, 5, root + 12, I_dx7Piano, vol);
+          pat.set(r + 3, 5, third + 12, I_dx7Piano, vol);
+          pat.set(r + 3, 5, fifth + 12, I_dx7Piano, vol);
+          
+          pat.set(r + 6, 5, OFF, I_dx7Piano);
+        }
+      };
+
+      const setBrassStabs = (pat, vol = 0.8) => {
+        const brassRiff = [60, EMPTY, EMPTY, 60, EMPTY, EMPTY, 63, EMPTY, 62, EMPTY, EMPTY, 58, EMPTY, EMPTY, 60, OFF];
+        for (let r = 0; r < 32; r++) {
+          const note = brassRiff[r % 16];
+          if (note !== EMPTY) {
+            pat.set(r, 4, note, I_dx7Brass, vol);
+          }
+        }
+      };
+
+      const setOrganLead = (pat, vol = 0.75) => {
+        const melody = [60, 62, 63, 67, 65, 63, 62, 60, 65, 67, 68, 72, 70, 68, 67, 65];
+        for (let r = 0; r < 32; r += 2) {
+          const step = Math.floor((r % 16) / 2);
+          const note = melody[step + (r >= 16 ? 8 : 0)];
+          pat.set(r, 6, note, I_moogLead, vol);
+          pat.set(r + 1, 6, OFF, I_moogLead);
+        }
+      };
+
+      setHouseDrums(p0, true, false, false, false);
+      setHouseBass(p0, 0.75);
+
+      setHouseDrums(p1, true, true, false, false);
+      setHouseBass(p1, 0.8);
+
+      setHouseDrums(p2, true, true, false, false);
+      setHouseBass(p2, 0.8);
+      setPianoChords(p2, 0.65);
+
+      setHouseDrums(p3, true, true, true, false);
+      setHouseBass(p3, 0.8);
+      setPianoChords(p3, 0.65);
+
+      setHouseDrums(p4, true, true, true, false);
+      setHouseBass(p4, 0.8);
+      setPianoChords(p4, 0.6);
+      setBrassStabs(p4, 0.8);
+
+      setHouseDrums(p5, true, true, true, true);
+      setHouseBass(p5, 0.8);
+      setPianoChords(p5, 0.6);
+      setBrassStabs(p5, 0.85);
+
+      setHouseDrums(p6, true, true, true, true);
+      setHouseBass(p6, 0.8);
+      setPianoChords(p6, 0.6);
+      setOrganLead(p6, 0.75);
+
+      setHouseBass(p7, 0.8);
+      setPianoChords(p7, 0.6);
+      for (let r = 0; r < 32; r++) {
+        if (r >= 16) {
+          const step = r - 16;
+          if (step % 2 === 0 || step >= 8) {
+            p7.set(r, 1, SD, I_808, 0.5 + (step / 16) * 0.45);
+          }
+        }
+      }
+
+      setHouseDrums(p8, true, true, true, true);
+      setHouseBass(p8, 0.85);
+      setPianoChords(p8, 0.7);
+      setOrganLead(p8, 0.8);
+      setBrassStabs(p8, 0.8);
+
+      setHouseDrums(p9, true, true, true, true);
+      setHouseBass(p9, 0.85);
+      setPianoChords(p9, 0.7);
+      setOrganLead(p9, 0.8);
+      setBrassStabs(p9, 0.85);
+
+      setHouseDrums(p10, false, true, false, false);
+      setHouseBass(p10, 0.6);
+      setPianoChords(p10, 0.6);
+      setOrganLead(p10, 0.7);
+
+      setHouseDrums(p11, true, true, false, false);
+      setPianoChords(p11, 0.75);
+
+      setHouseBass(p12, 0.75);
+      setPianoChords(p12, 0.6);
+      for (let r = 0; r < 32; r++) {
+        if (r % 2 === 0) p12.set(r, 2, HH, I_808, 0.4);
+        if (r >= 16) {
+          const step = r - 16;
+          if (step % 2 === 0 || step >= 8) {
+            p12.set(r, 1, SD, I_808, 0.5 + (step / 16) * 0.45);
+          }
+        }
+      }
+
+      setHouseDrums(p13, true, true, true, true);
+      setHouseBass(p13, 0.9);
+      setPianoChords(p13, 0.75);
+      setOrganLead(p13, 0.85);
+      setBrassStabs(p13, 0.9);
+
+      setHouseDrums(p14, true, true, true, false);
+      setHouseBass(p14, 0.8);
+      setPianoChords(p14, 0.65);
+
+      setHouseDrums(p15, true, false, false, false);
+      setHouseBass(p15, 0.7);
+
+      return {
+        patterns: [p0, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15],
+        order: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
+        rowsPerBeat: 4
+      };
+    }
+  },
+  {
+    name: "Gooner Prolapse",
+    bpm: 135,
+    params: [
+      { name: "808 Kick", type: "808", p0: [0, 0.5, 0.8, 0.8], p1: [0, 0, 0, 0] },
+      { name: "303 Bass A", type: "303", p0: [300, 0.8, 0.7, 0.5], p1: [1, 0.3, 0.4, 0] },
+      { name: "303 Bass B", type: "303", p0: [200, 0.9, 0.8, 0.6], p1: [0, 0.2, 0.35, 0] },
+      { name: "303 Lead A", type: "303", p0: [1200, 0.85, 0.6, 0.4], p1: [1, 0.4, 0.4, 0] },
+      { name: "303 Lead B", type: "303", p0: [1500, 0.9, 0.5, 0.3], p1: [0, 0.3, 0.3, 0] },
+      { name: "Moog Bass A", type: "moog", p0: [150, 0.7, 0.8, 0], p1: [4, 0.9, 0.5, 0.8] },
+      { name: "Moog Bass B", type: "moog", p0: [120, 0.8, 0.9, 0], p1: [6, 0.95, 0.6, 0.9] },
+      { name: "Moog Lead A", type: "moog", p0: [900, 0.3, 0.4, 0], p1: [12, 0.5, 0.7, 0.4] },
+      { name: "Moog Lead B", type: "moog", p0: [1400, 0.2, 0.3, 0], p1: [16, 0.4, 0.8, 0.3] }
+    ],
+    fxParams: {
+      '303': Object.assign(defaultFxParams(), { dist: 12.0, tone: 0.6, level: 1.0, master: 0.85, delayMix: 0.3, delayFeedback: 0.45 }),
+      'dx7': defaultFxParams(),
+      '808': Object.assign(defaultFxParams(), { dist: 6.0, tone: 0.5, level: 1.0, master: 0.9 }),
+      'moog': Object.assign(defaultFxParams(), { dist: 10.0, tone: 0.5, level: 1.0, master: 0.8, reverbMix: 0.4, reverbDecay: 0.9 }),
+    },
+    data: () => {
+      const p0 = new Pattern(128, 8);
+      const p1 = new Pattern(128, 8);
+      const p2 = new Pattern(128, 8);
+      const p3 = new Pattern(128, 8);
+      const p4 = new Pattern(128, 8);
+      const p5 = new Pattern(128, 8);
+      const p6 = new Pattern(128, 8);
+      const p7 = new Pattern(128, 8);
+      const p8 = new Pattern(128, 8);
+      const p9 = new Pattern(128, 8);
+      const p10 = new Pattern(128, 8);
+      const p11 = new Pattern(128, 8);
+      const p12 = new Pattern(128, 8);
+      const p13 = new Pattern(128, 8);
+
+      const BD = 36, SD = 38, HH = 42, OH = 46, CLAP = 39;
+      const I_808 = 0;
+      const I_303_1 = 1, I_303_2 = 2, I_303_3 = 3, I_303_4 = 4;
+      const I_moogBass1 = 5, I_moogBass2 = 6, I_moogLead1 = 7, I_moogLead2 = 8;
+
+      const getDarkRoot = (row) => {
+        const progression = [38, 38, 37, 37, 36, 36, 35, 35, 38, 38, 41, 41, 44, 44, 43, 43];
+        const bar = Math.floor(row / 16);
+        return progression[bar % progression.length];
+      };
+
+      const setGoonDrums = (pat, hasKick, hasSnare, hasHats) => {
+        for (let r = 0; r < 128; r++) {
+          const step = r % 16;
+          if (hasKick) {
+            if (step === 0 || step === 6 || step === 10) pat.set(r, 0, BD, I_808, 0.95);
+          }
+          if (hasSnare) {
+            if (step === 4 || step === 12) pat.set(r, 1, SD, I_808, 0.85);
+            if (r >= 112 && r % 4 === 2) pat.set(r, 1, SD, I_808, 0.7);
+          }
+          if (hasHats) {
+            if (step % 2 === 1) pat.set(r, 2, HH, I_808, 0.45);
+            if (step === 6 || step === 14) pat.set(r, 2, OH, I_808, 0.55);
+          }
+        }
+      };
+
+      const setGoonMoogBass = (pat, ch, inst, vol = 0.85) => {
+        for (let r = 0; r < 128; r += 2) {
+          const root = getDarkRoot(r);
+          pat.set(r, ch, root, inst, vol);
+          pat.set(r + 1, ch, OFF, inst);
+        }
+      };
+
+      const setGoon303Bass = (pat, ch, inst, vol = 0.8) => {
+        for (let r = 0; r < 128; r++) {
+          const step = r % 16;
+          if (step === 0 || step === 3 || step === 6 || step === 8 || step === 11 || step === 14) {
+            const root = getDarkRoot(r);
+            const note = root + 12 + (step === 3 ? 1 : step === 6 ? 3 : step === 8 ? 6 : 0);
+            pat.set(r, ch, note, inst, vol);
+            pat.set(r + 1, ch, OFF, inst);
+          }
+        }
+      };
+
+      const setGoon303Lead = (pat, ch, inst, vol = 0.75, offset = 12) => {
+        for (let r = 0; r < 128; r++) {
+          const step = r % 8;
+          if (step === 0 || step === 3 || step === 5) {
+            const root = getDarkRoot(r);
+            pat.set(r, ch, root + offset + 12, inst, vol);
+            pat.set(r + 1, ch, OFF, inst);
+          }
+        }
+      };
+
+      const setGoonMoogLead = (pat, ch, inst, vol = 0.8, offset = 24) => {
+        for (let r = 0; r < 128; r += 4) {
+          const root = getDarkRoot(r);
+          const notes = [0, 1, 3, 4, 3, 1, 0, -1];
+          const note = root + offset + notes[Math.floor(r / 4) % notes.length];
+          pat.set(r, ch, note, inst, vol);
+          pat.set(r + 3, ch, OFF, inst);
+        }
+      };
+
+      setGoonMoogBass(p0, 3, I_moogBass1, 0.75);
+
+      setGoonMoogBass(p1, 3, I_moogBass1, 0.75);
+      setGoonMoogBass(p1, 7, I_moogBass2, 0.75);
+
+      setGoonDrums(p2, true, false, false);
+      setGoonMoogBass(p2, 3, I_moogBass1, 0.8);
+      setGoonMoogBass(p2, 7, I_moogBass2, 0.8);
+
+      setGoonDrums(p3, true, false, false);
+      setGoonMoogBass(p3, 3, I_moogBass1, 0.8);
+      setGoon303Bass(p3, 4, I_303_1, 0.75);
+
+      setGoonDrums(p4, true, false, false);
+      setGoonMoogBass(p4, 3, I_moogBass1, 0.8);
+      setGoon303Bass(p4, 4, I_303_1, 0.75);
+      setGoon303Bass(p4, 5, I_303_2, 0.75);
+
+      setGoonDrums(p5, true, true, true);
+      setGoonMoogBass(p5, 3, I_moogBass1, 0.8);
+      setGoon303Bass(p5, 4, I_303_1, 0.8);
+      setGoon303Bass(p5, 5, I_303_2, 0.8);
+
+      setGoonDrums(p6, true, true, true);
+      setGoonMoogBass(p6, 3, I_moogBass1, 0.8);
+      setGoon303Bass(p6, 4, I_303_1, 0.8);
+      setGoonMoogLead(p6, 6, I_moogLead1, 0.8);
+
+      setGoonDrums(p7, true, true, true);
+      setGoonMoogBass(p7, 3, I_moogBass1, 0.8);
+      setGoon303Bass(p7, 4, I_303_1, 0.8);
+      setGoonMoogLead(p7, 6, I_moogLead1, 0.8);
+      setGoonMoogLead(p7, 7, I_moogLead2, 0.8, 36);
+
+      setGoonDrums(p8, true, true, true);
+      setGoonMoogBass(p8, 3, I_moogBass1, 0.85);
+      setGoon303Bass(p8, 4, I_303_1, 0.85);
+      setGoon303Lead(p8, 5, I_303_3, 0.75);
+
+      setGoonDrums(p9, true, true, true);
+      setGoonMoogBass(p9, 3, I_moogBass1, 0.85);
+      setGoon303Bass(p9, 4, I_303_1, 0.85);
+      setGoon303Lead(p9, 5, I_303_3, 0.75);
+      setGoon303Lead(p9, 6, I_303_4, 0.75, 24);
+
+      setGoonDrums(p10, false, false, true);
+      setGoonMoogBass(p10, 3, I_moogBass1, 0.6);
+      setGoonMoogLead(p10, 6, I_moogLead1, 0.6);
+
+      setGoonMoogBass(p11, 3, I_moogBass1, 0.8);
+      setGoon303Bass(p11, 4, I_303_1, 0.8);
+      for (let r = 0; r < 128; r++) {
+        if (r >= 64) {
+          const step = r - 64;
+          if (step % 2 === 0 || step >= 32) {
+            p11.set(r, 1, SD, I_808, 0.5 + (step / 64) * 0.45);
+          }
+        }
+      }
+
+      setGoonDrums(p12, true, true, true);
+      setGoonMoogBass(p12, 3, I_moogBass1, 0.9);
+      setGoonMoogBass(p12, 7, I_moogBass2, 0.9);
+      setGoon303Bass(p12, 4, I_303_1, 0.9);
+      setGoon303Lead(p12, 5, I_303_3, 0.8);
+      setGoonMoogLead(p12, 6, I_moogLead1, 0.85);
+
+      setGoonDrums(p13, true, false, false);
+      setGoonMoogBass(p13, 3, I_moogBass1, 0.75);
+
+      return {
+        patterns: [p0, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13],
+        order: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 12, 13],
+        rowsPerBeat: 4
+      };
     }
   },
   {
@@ -260,7 +1036,7 @@ export const DEMO_SONGS = [
         p.set(r + 6, 5, OFF, I_dx7); // release tail ringing
       }
 
-      return { patterns: [p], order: [0], rowsPerBeat: 4 };
+      return makeDemoPatterns(p);
     }
   },
   {
@@ -379,7 +1155,7 @@ export const DEMO_SONGS = [
         p.set(r + 2, 5, OFF, I_dx7);
       }
 
-      return { patterns: [p], order: [0], rowsPerBeat: 4 };
+      return makeDemoPatterns(p);
     }
   },
   {
@@ -480,7 +1256,7 @@ export const DEMO_SONGS = [
         p.set(r + 6, 5, OFF, I_dx7);
       }
 
-      return { patterns: [p], order: [0], rowsPerBeat: 4 };
+      return makeDemoPatterns(p);
     }
   },
   {
@@ -529,7 +1305,7 @@ export const DEMO_SONGS = [
         p.set(start + 6, 5, OFF, I['dx7']);
         p.set(start + 6, 7, OFF, I['dx7']);
       }
-      return { patterns: [p], order: [0], rowsPerBeat: 4 };
+      return makeDemoPatterns(p);
     }
   },
   {
@@ -559,7 +1335,7 @@ export const DEMO_SONGS = [
           p.set(r, 3, OFF, I['303']);
         }
       }
-      return { patterns: [p], order: [0], rowsPerBeat: 4 };
+      return makeDemoPatterns(p);
     }
   },
   {
@@ -590,7 +1366,7 @@ export const DEMO_SONGS = [
         p.set(start + 2, 4, note, I['moog'], 0.8);
         p.set(start + 6, 4, OFF, I['moog']);
       }
-      return { patterns: [p], order: [0], rowsPerBeat: 4 };
+      return makeDemoPatterns(p);
     }
   },
   {
@@ -629,7 +1405,7 @@ export const DEMO_SONGS = [
         p.set(start, 4, ch[0] - 12, I['moog'], 0.7);
         p.set(start + 12, 4, OFF, I['moog']);
       }
-      return { patterns: [p], order: [0], rowsPerBeat: 4 };
+      return makeDemoPatterns(p);
     }
   },
   {
@@ -662,7 +1438,7 @@ export const DEMO_SONGS = [
           p.set(r, 3, note, I['303'], 0.75);
         }
       }
-      return { patterns: [p], order: [0], rowsPerBeat: 4 };
+      return makeDemoPatterns(p);
     }
   },
   {
@@ -696,7 +1472,7 @@ export const DEMO_SONGS = [
         p.set(r, 5, note, I['dx7'], 0.7);
         p.set(r + 2, 5, OFF, I['dx7']);
       }
-      return { patterns: [p], order: [0], rowsPerBeat: 4 };
+      return makeDemoPatterns(p);
     }
   },
   {
@@ -722,7 +1498,7 @@ export const DEMO_SONGS = [
         const note = notes[Math.floor(r / 16) % notes.length];
         p.set(r, 5, note, I['dx7'], 0.5);
       }
-      return { patterns: [p], order: [0], rowsPerBeat: 4 };
+      return makeDemoPatterns(p);
     }
   },
   {
@@ -750,7 +1526,7 @@ export const DEMO_SONGS = [
         const step = Math.floor(r / 2) % bass.length;
         p.set(r, 4, bass[step], I['moog'], 0.85);
       }
-      return { patterns: [p], order: [0], rowsPerBeat: 4 };
+      return makeDemoPatterns(p);
     }
   },
   {
@@ -776,7 +1552,7 @@ export const DEMO_SONGS = [
           p.set(r, 3, notes[step], I['303'], 0.7);
         }
       }
-      return { patterns: [p], order: [0], rowsPerBeat: 4 };
+      return makeDemoPatterns(p);
     }
   },
   {
@@ -805,7 +1581,7 @@ export const DEMO_SONGS = [
         const note = chord[r % chord.length];
         p.set(r, 3, note, I['303'], 0.75);
       }
-      return { patterns: [p], order: [0], rowsPerBeat: 4 };
+      return makeDemoPatterns(p);
     }
   },
   {
@@ -851,7 +1627,7 @@ export const DEMO_SONGS = [
         p.set(start + 14, 5, OFF, I['dx7']);
         p.set(start + 14, 7, OFF, I['dx7']);
       }
-      return { patterns: [p], order: [0], rowsPerBeat: 4 };
+      return makeDemoPatterns(p);
     }
   },
   {
@@ -885,7 +1661,538 @@ export const DEMO_SONGS = [
         p.set(start + 10, 4, note + 5, I['moog'], 0.7);
         p.set(start + 14, 4, OFF, I['moog']);
       }
-      return { patterns: [p], order: [0], rowsPerBeat: 4 };
+      return makeDemoPatterns(p);
+    }
+  },
+  {
+    name: "Perky Wombat Tits",
+    bpm: 160,
+    params: [
+      {
+        name: "Lately Bass",
+        type: "dx7",
+        p0: [1, 2, 3.0, 1.5],
+        p1: [14, 0.6, 0.9, 3],
+        ops: [
+          { coarse: 1.0, fine: 0, level: 0, detune: 0, decay: 0.05, mode: 0, sustain: 1.0, release: 0.05 },
+          { coarse: 1.0, fine: 0, level: 0, detune: 0, decay: 0.05, mode: 0, sustain: 1.0, release: 0.05 },
+          { coarse: 0.5, fine: 0, level: 99, detune: 0, decay: 2.505, mode: 0, sustain: 0.0, release: 1.657 },
+          { coarse: 0.5, fine: 0, level: 82, detune: 0, decay: 2.505, mode: 0, sustain: 0.0, release: 1.657 },
+          { coarse: 1.0, fine: 0, level: 79, detune: -3, decay: 1.535, mode: 0, sustain: 0.0, release: 1.657 },
+          { coarse: 1.0, fine: 0, level: 87, detune: 0, decay: 1.657, mode: 0, sustain: 0.0, release: 2.869 }
+        ]
+      },
+      { name: "808 Dance Kit", type: "808", p0: [0, 0.6, 0.5, 0.6], p1: [0, 0, 0, 0] },
+      { name: "Happy Square A", type: "303", p0: [600, 0.5, 0.7, 0.3], p1: [1.0, 0.15, 0.25, 0] },
+      { name: "Happy Square B", type: "303", p0: [800, 0.6, 0.6, 0.4], p1: [1.0, 0.2, 0.3, 0] },
+      { name: "Fat Moog Lead", type: "moog", p0: [1200, 0.4, 0.5, 0], p1: [8, 0.8, 0.6, 0.9] },
+      { name: "FM Bell Chords", type: "dx7",
+        p0: [1, 3, 2.5, 0.4], p1: [1, 0.6, 0.9, 3],
+        ops: [
+          { coarse: 1.0, fine: 0, level: 99, detune: 0, decay: 0.9, mode: 0, sustain: 0.7, release: 0.3 },
+          { coarse: 2.0, fine: 0, level: 85, detune: 1, decay: 0.6, mode: 0, sustain: 0.6, release: 0.3 },
+          { coarse: 3.0, fine: 0, level: 75, detune: 0, decay: 0.5, mode: 0, sustain: 0.5, release: 0.3 },
+          { coarse: 4.0, fine: 0, level: 65, detune: 0, decay: 0.4, mode: 0, sustain: 0.4, release: 0.3 },
+          { coarse: 1.0, fine: 0, level: 0,  detune: 0, decay: 0.5, mode: 0, sustain: 0.5, release: 0.3 },
+          { coarse: 1.0, fine: 0, level: 0,  detune: 0, decay: 0.5, mode: 0, sustain: 0.5, release: 0.3 }
+        ]
+      }
+    ],
+    fxParams: {
+      '303': Object.assign(defaultFxParams(), { chorusMix: 0.4, delayMix: 0.35, delayTime: 0.375, delayFeedback: 0.5 }),
+      'dx7': Object.assign(defaultFxParams(), { chorusMix: 0.3, delayMix: 0.25, reverbMix: 0.25 }),
+      '808': Object.assign(defaultFxParams(), { dist: 1.0, tone: 0.5, level: 1.0, master: 0.95 }),
+      'moog': Object.assign(defaultFxParams(), { chorusMix: 0.5, delayMix: 0.3, delayTime: 0.5, reverbMix: 0.4 }),
+    },
+    data: () => {
+      const p0 = new Pattern(128, 8);
+      const p1 = new Pattern(128, 8);
+      const p2 = new Pattern(128, 8);
+      const p3 = new Pattern(128, 8);
+      const p4 = new Pattern(128, 8);
+      const p5 = new Pattern(128, 8);
+      const p6 = new Pattern(128, 8);
+      const p7 = new Pattern(128, 8);
+
+      const BD = 36, SD = 38, HH = 42, OH = 46, CLAP = 39;
+      const I_lately = 0, I_808 = 1, I_sqA = 2, I_sqB = 3, I_moog = 4, I_chords = 5;
+
+      const getHappyRoot = (row) => {
+        const progression = [36, 36, 36, 36, 43, 43, 43, 43, 45, 45, 45, 45, 41, 41, 41, 41];
+        const bar = Math.floor(row / 16);
+        return progression[bar % progression.length];
+      };
+
+      const setHappyDrums = (pat, hasKick, hasSnare, hasHats, hasClap) => {
+        for (let r = 0; r < 128; r++) {
+          const step = r % 16;
+          if (hasKick) {
+            if (step === 0 || step === 4 || step === 8 || step === 12) {
+              pat.set(r, 0, BD, I_808, 0.95);
+            }
+          }
+          if (hasSnare) {
+            if (step === 4 || step === 12) {
+              pat.set(r, 1, SD, I_808, 0.85);
+            }
+          }
+          if (hasClap) {
+            if (step === 12) {
+              pat.set(r, 1, CLAP, I_808, 0.8);
+            }
+          }
+          if (hasHats) {
+            if (step === 2 || step === 6 || step === 10 || step === 14) {
+              pat.set(r, 2, OH, I_808, 0.55);
+            } else if (step % 2 === 0) {
+              pat.set(r, 2, HH, I_808, 0.3);
+            }
+          }
+        }
+      };
+
+      const setLatelyBass = (pat, ch, inst, vol = 0.85) => {
+        for (let r = 0; r < 128; r++) {
+          const step = r % 16;
+          const root = getHappyRoot(r);
+          if (step === 0 || step === 4 || step === 8 || step === 12) {
+            pat.set(r, ch, root, inst, vol);
+          } else if (step === 2 || step === 6 || step === 10 || step === 14) {
+            pat.set(r, ch, root + 12, inst, vol * 0.9);
+          } else if (step === 3 || step === 7 || step === 11 || step === 15) {
+            pat.set(r, ch, OFF, inst);
+          }
+        }
+      };
+
+      const happyMelody = [
+        72, 76, 79, 84, 81, 79, 76, 79,
+        74, 77, 79, 83, 79, 77, 74, 77,
+        76, 79, 81, 84, 81, 79, 76, 79,
+        79, 81, 83, 84, 86, 84, 83, 84
+      ];
+
+      const setSquareLead = (pat, ch, inst, vol = 0.8) => {
+        for (let r = 0; r < 128; r += 2) {
+          const step = Math.floor(r / 2) % happyMelody.length;
+          const note = happyMelody[step];
+          pat.set(r, ch, note, inst, vol);
+          pat.set(r + 1, ch, OFF, inst);
+        }
+      };
+
+      const setSquareHarmony = (pat, ch, inst, vol = 0.7) => {
+        for (let r = 0; r < 128; r += 2) {
+          const step = Math.floor(r / 2) % happyMelody.length;
+          const note = happyMelody[step] + 12; // octave harmony
+          pat.set(r, ch, note, inst, vol);
+          pat.set(r + 1, ch, OFF, inst);
+        }
+      };
+
+      const setBellChords = (pat, ch, inst, vol = 0.6) => {
+        for (let r = 0; r < 128; r += 8) {
+          const root = getHappyRoot(r);
+          let notes = [];
+          if (root === 36) notes = [60, 64, 67];
+          else if (root === 43) notes = [55, 59, 62];
+          else if (root === 45) notes = [57, 60, 64];
+          else if (root === 41) notes = [53, 57, 60];
+          
+          notes.forEach(note => {
+            pat.set(r, ch, note, inst, vol);
+          });
+          pat.set(r + 6, ch, OFF, inst);
+        }
+      };
+
+      const setMoogLead = (pat, ch, inst, vol = 0.75) => {
+        const solo = [
+          79, 81, 84, 86, 88, 86, 84, 81,
+          83, 84, 86, 88, 91, 88, 86, 84,
+          84, 86, 88, 91, 93, 91, 88, 86,
+          88, 91, 93, 95, 96, 95, 93, 95
+        ];
+        for (let r = 0; r < 128; r += 4) {
+          const step = Math.floor(r / 4) % solo.length;
+          const note = solo[step];
+          pat.set(r, ch, note, inst, vol);
+          pat.set(r + 3, ch, OFF, inst);
+        }
+      };
+
+      // Pattern 0: Intro (Bass & Chords only)
+      setLatelyBass(p0, 3, I_lately, 0.85);
+      setBellChords(p0, 7, I_chords, 0.6);
+
+      // Pattern 1: Intro Build (Add Hats, Snare Roll, Happy Square Lead A)
+      setHappyDrums(p1, false, false, true, false);
+      setLatelyBass(p1, 3, I_lately, 0.85);
+      setSquareLead(p1, 4, I_sqA, 0.75);
+      setBellChords(p1, 7, I_chords, 0.6);
+      // Snare roll at the end of build
+      for (let r = 112; r < 128; r++) {
+        if (r % 2 === 0 || r >= 120) {
+          p1.set(r, 1, SD, I_808, 0.4 + ((r - 112) / 16) * 0.55);
+        }
+      }
+
+      // Pattern 2: Main Happy Drop
+      setHappyDrums(p2, true, true, true, true);
+      setLatelyBass(p2, 3, I_lately, 0.9);
+      setSquareLead(p2, 4, I_sqA, 0.8);
+      setSquareHarmony(p2, 5, I_sqB, 0.7);
+      setBellChords(p2, 7, I_chords, 0.6);
+
+      // Pattern 3: Happy Drop with Moog Solo
+      setHappyDrums(p3, true, true, true, true);
+      setLatelyBass(p3, 3, I_lately, 0.9);
+      setSquareLead(p3, 4, I_sqA, 0.7);
+      setMoogLead(p3, 6, I_moog, 0.8);
+      setBellChords(p3, 7, I_chords, 0.5);
+
+      // Pattern 4: Breakdown (No kick/snare, chords, bass, quiet lead)
+      setHappyDrums(p4, false, false, true, false);
+      setLatelyBass(p4, 3, I_lately, 0.75);
+      setSquareLead(p4, 4, I_sqA, 0.65);
+      setBellChords(p4, 7, I_chords, 0.7);
+
+      // Pattern 5: Build-up
+      setHappyDrums(p5, true, false, true, false);
+      setLatelyBass(p5, 3, I_lately, 0.85);
+      setSquareLead(p5, 4, I_sqA, 0.8);
+      setSquareHarmony(p5, 5, I_sqB, 0.7);
+      for (let r = 96; r < 128; r++) {
+        if (r % 2 === 0 || r >= 112) {
+          p5.set(r, 1, SD, I_808, 0.4 + ((r - 96) / 32) * 0.55);
+        }
+      }
+
+      // Pattern 6: Climax Drop! (All elements play)
+      setHappyDrums(p6, true, true, true, true);
+      setLatelyBass(p6, 3, I_lately, 0.95);
+      setSquareLead(p6, 4, I_sqA, 0.85);
+      setSquareHarmony(p6, 5, I_sqB, 0.75);
+      setMoogLead(p6, 6, I_moog, 0.85);
+      setBellChords(p6, 7, I_chords, 0.65);
+
+      // Pattern 7: Outro
+      setHappyDrums(p7, true, false, false, false);
+      setLatelyBass(p7, 3, I_lately, 0.75);
+      setBellChords(p7, 7, I_chords, 0.6);
+
+      return {
+        patterns: [p0, p1, p2, p3, p4, p5, p6, p7],
+        order: [0, 1, 2, 3, 4, 5, 6, 2, 3, 4, 5, 6, 6, 7, 7, 0], // 16 steps order -> 3.2 minutes!
+        rowsPerBeat: 4
+      };
+    }
+  },
+  {
+    name: "Fake My Breath Away",
+    bpm: 116,
+    params: [
+      {
+        name: "BASS 2",
+        type: "dx7",
+        p0: [1, 2, 3.0, 1.5],
+        p1: [17, 0.6, 0.9, 3],
+        ops: [
+          { coarse: 0.5, fine: 1, level: 99, detune: 0, decay: 2.505, mode: 0, sustain: 0.0, release: 1.455 },
+          { coarse: 0.5, fine: 3, level: 80, detune: 0, decay: 2.505, mode: 0, sustain: 0.0, release: 1.980 },
+          { coarse: 1.0, fine: 0, level: 68, detune: 7, decay: 2.990, mode: 0, sustain: 0.0, release: 2.788 },
+          { coarse: 0.5, fine: 0, level: 99, detune: 0, decay: 2.424, mode: 0, sustain: 0.0, release: 1.859 },
+          { coarse: 1.0, fine: 1, level: 75, detune: 0, decay: 1.939, mode: 0, sustain: 0.0, release: 4.0 },
+          { coarse: 0.5, fine: 0, level: 87, detune: 1, decay: 1.980, mode: 0, sustain: 0.0, release: 1.778 }
+        ]
+      },
+      { name: "808 Gated Kit", type: "808", p0: [0, 0.5, 0.8, 0.6], p1: [0, 0, 0, 0] },
+      { name: "Warm Pad", type: "moog", p0: [400, 0.2, 0.3, 0], p1: [15.0, 0.8, 1.5, 1.2] },
+      { name: "FM Chime Hook", type: "dx7",
+        p0: [1, 3.5, 4.0, 0.6], p1: [1, 0.5, 0.8, 4],
+        ops: [
+          { coarse: 1.0, fine: 0, level: 99, detune: 0, decay: 0.9, mode: 0, sustain: 0.7, release: 0.25 },
+          { coarse: 3.5, fine: 0, level: 85, detune: 1, decay: 0.6, mode: 0, sustain: 0.6, release: 0.25 },
+          { coarse: 5.0, fine: 0, level: 70, detune: -1, decay: 0.5, mode: 0, sustain: 0.5, release: 0.25 },
+          { coarse: 7.0, fine: 0, level: 60, detune: 0, decay: 0.4, mode: 0, sustain: 0.4, release: 0.25 },
+          { coarse: 1.0, fine: 0, level: 0,  detune: 0, decay: 0.5, mode: 0, sustain: 0.5, release: 0.25 },
+          { coarse: 1.0, fine: 0, level: 0,  detune: 0, decay: 0.5, mode: 0, sustain: 0.5, release: 0.25 }
+        ]
+      },
+      { name: "Soaring Moog Lead", type: "moog", p0: [900, 0.4, 0.6, 0], p1: [6.0, 0.9, 0.8, 0.6] }
+    ],
+    fxParams: {
+      '303': defaultFxParams(),
+      'dx7': Object.assign(defaultFxParams(), { chorusMix: 0.45, chorusRate: 1.2, delayMix: 0.35, delayTime: 0.375, reverbMix: 0.35, reverbDecay: 0.85 }),
+      '808': Object.assign(defaultFxParams(), { dist: 2.0, master: 0.9, reverbMix: 0.45, reverbDecay: 0.8 }),
+      'moog': Object.assign(defaultFxParams(), { chorusMix: 0.55, chorusRate: 0.8, chorusDepth: 4.0, delayMix: 0.3, reverbMix: 0.55, reverbDecay: 0.92 }),
+    },
+    data: () => {
+      const p0 = new Pattern(128, 8);
+      const p1 = new Pattern(128, 8);
+      const p2 = new Pattern(128, 8);
+      const p3 = new Pattern(128, 8);
+      const p4 = new Pattern(128, 8);
+      const p5 = new Pattern(128, 8);
+      const p6 = new Pattern(128, 8);
+      const p7 = new Pattern(128, 8);
+      const p8 = new Pattern(128, 8);
+      const p9 = new Pattern(128, 8);
+
+      const BD = 36, SD = 38, HH = 42, OH = 46, CLAP = 39;
+      const I_bass = 0, I_808 = 1, I_pad = 2, I_chime = 3, I_moog = 4;
+
+      // Bass tab notation: Ab=44, G=43, Db=37, F=41, Eb=39, Bb=46, C=48, C_low=36, Bb_low=34, Eb_high=51
+      const v1Bass = [
+        [[0, 44], [14, 39]], // Bar 0: Ab -> Eb
+        [[0, 43], [14, 37]], // Bar 1: G -> Db
+        [[0, 41], [14, 39]], // Bar 2: F -> Eb
+        [[0, 43], [8, 39], [10, 41], [12, 44], [14, 46]], // Bar 3: G -> Eb, F, Ab, Bb fill
+        [[0, 44], [14, 39]], // Bar 4: Ab -> Eb
+        [[0, 43], [14, 37]], // Bar 5: G -> Db
+        [[0, 41], [14, 39]], // Bar 6: F -> Eb
+        [[0, 43], [8, 39], [10, 41], [12, 44], [14, 48]], // Bar 7: G -> Eb, F, Ab, C fill
+      ];
+
+      const v2Bass = [
+        [[0, 46], [14, 41]], // Bar 8: Bb -> F
+        [[0, 44], [14, 37]], // Bar 9: Ab -> Db
+        [[0, 39], [14, 37]], // Bar 10: Eb -> Db
+        [[0, 39], [8, 39], [10, 41], [12, 44], [14, 46]], // Bar 11: Eb -> Eb, F, Ab, Bb fill
+        [[0, 44], [14, 39]], // Bar 12: Ab -> Eb
+        [[0, 43], [14, 36]], // Bar 13: G -> C (C-2=36)
+        [[0, 37], [14, 34]], // Bar 14: Db -> Bb (Bb-1=34)
+        [[0, 39], [8, 39], [10, 41], [12, 44], [14, 46]], // Bar 15: Eb -> Eb, F, Ab, Bb fill
+      ];
+
+      const chorusBass = [
+        [[0, 44], [14, 39]], // Bar 0: Ab -> Eb
+        [[0, 43], [14, 36]], // Bar 1: G -> C
+        [[0, 37], [14, 34]], // Bar 2: Db -> Bb
+        [[0, 39], [8, 39], [10, 41], [12, 44], [14, 46]], // Bar 3: Eb -> Eb, F, Ab, Bb fill
+        [[0, 44], [14, 39]], // Bar 4: Ab -> Eb
+        [[0, 43], [14, 36]], // Bar 5: G -> C
+        [[0, 37], [14, 34]], // Bar 6: Db -> Bb
+        [[0, 39], [8, 39], [10, 41], [12, 44], [14, 46]], // Bar 7: Eb -> Eb, F, Ab, Bb fill
+      ];
+
+      const bridgeBass = [
+        [[0, 44], [14, 39]], // Bar 0: Ab -> Eb
+        [[0, 43], [14, 37]], // Bar 1: G -> Db
+        [[0, 41], [14, 39]], // Bar 2: F -> Eb
+        [[0, 43], [8, 43], [12, 44]], // Bar 3: G -> G -> Ab
+        [[0, 46], [14, 44]], // Bar 4: Bb -> Ab
+        [[0, 43], [14, 39]], // Bar 5: G -> Eb
+        [[0, 37], [14, 37]], // Bar 6: Db -> Db
+        [[0, 44], [14, 44]], // Bar 7: Ab -> Ab
+        [[0, 46], [14, 44]], // Bar 8: Bb -> Ab
+        [[0, 43], [14, 39]], // Bar 9: G -> Eb
+        [[0, 37], [14, 37]], // Bar 10: Db -> Db
+        [[0, 44], [14, 44]], // Bar 11: Ab -> Ab
+        [[0, 46], [4, 41], [14, 34]], // Bar 12: Bb -> F -> Bb_low
+        [], // Bar 13: Silent/Sustain
+        [[0, 51], [4, 46], [14, 39]], // Bar 14: Eb_high -> Bb -> Eb
+        [[8, 39], [10, 41], [12, 44], [14, 46]], // Bar 15: Eb, F, Ab, Bb fill
+      ];
+
+      // Chord voicings for pads (root, third, fifth)
+      const v1Chords = [
+        [56, 60, 63], // Ab major
+        [55, 58, 62], // G minor
+        [53, 56, 60], // F minor
+        [55, 58, 62], // G minor
+        [56, 60, 63], // Ab major
+        [55, 58, 62], // G minor
+        [53, 56, 60], // F minor
+        [55, 58, 62], // G minor
+      ];
+
+      const v2Chords = [
+        [58, 62, 65], // Bb major
+        [56, 60, 63], // Ab major
+        [51, 55, 58], // Eb major
+        [51, 55, 58], // Eb major
+        [56, 60, 63], // Ab major
+        [51, 55, 60], // C minor
+        [49, 53, 56], // Db major
+        [51, 55, 58], // Eb major
+      ];
+
+      const chorusChords = [
+        [56, 60, 63], // Ab major
+        [51, 55, 60], // C minor
+        [49, 53, 56], // Db major
+        [51, 55, 58], // Eb major
+        [56, 60, 63], // Ab major
+        [51, 55, 60], // C minor
+        [49, 53, 56], // Db major
+        [51, 55, 58], // Eb major
+      ];
+
+      const bridgeChords = [
+        [56, 60, 63], // Ab major
+        [55, 58, 62], // G minor
+        [53, 56, 60], // F minor
+        [55, 58, 62], // G minor
+        [58, 62, 65], // Bb major
+        [55, 58, 62], // G minor
+        [49, 53, 56], // Db major
+        [56, 60, 63], // Ab major
+        [58, 62, 65], // Bb major
+        [55, 58, 62], // G minor
+        [49, 53, 56], // Db major
+        [56, 60, 63], // Ab major
+        [58, 62, 65], // Bb major
+        [58, 62, 65], // Bb major
+        [51, 55, 58], // Eb major
+        [51, 55, 58], // Eb major
+      ];
+
+      const writeBass = (pat, barsArray, transpose = 0) => {
+        barsArray.forEach((bar, barIdx) => {
+          const startRow = barIdx * 16;
+          bar.forEach(([offset, note]) => {
+            pat.set(startRow + offset, 3, note + transpose + 12, I_bass, 0.88);
+          });
+        });
+      };
+
+      const writePads = (pat, chordsArray, transpose = 0) => {
+        chordsArray.forEach((chord, barIdx) => {
+          const startRow = barIdx * 16;
+          chord.forEach(note => {
+            pat.set(startRow, 4, note + transpose, I_pad, 0.58);
+          });
+          pat.set(startRow + 14, 4, OFF, I_pad);
+        });
+      };
+
+      const setGatedDrums = (pat, hasKick, hasSnare, hasHats) => {
+        for (let r = 0; r < 128; r++) {
+          const step = r % 16;
+          if (hasKick) {
+            if (step === 0 || step === 10) {
+              pat.set(r, 0, BD, I_808, 0.95);
+            }
+          }
+          if (hasSnare) {
+            if (step === 4 || step === 12) {
+              pat.set(r, 1, SD, I_808, 0.85);
+            }
+          }
+          if (hasHats) {
+            if (step === 2 || step === 6 || step === 10 || step === 14) {
+              pat.set(r, 2, OH, I_808, 0.45);
+            } else if (step % 4 === 0) {
+              pat.set(r, 2, HH, I_808, 0.3);
+            }
+          }
+        }
+      };
+
+      const setChimeMelody = (pat, ch, inst, vol = 0.7, transpose = 0) => {
+        for (let r = 0; r < 128; r++) {
+          const step = r % 16;
+          const bar = Math.floor(r / 16);
+          
+          if (step === 2 || step === 10) {
+            let note = 74; // D-5
+            if (bar === 3 || bar === 7) note = 72; // C-5
+            pat.set(r, ch, note + transpose, inst, vol);
+          } else if (step === 4 || step === 8 || step === 12) {
+            let note = 77; // F-5
+            if (bar === 6) note = 75; // Eb-5
+            pat.set(r, ch, note + transpose, inst, vol);
+          } else if (step === 6 || step === 14) {
+            let note = 82; // Bb-5
+            if (bar === 1 || bar === 7) note = 81; // A-5
+            else if (bar === 2) note = 79; // G-5
+            else if (bar === 4) note = 77; // F-5
+            else if (bar === 5) note = 82; // Bb-5
+            else if (bar === 6) note = 79; // G-5
+            pat.set(r, ch, note + transpose, inst, vol);
+          } else if (step === 3 || step === 5 || step === 7 || step === 9 || step === 11 || step === 13 || step === 15) {
+            pat.set(r, ch, OFF, inst);
+          }
+        }
+      };
+
+      const setSoaringMoog = (pat, ch, inst, vol = 0.7, transpose = 0) => {
+        const lead = [
+          82, 82, 81, 81, 79, 79, 77, 77,
+          75, 75, 77, 77, 79, 79, 81, 81
+        ];
+        for (let r = 0; r < 128; r += 8) {
+          const step = Math.floor(r / 8) % lead.length;
+          pat.set(r, ch, lead[step] + 12 + transpose, inst, vol);
+          pat.set(r + 6, ch, OFF, inst);
+        }
+      };
+
+      // p0: Intro Part 1 (Bass + Pads only)
+      writeBass(p0, v1Bass);
+      writePads(p0, v1Chords);
+
+      // p1: Intro Part 2 (Add Chime Lead Hook)
+      writeBass(p1, v1Bass);
+      writePads(p1, v1Chords);
+      setChimeMelody(p1, 5, I_chime, 0.7);
+
+      // p2: Verse 1 (Add kick/hats)
+      setGatedDrums(p2, true, false, true);
+      writeBass(p2, v1Bass);
+      writePads(p2, v1Chords);
+      setChimeMelody(p2, 5, I_chime, 0.7);
+
+      // p3: Verse 2 (Full Gated Drums + Bass Part 2)
+      setGatedDrums(p3, true, true, true);
+      writeBass(p3, v2Bass);
+      writePads(p3, v2Chords);
+      setChimeMelody(p3, 5, I_chime, 0.65);
+
+      // p4: Chorus (Melody up 1 octave)
+      setGatedDrums(p4, true, true, true);
+      writeBass(p4, chorusBass);
+      writePads(p4, chorusChords);
+      setChimeMelody(p4, 5, I_chime, 0.75, 12);
+
+      // p5: Bridge Part 1
+      writeBass(p5, bridgeBass.slice(0, 8));
+      writePads(p5, bridgeChords.slice(0, 8));
+
+      // p6: Bridge Part 2 (Drum build-up at the end)
+      setGatedDrums(p6, false, false, true);
+      writeBass(p6, bridgeBass.slice(8, 16));
+      writePads(p6, bridgeChords.slice(8, 16));
+      for (let r = 96; r < 128; r++) {
+        if (r % 2 === 0 || r >= 112) {
+          p6.set(r, 1, SD, I_808, 0.4 + ((r - 96) / 32) * 0.55);
+        }
+      }
+
+      // p7: Key Change Verse (Ab Major -> B Major, +3 transposition)
+      setGatedDrums(p7, true, true, true);
+      writeBass(p7, v1Bass, 3);
+      writePads(p7, v1Chords, 3);
+      setChimeMelody(p7, 5, I_chime, 0.7, 3);
+
+      // p8: Key Change Climax (B Major Drop, Moog soaring solo)
+      setGatedDrums(p8, true, true, true);
+      writeBass(p8, v2Bass, 3);
+      writePads(p8, v2Chords, 3);
+      setChimeMelody(p8, 5, I_chime, 0.75, 15); // +12 octave + 3 transposition = +15!
+      setSoaringMoog(p8, 6, I_moog, 0.75, 3);
+
+      // p9: Key Change Outro (Decay)
+      setGatedDrums(p9, true, false, false);
+      writeBass(p9, chorusBass.slice(0, 4), 3);
+      writePads(p9, chorusChords.slice(0, 4), 3);
+
+      return {
+        patterns: [p0, p1, p2, p3, p4, p5, p6, p7, p8, p9],
+        order: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+        rowsPerBeat: 4
+      };
     }
   },
 ];

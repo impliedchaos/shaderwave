@@ -8,9 +8,10 @@ import { AudioPipeline } from './audio/pipeline.js';
 import { Engine } from './tracker/engine.js';
 import { TrackerView } from './ui/tracker-view.js';
 import { Controls, bindKnob } from './ui/controls.js';
-import { demoSong, DEMO_SONGS, loadSongInstruments } from './tracker/song.js';
+import { demoSong, DEMO_SONGS, loadSongInstruments, defaultParams, instrumentsFromParams } from './tracker/song.js';
 import { instGlow } from './constants.js';
-import { OFF } from './tracker/pattern.js';
+import { OFF, Pattern } from './tracker/pattern.js';
+import { GLVisualizer } from './ui/visualizer.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -66,6 +67,12 @@ export class App {
       app: this,
       onSelect: (idx) => {
         const instr = this.engine.instruments[idx];
+        if (!instr) {
+          document.documentElement.style.setProperty('--accent', '#00f0ff');
+          document.documentElement.style.setProperty('--accent-glow', 'rgba(0, 240, 255, 0.2)');
+          document.documentElement.style.setProperty('--cursor-border', '#00f0ff');
+          return;
+        }
 
         // FX chains are per engine type
         this._buildFxPanel(instr.type);
@@ -88,6 +95,8 @@ export class App {
     this.controls.select(0); // initialize color scheme and FX panel
 
     this._bindTransport();
+    this._renderSongEditor();
+    this._updatePatternSelector();
     this._bindKeys();
     this._loop();
 
@@ -197,7 +206,14 @@ export class App {
   }
 
   _bindTransport() {
-    $('play').onclick = async () => { await this.ensureAudio(); this.engine.play(); };
+    $('play').onclick = async () => {
+      await this.ensureAudio();
+      if (this.engine.playing && this.engine.playMode === 'song') {
+        this.engine.stop();
+      } else {
+        this.engine.play('song');
+      }
+    };
     $('stop').onclick = () => this.engine.stop();
     $('bpm').oninput = (e) => {
       const val = Math.max(40, Math.min(300, +e.target.value || 125));
@@ -216,6 +232,7 @@ export class App {
         this.view.pattern.resize(val);
         if (this.view.cursor.row >= val) this.view.cursor.row = val - 1;
         this.view.draw();
+        this._renderSongEditor();
       };
     }
     const volInput = $('volume');
@@ -239,6 +256,12 @@ export class App {
       songSelect.value = String(this.currentSongIdx);
       songSelect.onchange = (e) => {
         const idx = parseInt(e.target.value);
+        if (idx === -1) return;
+        const untitledOpt = songSelect.querySelector('option[value="-1"]');
+        if (untitledOpt) {
+          untitledOpt.remove();
+        }
+        this.customSongName = null;
         const songDef = DEMO_SONGS[idx];
         if (songDef) {
           this.currentSongIdx = idx;
@@ -262,6 +285,7 @@ export class App {
           const wasPlaying = this.engine.playing;
           this.engine.stop();
           this.engine.loadSong(loaded.data);
+          this.engine.currentPatternIdx = 0;
 
           // Reset to a valid instance and rebuild the selector + all panels.
           this.controls.selected = 0;
@@ -274,6 +298,8 @@ export class App {
           const lenInput = $('pattern-len');
           if (lenInput) lenInput.value = this.view.pattern.rows;
           this.view.draw();
+          this._renderSongEditor();
+          this._updatePatternSelector();
 
           if (wasPlaying) {
             this.engine.play();
@@ -281,17 +307,174 @@ export class App {
         }
       };
     }
+
+    // Bind Play Pattern
+    const playPatBtn = $('play-pattern');
+    if (playPatBtn) {
+      playPatBtn.onclick = async () => {
+        await this.ensureAudio();
+        if (this.engine.playing && this.engine.playMode === 'pattern') {
+          this.engine.stop();
+        } else {
+          this.engine.play('pattern');
+        }
+      };
+    }
+
+    // Bind Next/Prev Pattern Buttons
+    const prevPat = $('pat-prev-btn');
+    const nextPat = $('pat-next-btn');
+    if (prevPat && nextPat) {
+      prevPat.onclick = () => {
+        if (!this.engine.song) return;
+        const totalPatterns = this.engine.song.patterns.length;
+        this.engine.currentPatternIdx = (this.engine.currentPatternIdx - 1 + totalPatterns) % totalPatterns;
+        this._renderSongEditor();
+        this._updatePatternSelector();
+        this.view.draw();
+      };
+      nextPat.onclick = () => {
+        if (!this.engine.song) return;
+        const totalPatterns = this.engine.song.patterns.length;
+        this.engine.currentPatternIdx = (this.engine.currentPatternIdx + 1) % totalPatterns;
+        this._renderSongEditor();
+        this._updatePatternSelector();
+        this.view.draw();
+      };
+    }
+
+    // Bind Song Arranger Tab controls
+    const addPatBtn = $('add-pattern-btn');
+    if (addPatBtn) {
+      addPatBtn.onclick = () => {
+        const p = this.view.pattern;
+        const newPat = new Pattern(p ? p.rows : 64, p ? p.channels : 8);
+        this.engine.song.patterns.push(newPat);
+        this.engine.currentPatternIdx = this.engine.song.patterns.length - 1;
+        this._renderSongEditor();
+        this._updatePatternSelector();
+        this.view.draw();
+      };
+    }
+
+    const addOrdBtn = $('add-order-btn');
+    if (addOrdBtn) {
+      addOrdBtn.onclick = () => {
+        this.engine.song.order.push(this.engine.currentPatternIdx);
+        this._renderSongEditor();
+      };
+    }
+
+    // Bind Tabs Switching
+    const tabPat = $('tab-pattern');
+    const tabSong = $('tab-song');
+    const contentPat = $('pattern-editor-content');
+    const contentSong = $('song-arranger-content');
+    
+    if (tabPat && tabSong && contentPat && contentSong) {
+      tabPat.onclick = () => {
+        tabPat.classList.add('active');
+        tabSong.classList.remove('active');
+        contentPat.style.display = 'flex';
+        contentSong.style.display = 'none';
+        
+        // Force resize and redraw of the pattern view
+        this.view._resize();
+        this.view.draw();
+      };
+      
+      tabSong.onclick = () => {
+        tabSong.classList.add('active');
+        tabPat.classList.remove('active');
+        contentSong.style.display = 'flex';
+        contentPat.style.display = 'none';
+        
+        // Render song editor DOM
+        this._renderSongEditor();
+      };
+    }
+
+    const newSongBtn = $('new-song-btn');
+    if (newSongBtn) {
+      newSongBtn.onclick = () => {
+        this.engine.stop();
+        this.customSongName = 'Untitled';
+        const songSelect = $('song-select');
+        if (songSelect) {
+          let untitledOpt = songSelect.querySelector('option[value="-1"]');
+          if (!untitledOpt) {
+            untitledOpt = document.createElement('option');
+            untitledOpt.value = "-1";
+            untitledOpt.textContent = "Untitled";
+            songSelect.appendChild(untitledOpt);
+          }
+          songSelect.value = "-1";
+        }
+
+        const newPat = new Pattern(32, 8);
+        const songData = {
+          patterns: [newPat],
+          order: [0],
+          rowsPerBeat: 4
+        };
+        this.engine.loadSong(songData);
+        this.engine.currentPatternIdx = 0;
+
+        this.engine.instruments = [];
+        this.fxParams = {
+          '303': defaultFxParams(),
+          'dx7': defaultFxParams(),
+          '808': defaultFxParams(),
+          'moog': defaultFxParams()
+        };
+
+        if (this.renderer) {
+          for (const it of this.renderer.inst) {
+            it.fx.params = this.fxParams[it.name] || defaultFxParams();
+          }
+        }
+
+        this.view.cursor.row = 0;
+        this.view.cursor.ch = 0;
+        this.view.selection = null;
+        this.view.scroll = 0;
+
+        this.controls.selected = -1;
+        this.controls.select(-1);
+
+        this.view.draw();
+        this._renderSongEditor();
+        this._updatePatternSelector();
+      };
+    }
+
+    const exportBtn = $('export');
+    if (exportBtn) {
+      exportBtn.onclick = () => this._showExportDialog();
+    }
   }
 
   _bindKeys() {
     document.addEventListener('keydown', (e) => {
-      if (e.target.tagName === 'INPUT') return;
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
       // Copy / cut / paste of a selected block (intercept before note entry,
       // since C/X/V are also piano keys).
       if ((e.ctrlKey || e.metaKey) && !e.altKey) {
         if (e.code === 'KeyC') { e.preventDefault(); this._copyBlock(false); return; }
         if (e.code === 'KeyX') { e.preventDefault(); this._copyBlock(true); return; }
         if (e.code === 'KeyV') { e.preventDefault(); this._pasteBlock(); return; }
+        if (e.code === 'KeyA') {
+          e.preventDefault();
+          const p = this.view.pattern;
+          if (p) {
+            this.view.selection = {
+              r0: 0, r1: p.rows - 1,
+              c0: 0, c1: p.channels - 1
+            };
+            this.view.draw();
+          }
+          return;
+        }
       }
       if (e.code === 'Escape') { this.view.selection = null; return; }
       if (e.code === 'Space') { e.preventDefault(); return this._togglePlay(); }
@@ -370,7 +553,21 @@ export class App {
       case 'ArrowRight':
         if (c.col < 2) c.col++; else { c.ch = (c.ch + 1) % p.channels; c.col = 0; }
         this._digitEntry = null; return true;
-      case 'Delete': case 'Backspace': p.clear(c.row, c.ch); this._advanceCursorRow(); return true;
+      case 'Delete':
+      case 'Backspace':
+        if (this.view.selection) {
+          const s = this.view.selection;
+          for (let r = s.r0; r <= s.r1; r++) {
+            for (let ch = s.c0; ch <= s.c1; ch++) {
+              p.clear(r, ch);
+            }
+          }
+          this.view.draw();
+        } else {
+          p.clear(c.row, c.ch);
+          this._advanceCursorRow();
+        }
+        return true;
       case 'Equal': p.set(c.row, c.ch, OFF, this.controls.selected); this._advanceCursorRow(); return true;
       default: return false;
     }
@@ -567,7 +764,7 @@ export class App {
       // Reflect play/pause state in button class/text
       const playBtn = $('play');
       if (playBtn) {
-        if (this.engine.playing) {
+        if (this.engine.playing && this.engine.playMode === 'song') {
           if (!playBtn.classList.contains('playing')) {
             playBtn.classList.add('playing');
             playBtn.innerHTML = '⏸ Pause';
@@ -576,7 +773,50 @@ export class App {
           if (playBtn.classList.contains('playing')) {
             playBtn.classList.remove('playing');
             playBtn.innerHTML = '▶ Play';
+            this._updatePatternSelector(); // sync back when song stops
           }
+        }
+      }
+
+      const playPatBtn = $('play-pattern');
+      if (playPatBtn) {
+        if (this.engine.playing && this.engine.playMode === 'pattern') {
+          if (!playPatBtn.classList.contains('playing')) {
+            playPatBtn.classList.add('playing');
+            playPatBtn.innerHTML = '⏸ Pause Pattern';
+          }
+        } else {
+          if (playPatBtn.classList.contains('playing')) {
+            playPatBtn.classList.remove('playing');
+            playPatBtn.innerHTML = '🔁 Play Pattern';
+          }
+        }
+      }
+
+      // Update Arrangement Timeline slot highlights
+      const activeOrderIdx = (this.engine.playing && this.engine.playMode === 'song') ? this.engine.displayOrder : -1;
+      
+      // When playing a song, update the pattern number display and length to match the active pattern in the timeline.
+      if (this.engine.playing && this.engine.playMode === 'song' && this.engine.song) {
+        const activePatIdx = this.engine.song.order[this.engine.displayOrder] ?? 0;
+        const patNum = $('pat-num-display');
+        if (patNum && patNum.textContent !== String(activePatIdx)) {
+          patNum.textContent = String(activePatIdx);
+          const activePat = this.engine.song.patterns[activePatIdx];
+          const lenInput = $('pattern-len');
+          if (lenInput && activePat) {
+            lenInput.value = activePat.rows;
+          }
+        }
+      }
+
+      const orderCards = document.querySelectorAll('#arranger-order-list .arranger-card');
+      for (const card of orderCards) {
+        const idx = parseInt(card.getAttribute('data-order-idx'));
+        if (idx === activeOrderIdx) {
+          if (!card.classList.contains('active-order')) card.classList.add('active-order');
+        } else {
+          if (card.classList.contains('active-order')) card.classList.remove('active-order');
         }
       }
 
@@ -585,6 +825,586 @@ export class App {
       requestAnimationFrame(tick);
     };
     requestAnimationFrame(tick);
+  }
+
+  _deletePattern(idx) {
+    const song = this.engine.song;
+    if (song.patterns.length <= 1) return;
+    
+    song.patterns.splice(idx, 1);
+    
+    const newOrder = [];
+    for (let i = 0; i < song.order.length; i++) {
+      const patIdx = song.order[i];
+      if (patIdx === idx) {
+        continue;
+      } else if (patIdx > idx) {
+        newOrder.push(patIdx - 1);
+      } else {
+        newOrder.push(patIdx);
+      }
+    }
+    if (newOrder.length === 0) {
+      newOrder.push(0);
+    }
+    song.order = newOrder;
+    
+    if (this.engine.currentPatternIdx >= song.patterns.length) {
+      this.engine.currentPatternIdx = song.patterns.length - 1;
+    }
+    
+    this._renderSongEditor();
+    this._updatePatternSelector();
+    this.view.draw();
+  }
+
+  _renderSongEditor() {
+    const song = this.engine.song;
+    if (!song) return;
+
+    const patList = $('arranger-pattern-list');
+    if (patList) {
+      patList.innerHTML = '';
+      song.patterns.forEach((pat, i) => {
+        const card = document.createElement('div');
+        card.className = 'arranger-card';
+        if (i === this.engine.currentPatternIdx) {
+          card.classList.add('selected-pattern');
+        }
+        
+        const info = document.createElement('div');
+        info.className = 'arranger-card-info';
+        info.onclick = () => {
+          this.engine.currentPatternIdx = i;
+          this._renderSongEditor();
+          this._updatePatternSelector();
+          this.view.draw();
+        };
+
+        const title = document.createElement('div');
+        title.className = 'arranger-card-title';
+        title.textContent = `🎹 Pattern ${i}`;
+        
+        const sub = document.createElement('div');
+        sub.className = 'arranger-card-sub';
+        sub.textContent = `${pat.rows} rows · ${pat.channels} channels`;
+        
+        info.appendChild(title);
+        info.appendChild(sub);
+        card.appendChild(info);
+        
+        const actions = document.createElement('div');
+        actions.className = 'arranger-card-actions';
+        
+        const cloneBtn = document.createElement('button');
+        cloneBtn.className = 'arranger-btn';
+        cloneBtn.textContent = 'Clone';
+        cloneBtn.onclick = (e) => {
+          e.stopPropagation();
+          const newPat = new Pattern(pat.rows, pat.channels);
+          newPat.notes.set(pat.notes);
+          newPat.inst.set(pat.inst);
+          newPat.vol.set(pat.vol);
+          song.patterns.push(newPat);
+          this.engine.currentPatternIdx = song.patterns.length - 1;
+          this._renderSongEditor();
+          this._updatePatternSelector();
+          this.view.draw();
+        };
+        actions.appendChild(cloneBtn);
+        
+        if (song.patterns.length > 1) {
+          const delBtn = document.createElement('button');
+          delBtn.className = 'arranger-btn danger';
+          delBtn.textContent = 'Delete';
+          delBtn.onclick = (e) => {
+            e.stopPropagation();
+            this._deletePattern(i);
+          };
+          actions.appendChild(delBtn);
+        }
+        
+        card.appendChild(actions);
+        patList.appendChild(card);
+      });
+    }
+
+    const orderList = $('arranger-order-list');
+    if (orderList) {
+      orderList.innerHTML = '';
+      song.order.forEach((patIdx, i) => {
+        const card = document.createElement('div');
+        card.className = 'arranger-card';
+        card.setAttribute('data-order-idx', i);
+        
+        const info = document.createElement('div');
+        info.className = 'arranger-card-info';
+        
+        const title = document.createElement('div');
+        title.className = 'arranger-card-title';
+        title.textContent = `#${i + 1} Slot`;
+        
+        const select = document.createElement('select');
+        select.className = 'arranger-select';
+        song.patterns.forEach((p, pIdx) => {
+          const opt = document.createElement('option');
+          opt.value = pIdx;
+          opt.textContent = `Pattern ${pIdx}`;
+          if (pIdx === patIdx) opt.selected = true;
+          select.appendChild(opt);
+        });
+        select.onchange = (e) => {
+          song.order[i] = parseInt(e.target.value);
+          this._renderSongEditor();
+        };
+        
+        info.appendChild(title);
+        info.appendChild(select);
+        card.appendChild(info);
+        
+        const actions = document.createElement('div');
+        actions.className = 'arranger-card-actions';
+        
+        const upBtn = document.createElement('button');
+        upBtn.className = 'arranger-btn';
+        upBtn.textContent = '▲';
+        upBtn.disabled = i === 0;
+        upBtn.onclick = (e) => {
+          e.stopPropagation();
+          if (i > 0) {
+            const temp = song.order[i];
+            song.order[i] = song.order[i - 1];
+            song.order[i - 1] = temp;
+            this._renderSongEditor();
+          }
+        };
+        actions.appendChild(upBtn);
+        
+        const downBtn = document.createElement('button');
+        downBtn.className = 'arranger-btn';
+        downBtn.textContent = '▼';
+        downBtn.disabled = i === song.order.length - 1;
+        downBtn.onclick = (e) => {
+          e.stopPropagation();
+          if (i < song.order.length - 1) {
+            const temp = song.order[i];
+            song.order[i] = song.order[i + 1];
+            song.order[i + 1] = temp;
+            this._renderSongEditor();
+          }
+        };
+        actions.appendChild(downBtn);
+        
+        if (song.order.length > 1) {
+          const rmBtn = document.createElement('button');
+          rmBtn.className = 'arranger-btn danger';
+          rmBtn.textContent = '✖';
+          rmBtn.onclick = (e) => {
+            e.stopPropagation();
+            song.order.splice(i, 1);
+            this._renderSongEditor();
+          };
+          actions.appendChild(rmBtn);
+        }
+        
+        card.appendChild(actions);
+        orderList.appendChild(card);
+      });
+    }
+  }
+
+  _updatePatternSelector() {
+    const patNum = $('pat-num-display');
+    if (patNum) {
+      patNum.textContent = String(this.engine.currentPatternIdx);
+    }
+    const lenInput = $('pattern-len');
+    if (lenInput && this.view.pattern) {
+      lenInput.value = this.view.pattern.rows;
+    }
+  }
+
+  _getSanitizedFilename(songName) {
+    if (!songName) return 'untitled_song';
+    return songName.toLowerCase().trim().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'untitled_song';
+  }
+
+  _showExportDialog() {
+    const song = DEMO_SONGS[this.currentSongIdx];
+    const defaultTitle = this.customSongName || (song ? song.name : 'Untitled');
+    const defaultFilename = this._getSanitizedFilename(defaultTitle);
+    
+    $('export-song-title').value = defaultTitle;
+    $('export-song-author').value = 'AI Slop';
+    $('export-filename').value = defaultFilename;
+    
+    document.getElementsByName('export-format')[1].checked = true;
+    $('export-visualizer-row').style.display = 'flex';
+    
+    $('export-config-panel').style.display = 'flex';
+    $('export-progress-panel').style.display = 'none';
+    $('export-overlay').style.display = 'flex';
+    
+    const radios = document.getElementsByName('export-format');
+    radios.forEach(radio => {
+      radio.onchange = (e) => {
+        if (e.target.value === 'webm') {
+          $('export-visualizer-row').style.display = 'flex';
+        } else {
+          $('export-visualizer-row').style.display = 'none';
+        }
+      };
+    });
+    
+    $('export-close-btn').onclick = () => {
+      $('export-overlay').style.display = 'none';
+    };
+    
+    $('export-start-btn').onclick = () => {
+      const title = $('export-song-title').value.trim() || 'Untitled Song';
+      const author = $('export-song-author').value.trim() || 'AI Slop';
+      const filename = $('export-filename').value.trim() || 'untitled_song';
+      const format = document.querySelector('input[name="export-format"]:checked').value;
+      const includeVisualizer = $('export-include-visualizer').checked;
+      
+      $('export-config-panel').style.display = 'none';
+      $('export-progress-panel').style.display = 'flex';
+      
+      if (format === 'wav') {
+        this._exportWav(filename, title, author);
+      } else {
+        this._exportVideo(filename, title, author, includeVisualizer);
+      }
+    };
+  }
+
+  _writeWav(samples, sampleRate) {
+    const buffer = new ArrayBuffer(44 + samples.length * 2);
+    const view = new DataView(buffer);
+
+    const writeString = (view, offset, string) => {
+      for (let i = 0; i < string.length; i++) {
+        view.setUint8(offset + i, string.charCodeAt(i));
+      }
+    };
+
+    writeString(view, 0, 'RIFF');
+    view.setUint32(4, 36 + samples.length * 2, true);
+    writeString(view, 8, 'WAVE');
+    writeString(view, 12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true); // PCM
+    view.setUint16(22, 2, true); // 2 channels
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * 4, true);
+    view.setUint16(32, 4, true);
+    view.setUint16(34, 16, true);
+    writeString(view, 36, 'data');
+    view.setUint32(40, samples.length * 2, true);
+
+    let offset = 44;
+    for (let i = 0; i < samples.length; i++, offset += 2) {
+      const s = Math.max(-1, Math.min(1, samples[i]));
+      view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+    }
+
+    return new Blob([buffer], { type: 'audio/wav' });
+  }
+
+  async _exportWav(filename, title, author) {
+    await this.ensureAudio();
+    
+    const wasPlaying = this.engine.playing;
+    this.engine.stop();
+    
+    this.pipeline.stop();
+    
+    const overlay = $('export-overlay');
+    const progress = $('export-progress');
+    const statusText = $('export-status-text');
+    const cancelBtn = $('export-cancel');
+    const progressTitle = $('export-progress-title');
+    
+    progressTitle.textContent = 'Exporting Audio';
+    progress.style.width = '0%';
+    statusText.textContent = 'Initializing offline render...';
+    cancelBtn.textContent = 'Cancel';
+    
+    let cancelled = false;
+    
+    const restoreAudio = async () => {
+      if (this.pipeline.produce) {
+        await this.pipeline.start(this.pipeline.produce);
+      }
+      this.engine.stop();
+      if (wasPlaying && !cancelled) this.engine.play();
+    };
+    
+    cancelBtn.onclick = () => {
+      cancelled = true;
+      overlay.style.display = 'none';
+      restoreAudio();
+    };
+    
+    this.renderer.resetState();
+    this.engine.playMode = 'song';
+    this.engine.playing = true;
+    this.engine.startFrame = 0;
+    
+    for (const v of this.engine.voices) {
+      v.active = false;
+      v.onFrame = 0;
+      v.offFrame = 1e9;
+    }
+    
+    const totalFrames = Math.ceil(this.engine.totalRows * this.engine.samplesPerRow);
+    const samples = new Float32Array(totalFrames * 2);
+    
+    let blockStart = 0;
+    const BLOCK_SIZE = 512;
+    const blocksPerBatch = 40; 
+    
+    const renderBatch = () => {
+      if (cancelled) return;
+      
+      for (let b = 0; b < blocksPerBatch && blockStart < totalFrames; b++) {
+        const vd = this.engine.advance(blockStart);
+        const out = this.renderer.renderBlock(vd, blockStart);
+        
+        const framesToCopy = Math.min(BLOCK_SIZE, totalFrames - blockStart);
+        for (let i = 0; i < framesToCopy; i++) {
+          samples[(blockStart + i) * 2] = out[i * 2];
+          samples[(blockStart + i) * 2 + 1] = out[i * 2 + 1];
+        }
+        blockStart += BLOCK_SIZE;
+      }
+      
+      const pct = Math.min(100, Math.floor((blockStart / totalFrames) * 100));
+      progress.style.width = `${pct}%`;
+      statusText.textContent = `Rendered ${pct}% (${Math.floor(blockStart / this.engine.sampleRate)}s / ${Math.floor(totalFrames / this.engine.sampleRate)}s)`;
+      
+      if (blockStart < totalFrames) {
+        requestAnimationFrame(renderBatch);
+      } else {
+        statusText.textContent = 'Encoding WAV file...';
+        
+        setTimeout(() => {
+          try {
+            const blob = this._writeWav(samples, this.engine.sampleRate);
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${filename}.wav`;
+            a.click();
+            URL.revokeObjectURL(url);
+            statusText.textContent = 'Done!';
+            setTimeout(() => {
+              overlay.style.display = 'none';
+              restoreAudio();
+            }, 500);
+          } catch (e) {
+            statusText.textContent = `Error: ${e.message}`;
+            cancelBtn.textContent = 'Close';
+            cancelBtn.onclick = () => {
+              overlay.style.display = 'none';
+              restoreAudio();
+            };
+          }
+        }, 50);
+      }
+    };
+    
+    requestAnimationFrame(renderBatch);
+  }
+
+  async _exportVideo(filename, title, author, includeVisualizer) {
+    await this.ensureAudio();
+    
+    const wasPlaying = this.engine.playing;
+    this.engine.stop();
+    
+    const overlay = $('export-overlay');
+    const progress = $('export-progress');
+    const statusText = $('export-status-text');
+    const cancelBtn = $('export-cancel');
+    const progressTitle = $('export-progress-title');
+    
+    progressTitle.textContent = 'Recording Video';
+    progress.style.width = '0%';
+    statusText.textContent = 'Preparing 720p recording stream...';
+    cancelBtn.textContent = 'Cancel';
+    
+    const ctx = this.pipeline.ctx;
+    const dest = ctx.createMediaStreamDestination();
+    
+    this.pipeline.analyser.connect(dest);
+    
+    const muteGain = ctx.createGain();
+    muteGain.gain.value = 0.0;
+    try {
+      this.pipeline.analyser.disconnect(ctx.destination);
+    } catch (e) {
+      console.warn('Failed to disconnect analyser from destination:', e);
+    }
+    this.pipeline.analyser.connect(muteGain);
+    muteGain.connect(ctx.destination);
+    
+    const audioTrack = dest.stream.getAudioTracks()[0];
+    let recordStream;
+    let recordCanvas = null;
+    let recordVisualizer = null;
+    
+    if (includeVisualizer) {
+      recordCanvas = document.createElement('canvas');
+      recordCanvas.width = 1280;
+      recordCanvas.height = 720;
+      recordCanvas.style.cssText = 'position: fixed; left: -9999px; top: -9999px; width: 1280px; height: 720px; z-index: -1000; pointer-events: none;';
+      document.body.appendChild(recordCanvas);
+      
+      recordVisualizer = new GLVisualizer(recordCanvas);
+      const canvasStream = recordCanvas.captureStream(30); 
+      if (audioTrack) {
+        audioTrack.enabled = true;
+        canvasStream.addTrack(audioTrack);
+      }
+      recordStream = canvasStream;
+    } else {
+      recordStream = dest.stream;
+    }
+    
+    let options = { 
+      mimeType: 'video/webm;codecs=vp9,opus',
+      videoBitsPerSecond: 2500000
+    };
+    if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+      options = { 
+        mimeType: 'video/webm;codecs=vp8,opus',
+        videoBitsPerSecond: 2500000
+      };
+    }
+    if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+      options = { 
+        mimeType: 'video/webm',
+        videoBitsPerSecond: 2500000
+      };
+    }
+    
+    const recorder = new MediaRecorder(recordStream, options);
+    const chunks = [];
+    recorder.ondataavailable = (e) => {
+      if (e.data && e.data.size > 0) chunks.push(e.data);
+    };
+    
+    let cancelled = false;
+    
+    const cleanUp = () => {
+      this.engine.stop();
+      if (this.pipeline && this.pipeline.node) {
+        this.pipeline.node.port.postMessage({ cmd: 'reset' });
+      }
+      try {
+        this.pipeline.analyser.disconnect(dest);
+      } catch (e) {}
+      try {
+        this.pipeline.analyser.disconnect(muteGain);
+      } catch (e) {}
+      try {
+        muteGain.disconnect(ctx.destination);
+      } catch (e) {}
+      try {
+        this.pipeline.analyser.connect(ctx.destination);
+      } catch (e) {
+        console.warn('Failed to reconnect analyser:', e);
+      }
+      if (recordCanvas && recordCanvas.parentNode) {
+        recordCanvas.parentNode.removeChild(recordCanvas);
+      }
+      overlay.style.display = 'none';
+      if (wasPlaying && !cancelled) this.engine.play();
+    };
+    
+    cancelBtn.onclick = () => {
+      cancelled = true;
+      recorder.stop();
+      cleanUp();
+    };
+    
+    recorder.onstop = () => {
+      if (cancelled) return;
+      statusText.textContent = `Saving ${includeVisualizer ? '720p WebM' : 'WebM audio'} file...`;
+      
+      const blob = new Blob(chunks, { type: 'video/webm' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${filename}.webm`;
+      a.click();
+      URL.revokeObjectURL(url);
+      
+      statusText.textContent = 'Done!';
+      setTimeout(() => {
+        cleanUp();
+      }, 500);
+    };
+    
+    this.renderer.resetState();
+    this.engine.playMode = 'song';
+    this.engine.play('song');
+    recorder.start();
+    
+    const totalRows = this.engine.totalRows;
+    this.lastRecordedRow = 0;
+    let recordedRowsCount = 0;
+    
+    const checkProgress = () => {
+      if (cancelled || recorder.state !== 'recording') return;
+      
+      let currentRow = 0;
+      for (let i = 0; i < this.engine.displayOrder; i++) {
+        const patIdx = this.engine.song.order[i];
+        const pat = this.engine.song.patterns[patIdx];
+        if (pat) currentRow += pat.rows;
+      }
+      currentRow += this.engine.displayRow;
+      const totalRecordedPct = Math.min(100, Math.floor((currentRow / totalRows) * 100));
+      
+      progress.style.width = `${totalRecordedPct}%`;
+      statusText.textContent = `Recording row ${currentRow} / ${totalRows} (${totalRecordedPct}%)`;
+      
+      if (recordVisualizer) {
+        let freqData = null;
+        let waveData = null;
+        if (this.pipeline && this.pipeline.analyser) {
+          const analyser = this.pipeline.analyser;
+          freqData = new Uint8Array(analyser.frequencyBinCount);
+          analyser.getByteFrequencyData(freqData);
+          waveData = new Uint8Array(analyser.frequencyBinCount);
+          analyser.getByteTimeDomainData(waveData);
+        }
+        const css = getComputedStyle(document.documentElement);
+        const accentColor = css.getPropertyValue('--accent').trim() || '#00f5d4';
+        recordVisualizer.draw(freqData, waveData, this.engine.bpm, true, accentColor);
+      }
+      
+      if (currentRow !== this.lastRecordedRow) {
+        this.lastRecordedRow = currentRow;
+      }
+      
+      if (!this.engine.playing) {
+        // Wait 1.0s for the audio buffer and reverb/delay tail to drain completely.
+        statusText.textContent = 'Draining audio tail...';
+        setTimeout(() => {
+          if (!cancelled && recorder.state === 'recording') {
+            recorder.stop();
+          }
+        }, 1000);
+        return;
+      }
+      
+      requestAnimationFrame(checkProgress);
+    };
+    
+    requestAnimationFrame(checkProgress);
   }
 }
 

@@ -22,6 +22,8 @@ export class Engine {
     this.lastBlockStart = 0;
     this.displayRow = 0;
     this.displayOrder = 0;
+    this.playMode = 'song';
+    this.currentPatternIdx = 0;
 
     // Instrument table: a list of instances, each { name, type, p0, p1, ops? }.
     // Patterns/voices reference an instance by index. Seeded with one instance per
@@ -71,10 +73,20 @@ export class Engine {
     return (this.sampleRate * 60) / (this.bpm * this.rowsPerBeat);
   }
   get totalRows() {
-    return this.song.order.length * this.song.patterns[0].rows;
+    if (!this.song) return 0;
+    if (this.playMode === 'pattern') {
+      const pat = this.song.patterns[this.currentPatternIdx];
+      return pat ? pat.rows : 0;
+    }
+    let sum = 0;
+    for (const patIdx of this.song.order) {
+      const pat = this.song.patterns[patIdx];
+      if (pat) sum += pat.rows;
+    }
+    return sum;
   }
 
-  play() { this.playing = true; this.startFrame = null; }
+  play(mode = 'song') { this.playMode = mode; this.playing = true; this.startFrame = null; }
   stop() {
     this.playing = false;
     for (const v of this.voices) v.active = false;
@@ -158,6 +170,27 @@ export class Engine {
 
   // --- per-block update ---------------------------------------------------
 
+  resolveSongRow(songRow) {
+    if (!this.song) return { orderIdx: 0, patIdx: 0, localRow: 0 };
+    let accum = 0;
+    for (let i = 0; i < this.song.order.length; i++) {
+      const patIdx = this.song.order[i];
+      const pat = this.song.patterns[patIdx];
+      const rows = pat ? pat.rows : 0;
+      if (songRow < accum + rows) {
+        return {
+          orderIdx: i,
+          patIdx: patIdx,
+          localRow: songRow - accum
+        };
+      }
+      accum += rows;
+    }
+    const lastIdx = Math.max(0, this.song.order.length - 1);
+    const lastPatIdx = this.song.order[lastIdx] ?? 0;
+    return { orderIdx: lastIdx, patIdx: lastPatIdx, localRow: 0 };
+  }
+
   // Called once per render block with the absolute start frame. Schedules any
   // row triggers landing in [blockStart, blockStart+BLOCK) and refreshes vd.
   advance(blockStart) {
@@ -169,18 +202,42 @@ export class Engine {
       const blockEnd = blockStart + BLOCK;
       let k = Math.ceil((blockStart - this.startFrame) / spr);
       if (k < 0) k = 0;
+      
+      const total = this.totalRows;
+      let ended = false;
+      
       for (; ; k++) {
+        if (this.playMode === 'song' && k >= total) {
+          ended = true;
+          break;
+        }
         const f = this.startFrame + k * spr;
         if (f >= blockEnd) break;
         this._triggerRow(k, f);
       }
+      
+      if (ended) {
+        this.stop();
+      }
+      
       // Row shown in the UI = the row covering the end of this block.
       const cur = Math.floor((blockEnd - 1 - this.startFrame) / spr);
-      const total = this.totalRows;
-      const songRow = ((cur % total) + total) % total;
-      const rows = this.song.patterns[0].rows;
-      this.displayOrder = Math.floor(songRow / rows);
-      this.displayRow = songRow % rows;
+      if (this.playMode === 'pattern') {
+        const pat = this.song.patterns[this.currentPatternIdx];
+        if (pat) {
+          const totalPat = pat.rows;
+          const r = ((cur % totalPat) + totalPat) % totalPat;
+          this.displayOrder = 0;
+          this.displayRow = r;
+        }
+      } else {
+        if (total > 0 && !ended) {
+          const songRow = ((cur % total) + total) % total;
+          const { orderIdx, localRow } = this.resolveSongRow(songRow);
+          this.displayOrder = orderIdx;
+          this.displayRow = localRow;
+        }
+      }
     }
 
     this._refreshVoiceData(blockStart);
@@ -205,18 +262,30 @@ export class Engine {
   }
 
   _triggerRow(k, frame) {
-    const total = this.totalRows;
-    const songRow = ((k % total) + total) % total;
-    const rows = this.song.patterns[0].rows;
-    const orderIdx = Math.floor(songRow / rows);
-    const row = songRow % rows;
-    const pat = this.song.patterns[this.song.order[orderIdx]];
     const fr = Math.round(frame);
-    for (let ch = 0; ch < pat.channels; ch++) {
-      const note = pat.note(row, ch);
-      if (note === EMPTY) continue;
-      const i = pat.idx(row, ch);
-      this.triggerNote(ch, note, pat.inst[i], pat.vol[i], fr);
+    if (this.playMode === 'pattern') {
+      const pat = this.song.patterns[this.currentPatternIdx];
+      if (!pat) return;
+      const row = ((k % pat.rows) + pat.rows) % pat.rows;
+      for (let ch = 0; ch < pat.channels; ch++) {
+        const note = pat.note(row, ch);
+        if (note === EMPTY) continue;
+        const i = pat.idx(row, ch);
+        this.triggerNote(ch, note, pat.inst[i], pat.vol[i], fr);
+      }
+    } else {
+      const total = this.totalRows;
+      if (total <= 0) return;
+      const songRow = ((k % total) + total) % total;
+      const { patIdx, localRow } = this.resolveSongRow(songRow);
+      const pat = this.song.patterns[patIdx];
+      if (!pat) return;
+      for (let ch = 0; ch < pat.channels; ch++) {
+        const note = pat.note(localRow, ch);
+        if (note === EMPTY) continue;
+        const i = pat.idx(localRow, ch);
+        this.triggerNote(ch, note, pat.inst[i], pat.vol[i], fr);
+      }
     }
   }
 

@@ -3,6 +3,7 @@
 // the selected instance, which the engine snapshots onto each new note.
 import { INSTRUMENTS, instGlow } from '../constants.js';
 import { DEMO_SONGS } from '../tracker/song.js';
+import { defaultFxParams } from '../gl/effects.js';
 
 const DX7_ROMS = [
   { name: 'ROM 1A - Keyboard / Pluck', file: 'rom1a.syx' },
@@ -128,7 +129,7 @@ export class Controls {
 
   // The currently selected instrument-table instance and its engine type.
   get _instr() { return this.engine.instruments[this.selected]; }
-  get _type() { return this._instr.type; }
+  get _type() { return this._instr ? this._instr.type : null; }
 
   // The "+ Add" dropdown (above the list) — pick an engine type to append.
   _buildAddMenu() {
@@ -141,6 +142,29 @@ export class Controls {
       const type = e.target.value;
       e.target.value = '';
       if (!type) return;
+
+      if (this.app && this.app.fxParams) {
+        if (!this.app.fxParams[type]) {
+          this.app.fxParams[type] = defaultFxParams();
+        }
+        const fx = this.app.fxParams[type];
+        fx.enabled = false;
+        fx.distOn = false;
+        fx.chorusOn = false;
+        fx.tremoloOn = false;
+        fx.delayOn = false;
+        fx.reverbOn = false;
+        fx.widthOn = false;
+
+        if (this.app.renderer) {
+          for (const it of this.app.renderer.inst) {
+            if (it.name === type) {
+              it.fx.params = fx;
+            }
+          }
+        }
+      }
+
       const idx = this.engine.addInstrument(type);
       this.select(idx);   // select() rebuilds the list
     };
@@ -204,6 +228,7 @@ export class Controls {
     
     presetSelect.innerHTML = '';
     const instName = this._type;
+    if (!instName) return;
 
     if (instName === 'dx7' && this.dx7Patches) {
       this.dx7Patches.forEach((p, idx) => {
@@ -224,6 +249,7 @@ export class Controls {
 
   loadPreset(presetIdx) {
     const instName = this._type;
+    if (!instName) return;
     if (instName === 'dx7') {
       if (this.dx7Patches && this.dx7Patches[presetIdx]) {
         const patch = this.dx7Patches[presetIdx];
@@ -346,6 +372,7 @@ export class Controls {
     const name = this._type;
     const pr = this._instr;
     this.paramEl.innerHTML = '';
+    if (!name || !pr) return;
     
     let defs = PARAM_DEFS[name];
     if (name === 'dx7') {

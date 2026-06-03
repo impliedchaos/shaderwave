@@ -79,6 +79,26 @@ export class SynthRenderer {
     gl.uniform1i(this.mixProg.u('uInstTex'), 0);
   }
 
+  // Resets synth state textures and FX feedback buffers.
+  resetState() {
+    const gl = this.gl;
+    const fbo = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+    gl.clearColor(0, 0, 0, 0);
+    for (const it of this.inst) {
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, it.stateRead, 0);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, it.stateWrite, 0);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+
+      it.fx._clear(it.fx.delayRead);
+      it.fx._clear(it.fx.delayWrite);
+      it.fx._clear(it.fx.fdnRead);
+      it.fx._clear(it.fx.fdnWrite);
+    }
+    gl.deleteFramebuffer(fbo);
+  }
+
   // vd: voice data with typed arrays (see tracker engine). blockStart: absolute frame.
   // Returns the shared interleaved-stereo output buffer (BLOCK*2 floats).
   renderBlock(vd, blockStart) {

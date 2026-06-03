@@ -34,7 +34,13 @@ export class TrackerView {
     window.addEventListener('resize', () => this._resize());
   }
 
-  get pattern() { return this.engine.song.patterns[this.engine.displayOrder] || this.engine.song.patterns[0]; }
+  get pattern() {
+    if (this.engine.playing && this.engine.playMode === 'song') {
+      const idx = this.engine.song.order[this.engine.displayOrder];
+      return this.engine.song.patterns[idx] || this.engine.song.patterns[0];
+    }
+    return this.engine.song.patterns[this.engine.currentPatternIdx] || this.engine.song.patterns[0];
+  }
 
   _resize() {
     const r = this.canvas.getBoundingClientRect();
