@@ -16,12 +16,12 @@ export function defaultParams() {
       p0: [1, 2, 3.0, 0.3],
       p1: [1, 0.6, 0.9, 3],
       ops: [
-        { coarse: 1.0, fine: 0, level: 99, detune: 0, decay: 0.9, mode: 0 },
-        { coarse: 2.0, fine: 0, level: 99, detune: 0, decay: 0.6, mode: 0 },
-        { coarse: 3.0, fine: 0, level: 60, detune: 0, decay: 0.9, mode: 0 },
-        { coarse: 4.0, fine: 0, level: 80, detune: 0, decay: 0.4, mode: 0 },
-        { coarse: 5.0, fine: 0, level: 0,  detune: 0, decay: 0.5, mode: 0 },
-        { coarse: 6.0, fine: 0, level: 0,  detune: 0, decay: 0.5, mode: 0 }
+        { coarse: 1.0, fine: 0, level: 99, detune: 0, decay: 0.9, mode: 0, sustain: 0.7, release: 0.25 },
+        { coarse: 2.0, fine: 0, level: 99, detune: 0, decay: 0.6, mode: 0, sustain: 0.7, release: 0.25 },
+        { coarse: 3.0, fine: 0, level: 60, detune: 0, decay: 0.9, mode: 0, sustain: 0.7, release: 0.25 },
+        { coarse: 4.0, fine: 0, level: 80, detune: 0, decay: 0.4, mode: 0, sustain: 0.7, release: 0.25 },
+        { coarse: 5.0, fine: 0, level: 0,  detune: 0, decay: 0.5, mode: 0, sustain: 0.7, release: 0.25 },
+        { coarse: 6.0, fine: 0, level: 0,  detune: 0, decay: 0.5, mode: 0, sustain: 0.7, release: 0.25 }
       ]
     },
     '808':  { p0: [0, 0.6, 0.5, 0.6],    p1: [0, 0, 0, 0] },

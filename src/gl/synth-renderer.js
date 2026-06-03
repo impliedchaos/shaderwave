@@ -114,6 +114,8 @@ export class SynthRenderer {
         gl.uniform1fv(p.u('uOpDetune[0]'), vd.dx7Ops.detune);
         gl.uniform1fv(p.u('uOpDecay[0]'), vd.dx7Ops.decay);
         gl.uniform1fv(p.u('uOpMode[0]'), vd.dx7Ops.mode);
+        gl.uniform1fv(p.u('uOpSustain[0]'), vd.dx7Ops.sustain);
+        gl.uniform1fv(p.u('uOpRelease[0]'), vd.dx7Ops.release);
       }
 
       gl.activeTexture(gl.TEXTURE0);

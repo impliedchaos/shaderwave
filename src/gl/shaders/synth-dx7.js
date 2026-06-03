@@ -13,6 +13,8 @@ uniform float uOpLevel[6];
 uniform float uOpDetune[6];
 uniform float uOpDecay[6];
 uniform float uOpMode[6];
+uniform float uOpSustain[6];
+uniform float uOpRelease[6];
 
 void main(){
   int x = int(gl_FragCoord.x);
@@ -30,20 +32,20 @@ void main(){
   int algo = int(p1.x + 0.5);
   float mDecay = p1.y, aDecay = p1.z, cR2 = p1.w;
 
-  float env1 = adsr(t, tRel, 0.002, uOpDecay[0], 0.7, 0.25);
-  float env2 = adsr(t, tRel, 0.002, uOpDecay[1], 0.7, 0.25);
-  float env3 = adsr(t, tRel, 0.002, uOpDecay[2], 0.7, 0.25);
-  float env4 = adsr(t, tRel, 0.002, uOpDecay[3], 0.7, 0.25);
-  float env5 = adsr(t, tRel, 0.002, uOpDecay[4], 0.7, 0.25);
-  float env6 = adsr(t, tRel, 0.002, uOpDecay[5], 0.7, 0.25);
+  float env1 = adsr(t, tRel, 0.002, uOpDecay[0], uOpSustain[0], uOpRelease[0]);
+  float env2 = adsr(t, tRel, 0.002, uOpDecay[1], uOpSustain[1], uOpRelease[1]);
+  float env3 = adsr(t, tRel, 0.002, uOpDecay[2], uOpSustain[2], uOpRelease[2]);
+  float env4 = adsr(t, tRel, 0.002, uOpDecay[3], uOpSustain[3], uOpRelease[3]);
+  float env5 = adsr(t, tRel, 0.002, uOpDecay[4], uOpSustain[4], uOpRelease[4]);
+  float env6 = adsr(t, tRel, 0.002, uOpDecay[5], uOpSustain[5], uOpRelease[5]);
 
-  // DX7 Level to Gain formula: gain = 2^((Level + 128*env - 227) / 8)
-  float lvl1 = uOpLevel[0] <= 0.0 ? 0.0 : exp2((uOpLevel[0] + 128.0 * env1 - 227.0) / 8.0);
-  float lvl2 = uOpLevel[1] <= 0.0 ? 0.0 : exp2((uOpLevel[1] + 128.0 * env2 - 227.0) / 8.0);
-  float lvl3 = uOpLevel[2] <= 0.0 ? 0.0 : exp2((uOpLevel[2] + 128.0 * env3 - 227.0) / 8.0);
-  float lvl4 = uOpLevel[3] <= 0.0 ? 0.0 : exp2((uOpLevel[3] + 128.0 * env4 - 227.0) / 8.0);
-  float lvl5 = uOpLevel[4] <= 0.0 ? 0.0 : exp2((uOpLevel[4] + 128.0 * env5 - 227.0) / 8.0);
-  float lvl6 = uOpLevel[5] <= 0.0 ? 0.0 : exp2((uOpLevel[5] + 128.0 * env6 - 227.0) / 8.0);
+  // DX7 Level to Gain formula: gain = 2^((Level + 99*env - 198) / 8)
+  float lvl1 = uOpLevel[0] <= 0.0 ? 0.0 : exp2((uOpLevel[0] + 99.0 * env1 - 198.0) / 8.0);
+  float lvl2 = uOpLevel[1] <= 0.0 ? 0.0 : exp2((uOpLevel[1] + 99.0 * env2 - 198.0) / 8.0);
+  float lvl3 = uOpLevel[2] <= 0.0 ? 0.0 : exp2((uOpLevel[2] + 99.0 * env3 - 198.0) / 8.0);
+  float lvl4 = uOpLevel[3] <= 0.0 ? 0.0 : exp2((uOpLevel[3] + 99.0 * env4 - 198.0) / 8.0);
+  float lvl5 = uOpLevel[4] <= 0.0 ? 0.0 : exp2((uOpLevel[4] + 99.0 * env5 - 198.0) / 8.0);
+  float lvl6 = uOpLevel[5] <= 0.0 ? 0.0 : exp2((uOpLevel[5] + 99.0 * env6 - 198.0) / 8.0);
 
   float f1 = uOpMode[0] > 0.5 ?
              pow(10.0, uOpCoarse[0] + uOpFine[0] * 0.01) * (1.0 + uOpDetune[0] * 0.0002) :

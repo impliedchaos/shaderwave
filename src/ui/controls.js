@@ -199,6 +199,8 @@ export class Controls {
           pr.ops[k].detune = patch.ops[k].detune;
           pr.ops[k].decay = patch.ops[k].decay;
           pr.ops[k].mode = patch.ops[k].mode !== undefined ? patch.ops[k].mode : 0;
+          pr.ops[k].sustain = patch.ops[k].sustain !== undefined ? patch.ops[k].sustain : 0.7;
+          pr.ops[k].release = patch.ops[k].release !== undefined ? patch.ops[k].release : 0.25;
         }
       }
     } else {
@@ -287,8 +289,14 @@ export class Controls {
         
         const krs_detune = voiceData[opOffset + 12];
         const detune = ((krs_detune >> 3) & 15) - 7; // -7 to +7
+
+        const l3 = voiceData[opOffset + 6]; // sustain level (0-99)
+        const sustain = l3 / 99.0;
+
+        const rate4 = voiceData[opOffset + 3]; // release rate (0-99)
+        const release = Math.max(0.05, 4.0 * (1.0 - rate4 / 99.0));
         
-        ops.push({ coarse, fine, level, detune, decay, mode });
+        ops.push({ coarse, fine, level, detune, decay, mode, sustain, release });
       }
       
       patches.push({ name, algo, feedback, ops });
@@ -312,6 +320,8 @@ export class Controls {
         { label: 'Op Level', type: 'op', key: 'level', min: 0, max: 99, step: 1 },
         { label: 'Op Detune', type: 'op', key: 'detune', min: -7, max: 7, step: 1 },
         { label: 'Op Decay', type: 'op', key: 'decay', min: 0.05, max: 4, step: 0.01 },
+        { label: 'Op Sustain', type: 'op', key: 'sustain', min: 0, max: 1, step: 0.01 },
+        { label: 'Op Release', type: 'op', key: 'release', min: 0.05, max: 4, step: 0.01 },
       ];
     }
     

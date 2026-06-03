@@ -52,7 +52,9 @@ export class Engine {
         level: new Float32Array(6),
         detune: new Float32Array(6),
         decay: new Float32Array(6),
-        mode: new Float32Array(6)
+        mode: new Float32Array(6),
+        sustain: new Float32Array(6),
+        release: new Float32Array(6)
       }
     };
 
@@ -155,6 +157,8 @@ export class Engine {
         this.vd.dx7Ops.detune[i] = dxOps[i].detune;
         this.vd.dx7Ops.decay[i] = dxOps[i].decay;
         this.vd.dx7Ops.mode[i] = dxOps[i].mode !== undefined ? dxOps[i].mode : 0;
+        this.vd.dx7Ops.sustain[i] = dxOps[i].sustain !== undefined ? dxOps[i].sustain : 0.7;
+        this.vd.dx7Ops.release[i] = dxOps[i].release !== undefined ? dxOps[i].release : 0.25;
       }
     }
     return this.vd;
