@@ -213,3 +213,6 @@ google-chrome --headless=new --enable-unsafe-swiftshader --dump-dom \
 - O(N²) ladder recompute — replace with a checkpoint scan if profiling demands it.
 - DX7 envelope is simplified ADSR; full rate/level 4-stage envelope not yet
   implemented.
+- Per-channel stereo panning controls.
+- Save/load functionality to export and import song data as JSON.
+- Instrument editor for creating and editing instrument patches from scratch.
