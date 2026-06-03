@@ -14,6 +14,21 @@ import { EMPTY, OFF } from './tracker/pattern.js';
 
 const $ = (id) => document.getElementById(id);
 
+// Deep-clone song params so slider mutations never corrupt the DEMO_SONGS defs.
+function cloneParams(src) {
+  const dst = {};
+  for (const k in src) {
+    dst[k] = { p0: [...src[k].p0], p1: [...src[k].p1] };
+    if (src[k].ops) dst[k].ops = src[k].ops.map(o => ({ ...o }));
+  }
+  return dst;
+}
+function cloneFx(src) {
+  const dst = {};
+  for (const k in src) dst[k] = { ...src[k] };
+  return dst;
+}
+
 // Lower keyboard row → semitone offset within the current octave.
 const KEY_SEMI = {
   KeyZ: 0, KeyS: 1, KeyX: 2, KeyD: 3, KeyC: 4, KeyV: 5, KeyG: 6,
@@ -39,8 +54,8 @@ class App {
     const initialSong = DEMO_SONGS[this.currentSongIdx];
     this.engine.loadSong(initialSong.data());
     this.engine.bpm = initialSong.bpm;
-    this.engine.params = initialSong.params;
-    this.fxParams = initialSong.fxParams;
+    this.engine.params = cloneParams(initialSong.params);
+    this.fxParams = cloneFx(initialSong.fxParams);
 
     const bpmInput = $('bpm');
     if (bpmInput) {
@@ -213,8 +228,8 @@ class App {
             bpmInput.value = songDef.bpm;
           }
           this.engine.bpm = songDef.bpm;
-          this.engine.params = songDef.params;
-          this.fxParams = songDef.fxParams;
+          this.engine.params = cloneParams(songDef.params);
+          this.fxParams = cloneFx(songDef.fxParams);
 
           if (this.renderer) {
             for (const it of this.renderer.inst) {

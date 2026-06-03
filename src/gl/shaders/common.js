@@ -37,7 +37,7 @@ const float PI  = 3.14159265358979;
 const float TAU = 6.28318530717959;
 
 // --- noise -----------------------------------------------------------------
-float hash11(float p){ p = fract(p * 0.1031); p *= p + 33.33; p *= p + p; return fract(p); }
+float hash11(float p){ p = fract(p * 0.3183099); p *= p + 33.33; p *= p + p; return fract(p); }
 float noise1(float x){ return hash11(x) * 2.0 - 1.0; }
 
 // --- band-limited oscillators (polyBLEP) -----------------------------------

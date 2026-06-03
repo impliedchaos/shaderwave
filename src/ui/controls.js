@@ -149,13 +149,8 @@ export class Controls {
     // Populate presets dropdown for selected instrument
     this._populatePresets();
 
-    // Load default preset for this instrument
-    const presetSelect = document.getElementById('instrument-preset');
-    if (presetSelect) {
-      const val = parseInt(presetSelect.value) || 0;
-      this.loadPreset(val);
-    }
-
+    // Build params from current engine state (don't auto-load a preset,
+    // which would overwrite any song-specific parameter values)
     this._buildParams();
     if (this.onSelect) this.onSelect(i);
   }
