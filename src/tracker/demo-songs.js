@@ -2267,7 +2267,7 @@ export const DEMO_SONGS = [
     }
   },
   {
-    name: "Antiseptik USA",
+    name: "Crypto-Bro Golf Tourney",
     bpm: 142,
     params: [
       { name: "VCO Noise Guitar", type: "303", p0: [1800, 0.96, 0.85, 0.6], p1: [1.0, 0.15, 0.25, 0] },
@@ -2441,14 +2441,25 @@ export const DEMO_SONGS = [
       writeLowKeyDrums(p[6], 0.5);
       writeBassSparse(p[6], 0.5);
       writeChords(p[6], 0.5);
+      // Harmonious melody
+      p[6].set(8, 3, 62, I_303, 0.65); // D
+      p[6].set(24, 3, OFF, I_303);
+      p[6].set(40, 3, 65, I_303, 0.65); // F
+      p[6].set(56, 3, OFF, I_303);
+      p[6].set(72, 3, 69, I_303, 0.65); // A
+      p[6].set(88, 3, OFF, I_303);
+      p[6].set(104, 3, 67, I_303, 0.65); // G
+      p[6].set(120, 3, OFF, I_303);
 
       // Pattern 7: Outro Noise Jam (all instruments going wild, max energy)
       writeDrums(p[7], 0.8);
       writeBass(p[7], 0.7);
       writeChords(p[7], 0.45);
-      // VCO guitar noise screams
+      // VCO guitar noise screams (harmonious scale selection)
+      const scale = [62, 65, 67, 69, 72, 74, 77];
       for (let r = 0; r < 128; r += 16) {
-        p[7].set(r, 3, 62 + Math.floor(Math.random() * 24), I_303, 0.75);
+        const note = scale[Math.floor(Math.random() * scale.length)];
+        p[7].set(r, 3, note, I_303, 0.75);
         p[7].set(r + 12, 3, OFF, I_303);
       }
 
