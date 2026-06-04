@@ -2957,5 +2957,165 @@ export const DEMO_SONGS = [
         rowsPerBeat: 4
       };
     }
+  },
+  {
+    name: "Feral Roomba Sabbath",
+    bpm: 124,
+    params: [
+      { name: "Roomba 808", type: "808", p0: [0, 0.5, 0.5, 0.55], p1: [0, 0, 0, 0] },
+      {
+        name: "Feral Bass", type: "moog",
+        p0: [260, 0.55, 0.6, 0], p1: [3, 0.85, 0.4, 0.55],
+        p2: [2, 1, 1, 0.02], p3: [2, 2, 1, 0]   // square + saw + 16' sub, light glide
+      },
+      { name: "Vacuum Acid", type: "303", p0: [420, 0.78, 0.7, 0.5], p1: [1, 0.3, 0.35, 0] },
+      {
+        name: "Glass Bell", type: "dx7",
+        p0: [1, 3.5, 3.0, 0.0], p1: [1, 0.7, 1.4, 1],
+        ops: [
+          { coarse: 1.0, fine: 0, level: 99, detune: 0,  decay: 1.6, mode: 0, sustain: 0.0, release: 1.3 },
+          { coarse: 3.5, fine: 0, level: 72, detune: 2,  decay: 0.7, mode: 0, sustain: 0.0, release: 0.6 },
+          { coarse: 7.0, fine: 0, level: 45, detune: -3, decay: 0.4, mode: 0, sustain: 0.0, release: 0.4 },
+          { coarse: 1.0, fine: 0, level: 0,  detune: 0,  decay: 0.5, mode: 0, sustain: 0.0, release: 0.5 },
+          { coarse: 1.0, fine: 0, level: 0,  detune: 0,  decay: 0.5, mode: 0, sustain: 0.0, release: 0.5 },
+          { coarse: 1.0, fine: 0, level: 0,  detune: 0,  decay: 0.5, mode: 0, sustain: 0.0, release: 0.5 }
+        ]
+      },
+      {
+        name: "Ghost Pad", type: "moog",
+        p0: [300, 0.1, 0.3, 0.1], p1: [12, 0.9, 2.0, 2.0],
+        p2: [1, 1, 0, 0], p3: [2, 2, 1, 0.05]   // saw + saw + 16' triangle, a touch of noise
+      }
+    ],
+    fxParams: {
+      '303': Object.assign(defaultFxParams(), { dist: 6.0, tone: 0.55, level: 1.0, master: 0.85, delayMix: 0.25, delayTime: 0.33, delayFeedback: 0.4, reverbMix: 0.18 }),
+      'dx7': Object.assign(defaultFxParams(), { chorusMix: 0.3, chorusRate: 0.8, chorusDepth: 2.5, delayMix: 0.3, delayTime: 0.44, delayFeedback: 0.45, reverbMix: 0.4, reverbDecay: 0.9, master: 0.9 }),
+      '808': Object.assign(defaultFxParams(), { dist: 2.0, tone: 0.5, level: 1.0, master: 0.9, reverbMix: 0.12 }),
+      'moog': Object.assign(defaultFxParams(), { dist: 2.0, tone: 0.5, level: 1.0, master: 0.85, chorusMix: 0.3, reverbMix: 0.35, reverbDecay: 0.9 })
+    },
+    data: () => {
+      const I_808 = 0, I_bass = 1, I_acid = 2, I_bell = 3, I_pad = 4;
+      const BD = 36, CP = 39, CH = 42, OH = 46, SD = 38;
+
+      // 8-bar minor progression: Am Am F G | Am Am Dm E
+      const bassRoots = [33, 33, 29, 31, 33, 33, 38, 28];          // A1 A1 F1 G1 A1 A1 D2 E1
+      const padDyads  = [[57,64],[57,64],[53,60],[55,62],[57,64],[57,64],[62,69],[52,59]];
+      const bellTri   = [[69,72,76],[69,72,76],[65,69,72],[67,71,74],[69,72,76],[69,72,76],[74,77,81],[64,68,71]];
+      const acidRoots = [45, 45, 41, 43, 45, 45, 50, 40];
+      const acidRiff  = [0, 12, 0, 7, null, 0, 12, 3, 0, 7, null, 12, 0, 7, 0, 10];
+
+      const drums = (pat, o) => {
+        for (let bar = 0; bar < 8; bar++) {
+          const s = bar * 16;
+          if (o.kick) for (let b = 0; b < 16; b += 4) pat.set(s + b, 0, BD, I_808, b === 0 ? 0.96 : 0.88);
+          if (o.clap) { pat.set(s + 4, 1, CP, I_808, 0.7); pat.set(s + 12, 1, CP, I_808, 0.7); }
+          if (o.hats) {
+            for (let b = 2; b < 16; b += 4) pat.set(s + b, 2, CH, I_808, 0.4);
+            if (o.openHat) pat.set(s + 14, 2, OH, I_808, 0.45);
+          }
+          if (o.fill && bar === 7) for (let b = 8; b < 16; b += 2) pat.set(s + b, 1, SD, I_808, 0.5 + (b - 8) / 16);
+        }
+      };
+      const bass = (pat, vol, oct = 0) => {
+        for (let bar = 0; bar < 8; bar++) {
+          const s = bar * 16, root = bassRoots[bar] + 12 * oct;
+          for (let step = 0; step < 8; step++) {
+            const row = s + step * 2;
+            const n = root + (step % 4 === 3 ? 12 : 0);
+            pat.set(row, 3, n, I_bass, step % 2 === 0 ? vol : vol * 0.8);
+            pat.set(row + 1, 3, OFF, I_bass);
+          }
+        }
+      };
+      const pad = (pat, vol) => {
+        for (let bar = 0; bar < 8; bar++) {
+          const s = bar * 16;
+          padDyads[bar].forEach((n, i) => { pat.set(s, 6 + i, n, I_pad, vol); pat.set(s + 15, 6 + i, OFF, I_pad); });
+        }
+      };
+      const bell = (pat, vol, oct = 0) => {
+        const arp = [0, 1, 2, 1, 0, 2, 1, 2];
+        for (let bar = 0; bar < 8; bar++) {
+          const s = bar * 16, tri = bellTri[bar];
+          for (let step = 0; step < 8; step++) {
+            const row = s + step * 2;
+            pat.set(row, 5, tri[arp[step]] + 12 * oct, I_bell, vol);
+            pat.set(row + 1, 5, OFF, I_bell);
+          }
+        }
+      };
+      const acid = (pat, vol, oct = 0) => {
+        for (let bar = 0; bar < 8; bar++) {
+          const s = bar * 16, root = acidRoots[bar] + 12 * oct;
+          for (let step = 0; step < 16; step++) {
+            const off = acidRiff[step];
+            if (off === null) continue;
+            pat.set(s + step, 4, root + off, I_acid, step % 4 === 0 ? vol : vol * 0.7);
+            pat.set(s + step + 1, 4, OFF, I_acid);
+          }
+        }
+      };
+
+      // ---- automation ----
+      const CUT3 = targetByCode('303', 'CUT'), RES3 = targetByCode('303', 'RES');
+      const CUTm = targetByCode('moog', 'CUT'), MOD = targetByCode('dx7', 'MOD'), MRV = targetByCode('moog', 'RVM');
+      const acidSweep = (pat, loHz, hiHz, cycles) => {
+        const lo = normByte(CUT3, loHz), hi = normByte(CUT3, hiHz);
+        for (let r = 0; r < 128; r++) { const ph = ((r / 128) * cycles) % 1; const t = ph < 0.5 ? ph * 2 : 2 - ph * 2; pat.setFx(r, 4, CUT3.id, Math.round(lo + (hi - lo) * t)); }
+      };
+      const acidScream = (pat, lo, hi) => {     // resonance climb on the drop
+        const loB = normByte(RES3, lo), hiB = normByte(RES3, hi);
+        for (let r = 0; r < 128; r++) pat.setFx(r, 4, RES3.id, Math.round(loB + (hiB - loB) * (r / 127)));
+      };
+      const bellBright = (pat, lo, hi) => {     // FM mod-index ramp
+        const loB = normByte(MOD, lo), hiB = normByte(MOD, hi);
+        for (let r = 0; r < 128; r++) pat.setFx(r, 5, MOD.id, Math.round(loB + (hiB - loB) * (r / 127)));
+      };
+      const padBreath = (pat, loHz, hiHz, chans) => {   // sine filter swell on the pad voices
+        const lo = normByte(CUTm, loHz), hi = normByte(CUTm, hiHz);
+        for (let r = 0; r < 128; r++) {
+          const sn = 0.5 - 0.5 * Math.cos((r / 128) * Math.PI * 2);
+          const b = Math.round(lo + (hi - lo) * sn);
+          for (const ch of chans) pat.setFx(r, ch, CUTm.id, b);
+        }
+      };
+      const revWash = (pat, ch, lo, hi) => {    // fx-scope reverb swell (self-resetting triangle)
+        const loB = normByte(MRV, lo), hiB = normByte(MRV, hi);
+        for (let r = 0; r < 128; r++) { const sn = 0.5 - 0.5 * Math.cos((r / 128) * Math.PI * 2); pat.setFx(r, ch, MRV.id, Math.round(loB + (hiB - loB) * sn)); }
+      };
+
+      const p = Array.from({ length: 7 }, () => new Pattern(128, 8));
+
+      // p0 intro — pad + ghostly bell, no rhythm
+      pad(p[0], 0.45); bell(p[0], 0.32); padBreath(p[0], 200, 600, [6, 7]);
+      // p1 beat-in — kick, hats, bass join
+      pad(p[1], 0.5); bass(p[1], 0.7); bell(p[1], 0.36); drums(p[1], { kick: true, hats: true });
+      padBreath(p[1], 250, 750, [6, 7]);
+      // p2 groove — full kit
+      pad(p[2], 0.5); bass(p[2], 0.78); bell(p[2], 0.5); drums(p[2], { kick: true, clap: true, hats: true, openHat: true });
+      padBreath(p[2], 280, 900, [6, 7]); bellBright(p[2], 2.0, 3.5);
+      // p3 build — acid enters with a cutoff sweep
+      pad(p[3], 0.52); bass(p[3], 0.8); bell(p[3], 0.55); acid(p[3], 0.6);
+      drums(p[3], { kick: true, clap: true, hats: true, openHat: true });
+      padBreath(p[3], 300, 1000, [6, 7]); bellBright(p[3], 2.5, 4.5); acidSweep(p[3], 150, 800, 2);
+      // p4 drop — acid screams (resonance), bell at its brightest, octave bass
+      pad(p[4], 0.55); bass(p[4], 0.85); bell(p[4], 0.6, 1); acid(p[4], 0.72);
+      drums(p[4], { kick: true, clap: true, hats: true, openHat: true, fill: true });
+      padBreath(p[4], 350, 1300, [6, 7]); bellBright(p[4], 3.0, 6.0); acidScream(p[4], 0.6, 0.95);
+      // p5 breakdown — no drums; pad + bell drenched in a reverb wash (fx-scope on ch7)
+      pad(p[5], 0.5); bell(p[5], 0.45);
+      p[5].set(0, 5, OFF, I_bell);   // cut any bell tail ringing in from the drop
+      padBreath(p[5], 250, 850, [6]); bellBright(p[5], 2.0, 4.0); revWash(p[5], 7, 0.35, 0.85);
+      // p6 outro — pad + soft bell fade
+      pad(p[6], 0.4); bell(p[6], 0.3); padBreath(p[6], 200, 480, [6, 7]);
+      p[6].set(0, 5, OFF, I_bell);   // clean bell entrance into the outro
+
+      return {
+        patterns: p,
+        // intro→beat→groove→build→drop→drop→build→drop→breakdown→groove→build→drop→drop→outro
+        order: [0, 1, 2, 3, 4, 4, 3, 4, 5, 2, 3, 4, 4, 6],
+        rowsPerBeat: 4
+      };
+    }
   }
 ];
