@@ -117,6 +117,11 @@ export class SynthRenderer {
         gl.uniform4fv(p.u('uOpA[0]'), vd.dx7Ops.A);   // per-voice (coarse,fine,level,detune)
         gl.uniform4fv(p.u('uOpB[0]'), vd.dx7Ops.B);   // per-voice (mode,sustain,release,decay)
       }
+      if (it.name === 'moog' && vd.p2) {
+        gl.uniform4fv(p.u('uP2[0]'), vd.p2);          // osc waveforms/octaves, glide, noise
+        gl.uniform4fv(p.u('uP3[0]'), vd.p3);
+        gl.uniform1fv(p.u('uFreqFrom[0]'), vd.freqFrom);
+      }
 
       gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(gl.TEXTURE_2D, it.stateRead);

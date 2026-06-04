@@ -62,6 +62,11 @@ export class Engine {
       offRel: new Float32Array(VOICES),
       p0: new Float32Array(VOICES * 4),
       p1: new Float32Array(VOICES * 4),
+      // Extra Moog-only banks (osc waveforms/octaves, glide, noise) + the pitch
+      // each voice glides from. Other engines ignore these.
+      p2: new Float32Array(VOICES * 4),
+      p3: new Float32Array(VOICES * 4),
+      freqFrom: new Float32Array(VOICES),
       gain: new Float32Array(VOICES).fill(1),
       pan: new Float32Array(VOICES).fill(0.5),
       master: 0.32,
@@ -127,6 +132,7 @@ export class Engine {
   triggerNote(ch, note, inst, vol, frame) {
     const v = this.voices[ch];
     if (note === OFF) { v.offFrame = frame; return; }
+    const wasActive = v.active, prevFreq = v.freq;    // for glide (capture before overwrite)
     const idx = this.instruments[inst] ? inst : 0;   // clamp stale/out-of-range
     const instr = this.instruments[idx];
     v.active = true;
@@ -140,15 +146,21 @@ export class Engine {
       this._writeParams(ch, instr, DRUM_MAP[note] ?? 0);
     } else {
       v.freq = noteToFreq(note);
+      // Glide starts from the voice's previous pitch (Moog reads uFreqFrom);
+      // a fresh voice glides from its own target = no glide.
+      this.vd.freqFrom[ch] = wasActive ? prevFreq : v.freq;
       this._writeParams(ch, instr, null);
     }
   }
 
   // Copy an instrument instance's param banks into the voice's slots. For 808,
-  // override the drum-slot field (p0.x) from the note's drum index.
+  // override the drum-slot field (p0.x) from the note's drum index. p2/p3 are
+  // Moog-only and copied when the instance has them.
   _writeParams(ch, instr, drumSlot) {
     const o = ch * 4;
     for (let k = 0; k < 4; k++) { this.vd.p0[o + k] = instr.p0[k]; this.vd.p1[o + k] = instr.p1[k]; }
+    if (instr.p2) for (let k = 0; k < 4; k++) this.vd.p2[o + k] = instr.p2[k];
+    if (instr.p3) for (let k = 0; k < 4; k++) this.vd.p3[o + k] = instr.p3[k];
     if (drumSlot !== null) this.vd.p0[o] = drumSlot;
   }
 
@@ -160,6 +172,7 @@ export class Engine {
       || INSTRUMENT_COLORS[this.instruments.length % INSTRUMENT_COLORS.length];
     const e = { name: type.toUpperCase(), type, color, p0: [...dp.p0], p1: [...dp.p1] };
     if (dp.ops) e.ops = dp.ops.map((o) => ({ ...o }));
+    if (type === 'moog') { e.p2 = dp.p2 ? [...dp.p2] : [1, 1, 1, 0]; e.p3 = dp.p3 ? [...dp.p3] : [2, 2, 2, 0]; }
     this.instruments.push(e);
     return this.instruments.length - 1;
   }

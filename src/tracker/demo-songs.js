@@ -20,7 +20,9 @@ export function defaultParams() {
       ]
     },
     '808':  { p0: [0, 0.6, 0.5, 0.6],    p1: [0, 0, 0, 0] },
-    'moog': { p0: [800, 0.45, 0.5, 0],   p1: [8, 0.8, 0.6, 0.9] },
+    // p0.w = filter keyboard tracking; p2 = (osc1/2/3 wave, glide s); p3 =
+    // (osc1/2/3 octave, noise mix). Defaults: three saws at 8', no glide/noise.
+    'moog': { p0: [800, 0.45, 0.5, 0],   p1: [8, 0.8, 0.6, 0.9], p2: [1, 1, 1, 0], p3: [2, 2, 2, 0] },
   };
 }
 
@@ -29,6 +31,8 @@ export function makeParams(overrides) {
   for (const k in overrides) {
     if (overrides[k].p0) p[k].p0 = [...overrides[k].p0];
     if (overrides[k].p1) p[k].p1 = [...overrides[k].p1];
+    if (overrides[k].p2) p[k].p2 = [...overrides[k].p2];
+    if (overrides[k].p3) p[k].p3 = [...overrides[k].p3];
     if (overrides[k].ops) p[k].ops = overrides[k].ops.map(o => ({ ...o }));
   }
   return p;
@@ -102,10 +106,10 @@ export const DEMO_SONGS = [
       { name: "303 Bass B", type: "303", p0: [200, 0.9, 0.8, 0.6], p1: [0, 0.2, 0.35, 0] },
       { name: "303 Lead A", type: "303", p0: [1200, 0.85, 0.6, 0.4], p1: [1, 0.4, 0.4, 0] },
       { name: "303 Lead B", type: "303", p0: [1500, 0.9, 0.5, 0.3], p1: [0, 0.3, 0.3, 0] },
-      { name: "Moog Bass A", type: "moog", p0: [150, 0.7, 0.8, 0], p1: [4, 0.9, 0.5, 0.8] },
-      { name: "Moog Bass B", type: "moog", p0: [120, 0.8, 0.9, 0], p1: [6, 0.95, 0.6, 0.9] },
-      { name: "Moog Lead A", type: "moog", p0: [900, 0.3, 0.4, 0], p1: [12, 0.5, 0.7, 0.4] },
-      { name: "Moog Lead B", type: "moog", p0: [1400, 0.2, 0.3, 0], p1: [16, 0.4, 0.8, 0.3] }
+      { name: "Moog Bass A", type: "moog", p0: [150, 0.7, 0.8, 0], p1: [4, 0.9, 0.5, 0.8], p2: [2, 1, 1, 0], p3: [2, 2, 1, 0] },
+      { name: "Moog Bass B", type: "moog", p0: [120, 0.8, 0.9, 0], p1: [6, 0.95, 0.6, 0.9], p2: [2, 2, 1, 0], p3: [2, 2, 2, 0] },
+      { name: "Moog Lead A", type: "moog", p0: [900, 0.3, 0.4, 0.35], p1: [12, 0.5, 0.7, 0.4], p2: [1, 2, 1, 0.05], p3: [2, 2, 3, 0] },
+      { name: "Moog Lead B", type: "moog", p0: [1400, 0.2, 0.3, 0.4], p1: [16, 0.4, 0.8, 0.3], p2: [1, 3, 2, 0.04], p3: [2, 3, 2, 0] }
     ],
     fxParams: {
       '303': Object.assign(defaultFxParams(), { dist: 12.0, tone: 0.6, level: 1.0, master: 0.85, delayMix: 0.3, delayFeedback: 0.45 }),
@@ -325,7 +329,7 @@ export const DEMO_SONGS = [
       { name: "808 Dance Kit", type: "808", p0: [0, 0.6, 0.5, 0.6], p1: [0, 0, 0, 0] },
       { name: "Happy Square A", type: "303", p0: [600, 0.5, 0.7, 0.3], p1: [1.0, 0.15, 0.25, 0] },
       { name: "Happy Square B", type: "303", p0: [800, 0.6, 0.6, 0.4], p1: [1.0, 0.2, 0.3, 0] },
-      { name: "Fat Moog Lead", type: "moog", p0: [1200, 0.4, 0.5, 0], p1: [8, 0.8, 0.6, 0.9] },
+      { name: "Fat Moog Lead", type: "moog", p0: [1200, 0.4, 0.5, 0.35], p1: [8, 0.8, 0.6, 0.9], p2: [1, 1, 2, 0.05], p3: [2, 2, 3, 0] },
       { name: "FM Bell Chords", type: "dx7",
         p0: [1, 3, 2.5, 0.4], p1: [1, 0.6, 0.9, 3],
         ops: [
@@ -547,7 +551,7 @@ export const DEMO_SONGS = [
         ]
       },
       { name: "808 Gated Kit", type: "808", p0: [0, 0.5, 0.8, 0.6], p1: [0, 0, 0, 0] },
-      { name: "Warm Pad", type: "moog", p0: [400, 0.2, 0.3, 0], p1: [15.0, 0.8, 1.5, 1.2] },
+      { name: "Warm Pad", type: "moog", p0: [400, 0.2, 0.3, 0.1], p1: [15.0, 0.8, 1.5, 1.2], p2: [1, 1, 0, 0], p3: [2, 2, 1, 0.05] },
       { name: "FM Chime Hook", type: "dx7",
         p0: [1, 3.5, 4.0, 0.6], p1: [1, 0.5, 0.8, 4],
         ops: [
@@ -559,7 +563,7 @@ export const DEMO_SONGS = [
           { coarse: 1.0, fine: 0, level: 0,  detune: 0, decay: 0.5, mode: 0, sustain: 0.5, release: 0.25 }
         ]
       },
-      { name: "Soaring Moog Lead", type: "moog", p0: [900, 0.4, 0.6, 0], p1: [6.0, 0.9, 0.8, 0.6] }
+      { name: "Soaring Moog Lead", type: "moog", p0: [900, 0.4, 0.6, 0.45], p1: [6.0, 0.9, 0.8, 0.6], p2: [1, 1, 2, 0.08], p3: [2, 3, 2, 0] }
     ],
     fxParams: {
       '303': defaultFxParams(),
@@ -841,7 +845,7 @@ export const DEMO_SONGS = [
           { coarse: 4.0, fine: 0, level: 20, detune: 2,  decay: 1.0,  mode: 0, sustain: 0.30, release: 1.0 }
         ]
       },
-      { name: "Moog Warm Bass", type: "moog", p0: [180, 0.15, 0.7, 0], p1: [2.0, 0.95, 0.8, 1.2] },
+      { name: "Moog Warm Bass", type: "moog", p0: [180, 0.15, 0.7, 0], p1: [2.0, 0.95, 0.8, 1.2], p2: [2, 1, 1, 0], p3: [2, 2, 1, 0] },
       { name: "303 Shimmer", type: "303", p0: [1800, 0.25, 0.3, 0.15], p1: [1.0, 0.1, 0.6, 0] },
       {
         name: "DX7 Glass Bell",
@@ -857,7 +861,7 @@ export const DEMO_SONGS = [
           { coarse: 1.0, fine: 0, level: 0,  detune: 0,  decay: 0.5,  mode: 0, sustain: 0.5,  release: 0.25 }
         ]
       },
-      { name: "Moog Ethereal Sub", type: "moog", p0: [120, 0.08, 0.85, 0], p1: [1.0, 0.98, 1.2, 1.5] },
+      { name: "Moog Ethereal Sub", type: "moog", p0: [120, 0.08, 0.85, 0.1], p1: [1.0, 0.98, 1.2, 1.5], p2: [1, 1, 0, 0], p3: [2, 2, 2, 0.04] },
     ],
     fxParams: {
       '303': Object.assign(defaultFxParams(), { chorusMix: 0.6, chorusRate: 0.5, chorusDepth: 3.5, delayMix: 0.45, delayTime: 0.6, delayFeedback: 0.55, reverbMix: 0.7, reverbDecay: 0.95 }),
@@ -1072,8 +1076,8 @@ export const DEMO_SONGS = [
       },
       { name: "303 Liquid Pluck", type: "303", p0: [650, 0.45, 0.5, 0.2], p1: [1.0, 0.35, 0.45, 0] },
       { name: "808 Clean Kit", type: "808", p0: [0, 0.5, 0.45, 0.6], p1: [0, 0, 0, 0] },
-      { name: "Moog Warm Bass", type: "moog", p0: [150, 0.1, 0.75, 0], p1: [2.0, 0.95, 0.7, 1.0] },
-      { name: "Moog Soaring Lead", type: "moog", p0: [900, 0.35, 0.45, 0], p1: [15.0, 0.6, 0.8, 0.6] }
+      { name: "Moog Warm Bass", type: "moog", p0: [150, 0.1, 0.75, 0], p1: [2.0, 0.95, 0.7, 1.0], p2: [2, 1, 1, 0], p3: [2, 2, 1, 0] },
+      { name: "Moog Soaring Lead", type: "moog", p0: [900, 0.35, 0.45, 0.45], p1: [15.0, 0.6, 0.8, 0.6], p2: [1, 1, 2, 0.07], p3: [2, 3, 2, 0] }
     ],
     fxParams: {
       '303': Object.assign(defaultFxParams(), { distOn: false, bitcrushOn: false, delayMix: 0.4, chorusMix: 0.4 }),
@@ -1324,8 +1328,8 @@ export const DEMO_SONGS = [
       },
       { name: "303 Bouncy Pluck", type: "303", p0: [800, 0.6, 0.4, 0.3], p1: [1.0, 0.2, 0.3, 0] },
       { name: "808 Synthpop Kit", type: "808", p0: [0, 0.55, 0.4, 0.5], p1: [0, 0, 0, 0] },
-      { name: "Moog Funky Bass", type: "moog", p0: [300, 0.25, 0.6, 0], p1: [4.0, 0.9, 0.65, 0.9] },
-      { name: "Moog Britpop Lead", type: "moog", p0: [1200, 0.4, 0.5, 0], p1: [12.0, 0.55, 0.75, 0.5] }
+      { name: "Moog Funky Bass", type: "moog", p0: [300, 0.25, 0.6, 0], p1: [4.0, 0.9, 0.65, 0.9], p2: [2, 1, 1, 0.02], p3: [2, 2, 1, 0] },
+      { name: "Moog Britpop Lead", type: "moog", p0: [1200, 0.4, 0.5, 0.4], p1: [12.0, 0.55, 0.75, 0.5], p2: [1, 2, 2, 0.05], p3: [2, 2, 3, 0] }
     ],
     fxParams: {
       '303': Object.assign(defaultFxParams(), { distOn: false, bitcrushOn: false, chorusMix: 0.45, delayMix: 0.35, delayFeedback: 0.45 }),
@@ -1602,8 +1606,8 @@ export const DEMO_SONGS = [
       },
       { name: "303 Heavy Chug", type: "303", p0: [400, 0.85, 0.3, 0.45], p1: [1.0, 0.1, 0.25, 0] },
       { name: "808 Bonham Kit", type: "808", p0: [0, 0.6, 0.8, 0.4], p1: [0, 0, 0, 0] },
-      { name: "Moog Growl Bass", type: "moog", p0: [180, 0.15, 0.8, 0], p1: [2.0, 0.95, 0.8, 1.2] },
-      { name: "Moog Rock Lead", type: "moog", p0: [950, 0.3, 0.5, 0], p1: [15.0, 0.7, 0.75, 0.5] }
+      { name: "Moog Growl Bass", type: "moog", p0: [180, 0.15, 0.8, 0], p1: [2.0, 0.95, 0.8, 1.2], p2: [2, 2, 1, 0], p3: [2, 2, 1, 0.04] },
+      { name: "Moog Rock Lead", type: "moog", p0: [950, 0.3, 0.5, 0.45], p1: [15.0, 0.7, 0.75, 0.5], p2: [1, 1, 2, 0.06], p3: [2, 3, 2, 0] }
     ],
     fxParams: {
       '303': Object.assign(defaultFxParams(), { distOn: true, dist: 15.0, tone: 0.4, bitcrushOn: false, delayMix: 0.2, delayFeedback: 0.3, reverbMix: 0.3 }),
@@ -1864,8 +1868,8 @@ export const DEMO_SONGS = [
       },
       { name: "303 Square Lead", type: "303", p0: [900, 0.4, 0.45, 0.25], p1: [1.0, 0.15, 0.25, 0] },
       { name: "808 Latchkey Kit", type: "808", p0: [0, 0.5, 0.45, 0.5], p1: [0, 0, 0, 0] },
-      { name: "Moog Triangle Bass", type: "moog", p0: [150, 0.05, 0.8, 0], p1: [1.0, 0.98, 0.8, 1.0] },
-      { name: "Moog Pulse Lead", type: "moog", p0: [1000, 0.25, 0.45, 0], p1: [12.0, 0.6, 0.75, 0.5] }
+      { name: "Moog Triangle Bass", type: "moog", p0: [150, 0.05, 0.8, 0], p1: [1.0, 0.98, 0.8, 1.0], p2: [0, 0, 1, 0], p3: [2, 1, 2, 0] },
+      { name: "Moog Pulse Lead", type: "moog", p0: [1000, 0.25, 0.45, 0.4], p1: [12.0, 0.6, 0.75, 0.5], p2: [3, 4, 3, 0.05], p3: [2, 2, 3, 0] }
     ],
     fxParams: {
       '303': Object.assign(defaultFxParams(), { distOn: false, bitcrushOn: true, bitcrushBits: 8.0, bitcrushRate: 8000.0, chorusMix: 0.3, delayMix: 0.35, delayFeedback: 0.4 }),
@@ -2108,7 +2112,7 @@ export const DEMO_SONGS = [
         ]
       },
       { name: "Lo-Fi Vinyl Kit", type: "808", p0: [0, 0.45, 0.5, 0.5], p1: [0, 0, 0, 0] },
-      { name: "Moog Sub Bass", type: "moog", p0: [150, 0.2, 0.5, 0], p1: [2.0, 0.9, 0.8, 0.8] }
+      { name: "Moog Sub Bass", type: "moog", p0: [150, 0.2, 0.5, 0], p1: [2.0, 0.9, 0.8, 0.8], p2: [2, 1, 1, 0], p3: [2, 2, 1, 0] }
     ],
     fxParams: {
       '303': Object.assign(defaultFxParams(), { delayMix: 0.35, delayTime: 0.375, reverbMix: 0.4 }),
@@ -2287,7 +2291,7 @@ export const DEMO_SONGS = [
         ]
       },
       { name: "Booty Metal Kit", type: "808", p0: [0, 0.6, 0.5, 0.6], p1: [0, 0, 0, 0] },
-      { name: "Axe Bass", type: "moog", p0: [600, 0.6, 0.7, 0], p1: [12.0, 0.8, 0.6, 0.8] }
+      { name: "Axe Bass", type: "moog", p0: [600, 0.6, 0.7, 0.2], p1: [12.0, 0.8, 0.6, 0.8], p2: [2, 1, 2, 0.02], p3: [2, 2, 2, 0] }
     ],
     fxParams: {
       '303': Object.assign(defaultFxParams(), { distOn: true, dist: 15.0, tone: 0.45, chorusMix: 0.4, delayMix: 0.35, delayTime: 0.375, reverbMix: 0.4 }),
@@ -2478,7 +2482,7 @@ export const DEMO_SONGS = [
       { name: "808 Acid Kit", type: "808", p0: [0, 0.55, 0.42, 0.7], p1: [0, 0, 0, 0] },
       { name: "303 Acid Bass", type: "303", p0: [320, 0.92, 0.85, 0.6], p1: [1, 0.32, 0.34, 0] },
       { name: "303 Screamer",  type: "303", p0: [1100, 0.95, 0.9, 0.55], p1: [1, 0.22, 0.28, 0] },
-      { name: "Moog Sub",      type: "moog", p0: [110, 0.15, 0.4, 0], p1: [1.0, 0.95, 0.5, 0.6] },
+      { name: "Moog Sub",      type: "moog", p0: [110, 0.15, 0.4, 0], p1: [1.0, 0.95, 0.5, 0.6], p2: [2, 1, 1, 0], p3: [2, 2, 2, 0] },
       { name: "Organ Stab",    type: "dx7",
         p0: [1, 3, 2.5, 0.0], p1: [32, 0.6, 0.9, 3],
         ops: [
@@ -2656,8 +2660,10 @@ export const DEMO_SONGS = [
       {
         name: "Cloud Pad",
         type: "moog",
-        p0: [350, 0.08, 0.25, 0],
-        p1: [14.0, 0.9, 3.5, 3.5]
+        p0: [350, 0.08, 0.25, 0.1],
+        p1: [14.0, 0.9, 3.5, 3.5],
+        p2: [1, 1, 0, 0],
+        p3: [2, 2, 1, 0.06]
       }
     ],
     fxParams: {
@@ -2772,7 +2778,7 @@ export const DEMO_SONGS = [
         ]
       },
       { name: "808 Kit", type: "808", p0: [0, 0.55, 0.5, 0.7], p1: [0, 0, 0, 0] },
-      { name: "Sub Bass", type: "moog", p0: [180, 0.6, 0.7, 0], p1: [5, 0.7, 0.5, 0.6] }
+      { name: "Sub Bass", type: "moog", p0: [180, 0.6, 0.7, 0], p1: [5, 0.7, 0.5, 0.6], p2: [2, 1, 1, 0], p3: [2, 2, 1, 0] }
     ],
     fxParams: {
       '303': Object.assign(defaultFxParams(), { dist: 9.0, tone: 0.6, level: 0.9, master: 0.78, delayMix: 0.32, delayTime: 0.375, delayFeedback: 0.42, reverbMix: 0.15 }),

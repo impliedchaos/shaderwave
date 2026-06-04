@@ -36,14 +36,27 @@ const PARAM_DEFS = {
   ],
   'moog': [
     { label: 'Cutoff', bank: 'p0', i: 0, min: 30, max: 6000, step: 1 },
-    { label: 'Reso', bank: 'p0', i: 1, min: 0, max: 0.95, step: 0.01 },
+    { label: 'Reso', bank: 'p0', i: 1, min: 0, max: 0.98, step: 0.01 },
     { label: 'EnvAmt', bank: 'p0', i: 2, min: 0, max: 1, step: 0.01 },
+    { label: 'KbdTrack', bank: 'p0', i: 3, min: 0, max: 1, step: 0.01 },
     { label: 'Detune', bank: 'p1', i: 0, min: 0, max: 30, step: 0.5 },
     { label: 'AmpSus', bank: 'p1', i: 1, min: 0, max: 1, step: 0.01 },
     { label: 'FiltDecay', bank: 'p1', i: 2, min: 0.05, max: 2, step: 0.01 },
     { label: 'AmpDecay', bank: 'p1', i: 3, min: 0.05, max: 2, step: 0.01 },
+    { label: 'Osc1 Wave', bank: 'p2', i: 0, min: 0, max: 4, step: 1 },
+    { label: 'Osc2 Wave', bank: 'p2', i: 1, min: 0, max: 4, step: 1 },
+    { label: 'Osc3 Wave', bank: 'p2', i: 2, min: 0, max: 4, step: 1 },
+    { label: 'Glide', bank: 'p2', i: 3, min: 0, max: 1.5, step: 0.01 },
+    { label: 'Osc1 Oct', bank: 'p3', i: 0, min: 0, max: 4, step: 1 },
+    { label: 'Osc2 Oct', bank: 'p3', i: 1, min: 0, max: 4, step: 1 },
+    { label: 'Osc3 Oct', bank: 'p3', i: 2, min: 0, max: 4, step: 1 },
+    { label: 'Noise', bank: 'p3', i: 3, min: 0, max: 1, step: 0.01 },
   ],
 };
+
+// Display labels for the Moog stepped osc knobs.
+const MOOG_WAVES = { 0: 'Tri', 1: 'Saw', 2: 'Square', 3: 'WidePul', 4: 'NarPul' };
+const MOOG_OCTS = { 0: "32'", 1: "16'", 2: "8'", 3: "4'", 4: "2'" };
 
 // DX7 slider set (global algorithm/feedback + per-operator params). Static, so
 // it lives at module scope rather than being rebuilt on every _buildParams call.
@@ -100,7 +113,7 @@ const PRESETS = {
     { name: 'Booty Metal Kit', p0: [0, 0.6, 0.5, 0.6], p1: [0, 0, 0, 0] }
   ],
   'moog': [
-    { name: 'Classic Poly Pluck', p0: [800, 0.45, 0.5, 0], p1: [8, 0.8, 0.6, 0.9], fx: { dist: 0.001, tone: 0.5, level: 1.0, width: 1.0, master: 0.32 } },
+    { name: 'Classic Poly Pluck', p0: [800, 0.45, 0.5, 0], p1: [8, 0.8, 0.6, 0.9], p2: [1, 1, 1, 0], p3: [2, 2, 2, 0], fx: { dist: 0.001, tone: 0.5, level: 1.0, width: 1.0, master: 0.32 } },
     { name: 'Industrial Laser Lead', p0: [600, 0.6, 0.7, 0], p1: [25, 0.4, 1.2, 0.8], fx: { dist: 7.0, tone: 0.65, level: 1.0, width: 1.4, master: 0.7, chorusMix: 0.6, chorusRate: 0.8, chorusDepth: 5.0, tremoloMix: 0.3, tremoloRate: 2.5, delayTime: 0.5, delayFeedback: 0.5, delayMix: 0.3, reverbDecay: 0.95, reverbDamp: 0.2, reverbSend: 0.9, reverbMix: 0.6 } },
     { name: 'Cinematic Ambient Pad', p0: [400, 0.6, 0.5, 0], p1: [15, 0.8, 1.2, 0.9], fx: { dist: 3.0, tone: 0.45, level: 1.0, width: 1.2, master: 0.9, chorusMix: 0.4, chorusRate: 0.5, chorusDepth: 3.0, delayTime: 0.5, delayFeedback: 0.3, delayMix: 0.15, reverbDecay: 0.95, reverbDamp: 0.2, reverbSend: 0.9, reverbMix: 0.5 } },
     { name: 'Muffled Noir Bass', p0: [400, 0.45, 0.5, 0], p1: [8, 0.8, 0.6, 0.9], fx: { reverbMix: 0.4, reverbDecay: 0.9 } },
@@ -108,24 +121,24 @@ const PRESETS = {
     { name: 'Punchy Retro Synthwave', p0: [1200, 0.4, 0.5, 0], p1: [5, 0.8, 0.1, 0.2], fx: { dist: 2.5, tone: 0.5, level: 1.0 } },
     { name: 'Deep Space Drone', p0: [300, 0.3, 0.4, 0], p1: [30, 0.9, 1.8, 1.8], fx: { reverbDecay: 0.97, reverbMix: 0.6 } },
     { name: 'Liquid Drum & Bass Sub', p0: [150, 0.0, 0.0, 0], p1: [0, 0.9, 0.8, 0.8], fx: { dist: 0.001, tone: 0.5, level: 1.0 } },
-    { name: 'MoogProlapse', p0: [150, 0.7, 0.8, 0], p1: [4, 0.9, 0.5, 0.8] },
-    { name: 'MoogGooner', p0: [120, 0.8, 0.9, 0], p1: [6, 0.95, 0.6, 0.9] },
-    { name: 'GoonerGlide', p0: [900, 0.3, 0.4, 0], p1: [12, 0.5, 0.7, 0.4] },
-    { name: 'MoogScreamer', p0: [1400, 0.2, 0.3, 0], p1: [16, 0.4, 0.8, 0.3] },
-    { name: 'PerkyLead', p0: [1200, 0.4, 0.5, 0], p1: [8, 0.8, 0.6, 0.9] },
-    { name: 'BreathAwayPad', p0: [400, 0.2, 0.3, 0], p1: [15, 0.8, 1.5, 1.2] },
-    { name: 'CuckSoaring', p0: [900, 0.4, 0.6, 0], p1: [6, 0.9, 0.8, 0.6] },
-    { name: 'SuicideWarm', p0: [180, 0.15, 0.7, 0], p1: [2, 0.95, 0.8, 1.2] },
-    { name: 'EtherealSuicide', p0: [120, 0.08, 0.85, 0], p1: [1, 0.98, 1.2, 1.5] },
-    { name: 'AntiseptikSoar', p0: [900, 0.35, 0.45, 0], p1: [15, 0.6, 0.8, 0.6] },
-    { name: 'NutFunkBass', p0: [300, 0.25, 0.6, 0], p1: [4, 0.9, 0.65, 0.9] },
-    { name: 'BritpopLead', p0: [1200, 0.4, 0.5, 0], p1: [12, 0.55, 0.75, 0.5] },
-    { name: 'MurderGrowl', p0: [180, 0.15, 0.8, 0], p1: [2, 0.95, 0.8, 1.2] },
-    { name: 'ZeppelinLead', p0: [950, 0.3, 0.5, 0], p1: [15, 0.7, 0.75, 0.5] },
-    { name: 'LatchkeyBass', p0: [150, 0.05, 0.8, 0], p1: [1, 0.98, 0.8, 1] },
-    { name: 'TailpipePulse', p0: [1000, 0.25, 0.45, 0], p1: [12, 0.6, 0.75, 0.5] },
-    { name: 'SubGymnopedie', p0: [150, 0.2, 0.5, 0], p1: [2.0, 0.9, 0.8, 0.8] },
-    { name: 'Axe Bass', p0: [600, 0.6, 0.7, 0], p1: [12.0, 0.8, 0.6, 0.8] }
+    { name: 'MoogProlapse', p0: [150, 0.7, 0.8, 0], p1: [4, 0.9, 0.5, 0.8], p2: [2, 1, 1, 0], p3: [2, 2, 1, 0] },
+    { name: 'MoogGooner', p0: [120, 0.8, 0.9, 0], p1: [6, 0.95, 0.6, 0.9], p2: [2, 2, 1, 0], p3: [2, 2, 2, 0] },
+    { name: 'GoonerGlide', p0: [900, 0.3, 0.4, 0.35], p1: [12, 0.5, 0.7, 0.4], p2: [1, 2, 1, 0.05], p3: [2, 2, 3, 0] },
+    { name: 'MoogScreamer', p0: [1400, 0.2, 0.3, 0.4], p1: [16, 0.4, 0.8, 0.3], p2: [1, 3, 2, 0.04], p3: [2, 3, 2, 0] },
+    { name: 'PerkyLead', p0: [1200, 0.4, 0.5, 0.35], p1: [8, 0.8, 0.6, 0.9], p2: [1, 1, 2, 0.05], p3: [2, 2, 3, 0] },
+    { name: 'BreathAwayPad', p0: [400, 0.2, 0.3, 0.1], p1: [15, 0.8, 1.5, 1.2], p2: [1, 1, 0, 0], p3: [2, 2, 1, 0.05] },
+    { name: 'CuckSoaring', p0: [900, 0.4, 0.6, 0.45], p1: [6, 0.9, 0.8, 0.6], p2: [1, 1, 2, 0.08], p3: [2, 3, 2, 0] },
+    { name: 'SuicideWarm', p0: [180, 0.15, 0.7, 0], p1: [2, 0.95, 0.8, 1.2], p2: [2, 1, 1, 0], p3: [2, 2, 1, 0] },
+    { name: 'EtherealSuicide', p0: [120, 0.08, 0.85, 0.1], p1: [1, 0.98, 1.2, 1.5], p2: [1, 1, 0, 0], p3: [2, 2, 2, 0.04] },
+    { name: 'AntiseptikSoar', p0: [900, 0.35, 0.45, 0.45], p1: [15, 0.6, 0.8, 0.6], p2: [1, 1, 2, 0.07], p3: [2, 3, 2, 0] },
+    { name: 'NutFunkBass', p0: [300, 0.25, 0.6, 0], p1: [4, 0.9, 0.65, 0.9], p2: [2, 1, 1, 0.02], p3: [2, 2, 1, 0] },
+    { name: 'BritpopLead', p0: [1200, 0.4, 0.5, 0.4], p1: [12, 0.55, 0.75, 0.5], p2: [1, 2, 2, 0.05], p3: [2, 2, 3, 0] },
+    { name: 'MurderGrowl', p0: [180, 0.15, 0.8, 0], p1: [2, 0.95, 0.8, 1.2], p2: [2, 2, 1, 0], p3: [2, 2, 1, 0.04] },
+    { name: 'ZeppelinLead', p0: [950, 0.3, 0.5, 0.45], p1: [15, 0.7, 0.75, 0.5], p2: [1, 1, 2, 0.06], p3: [2, 3, 2, 0] },
+    { name: 'LatchkeyBass', p0: [150, 0.05, 0.8, 0], p1: [1, 0.98, 0.8, 1], p2: [0, 0, 1, 0], p3: [2, 1, 2, 0] },
+    { name: 'TailpipePulse', p0: [1000, 0.25, 0.45, 0.4], p1: [12, 0.6, 0.75, 0.5], p2: [3, 4, 3, 0.05], p3: [2, 2, 3, 0] },
+    { name: 'SubGymnopedie', p0: [150, 0.2, 0.5, 0], p1: [2.0, 0.9, 0.8, 0.8], p2: [2, 1, 1, 0], p3: [2, 2, 1, 0] },
+    { name: 'Axe Bass', p0: [600, 0.6, 0.7, 0.2], p1: [12.0, 0.8, 0.6, 0.8], p2: [2, 1, 2, 0.02], p3: [2, 2, 2, 0] }
   ]
 };
 
@@ -446,6 +459,12 @@ export class Controls {
         const prDst = this._instr;
         prDst.p0 = [...preset.p0];
         prDst.p1 = [...preset.p1];
+        // Moog carries the extra osc/glide/noise banks; reset to the classic
+        // Model D default (3 saws at 8') when a preset doesn't specify them.
+        if (instName === 'moog') {
+          prDst.p2 = preset.p2 ? [...preset.p2] : [1, 1, 1, 0];
+          prDst.p3 = preset.p3 ? [...preset.p3] : [2, 2, 2, 0];
+        }
         if (this.onPresetChange && preset.fx) {
           this.onPresetChange(instName, preset.fx);
         }
@@ -603,7 +622,9 @@ export class Controls {
       const formatFn = (d.label === 'Wave' && name === '303') ? (v) => {
         const map = { 0: 'Saw', 1: 'Square', 2: 'Triangle' };
         return map[Math.round(v)] || v.toString();
-      } : (d.label === 'Op Mode' && name === 'dx7') ? (v) => {
+      } : (name === 'moog' && /Wave$/.test(d.label)) ? (v) => MOOG_WAVES[Math.round(v)] || v.toString()
+        : (name === 'moog' && /Oct$/.test(d.label)) ? (v) => MOOG_OCTS[Math.round(v)] || v.toString()
+        : (d.label === 'Op Mode' && name === 'dx7') ? (v) => {
         return Math.round(v) === 0 ? 'Ratio' : 'Fixed';
       } : (d.label === 'Op Coarse' && name === 'dx7' && pr.ops[this.activeOp].mode === 1) ? (v) => {
         const valMap = { 0: '1 Hz', 1: '10 Hz', 2: '100 Hz', 3: '1000 Hz' };

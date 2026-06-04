@@ -26,9 +26,13 @@ function stats(buf) {
 // Build a voice-data object with a single active voice of one instrument.
 function makeVD(instId, freq, blockStart, params) {
   const z4 = () => new Float32Array(VOICES * 4);
-  const p0 = z4(), p1 = z4();
+  const p0 = z4(), p1 = z4(), p2 = z4(), p3 = z4();
   const name = INSTRUMENTS[instId];
-  for (let k = 0; k < 4; k++) { p0[k] = params[name].p0[k]; p1[k] = params[name].p1[k]; }
+  for (let k = 0; k < 4; k++) {
+    p0[k] = params[name].p0[k]; p1[k] = params[name].p1[k];
+    if (params[name].p2) p2[k] = params[name].p2[k];
+    if (params[name].p3) p3[k] = params[name].p3[k];
+  }
   return {
     active: Int32Array.of(1, 0, 0, 0, 0, 0, 0, 0),
     inst: Int32Array.of(instId, 0, 0, 0, 0, 0, 0, 0),
@@ -36,7 +40,8 @@ function makeVD(instId, freq, blockStart, params) {
     vel: Float32Array.of(1, 0, 0, 0, 0, 0, 0, 0),
     onRel: Float32Array.of(-blockStart, 0, 0, 0, 0, 0, 0, 0), // note-on at frame 0
     offRel: Float32Array.of(1e9, 0, 0, 0, 0, 0, 0, 0),
-    p0, p1,
+    p0, p1, p2, p3,
+    freqFrom: Float32Array.of(freq, 0, 0, 0, 0, 0, 0, 0),
     gain: new Float32Array(VOICES).fill(1),
     pan: new Float32Array(VOICES).fill(0.5),
     master: 1.0,

@@ -13,6 +13,16 @@ export const DRUM_MAP = { 36: 0, 38: 1, 42: 2, 46: 3, 39: 4, 41: 5, 45: 6, 48: 7
 // one instance per engine in INSTRUMENTS order, so existing pattern `inst` values
 // (0=303, 1=dx7, 2=808, 3=moog) keep resolving to the right engine + params. The
 // UI can append more instances (e.g. a second 303) on top at runtime.
+// Moog instances carry two extra param banks (osc waveforms/octaves, glide,
+// noise). Songs predating them just get the classic-Model-D defaults: three
+// saws at 8', no glide/noise.
+function addMoogBanks(e, pr) {
+  if (e.type !== 'moog') return e;
+  e.p2 = pr.p2 ? [...pr.p2] : [1, 1, 1, 0];
+  e.p3 = pr.p3 ? [...pr.p3] : [2, 2, 2, 0];
+  return e;
+}
+
 export function instrumentsFromParams(params) {
   if (Array.isArray(params)) {
     return params.map((pr, i) => {
@@ -24,14 +34,14 @@ export function instrumentsFromParams(params) {
         p1: [...pr.p1]
       };
       if (pr.ops) e.ops = pr.ops.map((o) => ({ ...o }));
-      return e;
+      return addMoogBanks(e, pr);
     });
   }
   return INSTRUMENTS.map((type, i) => {
     const pr = params[type];
     const e = { name: type.toUpperCase(), type, color: INSTRUMENT_COLORS[i % INSTRUMENT_COLORS.length], p0: [...pr.p0], p1: [...pr.p1] };
     if (pr.ops) e.ops = pr.ops.map((o) => ({ ...o }));
-    return e;
+    return addMoogBanks(e, pr);
   });
 }
 
