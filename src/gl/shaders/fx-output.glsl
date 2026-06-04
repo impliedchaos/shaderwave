@@ -21,6 +21,11 @@ uniform float uChorusDepth; // in ms
 uniform float uTremoloMix;
 uniform float uTremoloRate;
 
+// Bitcrusher uniforms
+uniform int uBitcrushOn;
+uniform float uBitcrushBits;   // bit depth (1–16)
+uniform float uBitcrushRate;   // sample rate factor (0.01–1.0, lower = crunchier)
+
 out vec4 outColor;
 
 // Linearly interpolate samples from the delay ring texture
@@ -122,6 +127,39 @@ void main(){
     1.0 - uTremoloMix * lfoR
   );
   driven *= tremScale;
+
+  // --- Bitcrusher ---
+  if (uBitcrushOn != 0) {
+    // Bit depth reduction: quantize to 2^bits levels
+    float levels = pow(2.0, uBitcrushBits);
+    driven = floor(driven * levels + 0.5) / levels;
+
+    // Compute the effective decimation period in samples using target sample rate (Hz)
+    float holdPeriod = max(1.0, floor(uSampleRate / max(uBitcrushRate, 1.0)));
+    float sampleIdx = float(uBlockStart + i);
+    float holdIdx = floor(sampleIdx / holdPeriod) * holdPeriod;
+    // Re-read the held sample from the dry input and re-process
+    int heldI = int(holdIdx) - uBlockStart;
+    if (heldI >= 0 && heldI < uBlock && heldI != i) {
+      vec2 heldDry = texelFetch(uMix, ivec2(heldI, 0), 0).rg;
+      // Apply same delay+reverb sum as main path
+      int hpd = (((uWpos + heldI - uDelaySamples) % uLen) + uLen) % uLen;
+      vec2 heldDel = texelFetch(uDelay, ivec2(hpd % uW, hpd / uW), 0).rg;
+      int hpf = (((uWposF + heldI) % uLenF) + uLenF) % uLenF;
+      float hs0 = texelFetch(uFdn, ivec2(hpf, 0), 0).r;
+      float hs1 = texelFetch(uFdn, ivec2(hpf, 1), 0).r;
+      float hs2 = texelFetch(uFdn, ivec2(hpf, 2), 0).r;
+      float hs3 = texelFetch(uFdn, ivec2(hpf, 3), 0).r;
+      vec2 heldRev = vec2(hs0 - hs1 + hs2 - hs3, hs0 + hs1 - hs2 + hs3) * 0.5;
+      vec2 heldWet = heldDry + uDelayMix * heldDel + uReverbMix * heldRev;
+      // Re-apply distortion to the held sample
+      vec2 heldInput = heldWet * distVal;
+      vec2 heldDriven = heldInput / pow(vec2(1.0) + pow(abs(heldInput), vec2(3.0)), vec2(1.0 / 3.0));
+      heldDriven *= norm * uDistLevel;
+      // Quantize
+      driven = floor(heldDriven * levels + 0.5) / levels;
+    }
+  }
 
   // --- Mid/Side Width & Output Master Gain ---
   float mid = (driven.x + driven.y) * 0.5;

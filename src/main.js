@@ -43,7 +43,10 @@ export class App {
     const canvas = $('grid');
 
     this.engine = new Engine(48000); // sample rate reconciled when audio starts
-    this.currentSongIdx = 0;
+    // Sort indices alphabetically to determine the default song index
+    const sortedIndices = DEMO_SONGS.map((s, i) => ({ s, i }))
+      .sort((a, b) => a.s.name.localeCompare(b.s.name));
+    this.currentSongIdx = sortedIndices[0].i;
     const initialSong = DEMO_SONGS[this.currentSongIdx];
     const init = loadSongInstruments(initialSong);
     this.engine.instruments = init.instruments;
@@ -122,6 +125,10 @@ export class App {
       { label: 'Level', key: 'level', min: 0, max: 2, step: 0.01 },
       { label: 'Dist', key: 'dist', min: 0.001, max: 20, step: 0.1 },
 
+      { category: 'Bitcrusher', enableKey: 'bitcrushOn' },
+      { label: 'Crush Bits', key: 'bitcrushBits', min: 1, max: 16, step: 1 },
+      { label: 'Crush Hz', key: 'bitcrushRate', min: 100, max: 22000, step: 100 },
+
       { category: 'Stereo Field & Output', enableKey: 'widthOn' },
       { label: 'Width', key: 'width', min: 0, max: 2, step: 0.01 },
       { label: 'Master', key: 'master', min: 0, max: 1.5, step: 0.01 },
@@ -153,7 +160,9 @@ export class App {
         const cat = document.createElement('h3');
         cat.textContent = d.category;
         if (d.enableKey) {
-          if (params[d.enableKey] === undefined) params[d.enableKey] = true;
+          if (params[d.enableKey] === undefined) {
+            params[d.enableKey] = (d.enableKey === 'bitcrushOn') ? false : true;
+          }
           const btn = document.createElement('button');
           btn.className = 'fx-cat-toggle';
           const sync = () => {
@@ -167,6 +176,11 @@ export class App {
         }
         host.appendChild(cat);
         continue;
+      }
+      if (params[d.key] === undefined) {
+        if (d.key === 'bitcrushBits') params[d.key] = 8.0;
+        else if (d.key === 'bitcrushRate') params[d.key] = 4000.0;
+        else params[d.key] = d.min;
       }
       const block = document.createElement('div');
       block.className = 'param-control-block';
@@ -248,7 +262,9 @@ export class App {
     if (songSelect) {
       // Populate from DEMO_SONGS so the list never drifts out of sync.
       songSelect.innerHTML = '';
-      DEMO_SONGS.forEach((s, i) => {
+      const sortedSongs = DEMO_SONGS.map((s, i) => ({ s, i }))
+        .sort((a, b) => a.s.name.localeCompare(b.s.name));
+      sortedSongs.forEach(({ s, i }) => {
         const o = document.createElement('option');
         o.value = i; o.textContent = s.name;
         songSelect.appendChild(o);

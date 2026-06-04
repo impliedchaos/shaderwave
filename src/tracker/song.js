@@ -155,664 +155,6 @@ const I = Object.fromEntries(INSTRUMENTS.map((n, i) => [n, i])); // name → ind
 
 export const DEMO_SONGS = [
   {
-    name: "Hyperkinetic",
-    bpm: 174,
-    params: defaultParams(),
-    fxParams: {
-      '303': defaultFxParams(),
-      'dx7': defaultFxParams(),
-      '808': defaultFxParams(),
-      'moog': defaultFxParams(),
-    },
-    data: () => {
-      const p = new Pattern(128, 8);
-      const BD = 36, SD = 38, HH = 42, OH = 46, CB = 56, CLAP = 39;
-      const I_303 = I['303'];
-      const I_dx7 = I['dx7'];
-      const I_808 = I['808'];
-      const I_moog = I['moog'];
-
-      // --- Channel 0: 808 Kick Drum (BD) ---
-      for (let r = 0; r < 128; r += 4) {
-        const step = r % 16;
-        if (step === 0 || step === 10) {
-          p.set(r, 0, BD, I_808, 1.0);
-        }
-        // Dynamic kick fill at end of phrases
-        if (r >= 64 && r < 96 && r % 32 === 26) {
-          p.set(r, 0, BD, I_808, 0.85);
-        }
-      }
-
-      // --- Channel 1: 808 Snare Drum (SD) ---
-      for (let r = 0; r < 128; r += 8) {
-        p.set(r + 4, 1, SD, I_808, 0.9);
-        // Frantic 16th-note snare rolls before transitions
-        if (r === 24 || r === 56 || r === 88 || r === 120) {
-          p.set(r + 6, 1, SD, I_808, 0.5);
-          p.set(r + 7, 1, SD, I_808, 0.8);
-        }
-      }
-
-      // --- Channel 2: 808 Hi-Hats (HH / OH) ---
-      for (let r = 0; r < 128; r += 2) {
-        if (r % 4 === 2) {
-          p.set(r, 2, OH, I_808, 0.55); // offbeat open hat
-        } else {
-          p.set(r, 2, HH, I_808, 0.25 + (r % 3) * 0.15); // closed hat
-        }
-        // High-hat rolls in builds
-        if (r % 64 >= 56 && r % 4 === 3) {
-          p.set(r, 2, HH, I_808, 0.35);
-        }
-      }
-
-      // --- Channel 3: 303 Acid Bassline ---
-      const acidBass = [
-        43, 43, 55, 43, 46, 46, 58, 46,
-        48, 50, 62, 50, 43, 46, 48, 50
-      ];
-      for (let r = 16; r < 120; r++) {
-        const step = r % 16;
-        const bar = Math.floor(r / 16);
-        let note = acidBass[step];
-        
-        // Chord progression transposition: Gmin -> D#maj -> Fmaj -> Dmin
-        if (bar === 2 || bar === 6) note += 8;  // up to D#
-        if (bar === 3 || bar === 7) note += 10; // up to F
-        if (bar === 4) note += 7; // up to D
-        
-        if (step % 8 !== 3 && step % 8 !== 7) {
-          p.set(r, 3, note, I_303, step % 4 === 0 ? 0.95 : 0.65);
-        } else {
-          p.set(r, 3, OFF, I_303);
-        }
-      }
-
-      // --- Channel 4: Moog Chord Stabs ---
-      const chordRoots = [55, 55, 51, 53, 50, 55, 51, 53];
-      for (let bar = 0; bar < 8; bar++) {
-        const start = bar * 16;
-        const root = chordRoots[bar];
-        
-        p.set(start + 2, 4, root, I_moog, 0.7);
-        p.set(start + 3, 4, OFF, I_moog);
-        p.set(start + 8, 4, root + 12, I_moog, 0.55);
-        p.set(start + 9, 4, OFF, I_moog);
-        p.set(start + 14, 4, root, I_moog, 0.65);
-        p.set(start + 15, 4, OFF, I_moog);
-      }
-
-      // --- Channel 5: DX7 FM Bells ---
-      const dx7Melody = [67, 70, 74, 77, 79, 77, 74, 70];
-      for (let r = 8; r < 124; r += 2) {
-        const idx = (r / 2) % dx7Melody.length;
-        let note = dx7Melody[idx];
-        const bar = Math.floor(r / 16);
-        
-        if (bar === 2 || bar === 6) note += 8;
-        if (bar === 3 || bar === 7) note += 10;
-        if (bar === 4) note += 7;
-        
-        p.set(r, 5, note, I_dx7, 0.55);
-        p.set(r + 1, 5, OFF, I_dx7);
-      }
-
-      // --- Channel 6: 808 Clap Percussion ---
-      for (let r = 32; r < 96; r++) {
-        const step = r % 16;
-        if (step === 8 || step === 15) {
-          p.set(r, 6, CLAP, I_808, 0.7);
-        }
-      }
-
-      return makeDemoPatterns(p);
-    }
-  },
-  {
-    name: "Shitty AI Noise",
-    bpm: 125,
-    params: [
-      { name: "303 Acid", type: "303", p0: [380, 0.75, 0.55, 0.3], p1: [0, 0.4, 0.3, 0] },
-      { name: "DX7 Pad", type: "dx7",
-        p0: [1, 2, 2.0, 0.2], p1: [1, 0.7, 0.8, 4],
-        ops: [
-          { coarse: 1.0, fine: 0, level: 99, detune: 0, decay: 0.9, mode: 0, sustain: 0.8, release: 0.4 },
-          { coarse: 1.0, fine: 0, level: 75, detune: 2, decay: 0.8, mode: 0, sustain: 0.7, release: 0.4 },
-          { coarse: 2.0, fine: 0, level: 60, detune: 1, decay: 0.7, mode: 0, sustain: 0.6, release: 0.4 },
-          { coarse: 3.0, fine: 0, level: 50, detune: 0, decay: 0.6, mode: 0, sustain: 0.5, release: 0.4 },
-          { coarse: 1.0, fine: 0, level: 0,  detune: 0, decay: 0.5, mode: 0, sustain: 0.5, release: 0.4 },
-          { coarse: 1.0, fine: 0, level: 0,  detune: 0, decay: 0.5, mode: 0, sustain: 0.5, release: 0.4 }
-        ]
-      },
-      { name: "808 Kit", type: "808", p0: [0, 0.6, 0.5, 0.6], p1: [0, 0, 0, 0] },
-      { name: "Moog Bass", type: "moog", p0: [200, 0.6, 0.7, 0], p1: [4, 0.9, 0.4, 0.8] },
-      { name: "Moog Lead", type: "moog", p0: [1100, 0.25, 0.3, 0], p1: [12, 0.4, 0.7, 0.4] }
-    ],
-    fxParams: {
-      '303': defaultFxParams(),
-      'dx7': defaultFxParams(),
-      '808': defaultFxParams(),
-      'moog': defaultFxParams(),
-    },
-    data: () => {
-      const p0 = new Pattern(64, 8);
-      const p1 = new Pattern(64, 8);
-      const p2 = new Pattern(128, 8);
-
-      const BD = 36, SD = 38, HH = 42, OH = 46, CLAP = 39;
-      const I_303 = 0, I_dx7 = 1, I_808 = 2, I_moogBass = 3, I_moogLead = 4;
-
-      const getRoot = (bar) => {
-        const progression = [36, 46, 44, 43];
-        return progression[bar % 4];
-      };
-
-      for (let r = 0; r < 64; r += 4) {
-        p0.set(r, 0, BD, I_808, 0.9);
-        if (r % 8 === 4) {
-          p0.set(r, 0, SD, I_808, 0.75);
-        }
-      }
-      for (let r = 0; r < 64; r += 2) {
-        p0.set(r, 2, (r % 4 === 2) ? OH : HH, I_808, 0.4);
-      }
-      for (let r = 0; r < 64; r += 2) {
-        const bar = Math.floor(r / 16);
-        const root = getRoot(bar);
-        const note = (r % 4 === 2) ? root + 12 : root;
-        p0.set(r, 3, note, I_moogBass, 0.85);
-        p0.set(r + 1, 3, OFF, I_moogBass);
-      }
-
-      for (let r = 0; r < 64; r += 4) {
-        p1.set(r, 0, BD, I_808, 0.95);
-      }
-      for (let r = 0; r < 64; r += 2) {
-        p1.set(r, 2, HH, I_808, 0.45);
-      }
-      for (let r = 0; r < 64; r++) {
-        if (r >= 48) {
-          const snareStep = (r - 48);
-          if (snareStep % 2 === 0 || snareStep >= 8) {
-            p1.set(r, 1, SD, I_808, 0.5 + (snareStep / 16) * 0.45);
-          }
-        } else if (r % 8 === 4) {
-          p1.set(r, 1, SD, I_808, 0.75);
-        }
-      }
-      for (let r = 0; r < 64; r += 2) {
-        const bar = Math.floor(r / 16);
-        const root = getRoot(bar);
-        const note = (r % 4 === 2) ? root + 12 : root;
-        p1.set(r, 3, note, I_moogBass, 0.85);
-        p1.set(r + 1, 3, OFF, I_moogBass);
-      }
-      for (let r = 0; r < 64; r += 4) {
-        const bar = Math.floor(r / 16);
-        const root = getRoot(bar);
-        const arp = [0, 3, 7, 10, 12, 15, 19, 22];
-        const step = Math.floor((r % 16) / 2);
-        const note = root + 24 + arp[step % arp.length];
-        p1.set(r, 4, note, I_moogLead, 0.75);
-        p1.set(r + 2, 4, OFF, I_moogLead);
-      }
-
-      for (let r = 0; r < 128; r += 4) {
-        p2.set(r, 0, BD, I_808, 1.0);
-        if (r % 8 === 4) {
-          p2.set(r, 1, SD, I_808, 0.85);
-          if (r % 16 === 12) {
-            p2.set(r + 2, 1, CLAP, I_808, 0.75);
-          }
-        }
-      }
-      for (let r = 0; r < 128; r += 2) {
-        p2.set(r, 2, (r % 4 === 2) ? OH : HH, I_808, 0.5);
-      }
-      for (let r = 0; r < 128; r += 2) {
-        const bar = Math.floor(r / 16);
-        const root = getRoot(bar);
-        const riff = [0, 0, 12, 0, 7, 0, 10, 12];
-        const step = Math.floor((r % 16) / 2);
-        const note = root + riff[step % riff.length];
-        p2.set(r, 3, note, I_moogBass, 0.9);
-        p2.set(r + 1, 3, OFF, I_moogBass);
-      }
-      const melody = [
-        60, 63, 67, 72, 70, 67, 65, 67,
-        60, 63, 67, 72, 74, 75, 79, 74,
-        72, 70, 67, 63, 65, 67, 70, 72,
-        74, 75, 77, 79, 82, 84, 86, 87
-      ];
-      for (let r = 0; r < 128; r += 4) {
-        const idx = Math.floor(r / 4);
-        const note = melody[idx % melody.length];
-        p2.set(r, 4, note, I_moogLead, 0.8);
-        p2.set(r + 3, 4, OFF, I_moogLead);
-      }
-      for (let r = 0; r < 128; r += 16) {
-        const bar = Math.floor(r / 16);
-        const root = getRoot(bar);
-        p2.set(r, 5, root + 24, I_dx7, 0.6);
-        p2.set(r, 5, root + 27, I_dx7, 0.6);
-        p2.set(r, 5, root + 31, I_dx7, 0.6);
-        p2.set(r + 12, 5, OFF, I_dx7);
-      }
-      for (let r = 0; r < 128; r += 2) {
-        if (r % 8 === 0 || r % 8 === 3 || r % 8 === 6) {
-          const bar = Math.floor(r / 16);
-          const root = getRoot(bar);
-          const note = root + 12 + (r % 7);
-          p2.set(r, 6, note, I_303, 0.65);
-          p2.set(r + 1, 6, OFF, I_303);
-        }
-      }
-
-      return { patterns: [p0, p1, p2], order: [0, 1, 2], rowsPerBeat: 4 };
-    }
-  },
-  {
-    name: "Voodoo Beats",
-    bpm: 145,
-    params: [
-      { name: "303 Acid", type: "303", p0: [480, 0.75, 0.6, 0.45], p1: [0, 0.4, 0.4, 0] },
-      { name: "DX7 Pad", type: "dx7",
-        p0: [1, 2, 3.0, 0.25], p1: [1, 0.7, 0.8, 4],
-        ops: [
-          { coarse: 1.0, fine: 0, level: 99, detune: 0, decay: 0.9, mode: 0, sustain: 0.8, release: 0.4 },
-          { coarse: 1.0, fine: 0, level: 75, detune: 2, decay: 0.8, mode: 0, sustain: 0.7, release: 0.4 },
-          { coarse: 2.0, fine: 0, level: 60, detune: 1, decay: 0.7, mode: 0, sustain: 0.6, release: 0.4 },
-          { coarse: 3.0, fine: 0, level: 50, detune: 0, decay: 0.6, mode: 0, sustain: 0.5, release: 0.4 },
-          { coarse: 1.0, fine: 0, level: 0,  detune: 0, decay: 0.5, mode: 0, sustain: 0.5, release: 0.4 },
-          { coarse: 1.0, fine: 0, level: 0,  detune: 0, decay: 0.5, mode: 0, sustain: 0.5, release: 0.4 }
-        ]
-      },
-      { name: "808 Kit", type: "808", p0: [0, 0.6, 0.5, 0.6], p1: [0, 0, 0, 0] },
-      { name: "Moog Bass", type: "moog", p0: [250, 0.55, 0.75, 0], p1: [4, 0.8, 0.5, 0.7] },
-      { name: "Moog Lead", type: "moog", p0: [850, 0.35, 0.5, 0], p1: [12, 0.4, 0.6, 0.4] }
-    ],
-    fxParams: {
-      '303': defaultFxParams(),
-      'dx7': defaultFxParams(),
-      '808': defaultFxParams(),
-      'moog': defaultFxParams(),
-    },
-    data: () => {
-      const p0 = new Pattern(32, 8);
-      const p1 = new Pattern(32, 8);
-      const p2 = new Pattern(32, 8);
-      const p3 = new Pattern(32, 8);
-      const p4 = new Pattern(32, 8);
-      const p5 = new Pattern(32, 8);
-      const p6 = new Pattern(64, 8);
-      const p7 = new Pattern(64, 8);
-      const p8 = new Pattern(32, 8);
-      const p9 = new Pattern(32, 8);
-      const p10 = new Pattern(64, 8);
-      const p11 = new Pattern(32, 8);
-      const p12 = new Pattern(32, 8);
-
-      const BD = 36, SD = 38, HH = 42, OH = 46, CLAP = 39;
-      const I_303 = 0, I_dx7 = 1, I_808 = 2, I_moogBass = 3, I_moogLead = 4;
-
-      const setDrums = (pat, start, end, hasKick, hasSnare, hasHats, hasClap) => {
-        for (let r = start; r < end; r++) {
-          const step = r % 16;
-          if (hasKick) {
-            if (step === 0 || step === 8 || step === 11) pat.set(r, 0, BD, I_808, 0.95);
-          }
-          if (hasSnare) {
-            if (step === 4 || step === 12) pat.set(r, 1, SD, I_808, 0.85);
-          }
-          if (hasClap) {
-            if (step === 12) pat.set(r, 1, CLAP, I_808, 0.8);
-          }
-          if (hasHats) {
-            if (step % 2 === 1) pat.set(r, 2, HH, I_808, 0.4);
-            if (step === 6 || step === 14) pat.set(r, 2, OH, I_808, 0.5);
-          }
-        }
-      };
-
-      const setLead = (pat, start, end, vol = 0.8, octShift = 0) => {
-        const riff = [50, 50, 53, 55, 56, 55, 53, 50, 50, 53, 50, 50, 48, 48, 48, 48];
-        for (let r = start; r < end; r++) {
-          const step = r % 16;
-          const note = riff[step];
-          if (note !== EMPTY) {
-            pat.set(r, 4, note + octShift, I_moogLead, vol);
-            if (step === 1 || step === 3 || step === 5 || step === 7 || step === 9 || step === 11 || step === 13 || step === 15) {
-              pat.set(r, 4, OFF, I_moogLead);
-            }
-          }
-        }
-      };
-
-      const setBass = (pat, start, end, vol = 0.85) => {
-        const bass = [38, 38, 38, 38, 41, 41, 43, 43, 38, 38, 38, 38, 36, 36, 36, 36];
-        for (let r = start; r < end; r += 2) {
-          const step = Math.floor((r % 16) / 2);
-          const note = bass[step];
-          pat.set(r, 3, note, I_moogBass, vol);
-          pat.set(r + 1, 3, OFF, I_moogBass);
-        }
-      };
-
-      const setAcid = (pat, start, end, vol = 0.7) => {
-        for (let r = start; r < end; r += 2) {
-          const step = r % 16;
-          if (step === 0 || step === 3 || step === 6 || step === 8 || step === 11 || step === 14) {
-            const note = 50 + (step === 3 ? 3 : step === 6 ? 6 : step === 8 ? 8 : step === 11 ? 5 : 0);
-            pat.set(r, 6, note, I_303, vol);
-            pat.set(r + 1, 6, OFF, I_303);
-          }
-        }
-      };
-
-      for (let r = 0; r < 32; r += 16) {
-        p0.set(r, 5, 50, I_dx7, 0.6);
-        p0.set(r, 5, 53, I_dx7, 0.6);
-        p0.set(r, 5, 57, I_dx7, 0.6);
-        p0.set(r + 14, 5, OFF, I_dx7);
-      }
-
-      setLead(p1, 0, 32, 0.75);
-
-      setDrums(p2, 0, 32, true, false, false, false);
-      setLead(p2, 0, 32, 0.78);
-      setBass(p2, 0, 32, 0.7);
-
-      setDrums(p3, 0, 32, true, false, true, false);
-      setLead(p3, 0, 32, 0.8);
-      setBass(p3, 0, 32, 0.8);
-
-      setDrums(p4, 0, 32, true, true, true, false);
-      setLead(p4, 0, 32, 0.8);
-      setBass(p4, 0, 32, 0.8);
-
-      setDrums(p5, 0, 32, true, true, true, false);
-      setLead(p5, 0, 32, 0.8);
-      setBass(p5, 0, 32, 0.8);
-      setAcid(p5, 0, 32, 0.6);
-
-      setDrums(p6, 0, 64, true, true, true, true);
-      setLead(p6, 0, 64, 0.85);
-      setBass(p6, 0, 64, 0.85);
-      setAcid(p6, 0, 64, 0.75);
-
-      setDrums(p7, 0, 64, true, true, true, false);
-      setBass(p7, 0, 64, 0.8);
-      setAcid(p7, 0, 64, 0.85);
-      for (let r = 0; r < 64; r += 16) {
-        p7.set(r, 5, 62, I_dx7, 0.65);
-        p7.set(r + 12, 5, OFF, I_dx7);
-      }
-
-      setDrums(p8, 0, 32, false, false, true, false);
-      setBass(p8, 0, 32, 0.6);
-      for (let r = 0; r < 32; r += 8) {
-        p8.set(r, 5, 50, I_dx7, 0.5);
-        p8.set(r + 6, 5, OFF, I_dx7);
-      }
-
-      setLead(p9, 0, 32, 0.75);
-      setBass(p9, 0, 32, 0.75);
-      setAcid(p9, 0, 32, 0.65);
-      for (let r = 0; r < 32; r++) {
-        if (r >= 16) {
-          const buildStep = (r - 16);
-          if (buildStep % 2 === 0 || buildStep >= 8) {
-            p9.set(r, 1, SD, I_808, 0.5 + (buildStep / 16) * 0.45);
-          }
-        }
-      }
-
-      setDrums(p10, 0, 64, true, true, true, true);
-      setLead(p10, 0, 64, 0.9, 12);
-      setBass(p10, 0, 64, 0.9);
-      setAcid(p10, 0, 64, 0.85);
-
-      setDrums(p11, 0, 32, true, false, true, false);
-      setBass(p11, 0, 32, 0.75);
-
-      setBass(p12, 0, 32, 0.5);
-
-      return {
-        patterns: [p0, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12],
-        order: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
-        rowsPerBeat: 4
-      };
-    }
-  },
-  {
-    name: "Groove 90 (Hot Trash)",
-    bpm: 125,
-    params: [
-      { name: "303 Bass", type: "303", p0: [280, 0.65, 0.5, 0.3], p1: [0, 0.35, 0.4, 0] },
-      { name: "DX7 Brass", type: "dx7",
-        p0: [1, 2, 2.5, 0.2], p1: [1, 0.7, 0.6, 2],
-        ops: [
-          { coarse: 1.0, fine: 0, level: 99, detune: 0, decay: 0.8, mode: 0, sustain: 0.85, release: 0.3 },
-          { coarse: 1.0, fine: 5, level: 85, detune: 2, decay: 0.4, mode: 0, sustain: 0.7, release: 0.3 },
-          { coarse: 2.0, fine: 0, level: 75, detune: -2, decay: 0.3, mode: 0, sustain: 0.6, release: 0.3 },
-          { coarse: 3.0, fine: 0, level: 60, detune: 0, decay: 0.15, mode: 0, sustain: 0.0, release: 0.3 },
-          { coarse: 1.0, fine: 0, level: 0,  detune: 0, decay: 0.5, mode: 0, sustain: 0.5, release: 0.3 },
-          { coarse: 1.0, fine: 0, level: 0,  detune: 0, decay: 0.5, mode: 0, sustain: 0.5, release: 0.3 }
-        ]
-      },
-      { name: "808 House", type: "808", p0: [0, 0.6, 0.5, 0.6], p1: [0, 0, 0, 0] },
-      { name: "Moog Organ", type: "moog", p0: [900, 0.4, 0.45, 0], p1: [8, 0.7, 0.5, 0.8] },
-      { name: "DX7 Piano", type: "dx7",
-        p0: [1, 1, 1.0, 0.1], p1: [1, 0.8, 0.7, 0],
-        ops: [
-          { coarse: 1.0, fine: 0, level: 99, detune: 0, decay: 0.9, mode: 0, sustain: 0.7, release: 0.3 },
-          { coarse: 1.0, fine: 0, level: 85, detune: 1, decay: 0.6, mode: 0, sustain: 0.6, release: 0.3 },
-          { coarse: 2.0, fine: 0, level: 70, detune: 0, decay: 0.5, mode: 0, sustain: 0.5, release: 0.3 },
-          { coarse: 3.0, fine: 0, level: 65, detune: 0, decay: 0.4, mode: 0, sustain: 0.4, release: 0.3 },
-          { coarse: 4.0, fine: 0, level: 60, detune: 0, decay: 0.3, mode: 0, sustain: 0.3, release: 0.3 },
-          { coarse: 5.0, fine: 0, level: 50, detune: 0, decay: 0.2, mode: 0, sustain: 0.2, release: 0.3 }
-        ]
-      }
-    ],
-    fxParams: {
-      '303': defaultFxParams(),
-      'dx7': defaultFxParams(),
-      '808': defaultFxParams(),
-      'moog': defaultFxParams(),
-    },
-    data: () => {
-      const p0 = new Pattern(32, 8);
-      const p1 = new Pattern(32, 8);
-      const p2 = new Pattern(32, 8);
-      const p3 = new Pattern(32, 8);
-      const p4 = new Pattern(32, 8);
-      const p5 = new Pattern(32, 8);
-      const p6 = new Pattern(32, 8);
-      const p7 = new Pattern(32, 8);
-      const p8 = new Pattern(32, 8);
-      const p9 = new Pattern(32, 8);
-      const p10 = new Pattern(32, 8);
-      const p11 = new Pattern(32, 8);
-      const p12 = new Pattern(32, 8);
-      const p13 = new Pattern(32, 8);
-      const p14 = new Pattern(32, 8);
-      const p15 = new Pattern(32, 8);
-
-      const BD = 36, SD = 38, HH = 42, OH = 46, CLAP = 39;
-      const I_303 = 0, I_dx7Brass = 1, I_808 = 2, I_moogLead = 3, I_dx7Piano = 4;
-
-      const setHouseDrums = (pat, hasKick, hasHats, hasSnare, hasClap) => {
-        for (let r = 0; r < 32; r++) {
-          const step = r % 16;
-          if (hasKick) {
-            if (step === 0 || step === 4 || step === 8 || step === 12) {
-              pat.set(r, 0, BD, I_808, 0.95);
-            }
-          }
-          if (hasHats) {
-            if (step === 2 || step === 6 || step === 10 || step === 14) {
-              pat.set(r, 2, OH, I_808, 0.55);
-            } else if (step % 2 === 0) {
-              pat.set(r, 2, HH, I_808, 0.3);
-            }
-          }
-          if (hasSnare) {
-            if (step === 4 || step === 12) {
-              pat.set(r, 1, SD, I_808, 0.8);
-            }
-          }
-          if (hasClap) {
-            if (step === 12) {
-              pat.set(r, 1, CLAP, I_808, 0.75);
-            }
-          }
-        }
-      };
-
-      const setHouseBass = (pat, vol = 0.8) => {
-        const bassCm = [36, EMPTY, 36, 39, EMPTY, 36, EMPTY, 41, EMPTY, 36, 43, EMPTY, 36, EMPTY, 36, OFF];
-        const bassFm = [41, EMPTY, 41, 44, EMPTY, 41, EMPTY, 46, EMPTY, 41, 48, EMPTY, 41, EMPTY, 41, OFF];
-        for (let r = 0; r < 32; r++) {
-          const note = (r < 16) ? bassCm[r % 16] : bassFm[r % 16];
-          if (note !== EMPTY) {
-            pat.set(r, 3, note, I_303, vol);
-          }
-        }
-      };
-
-      const setPianoChords = (pat, vol = 0.65) => {
-        for (let r = 0; r < 32; r += 8) {
-          const isFm = r >= 16;
-          const root = isFm ? 41 : 36;
-          const third = isFm ? 44 : 39;
-          const fifth = isFm ? 48 : 43;
-          
-          pat.set(r, 5, root + 12, I_dx7Piano, vol);
-          pat.set(r, 5, third + 12, I_dx7Piano, vol);
-          pat.set(r, 5, fifth + 12, I_dx7Piano, vol);
-          
-          pat.set(r + 3, 5, root + 12, I_dx7Piano, vol);
-          pat.set(r + 3, 5, third + 12, I_dx7Piano, vol);
-          pat.set(r + 3, 5, fifth + 12, I_dx7Piano, vol);
-          
-          pat.set(r + 6, 5, OFF, I_dx7Piano);
-        }
-      };
-
-      const setBrassStabs = (pat, vol = 0.8) => {
-        const brassRiff = [60, EMPTY, EMPTY, 60, EMPTY, EMPTY, 63, EMPTY, 62, EMPTY, EMPTY, 58, EMPTY, EMPTY, 60, OFF];
-        for (let r = 0; r < 32; r++) {
-          const note = brassRiff[r % 16];
-          if (note !== EMPTY) {
-            pat.set(r, 4, note, I_dx7Brass, vol);
-          }
-        }
-      };
-
-      const setOrganLead = (pat, vol = 0.75) => {
-        const melody = [60, 62, 63, 67, 65, 63, 62, 60, 65, 67, 68, 72, 70, 68, 67, 65];
-        for (let r = 0; r < 32; r += 2) {
-          const step = Math.floor((r % 16) / 2);
-          const note = melody[step + (r >= 16 ? 8 : 0)];
-          pat.set(r, 6, note, I_moogLead, vol);
-          pat.set(r + 1, 6, OFF, I_moogLead);
-        }
-      };
-
-      setHouseDrums(p0, true, false, false, false);
-      setHouseBass(p0, 0.75);
-
-      setHouseDrums(p1, true, true, false, false);
-      setHouseBass(p1, 0.8);
-
-      setHouseDrums(p2, true, true, false, false);
-      setHouseBass(p2, 0.8);
-      setPianoChords(p2, 0.65);
-
-      setHouseDrums(p3, true, true, true, false);
-      setHouseBass(p3, 0.8);
-      setPianoChords(p3, 0.65);
-
-      setHouseDrums(p4, true, true, true, false);
-      setHouseBass(p4, 0.8);
-      setPianoChords(p4, 0.6);
-      setBrassStabs(p4, 0.8);
-
-      setHouseDrums(p5, true, true, true, true);
-      setHouseBass(p5, 0.8);
-      setPianoChords(p5, 0.6);
-      setBrassStabs(p5, 0.85);
-
-      setHouseDrums(p6, true, true, true, true);
-      setHouseBass(p6, 0.8);
-      setPianoChords(p6, 0.6);
-      setOrganLead(p6, 0.75);
-
-      setHouseBass(p7, 0.8);
-      setPianoChords(p7, 0.6);
-      for (let r = 0; r < 32; r++) {
-        if (r >= 16) {
-          const step = r - 16;
-          if (step % 2 === 0 || step >= 8) {
-            p7.set(r, 1, SD, I_808, 0.5 + (step / 16) * 0.45);
-          }
-        }
-      }
-
-      setHouseDrums(p8, true, true, true, true);
-      setHouseBass(p8, 0.85);
-      setPianoChords(p8, 0.7);
-      setOrganLead(p8, 0.8);
-      setBrassStabs(p8, 0.8);
-
-      setHouseDrums(p9, true, true, true, true);
-      setHouseBass(p9, 0.85);
-      setPianoChords(p9, 0.7);
-      setOrganLead(p9, 0.8);
-      setBrassStabs(p9, 0.85);
-
-      setHouseDrums(p10, false, true, false, false);
-      setHouseBass(p10, 0.6);
-      setPianoChords(p10, 0.6);
-      setOrganLead(p10, 0.7);
-
-      setHouseDrums(p11, true, true, false, false);
-      setPianoChords(p11, 0.75);
-
-      setHouseBass(p12, 0.75);
-      setPianoChords(p12, 0.6);
-      for (let r = 0; r < 32; r++) {
-        if (r % 2 === 0) p12.set(r, 2, HH, I_808, 0.4);
-        if (r >= 16) {
-          const step = r - 16;
-          if (step % 2 === 0 || step >= 8) {
-            p12.set(r, 1, SD, I_808, 0.5 + (step / 16) * 0.45);
-          }
-        }
-      }
-
-      setHouseDrums(p13, true, true, true, true);
-      setHouseBass(p13, 0.9);
-      setPianoChords(p13, 0.75);
-      setOrganLead(p13, 0.85);
-      setBrassStabs(p13, 0.9);
-
-      setHouseDrums(p14, true, true, true, false);
-      setHouseBass(p14, 0.8);
-      setPianoChords(p14, 0.65);
-
-      setHouseDrums(p15, true, false, false, false);
-      setHouseBass(p15, 0.7);
-
-      return {
-        patterns: [p0, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15],
-        order: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
-        rowsPerBeat: 4
-      };
-    }
-  },
-  {
     name: "Gooner Prolapse",
     bpm: 135,
     params: [
@@ -995,513 +337,6 @@ export const DEMO_SONGS = [
     }
   },
   {
-    name: "Ambient Drones",
-    bpm: 90,
-    params: defaultParams(),
-    fxParams: {
-      '303': defaultFxParams(),
-      'dx7': defaultFxParams(),
-      '808': defaultFxParams(),
-      'moog': defaultFxParams(),
-    },
-    data: () => {
-      const p = new Pattern(128, 8);
-      const I_303 = I['303'];
-      const I_dx7 = I['dx7'];
-      const I_moog = I['moog'];
-
-      // Channel 3: Slow 303 bass drone (low root notes held for 32 steps)
-      p.set(0, 3, 33, I_303, 0.7); // A-1
-      p.set(32, 3, 29, I_303, 0.7); // F-1
-      p.set(64, 3, 33, I_303, 0.7); // A-1
-      p.set(96, 3, 31, I_303, 0.7); // G-1
-
-      // Channel 4: Moog Pad 1 (Root chord notes held for 32 steps)
-      p.set(0, 4, 45, I_moog, 0.65); // A-2
-      p.set(32, 4, 41, I_moog, 0.65); // F-2
-      p.set(64, 4, 45, I_moog, 0.65); // A-2
-      p.set(96, 4, 43, I_moog, 0.65); // G-2
-
-      // Channel 7: Moog Pad 2 (Fifth interval notes held for 32 steps)
-      p.set(0, 7, 52, I_moog, 0.55); // E-3
-      p.set(32, 7, 48, I_moog, 0.55); // C-3
-      p.set(64, 7, 52, I_moog, 0.55); // E-3
-      p.set(96, 7, 50, I_moog, 0.55); // D-3
-
-      // Channel 5: DX7 Slow FM Bells (gentle melody with long delays)
-      const bellNotes = [57, 60, 64, 67, 69, 67, 64, 60];
-      for (let r = 4; r < 120; r += 8) {
-        const idx = Math.floor(r / 8) % bellNotes.length;
-        p.set(r, 5, bellNotes[idx], I_dx7, 0.45);
-        p.set(r + 6, 5, OFF, I_dx7); // release tail ringing
-      }
-
-      return makeDemoPatterns(p);
-    }
-  },
-  {
-    name: "Dystopian Industrial",
-    bpm: 120,
-    params: makeParams({
-      '303':  { p0: [1200, 0.85, 0.8, 0.5], p1: [1, 0.2, 0.35, 0] },
-      'dx7':  { p0: [2, 1, 4.5, 0.5],      p1: [5, 0.4, 0.5, 4] },
-      '808':  { p0: [0, 0.4, 0.7, 0.8],    p1: [0, 0, 0, 0] },
-      'moog': { p0: [600, 0.6, 0.7, 0],    p1: [25, 0.4, 1.2, 0.8] },
-    }),
-    fxParams: {
-      '303': Object.assign(defaultFxParams(), {
-        drive: 2.5, width: 1.2, master: 0.9,
-        chorusMix: 0.35, chorusRate: 2.0, chorusDepth: 3.0,
-        tremoloMix: 0.2, tremoloRate: 4.0,
-        delayTime: 0.375, delayFeedback: 0.45, delayMix: 0.3,
-        reverbDecay: 0.8, reverbDamp: 0.3, reverbSend: 0.5, reverbMix: 0.2,
-      }),
-      'dx7': Object.assign(defaultFxParams(), {
-        drive: 1.5, width: 1.5, master: 0.8,
-        chorusMix: 0.5, chorusRate: 1.0, chorusDepth: 4.0,
-        delayTime: 0.5, delayFeedback: 0.6, delayMix: 0.4,
-        reverbDecay: 0.85, reverbDamp: 0.4, reverbSend: 0.7, reverbMix: 0.35,
-      }),
-      '808': Object.assign(defaultFxParams(), {
-        drive: 2.8, width: 0.8, master: 1.0,
-        delayTime: 0.25, delayFeedback: 0.3, delayMix: 0.15,
-        reverbDecay: 0.6, reverbDamp: 0.5, reverbSend: 0.4, reverbMix: 0.15,
-      }),
-      'moog': Object.assign(defaultFxParams(), {
-        drive: 2.0, width: 1.4, master: 0.7,
-        chorusMix: 0.6, chorusRate: 0.8, chorusDepth: 5.0,
-        tremoloMix: 0.3, tremoloRate: 2.5,
-        delayTime: 0.5, delayFeedback: 0.5, delayMix: 0.3,
-        reverbDecay: 0.95, reverbDamp: 0.2, reverbSend: 0.9, reverbMix: 0.6,
-      }),
-    },
-    data: () => {
-      const p = new Pattern(128, 8);
-      const BD = 36, SD = 38, HH = 42, OH = 46, CLAP = 39;
-      const I_303 = I['303'];
-      const I_dx7 = I['dx7'];
-      const I_808 = I['808'];
-      const I_moog = I['moog'];
-
-      // BD = 36, SD = 38, HH = 42, OH = 46, CLAP = 39
-      // Heavy four-on-the-floor industrial kick
-      for (let r = 0; r < 128; r += 4) {
-        p.set(r, 0, BD, I_808, 1.0);
-      }
-      // Offbeat open hats and steady closed hats
-      for (let r = 0; r < 128; r += 2) {
-        if (r % 4 === 2) {
-          p.set(r, 2, OH, I_808, 0.6); // OH
-        } else {
-          p.set(r, 2, HH, I_808, 0.35); // HH
-        }
-      }
-      // Heavy snare on 4 and 12
-      for (let r = 0; r < 128; r += 8) {
-        p.set(r + 4, 1, SD, I_808, 0.95);
-        if (r % 16 === 8) {
-          p.set(r + 7, 1, SD, I_808, 0.7);
-        }
-      }
-      // Heavy industrial clap accent
-      for (let r = 16; r < 112; r += 16) {
-        p.set(r + 12, 6, CLAP, I_808, 0.8);
-      }
-
-      // Bassline in D minor: D (38), F (41), G (43), C (36)
-      const bassProg = [
-        38, 38, 50, 38, 38, 50, 38, 41,
-        43, 43, 55, 43, 36, 36, 48, 36
-      ];
-      for (let r = 0; r < 128; r++) {
-        const step = r % 16;
-        const bar = Math.floor(r / 16);
-        let note = bassProg[step];
-        if (bar === 2 || bar === 6) {
-          if (step < 8) note -= 4; // D-2 -> Bb-1 (34)
-          else note -= 5; // C-2 -> G-1 (31)
-        }
-        if (r % 2 === 0) {
-          p.set(r, 3, note, I_303, 0.95);
-        } else {
-          p.set(r, 3, OFF, I_303);
-        }
-      }
-
-      // Moog chord drones (e.g. D-3 (50) and A-3 (57))
-      for (let bar = 0; bar < 8; bar++) {
-        const start = bar * 16;
-        let root = 50; // D-3
-        let fifth = 57; // A-3
-        if (bar === 2 || bar === 6) {
-          root = 46; // Bb-2
-          fifth = 53; // F-3
-        } else if (bar === 3 || bar === 7) {
-          root = 48; // C-3
-          fifth = 55; // G-3
-        }
-        p.set(start, 4, root, I_moog, 0.8);
-        p.set(start + 12, 4, OFF, I_moog);
-        p.set(start, 7, fifth, I_moog, 0.7);
-        p.set(start + 12, 7, OFF, I_moog);
-      }
-
-      // Fast, urgent industrial lead/melody on DX7
-      const leadMelody = [62, 65, 62, 67, 62, 69, 67, 65];
-      for (let r = 8; r < 120; r += 4) {
-        const idx = Math.floor(r / 4) % leadMelody.length;
-        const note = leadMelody[idx];
-        p.set(r, 5, note, I_dx7, 0.75);
-        p.set(r + 2, 5, OFF, I_dx7);
-      }
-
-      return makeDemoPatterns(p);
-    }
-  },
-  {
-    name: "Cinematic Soundscape",
-    bpm: 80,
-    params: makeParams({
-      '303':  { p0: [350, 0.9, 0.85, 0.3], p1: [0, 0.9, 0.8, 0] },
-      'dx7':  { p0: [1.5, 3.5, 5.0, 0.6],  p1: [1, 0.9, 1.2, 5] },
-      '808':  { p0: [0, 0.5, 0.8, 0.4],    p1: [0, 0, 0, 0] },
-      'moog': { p0: [400, 0.6, 0.5, 0],    p1: [15, 0.8, 1.2, 0.9] },
-    }),
-    fxParams: {
-      '303': Object.assign(defaultFxParams(), {
-        drive: 1.8, width: 1.3, master: 0.8,
-        chorusMix: 0.3, chorusRate: 1.2, chorusDepth: 2.5,
-        delayTime: 0.6, delayFeedback: 0.5, delayMix: 0.35,
-        reverbDecay: 0.85, reverbDamp: 0.3, reverbSend: 0.6, reverbMix: 0.3,
-      }),
-      'dx7': Object.assign(defaultFxParams(), {
-        drive: 1.1, width: 1.6, master: 0.8,
-        chorusMix: 0.5, chorusRate: 0.8, chorusDepth: 4.0,
-        delayTime: 0.75, delayFeedback: 0.75, delayMix: 0.5,
-        reverbDecay: 0.9, reverbDamp: 0.4, reverbSend: 0.8, reverbMix: 0.45,
-      }),
-      '808': Object.assign(defaultFxParams(), {
-        drive: 1.2, width: 0.9, master: 1.0,
-        delayTime: 0.3, delayFeedback: 0.2, delayMix: 0.1,
-        reverbDecay: 0.9, reverbDamp: 0.4, reverbSend: 0.7, reverbMix: 0.6,
-      }),
-      'moog': Object.assign(defaultFxParams(), {
-        drive: 1.4, width: 1.2, master: 0.9,
-        chorusMix: 0.4, chorusRate: 0.5, chorusDepth: 3.0,
-        delayTime: 0.5, delayFeedback: 0.3, delayMix: 0.15,
-        reverbDecay: 0.95, reverbDamp: 0.2, reverbSend: 0.9, reverbMix: 0.5,
-      }),
-    },
-    data: () => {
-      const p = new Pattern(256, 8);
-      const BD = 36, SD = 38, HH = 42, OH = 46, CLAP = 39;
-      const I_303 = I['303'];
-      const I_dx7 = I['dx7'];
-      const I_808 = I['808'];
-      const I_moog = I['moog'];
-
-      // --- Drums (808) ---
-      for (let r = 0; r < 256; r += 16) {
-        p.set(r, 0, BD, I_808, 0.9);
-      }
-      for (let r = 0; r < 256; r += 32) {
-        p.set(r + 8, 1, SD, I_808, 0.7);
-        p.set(r + 24, 6, CLAP, I_808, 0.55);
-      }
-      for (let r = 2; r < 256; r += 4) {
-        p.set(r, 2, HH, I_808, 0.25);
-      }
-
-      // --- Moog Bass Drone (Channel 4) ---
-      const bassRoots = [36, 31, 32, 34];
-      for (let segment = 0; segment < 4; segment++) {
-        const start = segment * 64;
-        const note = bassRoots[segment];
-        p.set(start, 4, note, I_moog, 0.8);
-        p.set(start + 60, 4, OFF, I_moog);
-      }
-
-      // --- 303 Slow Sweeps (Channel 3) ---
-      const arps = [
-        [48, 51, 55, 59],
-        [43, 46, 50, 53],
-        [44, 48, 51, 55],
-        [46, 50, 53, 57]
-      ];
-      for (let r = 0; r < 256; r += 4) {
-        const seg = Math.floor(r / 64);
-        const chord = arps[seg];
-        const stepInSeg = Math.floor(r / 4) % 16;
-        const noteIdx = [0, 1, 2, 3, 2, 1, 0, 1, 2, 3, 2, 1, 0, 1, 2, 3][stepInSeg];
-        const note = chord[noteIdx];
-        
-        p.set(r, 3, note, I_303, 0.65);
-        p.set(r + 3, 3, OFF, I_303);
-      }
-
-      // --- DX7 FM Cinematic Chimes (Channel 5) ---
-      const chimeMelodies = [
-        [67, 72, 74, 79],
-        [62, 67, 69, 74],
-        [63, 68, 70, 75],
-        [65, 70, 72, 77]
-      ];
-      for (let r = 4; r < 256; r += 8) {
-        const seg = Math.floor(r / 64);
-        const chord = chimeMelodies[seg];
-        const stepInSeg = Math.floor((r - 4) / 8) % 8;
-        const note = chord[stepInSeg % chord.length];
-        
-        p.set(r, 5, note, I_dx7, 0.5);
-        p.set(r + 6, 5, OFF, I_dx7);
-      }
-
-      return makeDemoPatterns(p);
-    }
-  },
-  {
-    name: "Neo-Noir Synthwave",
-    bpm: 105,
-    params: makeParams({
-      'dx7': { p0: [1, 3, 2.0, 0.3], p1: [1, 0.6, 0.9, 3] },
-      'moog': { p0: [400, 0.45, 0.5, 0], p1: [8, 0.8, 0.6, 0.9] }
-    }),
-    fxParams: makeFx({
-      'dx7': { chorusMix: 0.45, delayMix: 0.3, delayTime: 0.4 },
-      'moog': { reverbMix: 0.4, reverbDecay: 0.9 }
-    }),
-    data: () => {
-      const p = new Pattern(128, 8);
-      for (let r = 0; r < 128; r += 16) {
-        p.set(r, 0, 36, I['808'], 0.9);
-        p.set(r + 8, 0, 36, I['808'], 0.7);
-        p.set(r + 14, 0, 36, I['808'], 0.65);
-        p.set(r + 4, 1, 38, I['808'], 0.85);
-        p.set(r + 12, 1, 38, I['808'], 0.85);
-      }
-      for (let r = 0; r < 128; r += 2) {
-        p.set(r, 2, 42, I['808'], 0.25);
-      }
-      const walk = [45, 48, 52, 50, 45, 48, 52, 50];
-      for (let bar = 0; bar < 8; bar++) {
-        const start = bar * 16;
-        const note = walk[bar % walk.length];
-        p.set(start, 4, note, I['moog'], 0.75);
-        p.set(start + 4, 4, note + 7, I['moog'], 0.6);
-        p.set(start + 8, 4, note + 12, I['moog'], 0.7);
-        p.set(start + 12, 4, note + 5, I['moog'], 0.65);
-      }
-      const chords = [
-        [57, 60, 64, 67],
-        [55, 59, 62, 65],
-        [53, 57, 60, 64],
-        [52, 56, 59, 62]
-      ];
-      for (let bar = 0; bar < 8; bar++) {
-        const start = bar * 16;
-        const ch = chords[Math.floor(bar / 2) % chords.length];
-        p.set(start + 4, 5, ch[0], I['dx7'], 0.45);
-        p.set(start + 4, 7, ch[2], I['dx7'], 0.45);
-        p.set(start + 6, 5, OFF, I['dx7']);
-        p.set(start + 6, 7, OFF, I['dx7']);
-      }
-      return makeDemoPatterns(p);
-    }
-  },
-  {
-    name: "Retro Acid Trance",
-    bpm: 140,
-    params: makeParams({
-      '303': { p0: [800, 0.95, 0.85, 0.6], p1: [1, 0.3, 0.4, 0] }
-    }),
-    fxParams: makeFx({
-      '303': { drive: 2.2, delayFeedback: 0.6, delayMix: 0.4 }
-    }),
-    data: () => {
-      const p = new Pattern(128, 8);
-      for (let r = 0; r < 128; r += 4) {
-        p.set(r, 0, 36, I['808'], 1.0);
-        p.set(r + 2, 2, 46, I['808'], 0.6);
-      }
-      for (let r = 0; r < 128; r += 16) {
-        p.set(r + 12, 1, 38, I['808'], 0.8);
-        p.set(r + 14, 1, 38, I['808'], 0.9);
-      }
-      const acid = [48, 48, 60, 48, 51, 48, 60, 51, 46, 46, 58, 46, 53, 46, 58, 53];
-      for (let r = 0; r < 128; r++) {
-        if (r % 16 !== 7 && r % 16 !== 15) {
-          p.set(r, 3, acid[r % 16], I['303'], 0.85);
-        } else {
-          p.set(r, 3, OFF, I['303']);
-        }
-      }
-      return makeDemoPatterns(p);
-    }
-  },
-  {
-    name: "Cyberpunk Club",
-    bpm: 128,
-    params: makeParams({
-      '303': { p0: [1500, 0.7, 0.8, 0.5], p1: [0, 0.2, 0.3, 0] },
-      'moog': { p0: [800, 0.5, 0.6, 0], p1: [20, 0.8, 0.6, 0.9] }
-    }),
-    fxParams: makeFx({
-      '303': { drive: 3.2, width: 1.4, delayMix: 0.25 },
-      'moog': { drive: 2.0, chorusMix: 0.4 }
-    }),
-    data: () => {
-      const p = new Pattern(128, 8);
-      for (let r = 0; r < 128; r += 8) {
-        p.set(r, 0, 36, I['808'], 1.0);
-        p.set(r + 4, 1, 38, I['808'], 0.95);
-      }
-      for (let r = 0; r < 128; r += 4) {
-        p.set(r, 3, 38, I['303'], 0.9);
-        p.set(r + 1, 3, 50, I['303'], 0.7);
-        p.set(r + 3, 3, OFF, I['303']);
-      }
-      for (let bar = 0; bar < 8; bar++) {
-        const start = bar * 16;
-        let note = (bar % 4 === 3) ? 41 : 38;
-        p.set(start + 2, 4, note, I['moog'], 0.8);
-        p.set(start + 6, 4, OFF, I['moog']);
-      }
-      return makeDemoPatterns(p);
-    }
-  },
-  {
-    name: "Chillwave Sunset",
-    bpm: 95,
-    params: makeParams({
-      'dx7': { p0: [1, 2, 4.0, 0.1], p1: [1, 0.6, 0.9, 5] }
-    }),
-    fxParams: makeFx({
-      'dx7': { chorusMix: 0.6, delayTime: 0.5, delayFeedback: 0.5, delayMix: 0.4 },
-      'moog': { chorusMix: 0.5, reverbMix: 0.5 }
-    }),
-    data: () => {
-      const p = new Pattern(128, 8);
-      for (let r = 0; r < 128; r += 16) {
-        p.set(r, 0, 36, I['808'], 0.85);
-        p.set(r + 8, 1, 38, I['808'], 0.7);
-        p.set(r + 12, 0, 36, I['808'], 0.6);
-      }
-      for (let r = 0; r < 128; r += 4) {
-        p.set(r + 2, 2, 42, I['808'], 0.3);
-      }
-      const chords = [
-        [53, 57, 60, 64],
-        [55, 59, 62, 65],
-        [48, 52, 55, 59],
-        [45, 48, 52, 55]
-      ];
-      for (let bar = 0; bar < 8; bar++) {
-        const start = bar * 16;
-        const ch = chords[Math.floor(bar / 2) % chords.length];
-        p.set(start, 5, ch[0], I['dx7'], 0.5);
-        p.set(start, 7, ch[2], I['dx7'], 0.5);
-        p.set(start + 12, 5, OFF, I['dx7']);
-        p.set(start + 12, 7, OFF, I['dx7']);
-        p.set(start, 4, ch[0] - 12, I['moog'], 0.7);
-        p.set(start + 12, 4, OFF, I['moog']);
-      }
-      return makeDemoPatterns(p);
-    }
-  },
-  {
-    name: "IDM Glitch",
-    bpm: 135,
-    params: makeParams({
-      '303': { p0: [600, 0.8, 0.9, 0.4], p1: [0, 0.1, 0.2, 0] }
-    }),
-    fxParams: makeFx({
-      '808': { drive: 1.5, reverbDecay: 0.95, reverbMix: 0.6 },
-      '303': { chorusMix: 0.4, delayMix: 0.3 }
-    }),
-    data: () => {
-      const p = new Pattern(128, 8);
-      for (let r = 0; r < 128; r++) {
-        const step = r % 16;
-        if (step === 0 || step === 9 || step === 14) {
-          p.set(r, 0, 36, I['808'], 0.9);
-        }
-        if (step === 4 || step === 12) {
-          p.set(r, 1, 38, I['808'], 0.85);
-        }
-        if (r % 32 === 28 || r % 32 === 30) {
-          p.set(r, 6, 39, I['808'], 0.7);
-        }
-      }
-      for (let r = 0; r < 128; r += 2) {
-        if (r % 16 !== 6 && r % 16 !== 14) {
-          const note = 48 + ((r * 7) % 24);
-          p.set(r, 3, note, I['303'], 0.75);
-        }
-      }
-      return makeDemoPatterns(p);
-    }
-  },
-  {
-    name: "Synth-Pop Anthem",
-    bpm: 120,
-    params: makeParams({
-      'moog': { p0: [1200, 0.4, 0.5, 0], p1: [5, 0.8, 0.1, 0.2] }
-    }),
-    fxParams: makeFx({
-      'dx7': { chorusMix: 0.5, delayMix: 0.25 },
-      'moog': { drive: 1.3 }
-    }),
-    data: () => {
-      const p = new Pattern(128, 8);
-      for (let r = 0; r < 128; r += 4) {
-        p.set(r, 0, 36, I['808'], 1.0);
-        p.set(r + 2, 6, 39, I['808'], 0.8);
-      }
-      for (let r = 0; r < 128; r += 2) {
-        const bar = Math.floor(r / 16);
-        let note = 48;
-        if (bar === 2 || bar === 3) note = 55;
-        if (bar === 4 || bar === 5) note = 53;
-        if (bar === 6 || bar === 7) note = 52;
-        const isUp = (r % 4 === 2);
-        p.set(r, 4, isUp ? note + 12 : note, I['moog'], 0.85);
-      }
-      const melody = [67, 72, 74, 76, 74, 72, 67, 72];
-      for (let r = 16; r < 112; r += 4) {
-        const note = melody[Math.floor(r / 4) % melody.length];
-        p.set(r, 5, note, I['dx7'], 0.7);
-        p.set(r + 2, 5, OFF, I['dx7']);
-      }
-      return makeDemoPatterns(p);
-    }
-  },
-  {
-    name: "Cosmic Space Ambient",
-    bpm: 65,
-    params: makeParams({
-      'moog': { p0: [300, 0.3, 0.4, 0], p1: [30, 0.9, 1.8, 1.8] }
-    }),
-    fxParams: makeFx({
-      'moog': { reverbDecay: 0.97, reverbMix: 0.6 },
-      'dx7': { delayFeedback: 0.8, delayMix: 0.5, delayTime: 0.8 }
-    }),
-    data: () => {
-      const p = new Pattern(128, 8);
-      const droneRoots = [33, 38, 41, 43];
-      for (let segment = 0; segment < 4; segment++) {
-        const start = segment * 32;
-        p.set(start, 4, droneRoots[segment], I['moog'], 0.85);
-        p.set(start + 28, 4, OFF, I['moog']);
-      }
-      for (let r = 8; r < 120; r += 16) {
-        const notes = [69, 74, 77, 81];
-        const note = notes[Math.floor(r / 16) % notes.length];
-        p.set(r, 5, note, I['dx7'], 0.5);
-      }
-      return makeDemoPatterns(p);
-    }
-  },
-  {
     name: "Darkwave Electro",
     bpm: 112,
     params: makeParams({
@@ -1525,141 +360,6 @@ export const DEMO_SONGS = [
       for (let r = 0; r < 128; r += 2) {
         const step = Math.floor(r / 2) % bass.length;
         p.set(r, 4, bass[step], I['moog'], 0.85);
-      }
-      return makeDemoPatterns(p);
-    }
-  },
-  {
-    name: "Minimal Hypnotic",
-    bpm: 126,
-    params: makeParams({
-      '303': { p0: [120, 0.95, 0.8, 0.2], p1: [0, 0.1, 0.1, 0] }
-    }),
-    fxParams: makeFx({
-      '808': { drive: 1.4, delayMix: 0.15 },
-      '303': { delayTime: 0.33, delayFeedback: 0.4, delayMix: 0.3 }
-    }),
-    data: () => {
-      const p = new Pattern(128, 8);
-      for (let r = 0; r < 128; r += 4) {
-        p.set(r, 0, 36, I['808'], 1.0);
-        p.set(r + 2, 2, 46, I['808'], 0.5);
-      }
-      for (let r = 0; r < 128; r += 2) {
-        const notes = [41, 41, 41, 41, 44, 41, 44, 46];
-        const step = Math.floor(r / 2) % notes.length;
-        if (r % 8 !== 6) {
-          p.set(r, 3, notes[step], I['303'], 0.7);
-        }
-      }
-      return makeDemoPatterns(p);
-    }
-  },
-  {
-    name: "Chiptune Arcade",
-    bpm: 150,
-    params: makeParams({
-      '303': { p0: [2000, 0.2, 0.5, 0], p1: [1, 0.05, 0.05, 0] }
-    }),
-    fxParams: makeFx({
-      '303': { drive: 1.0, delayTime: 0.2, delayFeedback: 0.4, delayMix: 0.3 }
-    }),
-    data: () => {
-      const p = new Pattern(128, 8);
-      for (let r = 0; r < 128; r += 8) {
-        p.set(r, 0, 36, I['808'], 0.95);
-        p.set(r + 4, 1, 38, I['808'], 0.8);
-      }
-      const chords = [
-        [60, 64, 67, 72],
-        [65, 69, 72, 77],
-        [67, 71, 74, 79],
-        [64, 67, 71, 76]
-      ];
-      for (let r = 0; r < 128; r++) {
-        const chord = chords[Math.floor(r / 32) % chords.length];
-        const note = chord[r % chord.length];
-        p.set(r, 3, note, I['303'], 0.75);
-      }
-      return makeDemoPatterns(p);
-    }
-  },
-  {
-    name: "Liquid Drum & Bass",
-    bpm: 172,
-    params: makeParams({
-      'moog': { p0: [150, 0.0, 0.0, 0], p1: [0, 0.9, 0.8, 0.8] },
-      'dx7': { p0: [1, 2, 3.5, 0.2], p1: [1, 0.8, 1.0, 4] }
-    }),
-    fxParams: makeFx({
-      '808': { drive: 1.6 },
-      'dx7': { chorusMix: 0.5, delayTime: 0.45, delayFeedback: 0.6, delayMix: 0.4 }
-    }),
-    data: () => {
-      const p = new Pattern(128, 8);
-      for (let r = 0; r < 128; r += 16) {
-        p.set(r, 0, 36, I['808'], 1.0);
-        p.set(r + 10, 0, 36, I['808'], 0.85);
-        p.set(r + 4, 1, 38, I['808'], 0.95);
-        p.set(r + 12, 1, 38, I['808'], 0.95);
-      }
-      for (let r = 0; r < 128; r += 2) {
-        p.set(r, 2, 42, I['808'], 0.35);
-      }
-      const subs = [36, 41, 43, 39];
-      for (let bar = 0; bar < 8; bar++) {
-        const start = bar * 16;
-        const note = subs[Math.floor(bar / 2) % subs.length];
-        p.set(start, 4, note, I['moog'], 0.9);
-        p.set(start + 12, 4, OFF, I['moog']);
-      }
-      const chords = [
-        [60, 63, 67, 70],
-        [65, 68, 72, 75],
-        [67, 70, 74, 77],
-        [63, 67, 70, 74]
-      ];
-      for (let bar = 0; bar < 8; bar++) {
-        const start = bar * 16;
-        const ch = chords[Math.floor(bar / 2) % chords.length];
-        p.set(start + 4, 5, ch[0], I['dx7'], 0.45);
-        p.set(start + 4, 7, ch[2], I['dx7'], 0.45);
-        p.set(start + 14, 5, OFF, I['dx7']);
-        p.set(start + 14, 7, OFF, I['dx7']);
-      }
-      return makeDemoPatterns(p);
-    }
-  },
-  {
-    name: "Future Garage",
-    bpm: 130,
-    params: makeParams({
-      'dx7': { p0: [1, 2.5, 4.0, 0.4], p1: [0, 0.4, 0.6, 3] }
-    }),
-    fxParams: makeFx({
-      '808': { drive: 1.2, reverbDecay: 0.8, reverbMix: 0.4 },
-      'dx7': { delayTime: 0.6, delayFeedback: 0.6, delayMix: 0.45, chorusMix: 0.4 }
-    }),
-    data: () => {
-      const p = new Pattern(128, 8);
-      for (let r = 0; r < 128; r += 16) {
-        p.set(r, 0, 36, I['808'], 0.9);
-        p.set(r + 6, 0, 36, I['808'], 0.85);
-        p.set(r + 4, 1, 38, I['808'], 0.9);
-        p.set(r + 12, 1, 38, I['808'], 0.9);
-        p.set(r + 2, 2, 42, I['808'], 0.3);
-        p.set(r + 5, 2, 42, I['808'], 0.25);
-        p.set(r + 8, 2, 46, I['808'], 0.4);
-        p.set(r + 10, 2, 42, I['808'], 0.25);
-        p.set(r + 14, 2, 42, I['808'], 0.3);
-      }
-      const subSeq = [38, 38, 38, 41, 45, 45, 45, 43];
-      for (let bar = 0; bar < 8; bar++) {
-        const start = bar * 16;
-        const note = subSeq[bar];
-        p.set(start + 2, 4, note, I['moog'], 0.85);
-        p.set(start + 10, 4, note + 5, I['moog'], 0.7);
-        p.set(start + 14, 4, OFF, I['moog']);
       }
       return makeDemoPatterns(p);
     }
@@ -2477,6 +1177,1186 @@ export const DEMO_SONGS = [
       };
     }
   },
+  {
+    name: "Antiseptik USA",
+    bpm: 120,
+    params: [
+      // 0: DX7 Glass String — bright, swelling digital string pad
+      {
+        name: "DX7 Glass String",
+        type: "dx7",
+        p0: [1, 2.5, 3.0, 0.5],
+        p1: [5, 0.6, 0.85, 3], // Algorithm 5, feedback 3
+        ops: [
+          { coarse: 1.0, fine: 0, level: 99, detune: 2,  decay: 2.5,  mode: 0, sustain: 0.8,  release: 1.8 },
+          { coarse: 1.0, fine: 2, level: 78, detune: -2, decay: 2.0,  mode: 0, sustain: 0.7,  release: 1.5 },
+          { coarse: 2.0, fine: 0, level: 90, detune: 4,  decay: 1.8,  mode: 0, sustain: 0.75, release: 1.6 },
+          { coarse: 3.0, fine: 0, level: 55, detune: -3, decay: 1.2,  mode: 0, sustain: 0.5,  release: 1.0 },
+          { coarse: 0.5, fine: 0, level: 95, detune: 5,  decay: 3.0,  mode: 0, sustain: 0.9,  release: 2.0 },
+          { coarse: 1.0, fine: 0, level: 65, detune: 0,  decay: 2.2,  mode: 0, sustain: 0.6,  release: 1.4 }
+        ]
+      },
+      // 1: 303 Liquid Pluck — clean, warm resonant pluck
+      { name: "303 Liquid Pluck", type: "303", p0: [650, 0.45, 0.5, 0.2], p1: [1.0, 0.35, 0.45, 0] },
+      // 2: 808 Clean Kit — punchy, tight TR-808
+      { name: "808 Clean Kit", type: "808", p0: [0, 0.5, 0.45, 0.6], p1: [0, 0, 0, 0] },
+      // 3: Moog Warm Bass — deep, rounded analog bass
+      { name: "Moog Warm Bass", type: "moog", p0: [150, 0.1, 0.75, 0], p1: [2.0, 0.95, 0.7, 1.0] },
+      // 4: Moog Soaring Lead — expressive lead synth with sliding feel
+      { name: "Moog Soaring Lead", type: "moog", p0: [900, 0.35, 0.45, 0], p1: [15.0, 0.6, 0.8, 0.6] }
+    ],
+    fxParams: {
+      '303': Object.assign(defaultFxParams(), { distOn: false, bitcrushOn: false, delayMix: 0.4, chorusMix: 0.4 }),
+      'dx7': Object.assign(defaultFxParams(), { chorusMix: 0.55, chorusRate: 1.2, delayMix: 0.35, reverbMix: 0.6, reverbDecay: 0.93 }),
+      '808': Object.assign(defaultFxParams(), { distOn: false, bitcrushOn: false }),
+      'moog': Object.assign(defaultFxParams(), { distOn: false, bitcrushOn: false, chorusMix: 0.3, delayMix: 0.3, reverbMix: 0.35 }),
+    },
+    data: () => {
+      // 12 patterns * 128 rows * 8 channels = 1536 rows.
+      // At 120 BPM and 4 rows per beat, 1 pattern is 16.0 seconds.
+      // 12 patterns total is 192.0 seconds (exactly 3 minutes and 0 seconds).
+      const p = [];
+      for (let i = 0; i < 12; i++) p.push(new Pattern(128, 8));
+
+      const BD = 36, SD = 38, HH = 42, OH = 46, CLAP = 39, RIM = 37;
+      const I_pad = 0, I_303 = 1, I_808 = 2, I_bass = 3, I_lead = 4;
+
+      // progression:
+      // Dreamy (Minor): Am7 -> Fmaj7 -> D7 -> Esus4 (patterns 0-4, and 10)
+      // Climax (Major): Amaj7 -> B7 -> C#m7 -> F#m7 (patterns 5-9)
+      const minorProg = ['Am7', 'Fmaj7', 'D7', 'Esus4', 'Am7', 'Fmaj7', 'D7', 'Esus4'];
+      const majorProg = ['Amaj7', 'B7', 'C#m7', 'F#m7', 'Amaj7', 'B7', 'C#m7', 'F#m7'];
+
+      const minorVoicings = {
+        Am7: [57, 60, 64],
+        Fmaj7: [53, 57, 60],
+        D7: [54, 57, 60],
+        Esus4: [52, 57, 59]
+      };
+      const majorVoicings = {
+        Amaj7: [57, 61, 64, 68],
+        B7: [59, 63, 66, 69],
+        "C#m7": [56, 59, 64],
+        "F#m7": [54, 57, 61]
+      };
+
+      const minorBass = { Am7: 45, Fmaj7: 41, D7: 38, Esus4: 40 };
+      const majorBass = { Amaj7: 45, B7: 47, "C#m7": 37, "F#m7": 42 };
+
+      // Helper to write ambient pads and bass drones
+      const writePadsAndBass = (pat, isMajor = false, volP = 0.45, volB = 0.65) => {
+        const prog = isMajor ? majorProg : minorProg;
+        const voicings = isMajor ? majorVoicings : minorVoicings;
+        const bass = isMajor ? majorBass : minorBass;
+        const padChannels = [0, 3, 4, 7];
+
+        prog.forEach((chordName, barIdx) => {
+          const start = barIdx * 16;
+          const voicing = voicings[chordName];
+
+          // Clear any pad channels for this bar first to ensure clean state
+          padChannels.forEach(ch => {
+            for (let step = 0; step < 16; step++) {
+              pat.clear(start + step, ch);
+            }
+          });
+
+          // Arpeggiate the pad voicing on channels 0, 3, 4, 7
+          for (let step = 0; step < 16; step += 2) {
+            const i = step / 2;
+            const noteIndex = i % voicing.length;
+            // Introduce a subtle 2-octave climbing arpeggiation for richness
+            const isHighOctave = Math.floor(i / voicing.length) % 2 === 1;
+            const note = voicing[noteIndex] + 12 + (isHighOctave ? 12 : 0);
+            const channel = padChannels[i % padChannels.length];
+
+            pat.set(start + step, channel, note, I_pad, volP);
+            // Let each note ring for 3 steps (so it overlaps slightly with the next 8th note)
+            const offRow = start + step + 3;
+            if (offRow < pat.rows) {
+              pat.set(offRow, channel, OFF, I_pad);
+            }
+          }
+
+          // Bass drone on channel 5
+          pat.set(start, 5, bass[chordName], I_bass, volB);
+          pat.set(start + 15, 5, OFF, I_bass);
+        });
+      };
+
+      // Helper to write driving, rhythmic bass for Climax
+      const writeDrivingBass = (pat, isMajor = false, vol = 0.7) => {
+        const prog = isMajor ? majorProg : minorProg;
+        const bass = isMajor ? majorBass : minorBass;
+
+        prog.forEach((chordName, barIdx) => {
+          const start = barIdx * 16;
+          const root = bass[chordName];
+          for (let step = 0; step < 16; step += 2) {
+            const isOctave = (step % 4 === 2);
+            pat.set(start + step, 5, isOctave ? root + 12 : root, I_bass, vol);
+            pat.set(start + step + 1, 5, OFF, I_bass);
+          }
+        });
+      };
+
+      // Helper to write smooth 303 arpeggiated lines
+      const write303Pluck = (pat, isMajor = false, density = 0.5, vol = 0.65) => {
+        const prog = isMajor ? majorProg : minorProg;
+        const voicings = isMajor ? majorVoicings : minorVoicings;
+
+        prog.forEach((chordName, barIdx) => {
+          const start = barIdx * 16;
+          const voicing = voicings[chordName];
+          const notes = voicing.map(n => n + 24); // High register arpeggios
+          const threshold = Math.round(density * 10);
+          for (let step = 0; step < 16; step += 2) {
+            if (((step * 7 + barIdx * 3) % 10) < threshold) {
+              const note = notes[step % notes.length];
+              pat.set(start + step, 1, note, I_303, vol);
+              pat.set(start + step + 1, 1, OFF, I_303);
+            }
+          }
+        });
+      };
+
+      // Helper to write clean 808 drum patterns
+      const writeDrums = (pat, style = 'dreamy') => {
+        for (let r = 0; r < 128; r++) {
+          const step = r % 16;
+          if (style === 'dreamy') {
+            // Gentle rhythmic groove (rimshot, hats, light kick)
+            if (step === 0 || (step === 10 && r % 32 === 16)) {
+              pat.set(r, 2, BD, I_808, 0.85);
+            }
+            if (step === 4 || step === 12) {
+              pat.set(r, 2, RIM, I_808, 0.6);
+            }
+            if (step % 4 === 2) {
+              pat.set(r, 2, HH, I_808, 0.45);
+            }
+          } else if (style === 'climax') {
+            // Heavy driving 4-on-the-floor kick, double-time hats, clean clap
+            if (step === 0 || step === 4 || step === 8 || step === 12) {
+              pat.set(r, 2, BD, I_808, 0.95);
+            }
+            if (step === 4 || step === 12) {
+              pat.set(r, 2, CLAP, I_808, 0.85);
+            }
+            if (step % 2 === 0) {
+              pat.set(r, 2, HH, I_808, 0.55);
+            }
+          } else if (style === 'half-time') {
+            // Half-time pop/trap groove for bipolar drop (kick on 1, snare on 3)
+            if (step === 0 || step === 6 || step === 14) {
+              pat.set(r, 2, BD, I_808, 0.95);
+            }
+            if (step === 8) {
+              pat.set(r, 2, SD, I_808, 0.85);
+            }
+            if (step % 2 === 0) {
+              pat.set(r, 2, HH, I_808, 0.55);
+            }
+            if (step === 10 || step === 14) {
+              pat.set(r, 2, OH, I_808, 0.4);
+            }
+          }
+        }
+      };
+
+      // Helper to write expressive lead melodies on the Moog
+      const writeLead = (pat, melody, vol = 0.72) => {
+        melody.forEach(([row, note, dur]) => {
+          pat.set(row, 6, note, I_lead, vol);
+          if (dur) pat.set(row + dur, 6, OFF, I_lead);
+        });
+      };
+
+      // ===== Pattern 0: Awakening (Intro) =====
+      writePadsAndBass(p[0], false, 0.35, 0.5);
+
+      // ===== Pattern 1: Blue Mist =====
+      writePadsAndBass(p[1], false, 0.4, 0.55);
+      writeDrums(p[1], 'dreamy');
+
+      // ===== Pattern 2: Bathtub Crystal =====
+      writePadsAndBass(p[2], false, 0.4, 0.6);
+      writeDrums(p[2], 'dreamy');
+      write303Pluck(p[2], false, 0.4, 0.6); // smooth arpeggio
+
+      // ===== Pattern 3: The Weigh Scales =====
+      writePadsAndBass(p[3], false, 0.45, 0.6);
+      writeDrums(p[3], 'dreamy');
+      write303Pluck(p[3], false, 0.6, 0.6);
+      // Soaring lead introduction (dreamy, slow melody in A minor)
+      writeLead(p[3], [
+        [0, 57, 12], [16, 60, 12], [32, 64, 16], [64, 57, 12], [80, 60, 12], [96, 62, 24]
+      ], 0.65);
+
+      // ===== Pattern 4: Unplugged Ports =====
+      writePadsAndBass(p[4], false, 0.45, 0.65);
+      writeDrums(p[4], 'dreamy');
+      write303Pluck(p[4], false, 0.5, 0.6);
+      writeLead(p[4], [
+        [0, 57, 12], [16, 60, 12], [32, 64, 16], [64, 69, 12], [80, 67, 12], [96, 64, 24]
+      ], 0.65);
+
+      // ===== Pattern 5: Adrenaline Pulse (Transition / Climax Entry) =====
+      // Stark bipolar transition! Chords become Major, bass drives, drums go 4-on-the-floor
+      writePadsAndBass(p[5], true, 0.45, 0.7);
+      writeDrivingBass(p[5], true, 0.7);
+      writeDrums(p[5], 'climax');
+      write303Pluck(p[5], true, 0.7, 0.65);
+
+      // ===== Pattern 6: Saline & Silicone Climax =====
+      writePadsAndBass(p[6], true, 0.5, 0.7);
+      writeDrivingBass(p[6], true, 0.7);
+      writeDrums(p[6], 'climax');
+      write303Pluck(p[6], true, 0.8, 0.65);
+      // Energetic high melody in A Lydian
+      writeLead(p[6], [
+        [0, 61, 4], [8, 64, 4], [16, 68, 8], [32, 63, 4], [40, 66, 4], [48, 69, 8],
+        [64, 64, 4], [72, 68, 4], [80, 71, 8], [96, 73, 4], [104, 71, 4], [112, 69, 12]
+      ], 0.72);
+
+      // ===== Pattern 7: Sexbot Climax =====
+      writePadsAndBass(p[7], true, 0.5, 0.7);
+      writeDrivingBass(p[7], true, 0.7);
+      writeDrums(p[7], 'climax');
+      write303Pluck(p[7], true, 0.75, 0.65);
+      // Soaring Moog melody octave up in A Lydian
+      writeLead(p[7], [
+        [0, 73, 4], [8, 76, 4], [16, 80, 8], [32, 75, 4], [40, 78, 4], [48, 81, 8],
+        [64, 76, 4], [72, 80, 4], [80, 83, 8], [96, 85, 4], [104, 83, 4], [112, 81, 12]
+      ], 0.75);
+
+      // ===== Pattern 8: Born Pregnant Drop =====
+      // Drums switch to half-time pop/trap groove, bass keeps driving, keeping tension "hot"
+      writePadsAndBass(p[8], true, 0.5, 0.7);
+      writeDrivingBass(p[8], true, 0.7);
+      writeDrums(p[8], 'half-time');
+      write303Pluck(p[8], true, 0.6, 0.65);
+      writeLead(p[8], [
+        [0, 61, 12], [16, 64, 12], [32, 68, 16], [64, 61, 12], [80, 64, 12], [96, 69, 24]
+      ], 0.72);
+
+      // ===== Pattern 9: Climax Clatter =====
+      writePadsAndBass(p[9], true, 0.5, 0.7);
+      writeDrivingBass(p[9], true, 0.7);
+      writeDrums(p[9], 'climax');
+      write303Pluck(p[9], true, 0.8, 0.65);
+      writeLead(p[9], [
+        [0, 73, 4], [8, 76, 4], [16, 80, 8], [32, 75, 4], [40, 78, 4], [48, 81, 8],
+        [64, 76, 4], [72, 80, 4], [80, 83, 8], [96, 85, 4], [104, 83, 4], [112, 81, 12]
+      ], 0.75);
+
+      // ===== Pattern 10: The Posthuman Kiss =====
+      // Return to quiet, dreamy minor progression (A minor)
+      writePadsAndBass(p[10], false, 0.45, 0.6);
+      writeDrums(p[10], 'dreamy');
+      write303Pluck(p[10], false, 0.4, 0.6);
+      // Melancholic final melody in A minor
+      writeLead(p[10], [
+        [0, 57, 12], [16, 52, 12], [32, 53, 12], [48, 45, 16],
+        [64, 57, 12], [80, 60, 12], [96, 55, 12], [112, 52, 16]
+      ], 0.7);
+
+      // ===== Pattern 11: Sunset (Outro) =====
+      writePadsAndBass(p[11], false, 0.35, 0.45);
+      writeLead(p[11], [[0, 57, 32]], 0.5); // final A note decaying away
+
+      return {
+        patterns: p,
+        order: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+        rowsPerBeat: 4
+      };
+    }
+  },
+  {
+    name: "Lance's Left Nut",
+    bpm: 125,
+    params: [
+      // 0: DX7 Retro Brass — lush, detuned analog brass pad
+      {
+        name: "DX7 Retro Brass",
+        type: "dx7",
+        p0: [1.0, 1.0, 2.5, 0.4],
+        p1: [12, 0.4, 0.6, 0], // Algorithm 12
+        ops: [
+          { coarse: 1.0, fine: 0, level: 99, detune: 4,  decay: 1.5, mode: 0, sustain: 0.85, release: 1.5 },
+          { coarse: 1.0, fine: 1, level: 90, detune: -4, decay: 1.2, mode: 0, sustain: 0.8,  release: 1.2 },
+          { coarse: 2.0, fine: 0, level: 85, detune: 5,  decay: 1.0, mode: 0, sustain: 0.75, release: 1.0 },
+          { coarse: 2.0, fine: 2, level: 75, detune: -5, decay: 0.8, mode: 0, sustain: 0.7,  release: 0.8 },
+          { coarse: 0.5, fine: 0, level: 95, detune: 2,  decay: 2.0, mode: 0, sustain: 0.9,  release: 1.8 },
+          { coarse: 1.0, fine: 0, level: 65, detune: 0,  decay: 1.5, mode: 0, sustain: 0.6,  release: 1.0 }
+        ]
+      },
+      // 1: 303 Bouncy Pluck — bubbly Vince Clarke / Erasure style pluck
+      { name: "303 Bouncy Pluck", type: "303", p0: [800, 0.6, 0.4, 0.3], p1: [1.0, 0.2, 0.3, 0] },
+      // 2: 808 Synthpop Kit — punchy Linn-style synthpop kit
+      { name: "808 Synthpop Kit", type: "808", p0: [0, 0.55, 0.4, 0.5], p1: [0, 0, 0, 0] },
+      // 3: Moog Funky Bass — John Taylor style active bass
+      { name: "Moog Funky Bass", type: "moog", p0: [300, 0.25, 0.6, 0], p1: [4.0, 0.9, 0.65, 0.9] },
+      // 4: Moog Britpop Lead — quirky Pulp/Blur style lead
+      { name: "Moog Britpop Lead", type: "moog", p0: [1200, 0.4, 0.5, 0], p1: [12.0, 0.55, 0.75, 0.5] }
+    ],
+    fxParams: {
+      '303': Object.assign(defaultFxParams(), { distOn: false, bitcrushOn: false, chorusMix: 0.45, delayMix: 0.35, delayFeedback: 0.45 }),
+      'dx7': Object.assign(defaultFxParams(), { chorusMix: 0.65, chorusRate: 1.4, delayMix: 0.3, reverbMix: 0.55, reverbDecay: 0.92 }),
+      '808': Object.assign(defaultFxParams(), { distOn: false, bitcrushOn: false }),
+      'moog': Object.assign(defaultFxParams(), { distOn: false, bitcrushOn: false, chorusMix: 0.4, delayMix: 0.3, reverbMix: 0.35 }),
+    },
+    data: () => {
+      const p = [];
+      for (let i = 0; i < 12; i++) p.push(new Pattern(128, 8));
+
+      const BD = 36, SD = 38, HH = 42, OH = 46, CLAP = 39, RIM = 37;
+      const I_pad = 0, I_303 = 1, I_808 = 2, I_bass = 3, I_lead = 4;
+
+      // Chord progressions:
+      // Verse (Bm -> G -> Em -> F#)
+      const verseProg = ['Bm', 'G', 'Em', 'F#', 'Bm', 'G', 'Em', 'F#'];
+      // Chorus (D -> Bb -> C -> A)
+      const chorusProg = ['D', 'Bb', 'C', 'A', 'D', 'Bb', 'C', 'A'];
+      // Pre-Chorus / Bridge (G -> A -> G -> A)
+      const bridgeProg = ['G', 'A', 'G', 'A', 'G', 'A', 'G', 'A'];
+
+      const voicings = {
+        Bm: [59, 62, 66, 71],
+        G: [55, 59, 62, 67],
+        Em: [52, 55, 59, 64],
+        "F#": [54, 58, 61, 66],
+        D: [50, 54, 57, 62, 66],
+        Bb: [58, 62, 65, 70],
+        C: [48, 52, 55, 60, 64],
+        A: [57, 61, 64, 69]
+      };
+
+      const chordIntervals = {
+        Bm: { root: 47, third: 50, fifth: 54, seventh: 57 },
+        G: { root: 43, third: 47, fifth: 50, seventh: 54 },
+        Em: { root: 40, third: 43, fifth: 47, seventh: 50 },
+        "F#": { root: 42, third: 46, fifth: 49, seventh: 52 },
+        D: { root: 50, third: 54, fifth: 57, seventh: 61 },
+        Bb: { root: 46, third: 50, fifth: 53, seventh: 57 },
+        C: { root: 48, third: 52, fifth: 55, seventh: 58 },
+        A: { root: 45, third: 49, fifth: 52, seventh: 55 }
+      };
+
+      // 1. Pads: Lush DX7 chords.
+      const writePads = (pat, progression, style = 'sustained', vol = 0.4) => {
+        progression.forEach((chordName, barIdx) => {
+          const start = barIdx * 16;
+          const voicing = voicings[chordName];
+          if (style === 'sustained') {
+            voicing.forEach((note, ni) => {
+              const ch = [0, 3, 4][ni % 3];
+              pat.set(start, ch, note + 12, I_pad, vol);
+              pat.set(start + 15, ch, OFF, I_pad);
+            });
+          } else {
+            voicing.forEach((note, ni) => {
+              const ch = [0, 3, 4][ni % 3];
+              [0, 3, 6, 8, 11, 14].forEach(step => {
+                pat.set(start + step, ch, note + 12, I_pad, vol);
+                pat.set(start + step + 2, ch, OFF, I_pad);
+              });
+            });
+          }
+        });
+      };
+
+      // 2. Bass: Funky Moog analog bass with scale-degree awareness.
+      const writeBass = (pat, progression, style = 'driving', vol = 0.7) => {
+        progression.forEach((chordName, barIdx) => {
+          const start = barIdx * 16;
+          const chords = chordIntervals[chordName];
+          if (style === 'driving') {
+            const verseBassPattern = [
+              [0, chords.root],
+              [2, chords.root],
+              [4, chords.fifth],
+              [6, chords.fifth],
+              [8, chords.root + 12],
+              [10, chords.root + 12],
+              [12, chords.root],
+              [14, chords.seventh]
+            ];
+            verseBassPattern.forEach(([step, note]) => {
+              pat.set(start + step, 5, note, I_bass, vol);
+              pat.set(start + step + 1, 5, OFF, I_bass);
+            });
+          } else if (style === 'funky') {
+            const funkyBassPattern = [
+              [0, chords.root],
+              [2, chords.root],
+              [3, chords.root + 12],
+              [6, chords.third],
+              [8, chords.root],
+              [10, chords.fifth],
+              [12, chords.root + 12],
+              [14, chords.seventh]
+            ];
+            funkyBassPattern.forEach(([step, note]) => {
+              pat.set(start + step, 5, note, I_bass, vol);
+              pat.set(start + step + 1, 5, OFF, I_bass);
+            });
+          } else {
+            pat.set(start, 5, chords.root, I_bass, vol);
+            pat.set(start + 15, 5, OFF, I_bass);
+          }
+        });
+      };
+
+      // 3. 303: bouncy 16th-note Erasure arpeggiation (Vince Clarke rhythmic skip)
+      const writeErasureArp = (pat, progression, vol = 0.58) => {
+        progression.forEach((chordName, barIdx) => {
+          const start = barIdx * 16;
+          const voicing = voicings[chordName];
+          for (let step = 0; step < 16; step++) {
+            if (step % 4 !== 3) {
+              const noteIdx = step % voicing.length;
+              const octave = (step % 8 >= 4) ? 12 : 0;
+              const note = voicing[noteIdx] + 12 + octave;
+              pat.set(start + step, 1, note, I_303, vol);
+              pat.set(start + step + 1, 1, OFF, I_303);
+            }
+          }
+        });
+      };
+
+      // 4. Drums: punchy synthpop drums.
+      const writeDrums = (pat, style = 'synthpop') => {
+        for (let r = 0; r < 128; r++) {
+          const step = r % 16;
+          if (style === 'basic') {
+            if (step === 0 || step === 8) pat.set(r, 2, BD, I_808, 0.9);
+            if (step === 4 || step === 12) pat.set(r, 2, SD, I_808, 0.75);
+            if (step % 4 === 2) pat.set(r, 2, HH, I_808, 0.4);
+          } else if (style === 'synthpop') {
+            if (step === 0 || step === 8 || step === 10 || step === 13) pat.set(r, 2, BD, I_808, 0.95);
+            if (step === 4 || step === 12) pat.set(r, 2, SD, I_808, 0.85);
+            if (step === 12 && r % 32 >= 16) pat.set(r, 2, CLAP, I_808, 0.8);
+            if (step % 2 === 0) pat.set(r, 2, HH, I_808, step % 4 === 2 ? 0.45 : 0.3);
+            if (step === 6 || step === 14) pat.set(r, 2, OH, I_808, 0.5);
+          } else if (style === 'duran') {
+            if (step % 4 === 0) pat.set(r, 2, BD, I_808, 0.95);
+            if (step === 4 || step === 12) {
+              pat.set(r, 2, SD, I_808, 0.85);
+              pat.set(r, 2, CLAP, I_808, 0.88);
+            }
+            if (step % 2 === 1) pat.set(r, 2, HH, I_808, 0.5);
+            if (step === 2 || step === 6 || step === 10 || step === 14) {
+              pat.set(r, 2, OH, I_808, 0.55);
+            }
+            if (step === 15) pat.set(r, 2, HH, I_808, 0.6);
+          }
+        }
+      };
+
+      const writeLead = (pat, melody, vol = 0.7) => {
+        melody.forEach(([row, note, dur]) => {
+          if (row < pat.rows) {
+            pat.set(row, 6, note, I_lead, vol);
+            if (dur && row + dur < pat.rows) {
+              pat.set(row + dur, 6, OFF, I_lead);
+            }
+          }
+        });
+      };
+
+      // Riffs & Melodies
+      const verseMelody = [
+        // Bar 0 (Bm)
+        [0, 71, 4], [4, 69, 4], [8, 66, 6], [14, 62, 2],
+        // Bar 1 (G)
+        [16, 67, 8], [24, 69, 4], [28, 71, 4],
+        // Bar 2 (Em)
+        [32, 64, 4], [36, 67, 4], [40, 71, 8],
+        // Bar 3 (F#)
+        [48, 66, 8], [56, 69, 8],
+        // Bar 4 (Bm)
+        [64, 71, 4], [68, 69, 4], [72, 66, 6], [78, 62, 2],
+        // Bar 5 (G)
+        [80, 67, 8], [88, 69, 4], [92, 71, 4],
+        // Bar 6 (Em)
+        [96, 76, 8], [104, 74, 8],
+        // Bar 7 (F#)
+        [112, 73, 8], [120, 71, 8]
+      ];
+
+      const chorusMelody = [
+        // Bar 0 (D)
+        [0, 74, 6], [6, 76, 2], [8, 78, 6], [14, 81, 2],
+        // Bar 1 (Bb)
+        [16, 82, 8], [24, 80, 4], [28, 78, 4],
+        // Bar 2 (C)
+        [32, 80, 6], [38, 78, 2], [40, 76, 6], [46, 74, 2],
+        // Bar 3 (A)
+        [48, 73, 8], [56, 76, 8],
+        // Bar 4 (D)
+        [64, 86, 6], [70, 88, 2], [72, 90, 6], [78, 93, 2],
+        // Bar 5 (Bb)
+        [80, 94, 8], [88, 93, 4], [92, 90, 4],
+        // Bar 6 (C)
+        [96, 91, 6], [102, 90, 2], [104, 88, 6], [110, 86, 2],
+        // Bar 7 (A)
+        [112, 85, 8], [120, 88, 8]
+      ];
+
+      // ===== Pattern 0: Intro (Duran Duran Atmospheric Prelude) =====
+      writePads(p[0], chorusProg, 'sustained', 0.4);
+      writeBass(p[0], chorusProg, 'drone', 0.6);
+      writeDrums(p[0], 'basic');
+      writeLead(p[0], [
+        [0, 62, 12], [16, 66, 12], [32, 69, 16], [64, 62, 12], [80, 66, 12], [96, 67, 24]
+      ], 0.6);
+
+      // ===== Pattern 1: Verse 1 (Pulp Quirky Entry) =====
+      writePads(p[1], verseProg, 'sustained', 0.38);
+      writeBass(p[1], verseProg, 'driving', 0.65);
+      writeDrums(p[1], 'synthpop');
+      writeLead(p[1], verseMelody, 0.7);
+
+      // ===== Pattern 2: Verse 1 Cont. (Blur Guitars as Synths) =====
+      writePads(p[2], verseProg, 'sustained', 0.4);
+      writeBass(p[2], verseProg, 'driving', 0.68);
+      writeDrums(p[2], 'synthpop');
+      writeErasureArp(p[2], verseProg, 0.48);
+      writeLead(p[2], verseMelody, 0.72);
+
+      // ===== Pattern 3: Pre-Chorus (Erasure Gay Club Bounce) =====
+      writePads(p[3], bridgeProg, 'sustained', 0.45);
+      writeBass(p[3], bridgeProg, 'driving', 0.7);
+      writeDrums(p[3], 'synthpop');
+      writeErasureArp(p[3], bridgeProg, 0.58);
+
+      // ===== Pattern 4: Chorus 1 (Duran Duran Rewrite) =====
+      writePads(p[4], chorusProg, 'stabs', 0.48);
+      writeBass(p[4], chorusProg, 'funky', 0.72);
+      writeDrums(p[4], 'duran');
+      writeErasureArp(p[4], chorusProg, 0.5);
+      writeLead(p[4], chorusMelody, 0.75);
+
+      // ===== Pattern 5: Chorus 1 Cont. =====
+      writePads(p[5], chorusProg, 'stabs', 0.48);
+      writeBass(p[5], chorusProg, 'funky', 0.72);
+      writeDrums(p[5], 'duran');
+      writeErasureArp(p[5], chorusProg, 0.5);
+      writeLead(p[5], chorusMelody.map(([r, n, d]) => [r, n + 12, d]), 0.75);
+
+      // ===== Pattern 6: Verse 2 (The Pulp & Blur Love Scene) =====
+      writePads(p[6], verseProg, 'sustained', 0.4);
+      writeBass(p[6], verseProg, 'driving', 0.68);
+      writeDrums(p[6], 'synthpop');
+      writeErasureArp(p[6], verseProg, 0.45);
+      writeLead(p[6], verseMelody, 0.7);
+
+      // ===== Pattern 7: Pre-Chorus 2 (The Erasure Warning) =====
+      writePads(p[7], bridgeProg, 'sustained', 0.45);
+      writeBass(p[7], bridgeProg, 'driving', 0.7);
+      writeDrums(p[7], 'synthpop');
+      writeErasureArp(p[7], bridgeProg, 0.58);
+
+      // ===== Pattern 8: Chorus 2 =====
+      writePads(p[8], chorusProg, 'stabs', 0.5);
+      writeBass(p[8], chorusProg, 'funky', 0.74);
+      writeDrums(p[8], 'duran');
+      writeErasureArp(p[8], chorusProg, 0.55);
+      writeLead(p[8], chorusMelody, 0.76);
+
+      // ===== Pattern 9: Chorus 2 Cont. (Peak Climax) =====
+      writePads(p[9], chorusProg, 'stabs', 0.5);
+      writeBass(p[9], chorusProg, 'funky', 0.74);
+      writeDrums(p[9], 'duran');
+      writeErasureArp(p[9], chorusProg, 0.55);
+      writeLead(p[9], chorusMelody.map(([r, n, d]) => [r, n + 12, d]), 0.78);
+
+      // ===== Pattern 10: Bridge (Duran Duran Epic Build, Oasis Watching) =====
+      writePads(p[10], bridgeProg, 'sustained', 0.52);
+      writeBass(p[10], bridgeProg, 'drone', 0.75);
+      writeDrums(p[10], 'duran');
+      writeLead(p[10], [
+        [0, 67, 24], [32, 69, 24], [64, 71, 24], [96, 73, 24]
+      ], 0.78);
+
+      // ===== Pattern 11: Outro (Fade Out) =====
+      writePads(p[11], chorusProg, 'sustained', 0.4);
+      writeBass(p[11], chorusProg, 'drone', 0.55);
+      writeLead(p[11], [[0, 74, 32]], 0.6);
+
+      return {
+        patterns: p,
+        order: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+        rowsPerBeat: 4
+      };
+    }
+  },
+  {
+    name: "Myfanwy Murder Party",
+    bpm: 96,
+    params: [
+      // 0: DX7 Clean Pluck — acoustic guitar simulator
+      {
+        name: "DX7 Clean Pluck",
+        type: "dx7",
+        p0: [1.0, 1.0, 1.2, 0.2],
+        p1: [5, 0.35, 0.4, 1], // Algorithm 5, feedback 1
+        ops: [
+          { coarse: 1.0, fine: 0, level: 99, detune: 2,  decay: 1.5, mode: 0, sustain: 0.0, release: 0.8 },
+          { coarse: 1.0, fine: 1, level: 75, detune: -2, decay: 1.0, mode: 0, sustain: 0.0, release: 0.6 },
+          { coarse: 2.0, fine: 0, level: 85, detune: 3,  decay: 0.8, mode: 0, sustain: 0.0, release: 0.5 },
+          { coarse: 3.0, fine: 0, level: 60, detune: -3, decay: 0.5, mode: 0, sustain: 0.0, release: 0.4 },
+          { coarse: 0.5, fine: 0, level: 90, detune: 4,  decay: 2.0, mode: 0, sustain: 0.0, release: 1.0 },
+          { coarse: 1.0, fine: 0, level: 50, detune: 0,  decay: 1.2, mode: 0, sustain: 0.0, release: 0.7 }
+        ]
+      },
+      // 1: 303 Heavy Chug — distorted palm-mute synth simulating overdriven metal guitar
+      { name: "303 Heavy Chug", type: "303", p0: [400, 0.85, 0.3, 0.45], p1: [1.0, 0.1, 0.25, 0] },
+      // 2: 808 Bonham Kit — booming TR-808 rock kit
+      { name: "808 Bonham Kit", type: "808", p0: [0, 0.6, 0.8, 0.4], p1: [0, 0, 0, 0] },
+      // 3: Moog Growl Bass — deep, heavy grinding bass
+      { name: "Moog Growl Bass", type: "moog", p0: [180, 0.15, 0.8, 0], p1: [2.0, 0.95, 0.8, 1.2] },
+      // 4: Moog Rock Lead — screaming solo lead
+      { name: "Moog Rock Lead", type: "moog", p0: [950, 0.3, 0.5, 0], p1: [15.0, 0.7, 0.75, 0.5] }
+    ],
+    fxParams: {
+      '303': Object.assign(defaultFxParams(), { distOn: true, dist: 15.0, tone: 0.4, bitcrushOn: false, delayMix: 0.2, delayFeedback: 0.3, reverbMix: 0.3 }),
+      'dx7': Object.assign(defaultFxParams(), { chorusMix: 0.5, chorusRate: 1.0, delayMix: 0.3, reverbMix: 0.45, reverbDecay: 0.88 }),
+      '808': Object.assign(defaultFxParams(), { distOn: false, bitcrushOn: false, reverbMix: 0.4, reverbDecay: 0.85 }),
+      'moog': Object.assign(defaultFxParams(), { distOn: true, dist: 6.0, tone: 0.5, chorusMix: 0.35, delayMix: 0.3, reverbMix: 0.35 }),
+    },
+    data: () => {
+      const p = [];
+      for (let i = 0; i < 15; i++) p.push(new Pattern(128, 8));
+
+      const BD = 36, SD = 38, HH = 42, OH = 46, CLAP = 39, RIM = 37;
+      const I_pad = 0, I_303 = 1, I_808 = 2, I_bass = 3, I_lead = 4;
+
+      // Descending folk progression
+      const folkProg = ['Dm', 'C', 'Bb', 'A', 'Dm', 'C', 'Bb', 'A'];
+
+      const cleanVoicings = {
+        Dm: [50, 57, 62, 65],
+        C: [48, 55, 60, 64],
+        Bb: [46, 53, 58, 62],
+        A: [45, 52, 57, 61]
+      };
+
+      const chordIntervals = {
+        Dm: { root: 50, third: 53, fifth: 57, seventh: 60 },
+        C: { root: 48, third: 52, fifth: 55, seventh: 58 },
+        Bb: { root: 46, third: 50, fifth: 53, seventh: 56 },
+        A: { root: 45, third: 49, fifth: 52, seventh: 55 }
+      };
+
+      // 1. Acoustic fingerpicking simulator (DX7 clean pluck on channels 0, 3, 4)
+      const writeAcousticClean = (pat, progression, vol = 0.45) => {
+        progression.forEach((chordName, barIdx) => {
+          const start = barIdx * 16;
+          const voicing = cleanVoicings[chordName];
+          const pickSteps = [0, 2, 4, 6, 8, 10, 12, 14];
+          const pickNotes = [0, 1, 2, 3, 2, 1, 2, 3];
+          pickSteps.forEach((step, idx) => {
+            const noteIdx = pickNotes[idx];
+            const note = voicing[noteIdx];
+            const ch = [0, 3, 4][idx % 3];
+            pat.set(start + step, ch, note + 12, I_pad, vol);
+            pat.set(start + step + 2, ch, OFF, I_pad);
+          });
+        });
+      };
+
+      // 2. Heavy syncopated Helmet guitar riff (distorted 303 power chords on channels 0 and 3)
+      const writeHeavyHelmetRiff = (pat, vol = 0.72) => {
+        const riffChords = [
+          // Bar 0: D5 (root 38)
+          [0, 38, 2], [2, 38, 1], [4, 41, 2], [8, 43, 2], [12, 44, 3],
+          // Bar 1: D5
+          [16, 38, 2], [18, 38, 1], [20, 41, 1], [22, 43, 1], [24, 41, 1], [26, 38, 3],
+          // Bar 2: D5
+          [32, 38, 2], [34, 38, 1], [36, 41, 2], [40, 43, 2], [44, 44, 3],
+          // Bar 3: D5
+          [48, 38, 2], [50, 38, 1], [52, 41, 1], [54, 43, 1], [56, 41, 1], [58, 38, 3]
+        ];
+
+        for (let i = 0; i < 2; i++) {
+          const offset = i * 64;
+          riffChords.forEach(([step, rootNote, dur]) => {
+            pat.set(offset + step, 0, rootNote, I_303, vol);
+            pat.set(offset + step, 3, rootNote + 7, I_303, vol * 0.95);
+            pat.set(offset + step + dur, 0, OFF, I_303);
+            pat.set(offset + step + dur, 3, OFF, I_303);
+          });
+        }
+      };
+
+      // 3. Heavy Growl Bass (Moog bass on channel 5)
+      const writeHeavyBass = (pat, vol = 0.72) => {
+        const riffBass = [
+          [0, 26], [2, 26], [4, 29], [8, 31], [12, 32],
+          [16, 26], [18, 26], [20, 29], [22, 31], [24, 29], [26, 26]
+        ];
+        for (let i = 0; i < 4; i++) {
+          const offset = i * 32;
+          riffBass.forEach(([step, note]) => {
+            pat.set(offset + step, 5, note, I_bass, vol);
+            pat.set(offset + step + 1, 5, OFF, I_bass);
+          });
+        }
+      };
+
+      // 4. Drone/Clean Bass
+      const writeCleanBass = (pat, progression, vol = 0.55) => {
+        progression.forEach((chordName, barIdx) => {
+          const start = barIdx * 16;
+          const chords = chordIntervals[chordName];
+          pat.set(start, 5, chords.root - 12, I_bass, vol);
+          pat.set(start + 15, 5, OFF, I_bass);
+        });
+      };
+
+      // 5. Rock drums: John Bonham heavy groove vs Helmet tight metal
+      const writeRockDrums = (pat, style = 'bonham') => {
+        for (let r = 0; r < 128; r++) {
+          const step = r % 16;
+          const bar = Math.floor(r / 16);
+          if (style === 'clean') {
+            if (step === 0) pat.set(r, 2, BD, I_808, 0.8);
+            if (step === 8) pat.set(r, 2, RIM, I_808, 0.6);
+            if (step % 4 === 2) pat.set(r, 2, HH, I_808, 0.35);
+          } else if (style === 'bonham') {
+            if (step === 0 || step === 3 || step === 8 || step === 11) {
+              pat.set(r, 2, BD, I_808, 0.95);
+            }
+            if (step === 4 || step === 12) {
+              pat.set(r, 2, SD, I_808, 0.9);
+            }
+            if (step % 2 === 1) {
+              pat.set(r, 2, HH, I_808, 0.5);
+            }
+            if (step === 2 || step === 6 || step === 10 || step === 14) {
+              pat.set(r, 2, OH, I_808, 0.55);
+            }
+            if (r === 0) {
+              pat.set(r, 2, CLAP, I_808, 0.85); // crash hit simulator
+            }
+          } else if (style === 'helmet') {
+            const kickSteps = [0, 2, 4, 8, 12];
+            if (kickSteps.includes(step)) {
+              pat.set(r, 2, BD, I_808, 0.95);
+            }
+            if (step === 4 || step === 12) {
+              pat.set(r, 2, SD, I_808, 0.95);
+            }
+            if (step % 2 === 0) {
+              pat.set(r, 2, HH, I_808, 0.6);
+            }
+            if ((bar === 3 || bar === 7) && step >= 12) {
+              pat.set(r, 2, SD, I_808, 0.8);
+            }
+          }
+        }
+      };
+
+      const writeLead = (pat, melody, vol = 0.72) => {
+        melody.forEach(([row, note, dur]) => {
+          if (row < pat.rows) {
+            pat.set(row, 6, note, I_lead, vol);
+            if (dur && row + dur < pat.rows) {
+              pat.set(row + dur, 6, OFF, I_lead);
+            }
+          }
+        });
+      };
+
+      // Melodic lines
+      const folkMelody = [
+        [0, 62, 12], [16, 64, 12], [32, 65, 16], [48, 67, 16],
+        [64, 69, 12], [80, 67, 12], [96, 65, 16], [112, 64, 16]
+      ];
+
+      const metalLead = [
+        [0, 74, 4], [8, 77, 4], [16, 79, 8], [32, 80, 4], [40, 79, 4], [48, 77, 12],
+        [64, 74, 4], [72, 77, 4], [80, 79, 8], [96, 82, 4], [104, 79, 4], [112, 77, 12]
+      ];
+
+      // ===== Pattern 0: Folk Intro (Led Zeppelin Prelude) =====
+      writeAcousticClean(p[0], folkProg, 0.42);
+      writeCleanBass(p[0], folkProg, 0.5);
+      writeRockDrums(p[0], 'clean');
+
+      // ===== Pattern 1: Folk Verse 1 =====
+      writeAcousticClean(p[1], folkProg, 0.42);
+      writeCleanBass(p[1], folkProg, 0.5);
+      writeRockDrums(p[1], 'clean');
+      writeLead(p[1], folkMelody, 0.68);
+
+      // ===== Pattern 2: Folk Verse 1 Cont. =====
+      writeAcousticClean(p[2], folkProg, 0.45);
+      writeCleanBass(p[2], folkProg, 0.55);
+      writeRockDrums(p[2], 'clean');
+      writeLead(p[2], folkMelody.map(([r, n, d]) => [r, n + 5, d]), 0.68); // Transposed up a fourth
+
+      // ===== Pattern 3: The Gathering Storm (Folk build-up) =====
+      writeAcousticClean(p[3], folkProg, 0.48);
+      writeCleanBass(p[3], folkProg, 0.6);
+      writeRockDrums(p[3], 'bonham'); // Drums switch to heavy Bonham style
+      writeLead(p[3], folkMelody, 0.7);
+
+      // ===== Pattern 4: The Helmet Drop (Syncopated Palm-Muted Metal) =====
+      writeHeavyHelmetRiff(p[4], 0.72);
+      writeHeavyBass(p[4], 0.72);
+      writeRockDrums(p[4], 'helmet'); // Tight syncopated drums
+
+      // ===== Pattern 5: The Helmet Verse =====
+      writeHeavyHelmetRiff(p[5], 0.72);
+      writeHeavyBass(p[5], 0.72);
+      writeRockDrums(p[5], 'helmet');
+      writeLead(p[5], metalLead, 0.72);
+
+      // ===== Pattern 6: The Helmet Verse Cont. =====
+      writeHeavyHelmetRiff(p[6], 0.75);
+      writeHeavyBass(p[6], 0.75);
+      writeRockDrums(p[6], 'helmet');
+      writeLead(p[6], metalLead.map(([r, n, d]) => [r, n + 12, d]), 0.75); // Octave up solo
+
+      // ===== Pattern 7: The Ent Massacre (Zeppelin Epic Heavy Blues Riff) =====
+      writeHeavyHelmetRiff(p[7], 0.7);
+      writeHeavyBass(p[7], 0.7);
+      writeRockDrums(p[7], 'bonham'); // Big Bonham triplets
+      writeLead(p[7], [
+        [0, 62, 4], [4, 65, 4], [8, 67, 8], [20, 67, 4], [24, 65, 4], [28, 62, 4],
+        [32, 60, 4], [36, 62, 4], [40, 65, 8], [52, 65, 4], [56, 62, 4], [60, 60, 4],
+        [64, 62, 4], [68, 65, 4], [72, 67, 8], [84, 67, 4], [88, 65, 4], [92, 62, 4],
+        [96, 69, 4], [100, 72, 4], [104, 74, 8], [116, 74, 4], [120, 72, 4], [124, 69, 4]
+      ], 0.75);
+
+      // ===== Pattern 8: The Ent Massacre Cont. (Screaming Solo) =====
+      writeHeavyHelmetRiff(p[8], 0.72);
+      writeHeavyBass(p[8], 0.72);
+      writeRockDrums(p[8], 'bonham');
+      writeLead(p[8], [
+        [0, 74, 4], [4, 77, 4], [8, 79, 8], [20, 79, 4], [24, 77, 4], [28, 74, 4],
+        [32, 72, 4], [36, 74, 4], [40, 77, 8], [52, 77, 4], [56, 74, 4], [60, 72, 4],
+        [64, 74, 4], [68, 77, 4], [72, 79, 8], [84, 79, 4], [88, 77, 4], [92, 74, 4],
+        [96, 81, 4], [100, 84, 4], [104, 86, 8], [116, 86, 4], [120, 84, 4], [124, 81, 4]
+      ], 0.78);
+
+      // ===== Pattern 9: Clean Breakdown (The Calm Before the Feast) =====
+      writeAcousticClean(p[9], folkProg, 0.4);
+      writeCleanBass(p[9], folkProg, 0.5);
+      writeRockDrums(p[9], 'clean');
+
+      // ===== Pattern 10: Clean Verse =====
+      writeAcousticClean(p[10], folkProg, 0.42);
+      writeCleanBass(p[10], folkProg, 0.5);
+      writeRockDrums(p[10], 'clean');
+      writeLead(p[10], folkMelody, 0.68);
+
+      // ===== Pattern 11: Pre-Climax Build =====
+      writeAcousticClean(p[11], folkProg, 0.45);
+      writeCleanBass(p[11], folkProg, 0.6);
+      writeRockDrums(p[11], 'bonham');
+      writeLead(p[11], folkMelody.map(([r, n, d]) => [r, n + 5, d]), 0.7);
+
+      // ===== Pattern 12: The Murder Party Climax (Helmet + Zeppelin peak) =====
+      writeHeavyHelmetRiff(p[12], 0.76);
+      writeHeavyBass(p[12], 0.76);
+      writeRockDrums(p[12], 'bonham');
+      writeLead(p[12], metalLead, 0.78);
+
+      // ===== Pattern 13: The Murder Party Climax Cont. =====
+      writeHeavyHelmetRiff(p[13], 0.76);
+      writeHeavyBass(p[13], 0.76);
+      writeRockDrums(p[13], 'bonham');
+      writeLead(p[13], metalLead.map(([r, n, d]) => [r, n + 12, d]), 0.8);
+
+      // ===== Pattern 14: Outro (Devastation & Quiet Fade) =====
+      writeAcousticClean(p[14], folkProg, 0.38);
+      writeCleanBass(p[14], folkProg, 0.45);
+      writeRockDrums(p[14], 'clean');
+      writeLead(p[14], [[0, 62, 32]], 0.5); // Final fading root note
+
+      return {
+        patterns: p,
+        order: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14],
+        rowsPerBeat: 4
+      };
+    }
+  },
+  {
+    name: "Lipstick-Stained Tailpipe",
+    bpm: 120,
+    params: [
+      // 0: DX7 Chiptune Bell — classic retro FM toy bell / chime
+      {
+        name: "DX7 Chiptune Bell",
+        type: "dx7",
+        p0: [1.0, 1.0, 1.0, 0.15],
+        p1: [8, 0.2, 0.35, 1], // Algorithm 8
+        ops: [
+          { coarse: 2.0, fine: 0, level: 99, detune: 2,  decay: 0.8, mode: 0, sustain: 0.0, release: 0.5 },
+          { coarse: 4.0, fine: 1, level: 80, detune: -2, decay: 0.5, mode: 0, sustain: 0.0, release: 0.4 },
+          { coarse: 1.0, fine: 0, level: 90, detune: 0,  decay: 1.2, mode: 0, sustain: 0.0, release: 0.7 },
+          { coarse: 3.0, fine: 0, level: 70, detune: 3,  decay: 0.4, mode: 0, sustain: 0.0, release: 0.3 },
+          { coarse: 0.5, fine: 0, level: 95, detune: -3, decay: 1.8, mode: 0, sustain: 0.0, release: 1.0 },
+          { coarse: 1.0, fine: 0, level: 50, detune: 0,  decay: 1.0, mode: 0, sustain: 0.0, release: 0.6 }
+        ]
+      },
+      // 1: 303 Square Lead — bubbly retro NES pulse channel
+      { name: "303 Square Lead", type: "303", p0: [900, 0.4, 0.45, 0.25], p1: [1.0, 0.15, 0.25, 0] },
+      // 2: 808 Latchkey Kit — lo-fi Famicom-like noise drums (handled by moderate bitcrusher send)
+      { name: "808 Latchkey Kit", type: "808", p0: [0, 0.5, 0.45, 0.5], p1: [0, 0, 0, 0] },
+      // 3: Moog Triangle Bass — clean retro triangle bass wave
+      { name: "Moog Triangle Bass", type: "moog", p0: [150, 0.05, 0.8, 0], p1: [1.0, 0.98, 0.8, 1.0] },
+      // 4: Moog Pulse Lead — singing, expressive retro synth lead
+      { name: "Moog Pulse Lead", type: "moog", p0: [1000, 0.25, 0.45, 0], p1: [12.0, 0.6, 0.75, 0.5] }
+    ],
+    fxParams: {
+      '303': Object.assign(defaultFxParams(), { distOn: false, bitcrushOn: true, bitcrushBits: 8.0, bitcrushRate: 8000.0, chorusMix: 0.3, delayMix: 0.35, delayFeedback: 0.4 }),
+      'dx7': Object.assign(defaultFxParams(), { bitcrushOn: true, bitcrushBits: 10.0, bitcrushRate: 12000.0, chorusMix: 0.4, delayMix: 0.3, reverbMix: 0.45 }),
+      '808': Object.assign(defaultFxParams(), { distOn: false, bitcrushOn: true, bitcrushBits: 6.0, bitcrushRate: 6000.0 }), // restrained 8-bit noise drum crunch!
+      'moog': Object.assign(defaultFxParams(), { distOn: false, bitcrushOn: false, chorusMix: 0.3, delayMix: 0.25 }),
+    },
+    data: () => {
+      const p = [];
+      for (let i = 0; i < 15; i++) p.push(new Pattern(128, 8));
+
+      const BD = 36, SD = 38, HH = 42, OH = 46, CLAP = 39, RIM = 37;
+      const I_pad = 0, I_303 = 1, I_808 = 2, I_bass = 3, I_lead = 4;
+
+      // Chord progressions:
+      // Mystical / Town (Circle of Fifths JRPG theme): Am -> Dm -> G -> C -> F -> Bdim -> E7 -> Am
+      const rpgProg = ['Am', 'Dm', 'G', 'C', 'F', 'Bdim', 'E7', 'Am'];
+      // Frenetic Shmup (Mega Man action theme): Am -> F -> G -> Em -> Am -> F -> G -> E7
+      const shmupProg = ['Am', 'F', 'G', 'Em', 'Am', 'F', 'G', 'E7'];
+
+      const voicings = {
+        Am: [57, 60, 64],
+        Dm: [50, 53, 57],
+        G: [55, 59, 62],
+        C: [48, 52, 55],
+        F: [53, 57, 60],
+        Bdim: [59, 62, 65],
+        E7: [52, 56, 59],
+        Em: [52, 55, 59]
+      };
+
+      const bassNotes = {
+        Am: 45, Dm: 38, G: 47, C: 40, F: 41, Bdim: 43, E7: 40, Em: 40
+      };
+
+      // 1. Chiptune Pads (DX7 Toy Bells on channels 0, 3, 4)
+      const writeBells = (pat, progression, style = 'mystical', vol = 0.45) => {
+        progression.forEach((chordName, barIdx) => {
+          const start = barIdx * 16;
+          const voicing = voicings[chordName];
+          if (style === 'mystical') {
+            voicing.forEach((note, ni) => {
+              const ch = [0, 3, 4][ni % 3];
+              pat.set(start, ch, note + 12, I_pad, vol);
+              pat.set(start + 15, ch, OFF, I_pad);
+            });
+          } else {
+            for (let step = 0; step < 16; step++) {
+              const noteIdx = step % voicing.length;
+              const ch = [0, 3, 4][step % 3];
+              pat.set(start + step, ch, voicing[noteIdx] + 12, I_pad, vol * 0.7);
+              pat.set(start + step + 1, ch, OFF, I_pad);
+            }
+          }
+        });
+      };
+
+      // 2. Triangle Bass (Moog bass on channel 5)
+      const writeBass = (pat, progression, style = 'slow', vol = 0.65) => {
+        progression.forEach((chordName, barIdx) => {
+          const start = barIdx * 16;
+          const root = bassNotes[chordName];
+          if (style === 'slow') {
+            pat.set(start, 5, root, I_bass, vol);
+            pat.set(start + 15, 5, OFF, I_bass);
+          } else {
+            for (let step = 0; step < 16; step += 2) {
+              const isOctave = (step % 4 === 2);
+              pat.set(start + step, 5, isOctave ? root + 12 : root, I_bass, vol);
+              pat.set(start + step + 1, 5, OFF, I_bass);
+            }
+          }
+        });
+      };
+
+      // 3. 303 Square Arps: Bubbly pulse wave arps on channel 1 (retro game style)
+      const writePulseArp = (pat, progression, vol = 0.58) => {
+        progression.forEach((chordName, barIdx) => {
+          const start = barIdx * 16;
+          const voicing = voicings[chordName];
+          for (let step = 0; step < 16; step += 2) {
+            if (step % 8 !== 6) {
+              const noteIdx = (step / 2) % voicing.length;
+              const note = voicing[noteIdx] + 24;
+              pat.set(start + step, 1, note, I_303, vol);
+              pat.set(start + step + 1, 1, OFF, I_303);
+            }
+          }
+        });
+      };
+
+      // 4. Chiptune Drums (808 kit bitcrushed as retro noise/pcm drums)
+      const writeDrums = (pat, style = 'slow') => {
+        for (let r = 0; r < 128; r++) {
+          const step = r % 16;
+          if (style === 'slow') {
+            if (step === 0) pat.set(r, 2, BD, I_808, 0.85);
+            if (step === 8) pat.set(r, 2, SD, I_808, 0.7);
+            if (step % 8 === 4) pat.set(r, 2, HH, I_808, 0.4);
+          } else {
+            if (step === 0 || step === 8 || step === 10 || step === 13) pat.set(r, 2, BD, I_808, 0.9);
+            if (step === 4 || step === 12) pat.set(r, 2, SD, I_808, 0.85);
+            if (step % 2 === 0) pat.set(r, 2, HH, I_808, 0.45);
+            if (step === 6 || step === 14) pat.set(r, 2, OH, I_808, 0.5);
+          }
+        }
+      };
+
+      const writeLead = (pat, melody, vol = 0.72) => {
+        melody.forEach(([row, note, dur]) => {
+          if (row < pat.rows) {
+            pat.set(row, 6, note, I_lead, vol);
+            if (dur && row + dur < pat.rows) {
+              pat.set(row + dur, 6, OFF, I_lead);
+            }
+          }
+        });
+      };
+
+      // Riffs & Melodies
+      const mysticalMelody = [
+        [0, 64, 8], [8, 67, 8], [16, 69, 12], [28, 71, 4],
+        [32, 72, 8], [40, 71, 8], [48, 69, 16],
+        [64, 67, 8], [72, 69, 8], [80, 71, 12], [92, 72, 4],
+        [96, 74, 8], [104, 76, 8], [112, 79, 16]
+      ];
+
+      const actionMelody = [
+        [0, 76, 4], [4, 79, 4], [8, 81, 6], [14, 81, 2], [16, 83, 8], [24, 81, 4], [28, 79, 4],
+        [32, 81, 6], [38, 79, 2], [40, 76, 6], [46, 74, 2], [48, 76, 16],
+        [64, 79, 4], [68, 81, 4], [72, 83, 6], [78, 83, 2], [80, 86, 8], [88, 84, 4], [92, 83, 4],
+        [96, 81, 6], [102, 79, 2], [104, 76, 6], [110, 74, 2], [112, 76, 16]
+      ];
+
+      // ===== Pattern 0: Mystical Intro =====
+      writeBells(p[0], rpgProg, 'mystical', 0.4);
+      writeBass(p[0], rpgProg, 'slow', 0.55);
+      writeDrums(p[0], 'slow');
+
+      // ===== Pattern 1: Mystical Verse 1 =====
+      writeBells(p[1], rpgProg, 'mystical', 0.42);
+      writeBass(p[1], rpgProg, 'slow', 0.55);
+      writeDrums(p[1], 'slow');
+      writeLead(p[1], mysticalMelody, 0.7);
+
+      // ===== Pattern 2: Mystical Verse 1 Cont. =====
+      writeBells(p[2], rpgProg, 'mystical', 0.42);
+      writeBass(p[2], rpgProg, 'slow', 0.58);
+      writeDrums(p[2], 'slow');
+      writeLead(p[2], mysticalMelody.map(([r, n, d]) => [r, n + 5, d]), 0.7);
+
+      // ===== Pattern 3: Level Load =====
+      writeBells(p[3], rpgProg, 'arpeggio', 0.35);
+      writeBass(p[3], rpgProg, 'slow', 0.6);
+      writeDrums(p[3], 'slow');
+      writePulseArp(p[3], rpgProg, 0.5);
+
+      // ===== Pattern 4: Level 1 - Frenetic Shmup =====
+      writeBells(p[4], shmupProg, 'arpeggio', 0.35);
+      writeBass(p[4], shmupProg, 'fast', 0.65);
+      writeDrums(p[4], 'fast');
+      writePulseArp(p[4], shmupProg, 0.52);
+
+      // ===== Pattern 5: Level 1 - The First Battle =====
+      writeBells(p[5], shmupProg, 'arpeggio', 0.35);
+      writeBass(p[5], shmupProg, 'fast', 0.65);
+      writeDrums(p[5], 'fast');
+      writePulseArp(p[5], shmupProg, 0.52);
+      writeLead(p[5], actionMelody, 0.72);
+
+      // ===== Pattern 6: Level 1 - The First Battle Cont. =====
+      writeBells(p[6], shmupProg, 'arpeggio', 0.38);
+      writeBass(p[6], shmupProg, 'fast', 0.68);
+      writeDrums(p[6], 'fast');
+      writePulseArp(p[6], shmupProg, 0.55);
+      writeLead(p[6], actionMelody.map(([r, n, d]) => [r, n + 12, d]), 0.72);
+
+      // ===== Pattern 7: Boss Battle =====
+      writeBells(p[7], shmupProg, 'arpeggio', 0.38);
+      writeBass(p[7], shmupProg, 'fast', 0.68);
+      writeDrums(p[7], 'fast');
+      writePulseArp(p[7], shmupProg, 0.55);
+      writeLead(p[7], [
+        [0, 64, 4], [4, 67, 4], [8, 69, 8], [20, 69, 4], [24, 67, 4], [28, 64, 4],
+        [32, 62, 4], [36, 64, 4], [40, 67, 8], [52, 67, 4], [56, 64, 4], [60, 62, 4],
+        [64, 64, 4], [68, 67, 4], [72, 69, 8], [84, 69, 4], [88, 67, 4], [92, 64, 4],
+        [96, 71, 4], [100, 74, 4], [104, 76, 8], [116, 76, 4], [120, 74, 4], [124, 71, 4]
+      ], 0.75);
+
+      // ===== Pattern 8: Boss Battle Cont. =====
+      writeBells(p[8], shmupProg, 'arpeggio', 0.4);
+      writeBass(p[8], shmupProg, 'fast', 0.7);
+      writeDrums(p[8], 'fast');
+      writePulseArp(p[8], shmupProg, 0.58);
+      writeLead(p[8], [
+        [0, 76, 4], [4, 79, 4], [8, 81, 8], [20, 81, 4], [24, 79, 4], [28, 76, 4],
+        [32, 74, 4], [36, 76, 4], [40, 79, 8], [52, 79, 4], [56, 76, 4], [60, 74, 4],
+        [64, 76, 4], [68, 79, 4], [72, 81, 8], [84, 81, 4], [88, 79, 4], [92, 76, 4],
+        [96, 83, 4], [100, 86, 4], [104, 88, 8], [116, 88, 4], [120, 86, 4], [124, 83, 4]
+      ], 0.78);
+
+      // ===== Pattern 9: Safe Haven =====
+      writeBells(p[9], rpgProg, 'mystical', 0.4);
+      writeBass(p[9], rpgProg, 'slow', 0.52);
+      writeDrums(p[9], 'slow');
+
+      // ===== Pattern 10: Safe Haven Verse =====
+      writeBells(p[10], rpgProg, 'mystical', 0.42);
+      writeBass(p[10], rpgProg, 'slow', 0.55);
+      writeDrums(p[10], 'slow');
+      writeLead(p[10], mysticalMelody, 0.68);
+
+      // ===== Pattern 11: Level Boot 2 =====
+      writeBells(p[11], rpgProg, 'arpeggio', 0.35);
+      writeBass(p[11], rpgProg, 'slow', 0.6);
+      writeDrums(p[11], 'slow');
+      writePulseArp(p[11], rpgProg, 0.5);
+
+      // ===== Pattern 12: Final Escape =====
+      writeBells(p[12], shmupProg, 'arpeggio', 0.38);
+      writeBass(p[12], shmupProg, 'fast', 0.68);
+      writeDrums(p[12], 'fast');
+      writePulseArp(p[12], shmupProg, 0.55);
+      writeLead(p[12], actionMelody, 0.74);
+
+      // ===== Pattern 13: Final Escape Cont. =====
+      writeBells(p[13], shmupProg, 'arpeggio', 0.38);
+      writeBass(p[13], shmupProg, 'fast', 0.68);
+      writeDrums(p[13], 'fast');
+      writePulseArp(p[13], shmupProg, 0.55);
+      writeLead(p[13], actionMelody.map(([r, n, d]) => [r, n + 12, d]), 0.75);
+
+      // ===== Pattern 14: Game Over / Credits =====
+      writeBells(p[14], rpgProg, 'mystical', 0.38);
+      writeBass(p[14], rpgProg, 'slow', 0.48);
+      writeDrums(p[14], 'slow');
+      writeLead(p[14], [[0, 64, 32]], 0.55);
+
+      return {
+        patterns: p,
+        order: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14],
+        rowsPerBeat: 4
+      };
+    }
+  }
 ];
 
 export function demoSong() {

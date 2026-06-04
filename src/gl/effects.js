@@ -23,6 +23,7 @@ export function defaultFxParams() {
     delayOn: true,
     reverbOn: true,
     widthOn: true,
+    bitcrushOn: false,
     dist: 1.4,
     tone: 0.5,
     level: 1.0,
@@ -42,6 +43,10 @@ export function defaultFxParams() {
     chorusDepth: 2.0,
     tremoloMix: 0.0,
     tremoloRate: 5.0,
+
+    // Bitcrusher defaults (off by default)
+    bitcrushBits: 8.0,      // bit depth (1–16)
+    bitcrushRate: 4000.0,   // target sample rate in Hz (100–22000)
   };
 }
 
@@ -138,7 +143,7 @@ export class EffectsChain {
     // An effect is live only if the whole chain is enabled AND its own switch is
     // on. A missing per-effect flag (older songs) counts as on. When off, each
     // effect is driven to its neutral/bypass value.
-    const on = (flag) => p.enabled && p[flag] !== false;
+    const on = (flag) => p.enabled && (flag === 'bitcrushOn' ? !!p[flag] : p[flag] !== false);
     gl.uniform1f(op.u('uDelayMix'), on('delayOn') ? p.delayMix : 0.0);
     gl.uniform1f(op.u('uReverbMix'), on('reverbOn') ? p.reverbMix : 0.0);
     gl.uniform1f(op.u('uDist'), on('distOn') ? p.dist : 0.001);
@@ -155,6 +160,11 @@ export class EffectsChain {
     gl.uniform1f(op.u('uChorusDepth'), p.chorusDepth);
     gl.uniform1f(op.u('uTremoloMix'), on('tremoloOn') ? p.tremoloMix : 0.0);
     gl.uniform1f(op.u('uTremoloRate'), p.tremoloRate);
+
+    // Bitcrusher uniforms
+    gl.uniform1i(op.u('uBitcrushOn'), on('bitcrushOn') ? 1 : 0);
+    gl.uniform1f(op.u('uBitcrushBits'), p.bitcrushBits !== undefined ? p.bitcrushBits : 8.0);
+    gl.uniform1f(op.u('uBitcrushRate'), p.bitcrushRate !== undefined ? p.bitcrushRate : 4000.0);
     
     gl.viewport(0, 0, BLOCK, 1); drawQuad(gl);
     

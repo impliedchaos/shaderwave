@@ -155,6 +155,7 @@ export class Controls {
         fx.delayOn = false;
         fx.reverbOn = false;
         fx.widthOn = false;
+        fx.bitcrushOn = false;
 
         if (this.app.renderer) {
           for (const it of this.app.renderer.inst) {

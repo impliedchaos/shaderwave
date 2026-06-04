@@ -93,7 +93,7 @@ A second shader stage runs between the synth mix and the audio readback. All
 effects are editable from the **Master FX** panel.
 
 ```
-input → Distortion → Chorus → Tremolo → Delay → Reverb → Width → Master Out
+input → Distortion → Chorus → Tremolo → Delay → Reverb → Bitcrusher → Width → Master Out
 ```
 
 ### Distortion — Boss DS-1 Emulation
@@ -131,6 +131,12 @@ per-line damping lowpass:
 - **Damp** — high-frequency absorption
 - **Send** — input send level
 - **Mix** — wet/dry blend
+
+### Bitcrusher
+
+8-bit/16-bit digital downsampler/decimator:
+- **Bits** — bit depth reduction (1–16 bits)
+- **Rate** — sample rate decimation factor in Hz (100–22000 Hz)
 
 ### Stereo Width
 
