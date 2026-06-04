@@ -2604,5 +2604,124 @@ export const DEMO_SONGS = [
         rowsPerBeat: 4
       };
     }
+  },
+  {
+    name: "Diabetic Foot Amputation",
+    bpm: 75,
+    params: [
+      { name: "Satie Lead", type: "303", p0: [600, 0.1, 0.4, 0.2], p1: [2.0, 0.3, 0.4, 0] },
+      {
+        name: "Pegasus Harp",
+        type: "dx7",
+        p0: [1, 2, 2.5, 0.5],
+        p1: [5, 0.5, 0.7, 3],
+        ops: [
+          { coarse: 1.0, fine: 0, level: 99, detune: 0, decay: 0.8, mode: 0, sustain: 0.0, release: 0.8 },
+          { coarse: 2.0, fine: 0, level: 82, detune: 2, decay: 0.4, mode: 0, sustain: 0.0, release: 0.4 },
+          { coarse: 1.0, fine: 0, level: 95, detune: -2, decay: 0.9, mode: 0, sustain: 0.0, release: 0.9 },
+          { coarse: 3.0, fine: 0, level: 75, detune: 3, decay: 0.3, mode: 0, sustain: 0.0, release: 0.3 },
+          { coarse: 1.0, fine: 0, level: 0, detune: 0, decay: 0.5, mode: 0, sustain: 0.0, release: 0.5 },
+          { coarse: 1.0, fine: 0, level: 0, detune: 0, decay: 0.5, mode: 0, sustain: 0.0, release: 0.5 }
+        ]
+      },
+      { name: "Vinyl Kit", type: "808", p0: [0, 0.35, 0.4, 0.3], p1: [0, 0, 0, 0] },
+      {
+        name: "Cloud Pad",
+        type: "moog",
+        p0: [350, 0.08, 0.25, 0],
+        p1: [14.0, 0.9, 3.5, 3.5]
+      }
+    ],
+    fxParams: {
+      '303': Object.assign(defaultFxParams(), { delayMix: 0.0 }),
+      'dx7': Object.assign(defaultFxParams(), { chorusMix: 0.3, chorusRate: 1.2, chorusDepth: 2.5, delayMix: 0.45, delayTime: 0.6, delayFeedback: 0.6, reverbMix: 0.5, reverbDecay: 0.92 }),
+      '808': Object.assign(defaultFxParams(), { distOn: false, tone: 0.3, level: 0.8, master: 0.8, delayMix: 0.0, reverbMix: 0.4, reverbDecay: 0.85 }),
+      'moog': Object.assign(defaultFxParams(), { chorusMix: 0.5, chorusRate: 0.8, chorusDepth: 4.0, delayMix: 0.25, delayTime: 0.8, delayFeedback: 0.4, reverbMix: 0.7, reverbDecay: 0.96 })
+    },
+    data: () => {
+      const p = Array.from({ length: 7 }, () => new Pattern(64, 8));
+      
+      const I_303 = 0;
+      const I_dx7 = 1;
+      const I_808 = 2;
+      const I_moog = 3;
+
+      const BD = 36;
+      const SD = 38;
+      const CH = 42;
+
+      const chords = [
+        [45, 52, 55, 60], // Am9
+        [41, 48, 52, 57], // Fmaj7
+        [43, 48, 52, 55], // C/G
+        [47, 50, 55, 59]  // G6/B
+      ];
+      const roots = [33, 29, 35, 31];
+
+      const writeProgression = (pat, options) => {
+        // Pad (Moog) on channels 0..3
+        if (options.padVol > 0) {
+          chords.forEach((chord, bar) => {
+            const startRow = bar * 16;
+            chord.forEach((note, idx) => {
+              pat.set(startRow, idx, note, I_moog, options.padVol);
+              pat.set(startRow + 15, idx, OFF, I_moog);
+            });
+          });
+        }
+
+        // Bass (Moog) on channel 5
+        if (options.bassVol > 0) {
+          roots.forEach((rootNote, bar) => {
+            const startRow = bar * 16;
+            pat.set(startRow, 5, rootNote, I_moog, options.bassVol);
+            pat.set(startRow + 14, 5, OFF, I_moog);
+          });
+        }
+
+        // Harp (DX7) on channel 4 (8th note staccato arpeggio)
+        if (options.harpVol > 0) {
+          chords.forEach((chord, bar) => {
+            const startRow = bar * 16;
+            const arpPattern = [0, 1, 2, 3, 2, 1, 0, 1];
+            for (let step = 0; step < 8; step++) {
+              const row = startRow + step * 2;
+              const noteIdx = arpPattern[step];
+              const note = chord[noteIdx] + 12 * options.harpOctave;
+              pat.set(row, 4, note, I_dx7, options.harpVol);
+              pat.set(row + 1, 4, OFF, I_dx7);
+            }
+          });
+        }
+
+        // Drums (808) on channels 6 and 7
+        if (options.drums) {
+          for (let bar = 0; bar < 4; bar++) {
+            const startRow = bar * 16;
+            pat.set(startRow, 6, BD, I_808, 0.75);
+            pat.set(startRow + 10, 6, BD, I_808, 0.6);
+            pat.set(startRow + 8, 7, SD, I_808, 0.55);
+            pat.set(startRow + 2, 7, CH, I_808, 0.35);
+            pat.set(startRow + 6, 7, CH, I_808, 0.35);
+            pat.set(startRow + 12, 7, CH, I_808, 0.35);
+            pat.set(startRow + 14, 7, CH, I_808, 0.35);
+          }
+        }
+      };
+
+      writeProgression(p[0], { padVol: 0.55, bassVol: 0, harpVol: 0, drums: false, harpOctave: 1 });
+      writeProgression(p[1], { padVol: 0.6, bassVol: 0.55, harpVol: 0, drums: false, harpOctave: 1 });
+      writeProgression(p[2], { padVol: 0.6, bassVol: 0.6, harpVol: 0.5, drums: false, harpOctave: 1 });
+      writeProgression(p[3], { padVol: 0.62, bassVol: 0.62, harpVol: 0.55, drums: true, harpOctave: 1 });
+      writeProgression(p[4], { padVol: 0.65, bassVol: 0.65, harpVol: 0.6, drums: true, harpOctave: 2 });
+      writeProgression(p[5], { padVol: 0.55, bassVol: 0.45, harpVol: 0.4, drums: false, harpOctave: 1 });
+      writeProgression(p[6], { padVol: 0.4, bassVol: 0, harpVol: 0, drums: false, harpOctave: 1 });
+
+      return {
+        patterns: p,
+        order: [0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 3, 3, 5, 5, 4, 4, 2, 6, 6],
+        rowsPerBeat: 4
+      };
+    }
   }
 ];
