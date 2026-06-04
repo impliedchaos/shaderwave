@@ -2086,5 +2086,166 @@ export const DEMO_SONGS = [
         rowsPerBeat: 4
       };
     }
+  },
+  {
+    name: "Affreusement Épouvantable",
+    bpm: 76,
+    params: [
+      { name: "Satie Lead", type: "303", p0: [600, 0.1, 0.4, 0.2], p1: [2.0, 0.3, 0.4, 0] },
+      {
+        name: "Nostalgic Rhodes",
+        type: "dx7",
+        p0: [1, 2, 2.5, 0.5],
+        p1: [5, 0.5, 0.7, 3],
+        ops: [
+          { coarse: 1.0, fine: 0, level: 99, detune: 2,  decay: 1.8, mode: 0, sustain: 0.8, release: 1.8 },
+          { coarse: 1.0, fine: 0, level: 85, detune: -2, decay: 1.5, mode: 0, sustain: 0.7, release: 1.5 },
+          { coarse: 2.0, fine: 0, level: 70, detune: 3,  decay: 1.2, mode: 0, sustain: 0.6, release: 1.2 },
+          { coarse: 3.0, fine: 0, level: 50, detune: -3, decay: 0.8, mode: 0, sustain: 0.5, release: 0.8 },
+          { coarse: 1.0, fine: 0, level: 0,  detune: 0,  decay: 0.5, mode: 0, sustain: 0.5, release: 0.25 },
+          { coarse: 1.0, fine: 0, level: 0,  detune: 0,  decay: 0.5, mode: 0, sustain: 0.5, release: 0.25 }
+        ]
+      },
+      { name: "Lo-Fi Vinyl Kit", type: "808", p0: [0, 0.45, 0.5, 0.5], p1: [0, 0, 0, 0] },
+      { name: "Moog Sub Bass", type: "moog", p0: [150, 0.2, 0.5, 0], p1: [2.0, 0.9, 0.8, 0.8] }
+    ],
+    fxParams: {
+      '303': Object.assign(defaultFxParams(), { delayMix: 0.35, delayTime: 0.375, reverbMix: 0.4 }),
+      'dx7': Object.assign(defaultFxParams(), { chorusMix: 0.45, chorusRate: 0.6, chorusDepth: 3.5, delayMix: 0.4, delayTime: 0.5, delayFeedback: 0.4, reverbMix: 0.5, reverbDecay: 0.9 }),
+      '808': Object.assign(defaultFxParams(), { dist: 2.0, tone: 0.4, master: 0.95, bitcrushOn: true, bitcrushMix: 0.15, bitcrushRate: 10000, bitcrushDepth: 8 }),
+      'moog': Object.assign(defaultFxParams(), { dist: 0.001, tone: 0.5, level: 1.0, master: 0.9 })
+    },
+    data: () => {
+      const p = Array.from({ length: 7 }, () => new Pattern(128, 8));
+      
+      const I_303 = 0;
+      const I_dx7 = 1;
+      const I_808 = 2;
+      const I_moog = 3;
+
+      const BD = 36;
+      const SD = 38;
+      const CH = 42;
+      const OH = 46;
+
+      const chordVoicings = {
+        Gmaj7: [59, 62, 66],
+        Dmaj7: [54, 57, 61],
+        Em7:   [55, 59, 62],
+        A7sus4:[62, 64, 67],
+        A7:    [61, 64, 67]
+      };
+
+      const progression = [
+        "Gmaj7", "Dmaj7", "Gmaj7", "Dmaj7",
+        "Gmaj7", "Dmaj7", "Em7",   "A7sus4", "A7"
+      ];
+
+      const writeChords = (pat, vol = 0.5) => {
+        const barRows = [4, 20, 36, 52, 68, 84, 100, 116];
+        barRows.forEach((rStart, barIdx) => {
+          let chordName = progression[barIdx];
+          if (barIdx === 7) {
+            const v1 = chordVoicings["A7sus4"];
+            v1.forEach((note, ni) => {
+              pat.set(116, ni, note, I_dx7, vol);
+              pat.set(119, ni, OFF, I_dx7);
+            });
+            const v2 = chordVoicings["A7"];
+            v2.forEach((note, ni) => {
+              pat.set(120, ni, note, I_dx7, vol * 0.95);
+              pat.set(127, ni, OFF, I_dx7);
+            });
+          } else {
+            const voicing = chordVoicings[chordName];
+            voicing.forEach((note, ni) => {
+              pat.set(rStart, ni, note, I_dx7, vol);
+              pat.set(rStart + 11, ni, OFF, I_dx7);
+            });
+          }
+        });
+      };
+
+      const writeBass = (pat, vol = 0.6) => {
+        const roots = [43, 38, 43, 38, 43, 38, 40, 45];
+        roots.forEach((rootNote, barIdx) => {
+          const start = barIdx * 16;
+          pat.set(start, 4, rootNote, I_moog, vol);
+          pat.set(start + 11, 4, OFF, I_moog);
+          if (barIdx < 6) {
+            pat.set(start + 10, 4, rootNote + 12, I_moog, vol * 0.7);
+            pat.set(start + 12, 4, OFF, I_moog);
+          }
+        });
+      };
+
+      const writeDrums = (pat, vol = 0.8) => {
+        for (let bar = 0; bar < 8; bar++) {
+          const start = bar * 16;
+          pat.set(start, 5, BD, I_808, vol);
+          pat.set(start + 10, 5, BD, I_808, vol * 0.85);
+          pat.set(start + 8, 6, SD, I_808, vol * 0.9);
+          for (let step = 0; step < 16; step += 2) {
+            const hVol = (step % 4 === 0) ? vol * 0.5 : vol * 0.35;
+            pat.set(start + step, 7, CH, I_808, hVol);
+          }
+          pat.set(start + 14, 7, OH, I_808, vol * 0.25);
+        }
+      };
+
+      const melodyA = [
+        [8, 66, 8], [16, 67, 4], [20, 69, 12], [32, 66, 8],
+        [40, 62, 4], [44, 59, 4], [48, 61, 4], [52, 62, 4], [56, 64, 4], [60, 57, 8],
+        [72, 66, 8], [80, 67, 4], [84, 69, 12], [96, 66, 8],
+        [104, 62, 4], [108, 59, 4], [112, 61, 4], [116, 62, 4], [120, 64, 8]
+      ];
+
+      const melodyB = [
+        [8, 69, 8], [16, 71, 4], [20, 72, 12], [32, 69, 8],
+        [40, 64, 4], [44, 61, 4], [48, 62, 4], [52, 64, 4], [56, 66, 4], [60, 59, 8],
+        [72, 66, 12], [88, 62, 12], [104, 59, 24]
+      ];
+
+      const writeMelody = (pat, melody, vol = 0.75) => {
+        melody.forEach(([row, note, dur]) => {
+          pat.set(row, 3, note, I_303, vol);
+          pat.set(row + dur, 3, OFF, I_303);
+        });
+      };
+
+      writeChords(p[0], 0.4);
+
+      writeChords(p[1], 0.45);
+      writeBass(p[1], 0.55);
+
+      writeChords(p[2], 0.48);
+      writeBass(p[2], 0.6);
+      writeDrums(p[2], 0.75);
+      writeMelody(p[2], melodyA, 0.72);
+
+      writeChords(p[3], 0.48);
+      writeBass(p[3], 0.6);
+      writeDrums(p[3], 0.75);
+      writeMelody(p[3], melodyB, 0.72);
+
+      writeChords(p[4], 0.52);
+      writeBass(p[4], 0.65);
+      writeDrums(p[4], 0.8);
+      writeMelody(p[4], melodyA.map(([r, n, d]) => [r, n + 12, d]), 0.65);
+
+      writeChords(p[5], 0.48);
+      writeBass(p[5], 0.6);
+      writeDrums(p[5], 0.75);
+      writeMelody(p[5], melodyA, 0.72);
+
+      writeChords(p[6], 0.4);
+      writeBass(p[6], 0.45);
+
+      return {
+        patterns: p,
+        order: [0, 1, 2, 3, 4, 5, 6],
+        rowsPerBeat: 4
+      };
+    }
   }
 ];
