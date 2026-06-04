@@ -2185,9 +2185,19 @@ export const DEMO_SONGS = [
           pat.set(start, 5, BD, I_808, vol);
           pat.set(start + 10, 5, BD, I_808, vol * 0.85);
           pat.set(start + 8, 6, SD, I_808, vol * 0.9);
-          for (let step = 0; step < 16; step += 2) {
-            const hVol = (step % 4 === 0) ? vol * 0.5 : vol * 0.35;
-            pat.set(start + step, 7, CH, I_808, hVol);
+          for (let step = 0; step < 16; step++) {
+            if (step % 2 === 0) {
+              let hVol = vol * 0.3;
+              if (step === 0 || step === 8) hVol = vol * 0.55;
+              else if (step === 4 || step === 12) hVol = vol * 0.45;
+              else if (step % 4 === 2) hVol = vol * 0.35;
+              pat.set(start + step, 7, CH, I_808, hVol);
+            } else {
+              // Ghost 16th notes for subtle syncopated groove
+              if (step === 3 || step === 11) {
+                pat.set(start + step, 7, CH, I_808, vol * 0.18);
+              }
+            }
           }
           pat.set(start + 14, 7, OH, I_808, vol * 0.25);
         }
@@ -2198,9 +2208,19 @@ export const DEMO_SONGS = [
           const start = bar * 16;
           pat.set(start, 5, BD, I_808, vol);
           pat.set(start + 10, 5, BD, I_808, vol * 0.85);
-          for (let step = 0; step < 16; step += 2) {
-            const hVol = (step % 4 === 0) ? vol * 0.4 : vol * 0.25;
-            pat.set(start + step, 7, CH, I_808, hVol);
+          for (let step = 0; step < 16; step++) {
+            if (step % 2 === 0) {
+              let hVol = vol * 0.25;
+              if (step === 0 || step === 8) hVol = vol * 0.45;
+              else if (step === 4 || step === 12) hVol = vol * 0.35;
+              else if (step % 4 === 2) hVol = vol * 0.3;
+              pat.set(start + step, 7, CH, I_808, hVol);
+            } else {
+              // Syncopated ghost notes
+              if (step === 3 || step === 11 || step === 15) {
+                pat.set(start + step, 7, CH, I_808, vol * 0.15);
+              }
+            }
           }
         }
       };
