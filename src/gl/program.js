@@ -44,3 +44,16 @@ export function createProgram(gl, fragSrc) {
 export function drawQuad(gl) {
   gl.drawArrays(gl.TRIANGLES, 0, 3);
 }
+
+// Allocate an RGBA32F texture with NEAREST filtering and clamped edges — the
+// layout every audio/state/FX texture uses (no interpolation, no wrap).
+export function makeTex(gl, w, h) {
+  const tex = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, w, h, 0, gl.RGBA, gl.FLOAT, null);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  return tex;
+}

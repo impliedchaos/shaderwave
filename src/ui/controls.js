@@ -45,6 +45,21 @@ const PARAM_DEFS = {
   ],
 };
 
+// DX7 slider set (global algorithm/feedback + per-operator params). Static, so
+// it lives at module scope rather than being rebuilt on every _buildParams call.
+const DX7_PARAM_DEFS = [
+  { label: 'Algo', type: 'global', bank: 'p1', i: 0, min: 1, max: 32, step: 1 },
+  { label: 'Feedback', type: 'global', bank: 'p0', i: 3, min: 0, max: 1.5, step: 0.01 },
+  { label: 'Op Mode', type: 'op', key: 'mode', min: 0, max: 1, step: 1 },
+  { label: 'Op Coarse', type: 'op', key: 'coarse', min: 0.5, max: 31, step: 0.5 },
+  { label: 'Op Fine', type: 'op', key: 'fine', min: 0, max: 99, step: 1 },
+  { label: 'Op Level', type: 'op', key: 'level', min: 0, max: 99, step: 1 },
+  { label: 'Op Detune', type: 'op', key: 'detune', min: -7, max: 7, step: 1 },
+  { label: 'Op Decay', type: 'op', key: 'decay', min: 0.05, max: 4, step: 0.01 },
+  { label: 'Op Sustain', type: 'op', key: 'sustain', min: 0, max: 1, step: 0.01 },
+  { label: 'Op Release', type: 'op', key: 'release', min: 0.05, max: 4, step: 0.01 },
+];
+
 const PRESETS = {
   '303': [
     { name: 'Classic Acid Bassline', p0: [400, 0.72, 0.6, 0.4], p1: [0, 0.3, 0.4, 0], fx: { dist: 0.001, tone: 0.5, level: 1.0, width: 1.0, master: 0.32, chorusMix: 0.0, delayMix: 0.0, reverbMix: 0.0 } },
@@ -557,21 +572,7 @@ export class Controls {
     this.paramEl.innerHTML = '';
     if (!name || !pr) return;
     
-    let defs = PARAM_DEFS[name];
-    if (name === 'dx7') {
-      defs = [
-        { label: 'Algo', type: 'global', bank: 'p1', i: 0, min: 1, max: 32, step: 1 },
-        { label: 'Feedback', type: 'global', bank: 'p0', i: 3, min: 0, max: 1.5, step: 0.01 },
-        { label: 'Op Mode', type: 'op', key: 'mode', min: 0, max: 1, step: 1 },
-        { label: 'Op Coarse', type: 'op', key: 'coarse', min: 0.5, max: 31, step: 0.5 },
-        { label: 'Op Fine', type: 'op', key: 'fine', min: 0, max: 99, step: 1 },
-        { label: 'Op Level', type: 'op', key: 'level', min: 0, max: 99, step: 1 },
-        { label: 'Op Detune', type: 'op', key: 'detune', min: -7, max: 7, step: 1 },
-        { label: 'Op Decay', type: 'op', key: 'decay', min: 0.05, max: 4, step: 0.01 },
-        { label: 'Op Sustain', type: 'op', key: 'sustain', min: 0, max: 1, step: 0.01 },
-        { label: 'Op Release', type: 'op', key: 'release', min: 0.05, max: 4, step: 0.01 },
-      ];
-    }
+    const defs = name === 'dx7' ? DX7_PARAM_DEFS : PARAM_DEFS[name];
     
     for (const d of defs) {
       const block = document.createElement('div');
@@ -628,21 +629,27 @@ export class Controls {
         } else {
           pr[d.bank][d.i] = v;
         }
-        const pSel = document.getElementById('instrument-preset');
-        if (pSel) {
-          const match = this._findMatchingPreset();
-          if (this._type === 'dx7') {
-            pSel.value = (match.rom === this.activeRomFile) ? match.index : -1;
-          } else {
-            pSel.value = match.index;
-          }
-        }
-      }, formatFn);
+      }, formatFn,
+      // Preset matching scans every cached ROM bank, so run it once on drag-end
+      // rather than on every pointer-move.
+      () => this._refreshPresetSelection());
+    }
+  }
+
+  // Sync the preset dropdown to whatever preset (if any) the current params match.
+  _refreshPresetSelection() {
+    const pSel = document.getElementById('instrument-preset');
+    if (!pSel) return;
+    const match = this._findMatchingPreset();
+    if (this._type === 'dx7') {
+      pSel.value = (match.rom === this.activeRomFile) ? match.index : -1;
+    } else {
+      pSel.value = match.index;
     }
   }
 }
 
-export function bindKnob(knobEl, valEl, min, max, step, initialVal, isPercent, onChange, formatFn) {
+export function bindKnob(knobEl, valEl, min, max, step, initialVal, isPercent, onChange, formatFn, onCommit) {
   let val = initialVal;
 
   const updateUI = (v) => {
@@ -685,6 +692,7 @@ export function bindKnob(knobEl, valEl, min, max, step, initialVal, isPercent, o
       window.removeEventListener('mouseup', onEnd);
       window.removeEventListener('touchmove', onMove);
       window.removeEventListener('touchend', onEnd);
+      if (onCommit) onCommit(val);
     };
 
     window.addEventListener('mousemove', onMove);

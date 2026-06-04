@@ -2,6 +2,7 @@
 // channel showing note + instrument, with a cursor cell and a moving playhead
 // row. Pure rendering + cursor/hit-testing; key handling lives in main.js.
 import { EMPTY, OFF } from '../tracker/pattern.js';
+import { themeVar } from './theme.js';
 
 const NOTE_NAMES = ['C-', 'C#', 'D-', 'D#', 'E-', 'F-', 'F#', 'G-', 'G#', 'A-', 'A#', 'B-'];
 
@@ -16,6 +17,14 @@ export function noteName(midi) {
 const ROW_H = 18;
 const NUM_W = 38;
 const CH_W = 96;
+
+// Sub-column layout within one channel column: cell start-x and width for the
+// note / instrument / volume fields. Shared by the renderer (colRect), the
+// hit-tester (_cellAt), and the text layout so the three can't drift apart.
+const COL_X = [2, 38, 70];
+const COL_W = [36, 32, CH_W - 72];
+// Text inset within each field (note is padded slightly more than inst/vol).
+const COL_TEXT_PAD = [6, 4, 4];
 
 export class TrackerView {
   constructor(canvas, engine) {
@@ -57,7 +66,7 @@ export class TrackerView {
     const row = Math.max(0, Math.min(p.rows - 1,
       Math.floor((y - this._topPad()) / ROW_H) + this._firstVisibleRow()));
     const local = (x - NUM_W) - ch * CH_W;
-    const col = local >= 70 ? 2 : local >= 38 ? 1 : 0;
+    const col = local >= COL_X[2] ? 2 : local >= COL_X[1] ? 1 : 0;
     return { row, ch, col };
   }
 
@@ -102,9 +111,7 @@ export class TrackerView {
 
   // x-rect of a cursor sub-field (note/inst/vol) within a channel column at x.
   static colRect(x, col) {
-    if (col === 1) return [x + 38, 32];
-    if (col === 2) return [x + 70, CH_W - 72];
-    return [x + 2, 36];
+    return [x + COL_X[col], COL_W[col]];
   }
 
   _topPad() { return 26; } // header height in CSS px
@@ -143,8 +150,9 @@ export class TrackerView {
     ctx.save();
     ctx.scale(dpr, dpr);
     const W = this.canvas.width / dpr, H = this.canvas.height / dpr;
-    const css = getComputedStyle(document.documentElement);
-    const C = (k) => css.getPropertyValue(k).trim();
+    // Theme vars are cached and invalidated on instrument select (see theme.js),
+    // so this no longer forces a style recalc every frame.
+    const C = (k) => themeVar(k);
 
     // 1. Draw overall background
     ctx.fillStyle = C('--bg');
@@ -319,14 +327,17 @@ export class TrackerView {
 
       for (let ch = 0; ch < p.channels; ch++) {
         const x = NUM_W + ch * CH_W;
+        const noteX = x + COL_X[0] + COL_TEXT_PAD[0];
+        const instX = x + COL_X[1] + COL_TEXT_PAD[1];
+        const volX = x + COL_X[2] + COL_TEXT_PAD[2];
         const note = p.note(row, ch);
         const isMuted = this.engine.muted[ch];
 
         if (note === EMPTY) {
           ctx.fillStyle = isMuted ? 'rgba(45, 58, 82, 0.15)' : C('--grid');
-          ctx.fillText('···', x + 8, y + ROW_H / 2);
-          ctx.fillText('··', x + 42, y + ROW_H / 2);
-          ctx.fillText('··', x + 74, y + ROW_H / 2);
+          ctx.fillText('···', noteX, y + ROW_H / 2);
+          ctx.fillText('··', instX, y + ROW_H / 2);
+          ctx.fillText('··', volX, y + ROW_H / 2);
         } else {
           const idx = p.idx(row, ch);
           if (isMuted) {
@@ -334,7 +345,7 @@ export class TrackerView {
           } else {
             ctx.fillStyle = note === OFF ? C('--hot') : C('--text');
           }
-          ctx.fillText(noteName(note), x + 8, y + ROW_H / 2);
+          ctx.fillText(noteName(note), noteX, y + ROW_H / 2);
 
           if (note !== OFF) {
             // Resolve the instrument-table instance: the engine type drives the
@@ -349,7 +360,7 @@ export class TrackerView {
             // Display-only label overrides (keeps the underlying instrument id).
             const INST_LABELS = { 'moog': 'MŌG' };
             const instLabel = INST_LABELS[instName] || instName.toUpperCase();
-            ctx.fillText(instLabel, x + 42, y + ROW_H / 2);
+            ctx.fillText(instLabel, instX, y + ROW_H / 2);
 
             // Draw volume data (percentage value 00..99)
             const volVal = Math.round(p.vol[idx] * 99);
@@ -359,12 +370,12 @@ export class TrackerView {
             } else {
               ctx.fillStyle = '#a78bfa'; // Neon lavender for volume data
             }
-            ctx.fillText(volStr, x + 74, y + ROW_H / 2);
+            ctx.fillText(volStr, volX, y + ROW_H / 2);
           } else {
             // Note-off: draw empty placeholders for instrument and volume
             ctx.fillStyle = isMuted ? 'rgba(45, 58, 82, 0.15)' : C('--grid');
-            ctx.fillText('··', x + 42, y + ROW_H / 2);
-            ctx.fillText('··', x + 74, y + ROW_H / 2);
+            ctx.fillText('··', instX, y + ROW_H / 2);
+            ctx.fillText('··', volX, y + ROW_H / 2);
           }
         }
       }

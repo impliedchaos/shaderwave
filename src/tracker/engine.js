@@ -8,7 +8,7 @@ import { VOICES, INSTRUMENTS, INSTRUMENT_COLORS, noteToFreq, BLOCK } from '../co
 import { EMPTY, OFF } from './pattern.js';
 import { defaultParams, instrumentsFromParams, DRUM_MAP } from './song.js';
 
-const HELD = 1e9; // offRel sentinel: note is still held
+export const HELD = 1e9; // offRel sentinel: note is still held
 
 export class Engine {
   constructor(sampleRate) {

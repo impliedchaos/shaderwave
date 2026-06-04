@@ -7,7 +7,7 @@
 // State textures ping-pong per instrument so recursive filters carry across
 // blocks. A voice belongs to exactly one instrument (uInst[v]); each program
 // renders only its own rows and writes silence elsewhere.
-import { createProgram, drawQuad } from './program.js';
+import { createProgram, drawQuad, makeTex } from './program.js';
 import { EffectsChain } from './effects.js';
 import { BLOCK, VOICES, INSTRUMENTS } from '../constants.js';
 import COMMON from './shaders/common.glsl?raw';
@@ -19,17 +19,6 @@ import MIX_FS from './shaders/mix.glsl?raw';
 
 // Order MUST match INSTRUMENTS in constants.js — the index is the instrument id.
 const SYNTH_SRC = { '303': SYNTH_303, 'dx7': SYNTH_DX7, '808': SYNTH_808, 'moog': SYNTH_MOOG };
-
-function makeTex(gl, w, h) {
-  const tex = gl.createTexture();
-  gl.bindTexture(gl.TEXTURE_2D, tex);
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, w, h, 0, gl.RGBA, gl.FLOAT, null);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
-  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-  return tex;
-}
 
 export class SynthRenderer {
   constructor(gl, sampleRate, fxParams) {

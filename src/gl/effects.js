@@ -1,7 +1,7 @@
 // GPU effects chain: stereo feedback delay + FDN reverb + drive + stereo width.
 // Runs between the synth mix and the audio readback. Delay/reverb keep history
 // in persistent ping-pong "ring" textures (see the fx-*-update shaders).
-import { createProgram, drawQuad } from './program.js';
+import { createProgram, drawQuad, makeTex } from './program.js';
 import { BLOCK } from '../constants.js';
 import FX_DELAY_UPDATE from './shaders/fx-delay-update.glsl?raw';
 import FX_FDN_UPDATE from './shaders/fx-fdn-update.glsl?raw';
@@ -48,15 +48,6 @@ export function defaultFxParams() {
     bitcrushBits: 8.0,      // bit depth (1–16)
     bitcrushRate: 4000.0,   // target sample rate in Hz (100–22000)
   };
-}
-
-function makeTex(gl, w, h) {
-  const t = gl.createTexture();
-  gl.bindTexture(gl.TEXTURE_2D, t);
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, w, h, 0, gl.RGBA, gl.FLOAT, null);
-  for (const p of [gl.TEXTURE_MIN_FILTER, gl.TEXTURE_MAG_FILTER]) gl.texParameteri(gl.TEXTURE_2D, p, gl.NEAREST);
-  for (const p of [gl.TEXTURE_WRAP_S, gl.TEXTURE_WRAP_T]) gl.texParameteri(gl.TEXTURE_2D, p, gl.CLAMP_TO_EDGE);
-  return t;
 }
 
 export class EffectsChain {

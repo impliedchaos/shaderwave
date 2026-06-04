@@ -8,10 +8,12 @@ import { AudioPipeline } from './audio/pipeline.js';
 import { Engine } from './tracker/engine.js';
 import { TrackerView } from './ui/tracker-view.js';
 import { Controls, bindKnob } from './ui/controls.js';
-import { demoSong, DEMO_SONGS, loadSongInstruments, defaultParams, instrumentsFromParams } from './tracker/song.js';
+import { DEMO_SONGS, loadSongInstruments } from './tracker/song.js';
 import { instGlow } from './constants.js';
 import { OFF, Pattern } from './tracker/pattern.js';
-import { GLVisualizer } from './ui/visualizer.js';
+import { showExportDialog } from './audio/export.js';
+import { renderArranger } from './ui/arranger.js';
+import { invalidateTheme, themeVar } from './ui/theme.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -29,6 +31,42 @@ const KEY_SEMI = {
 };
 // For 808, keys select drum slots rather than pitches.
 const DRUM_KEYS = [36, 38, 42, 46, 39, 41, 45, 48, 56];
+
+// FX panel layout: category headers (with bypass toggle) interleaved with knob
+// rows. Static, so it lives at module scope rather than being rebuilt per call.
+const FX_DEFS = [
+  { category: 'Distortion', enableKey: 'distOn' },
+  { label: 'Tone', key: 'tone', min: 0, max: 1, step: 0.01 },
+  { label: 'Level', key: 'level', min: 0, max: 2, step: 0.01 },
+  { label: 'Dist', key: 'dist', min: 0.001, max: 20, step: 0.1 },
+
+  { category: 'Bitcrusher', enableKey: 'bitcrushOn' },
+  { label: 'Crush Bits', key: 'bitcrushBits', min: 1, max: 16, step: 1 },
+  { label: 'Crush Hz', key: 'bitcrushRate', min: 100, max: 22000, step: 100 },
+
+  { category: 'Stereo Field & Output', enableKey: 'widthOn' },
+  { label: 'Width', key: 'width', min: 0, max: 2, step: 0.01 },
+  { label: 'Master', key: 'master', min: 0, max: 1.5, step: 0.01 },
+
+  { category: 'Stereo Chorus', enableKey: 'chorusOn' },
+  { label: 'Cho Mix', key: 'chorusMix', min: 0, max: 1, step: 0.01 },
+  { label: 'Cho Rate', key: 'chorusRate', min: 0.1, max: 5.0, step: 0.05 },
+  { label: 'Cho Depth', key: 'chorusDepth', min: 0.5, max: 5.0, step: 0.1 },
+
+  { category: 'Stereo Tremolo (Auto-Pan)', enableKey: 'tremoloOn' },
+  { label: 'Trem Mix', key: 'tremoloMix', min: 0, max: 1, step: 0.01 },
+  { label: 'Trem Rate', key: 'tremoloRate', min: 0.5, max: 15.0, step: 0.1 },
+
+  { category: 'Delay', enableKey: 'delayOn' },
+  { label: 'Dly Time', key: 'delayTime', min: 0.02, max: 1.2, step: 0.01 },
+  { label: 'Dly FB', key: 'delayFeedback', min: 0, max: 0.9, step: 0.01 },
+  { label: 'Dly Mix', key: 'delayMix', min: 0, max: 1, step: 0.01 },
+
+  { category: 'Reverb', enableKey: 'reverbOn' },
+  { label: 'Rev Decay', key: 'reverbDecay', min: 0, max: 0.97, step: 0.01 },
+  { label: 'Rev Damp', key: 'reverbDamp', min: 0, max: 0.95, step: 0.01 },
+  { label: 'Rev Mix', key: 'reverbMix', min: 0, max: 1, step: 0.01 },
+];
 
 export class App {
   constructor() {
@@ -75,6 +113,7 @@ export class App {
           document.documentElement.style.setProperty('--accent', '#00f0ff');
           document.documentElement.style.setProperty('--accent-glow', 'rgba(0, 240, 255, 0.2)');
           document.documentElement.style.setProperty('--cursor-border', '#00f0ff');
+          invalidateTheme();
           return;
         }
 
@@ -85,6 +124,7 @@ export class App {
         document.documentElement.style.setProperty('--accent', instr.color);
         document.documentElement.style.setProperty('--accent-glow', instGlow(instr.color, 0.2));
         document.documentElement.style.setProperty('--cursor-border', instr.color);
+        invalidateTheme();
       },
       onPresetChange: (instName, fxParams) => {
         if (instName !== 'dx7' && fxParams) {
@@ -120,43 +160,10 @@ export class App {
   }
 
   _buildFxPanel(itName) {
-    const defs = [
-      { category: 'Distortion', enableKey: 'distOn' },
-      { label: 'Tone', key: 'tone', min: 0, max: 1, step: 0.01 },
-      { label: 'Level', key: 'level', min: 0, max: 2, step: 0.01 },
-      { label: 'Dist', key: 'dist', min: 0.001, max: 20, step: 0.1 },
-
-      { category: 'Bitcrusher', enableKey: 'bitcrushOn' },
-      { label: 'Crush Bits', key: 'bitcrushBits', min: 1, max: 16, step: 1 },
-      { label: 'Crush Hz', key: 'bitcrushRate', min: 100, max: 22000, step: 100 },
-
-      { category: 'Stereo Field & Output', enableKey: 'widthOn' },
-      { label: 'Width', key: 'width', min: 0, max: 2, step: 0.01 },
-      { label: 'Master', key: 'master', min: 0, max: 1.5, step: 0.01 },
-
-      { category: 'Stereo Chorus', enableKey: 'chorusOn' },
-      { label: 'Cho Mix', key: 'chorusMix', min: 0, max: 1, step: 0.01 },
-      { label: 'Cho Rate', key: 'chorusRate', min: 0.1, max: 5.0, step: 0.05 },
-      { label: 'Cho Depth', key: 'chorusDepth', min: 0.5, max: 5.0, step: 0.1 },
-
-      { category: 'Stereo Tremolo (Auto-Pan)', enableKey: 'tremoloOn' },
-      { label: 'Trem Mix', key: 'tremoloMix', min: 0, max: 1, step: 0.01 },
-      { label: 'Trem Rate', key: 'tremoloRate', min: 0.5, max: 15.0, step: 0.1 },
-
-      { category: 'Delay', enableKey: 'delayOn' },
-      { label: 'Dly Time', key: 'delayTime', min: 0.02, max: 1.2, step: 0.01 },
-      { label: 'Dly FB', key: 'delayFeedback', min: 0, max: 0.9, step: 0.01 },
-      { label: 'Dly Mix', key: 'delayMix', min: 0, max: 1, step: 0.01 },
-
-      { category: 'Reverb', enableKey: 'reverbOn' },
-      { label: 'Rev Decay', key: 'reverbDecay', min: 0, max: 0.97, step: 0.01 },
-      { label: 'Rev Damp', key: 'reverbDamp', min: 0, max: 0.95, step: 0.01 },
-      { label: 'Rev Mix', key: 'reverbMix', min: 0, max: 1, step: 0.01 },
-    ];
     const params = this.fxParams[itName];
     const host = $('fx');
     host.innerHTML = '';
-    for (const d of defs) {
+    for (const d of FX_DEFS) {
       if (d.category) {
         const cat = document.createElement('h3');
         cat.textContent = d.category;
@@ -467,7 +474,7 @@ export class App {
 
     const exportBtn = $('export');
     if (exportBtn) {
-      exportBtn.onclick = () => this._showExportDialog();
+      exportBtn.onclick = () => showExportDialog(this);
     }
   }
 
@@ -534,7 +541,10 @@ export class App {
   }
 
   _keyToNote(code) {
-    if (this.engine.instruments[this.controls.selected].type === '808') {
+    // No instrument selected (e.g. a freshly created blank song) → nothing to play.
+    const sel = this.engine.instruments[this.controls.selected];
+    if (!sel) return null;
+    if (sel.type === '808') {
       const semi = KEY_SEMI[code];
       return semi == null ? null : (DRUM_KEYS[semi] ?? null);
     }
@@ -702,10 +712,9 @@ export class App {
     }
     ctx.stroke();
 
-    // Get dynamic colors from css variables
-    const css = getComputedStyle(document.documentElement);
-    const accentColor = css.getPropertyValue('--accent').trim() || '#00f5d4';
-    const accentGlow = css.getPropertyValue('--accent-glow').trim() || 'rgba(0, 245, 212, 0.2)';
+    // Get dynamic colors from css variables (cached; refreshed on select)
+    const accentColor = themeVar('--accent', '#00f5d4');
+    const accentGlow = themeVar('--accent-glow', 'rgba(0, 245, 212, 0.2)');
 
     // If audio is not active or engine is not playing, draw an animated idle wave
     if (!this.audioReady || !this.pipeline || !this.pipeline.analyser || !this.engine.playing) {
@@ -730,8 +739,14 @@ export class App {
     const analyser = this.pipeline.analyser;
     const bufferLength = analyser.frequencyBinCount;
 
+    // Reuse scratch buffers across frames (avoids per-frame GC churn at 60fps).
+    if (!this._freqData || this._freqData.length !== bufferLength) {
+      this._freqData = new Uint8Array(bufferLength);
+      this._waveData = new Uint8Array(bufferLength);
+    }
+
     // Draw spectrum as translucent glow fill using accent color
-    const freqData = new Uint8Array(bufferLength);
+    const freqData = this._freqData;
     analyser.getByteFrequencyData(freqData);
 
     ctx.fillStyle = accentGlow;
@@ -748,7 +763,7 @@ export class App {
     ctx.fill();
 
     // Draw wave/oscilloscope using accent color
-    const waveData = new Uint8Array(bufferLength);
+    const waveData = this._waveData;
     analyser.getByteTimeDomainData(waveData);
 
     ctx.strokeStyle = accentColor;
@@ -774,12 +789,17 @@ export class App {
   }
 
   _loop() {
+    // Resolve the frame-loop's DOM targets once, not every animation frame.
+    const playBtn = $('play');
+    const playPatBtn = $('play-pattern');
+    const perfStatus = $('perf-status');
+    const orderListEl = $('arranger-order-list');
+
     const tick = () => {
       this.view.draw();
       this._drawVisualizer();
 
       // Reflect play/pause state in button class/text
-      const playBtn = $('play');
       if (playBtn) {
         if (this.engine.playing && this.engine.playMode === 'song') {
           if (!playBtn.classList.contains('playing')) {
@@ -795,7 +815,6 @@ export class App {
         }
       }
 
-      const playPatBtn = $('play-pattern');
       if (playPatBtn) {
         if (this.engine.playing && this.engine.playMode === 'pattern') {
           if (!playPatBtn.classList.contains('playing')) {
@@ -827,18 +846,21 @@ export class App {
         }
       }
 
-      const orderCards = document.querySelectorAll('#arranger-order-list .arranger-card');
-      for (const card of orderCards) {
-        const idx = parseInt(card.getAttribute('data-order-idx'));
-        if (idx === activeOrderIdx) {
-          if (!card.classList.contains('active-order')) card.classList.add('active-order');
-        } else {
-          if (card.classList.contains('active-order')) card.classList.remove('active-order');
+      if (orderListEl) {
+        const orderCards = orderListEl.querySelectorAll('.arranger-card');
+        for (const card of orderCards) {
+          const idx = parseInt(card.getAttribute('data-order-idx'), 10);
+          if (idx === activeOrderIdx) {
+            if (!card.classList.contains('active-order')) card.classList.add('active-order');
+          } else {
+            if (card.classList.contains('active-order')) card.classList.remove('active-order');
+          }
         }
       }
 
-      $('perf-status').textContent = this.audioReady
-        ? `underruns: ${this.underruns}` : '';
+      if (perfStatus) {
+        perfStatus.textContent = this.audioReady ? `underruns: ${this.underruns}` : '';
+      }
       requestAnimationFrame(tick);
     };
     requestAnimationFrame(tick);
@@ -876,158 +898,7 @@ export class App {
   }
 
   _renderSongEditor() {
-    const song = this.engine.song;
-    if (!song) return;
-
-    const patList = $('arranger-pattern-list');
-    if (patList) {
-      patList.innerHTML = '';
-      song.patterns.forEach((pat, i) => {
-        const card = document.createElement('div');
-        card.className = 'arranger-card';
-        if (i === this.engine.currentPatternIdx) {
-          card.classList.add('selected-pattern');
-        }
-        
-        const info = document.createElement('div');
-        info.className = 'arranger-card-info';
-        info.onclick = () => {
-          this.engine.currentPatternIdx = i;
-          this._renderSongEditor();
-          this._updatePatternSelector();
-          this.view.draw();
-        };
-
-        const title = document.createElement('div');
-        title.className = 'arranger-card-title';
-        title.textContent = `🎹 Pattern ${i}`;
-        
-        const sub = document.createElement('div');
-        sub.className = 'arranger-card-sub';
-        sub.textContent = `${pat.rows} rows · ${pat.channels} channels`;
-        
-        info.appendChild(title);
-        info.appendChild(sub);
-        card.appendChild(info);
-        
-        const actions = document.createElement('div');
-        actions.className = 'arranger-card-actions';
-        
-        const cloneBtn = document.createElement('button');
-        cloneBtn.className = 'arranger-btn';
-        cloneBtn.textContent = 'Clone';
-        cloneBtn.onclick = (e) => {
-          e.stopPropagation();
-          const newPat = new Pattern(pat.rows, pat.channels);
-          newPat.notes.set(pat.notes);
-          newPat.inst.set(pat.inst);
-          newPat.vol.set(pat.vol);
-          song.patterns.push(newPat);
-          this.engine.currentPatternIdx = song.patterns.length - 1;
-          this._renderSongEditor();
-          this._updatePatternSelector();
-          this.view.draw();
-        };
-        actions.appendChild(cloneBtn);
-        
-        if (song.patterns.length > 1) {
-          const delBtn = document.createElement('button');
-          delBtn.className = 'arranger-btn danger';
-          delBtn.textContent = 'Delete';
-          delBtn.onclick = (e) => {
-            e.stopPropagation();
-            this._deletePattern(i);
-          };
-          actions.appendChild(delBtn);
-        }
-        
-        card.appendChild(actions);
-        patList.appendChild(card);
-      });
-    }
-
-    const orderList = $('arranger-order-list');
-    if (orderList) {
-      orderList.innerHTML = '';
-      song.order.forEach((patIdx, i) => {
-        const card = document.createElement('div');
-        card.className = 'arranger-card';
-        card.setAttribute('data-order-idx', i);
-        
-        const info = document.createElement('div');
-        info.className = 'arranger-card-info';
-        
-        const title = document.createElement('div');
-        title.className = 'arranger-card-title';
-        title.textContent = `#${i + 1} Slot`;
-        
-        const select = document.createElement('select');
-        select.className = 'arranger-select';
-        song.patterns.forEach((p, pIdx) => {
-          const opt = document.createElement('option');
-          opt.value = pIdx;
-          opt.textContent = `Pattern ${pIdx}`;
-          if (pIdx === patIdx) opt.selected = true;
-          select.appendChild(opt);
-        });
-        select.onchange = (e) => {
-          song.order[i] = parseInt(e.target.value);
-          this._renderSongEditor();
-        };
-        
-        info.appendChild(title);
-        info.appendChild(select);
-        card.appendChild(info);
-        
-        const actions = document.createElement('div');
-        actions.className = 'arranger-card-actions';
-        
-        const upBtn = document.createElement('button');
-        upBtn.className = 'arranger-btn';
-        upBtn.textContent = '▲';
-        upBtn.disabled = i === 0;
-        upBtn.onclick = (e) => {
-          e.stopPropagation();
-          if (i > 0) {
-            const temp = song.order[i];
-            song.order[i] = song.order[i - 1];
-            song.order[i - 1] = temp;
-            this._renderSongEditor();
-          }
-        };
-        actions.appendChild(upBtn);
-        
-        const downBtn = document.createElement('button');
-        downBtn.className = 'arranger-btn';
-        downBtn.textContent = '▼';
-        downBtn.disabled = i === song.order.length - 1;
-        downBtn.onclick = (e) => {
-          e.stopPropagation();
-          if (i < song.order.length - 1) {
-            const temp = song.order[i];
-            song.order[i] = song.order[i + 1];
-            song.order[i + 1] = temp;
-            this._renderSongEditor();
-          }
-        };
-        actions.appendChild(downBtn);
-        
-        if (song.order.length > 1) {
-          const rmBtn = document.createElement('button');
-          rmBtn.className = 'arranger-btn danger';
-          rmBtn.textContent = '✖';
-          rmBtn.onclick = (e) => {
-            e.stopPropagation();
-            song.order.splice(i, 1);
-            this._renderSongEditor();
-          };
-          actions.appendChild(rmBtn);
-        }
-        
-        card.appendChild(actions);
-        orderList.appendChild(card);
-      });
-    }
+    renderArranger(this);
   }
 
   _updatePatternSelector() {
@@ -1039,396 +910,6 @@ export class App {
     if (lenInput && this.view.pattern) {
       lenInput.value = this.view.pattern.rows;
     }
-  }
-
-  _getSanitizedFilename(songName) {
-    if (!songName) return 'untitled_song';
-    return songName.toLowerCase().trim().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'untitled_song';
-  }
-
-  _showExportDialog() {
-    const song = DEMO_SONGS[this.currentSongIdx];
-    const defaultTitle = this.customSongName || (song ? song.name : 'Untitled');
-    const defaultFilename = this._getSanitizedFilename(defaultTitle);
-    
-    $('export-song-title').value = defaultTitle;
-    $('export-song-author').value = 'AI Slop';
-    $('export-filename').value = defaultFilename;
-    
-    document.getElementsByName('export-format')[1].checked = true;
-    $('export-visualizer-row').style.display = 'flex';
-    
-    $('export-config-panel').style.display = 'flex';
-    $('export-progress-panel').style.display = 'none';
-    $('export-overlay').style.display = 'flex';
-    
-    const radios = document.getElementsByName('export-format');
-    radios.forEach(radio => {
-      radio.onchange = (e) => {
-        if (e.target.value === 'webm') {
-          $('export-visualizer-row').style.display = 'flex';
-        } else {
-          $('export-visualizer-row').style.display = 'none';
-        }
-      };
-    });
-    
-    $('export-close-btn').onclick = () => {
-      $('export-overlay').style.display = 'none';
-    };
-    
-    $('export-start-btn').onclick = () => {
-      const title = $('export-song-title').value.trim() || 'Untitled Song';
-      const author = $('export-song-author').value.trim() || 'AI Slop';
-      const filename = $('export-filename').value.trim() || 'untitled_song';
-      const format = document.querySelector('input[name="export-format"]:checked').value;
-      const includeVisualizer = $('export-include-visualizer').checked;
-      
-      $('export-config-panel').style.display = 'none';
-      $('export-progress-panel').style.display = 'flex';
-      
-      if (format === 'wav') {
-        this._exportWav(filename, title, author);
-      } else {
-        this._exportVideo(filename, title, author, includeVisualizer);
-      }
-    };
-  }
-
-  _writeWav(samples, sampleRate) {
-    const buffer = new ArrayBuffer(44 + samples.length * 2);
-    const view = new DataView(buffer);
-
-    const writeString = (view, offset, string) => {
-      for (let i = 0; i < string.length; i++) {
-        view.setUint8(offset + i, string.charCodeAt(i));
-      }
-    };
-
-    writeString(view, 0, 'RIFF');
-    view.setUint32(4, 36 + samples.length * 2, true);
-    writeString(view, 8, 'WAVE');
-    writeString(view, 12, 'fmt ');
-    view.setUint32(16, 16, true);
-    view.setUint16(20, 1, true); // PCM
-    view.setUint16(22, 2, true); // 2 channels
-    view.setUint32(24, sampleRate, true);
-    view.setUint32(28, sampleRate * 4, true);
-    view.setUint16(32, 4, true);
-    view.setUint16(34, 16, true);
-    writeString(view, 36, 'data');
-    view.setUint32(40, samples.length * 2, true);
-
-    let offset = 44;
-    for (let i = 0; i < samples.length; i++, offset += 2) {
-      const s = Math.max(-1, Math.min(1, samples[i]));
-      view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
-    }
-
-    return new Blob([buffer], { type: 'audio/wav' });
-  }
-
-  async _exportWav(filename, title, author) {
-    await this.ensureAudio();
-    
-    const wasPlaying = this.engine.playing;
-    this.engine.stop();
-    
-    this.pipeline.stop();
-    
-    const overlay = $('export-overlay');
-    const progress = $('export-progress');
-    const statusText = $('export-status-text');
-    const cancelBtn = $('export-cancel');
-    const progressTitle = $('export-progress-title');
-    
-    progressTitle.textContent = 'Exporting Audio';
-    progress.style.width = '0%';
-    statusText.textContent = 'Initializing offline render...';
-    cancelBtn.textContent = 'Cancel';
-    
-    let cancelled = false;
-    
-    const restoreAudio = async () => {
-      if (this.pipeline.produce) {
-        await this.pipeline.start(this.pipeline.produce);
-      }
-      this.engine.stop();
-      if (wasPlaying && !cancelled) this.engine.play();
-    };
-    
-    cancelBtn.onclick = () => {
-      cancelled = true;
-      overlay.style.display = 'none';
-      restoreAudio();
-    };
-    
-    this.renderer.resetState();
-    this.engine.playMode = 'song';
-    this.engine.playing = true;
-    this.engine.startFrame = 0;
-    
-    for (const v of this.engine.voices) {
-      v.active = false;
-      v.onFrame = 0;
-      v.offFrame = 1e9;
-    }
-    
-    const totalFrames = Math.ceil(this.engine.totalRows * this.engine.samplesPerRow);
-    const samples = new Float32Array(totalFrames * 2);
-    
-    let blockStart = 0;
-    const BLOCK_SIZE = 512;
-    const blocksPerBatch = 40; 
-    
-    const renderBatch = () => {
-      if (cancelled) return;
-      
-      for (let b = 0; b < blocksPerBatch && blockStart < totalFrames; b++) {
-        const vd = this.engine.advance(blockStart);
-        const out = this.renderer.renderBlock(vd, blockStart);
-        
-        const framesToCopy = Math.min(BLOCK_SIZE, totalFrames - blockStart);
-        for (let i = 0; i < framesToCopy; i++) {
-          samples[(blockStart + i) * 2] = out[i * 2];
-          samples[(blockStart + i) * 2 + 1] = out[i * 2 + 1];
-        }
-        blockStart += BLOCK_SIZE;
-      }
-      
-      const pct = Math.min(100, Math.floor((blockStart / totalFrames) * 100));
-      progress.style.width = `${pct}%`;
-      statusText.textContent = `Rendered ${pct}% (${Math.floor(blockStart / this.engine.sampleRate)}s / ${Math.floor(totalFrames / this.engine.sampleRate)}s)`;
-      
-      if (blockStart < totalFrames) {
-        requestAnimationFrame(renderBatch);
-      } else {
-        statusText.textContent = 'Encoding WAV file...';
-        
-        setTimeout(() => {
-          try {
-            const blob = this._writeWav(samples, this.engine.sampleRate);
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `${filename}.wav`;
-            a.click();
-            URL.revokeObjectURL(url);
-            statusText.textContent = 'Done!';
-            setTimeout(() => {
-              overlay.style.display = 'none';
-              restoreAudio();
-            }, 500);
-          } catch (e) {
-            statusText.textContent = `Error: ${e.message}`;
-            cancelBtn.textContent = 'Close';
-            cancelBtn.onclick = () => {
-              overlay.style.display = 'none';
-              restoreAudio();
-            };
-          }
-        }, 50);
-      }
-    };
-    
-    requestAnimationFrame(renderBatch);
-  }
-
-  async _exportVideo(filename, title, author, includeVisualizer) {
-    await this.ensureAudio();
-    
-    const wasPlaying = this.engine.playing;
-    this.engine.stop();
-    
-    const overlay = $('export-overlay');
-    const progress = $('export-progress');
-    const statusText = $('export-status-text');
-    const cancelBtn = $('export-cancel');
-    const progressTitle = $('export-progress-title');
-    
-    progressTitle.textContent = 'Recording Video';
-    progress.style.width = '0%';
-    statusText.textContent = 'Preparing 720p recording stream...';
-    cancelBtn.textContent = 'Cancel';
-    
-    const ctx = this.pipeline.ctx;
-    const dest = ctx.createMediaStreamDestination();
-    
-    this.pipeline.analyser.connect(dest);
-    
-    const muteGain = ctx.createGain();
-    muteGain.gain.value = 0.0;
-    try {
-      this.pipeline.analyser.disconnect(ctx.destination);
-    } catch (e) {
-      console.warn('Failed to disconnect analyser from destination:', e);
-    }
-    this.pipeline.analyser.connect(muteGain);
-    muteGain.connect(ctx.destination);
-    
-    const audioTrack = dest.stream.getAudioTracks()[0];
-    let recordStream;
-    let recordCanvas = null;
-    let recordVisualizer = null;
-    
-    if (includeVisualizer) {
-      recordCanvas = document.createElement('canvas');
-      recordCanvas.width = 1280;
-      recordCanvas.height = 720;
-      recordCanvas.style.cssText = 'position: fixed; left: -9999px; top: -9999px; width: 1280px; height: 720px; z-index: -1000; pointer-events: none;';
-      document.body.appendChild(recordCanvas);
-      
-      recordVisualizer = new GLVisualizer(recordCanvas);
-      const canvasStream = recordCanvas.captureStream(30); 
-      if (audioTrack) {
-        audioTrack.enabled = true;
-        canvasStream.addTrack(audioTrack);
-      }
-      recordStream = canvasStream;
-    } else {
-      recordStream = dest.stream;
-    }
-    
-    let options = { 
-      mimeType: 'video/webm;codecs=vp9,opus',
-      audioBitsPerSecond: 192000,
-      videoBitsPerSecond: 1024000
-    };
-    if (!MediaRecorder.isTypeSupported(options.mimeType)) {
-      options = { 
-        mimeType: 'video/webm;codecs=vp8,opus',
-        audioBitsPerSecond: 192000,
-        videoBitsPerSecond: 1024000
-      };
-    }
-    if (!MediaRecorder.isTypeSupported(options.mimeType)) {
-      options = { 
-        mimeType: 'video/webm',
-        audioBitsPerSecond: 192000,
-        videoBitsPerSecond: 1024000
-      };
-    }
-    
-    const recorder = new MediaRecorder(recordStream, options);
-    const chunks = [];
-    recorder.ondataavailable = (e) => {
-      if (e.data && e.data.size > 0) chunks.push(e.data);
-    };
-    
-    let cancelled = false;
-    
-    const cleanUp = () => {
-      this.engine.stop();
-      if (this.pipeline && this.pipeline.node) {
-        this.pipeline.node.port.postMessage({ cmd: 'reset' });
-      }
-      // Reset frame counters so the fill loop doesn't think the queue is
-      // already saturated from the export session's accumulated frames.
-      this.pipeline.writtenFrames = 0;
-      this.pipeline.consumedFrames = 0;
-      try {
-        this.pipeline.analyser.disconnect(dest);
-      } catch (e) {}
-      try {
-        this.pipeline.analyser.disconnect(muteGain);
-      } catch (e) {}
-      try {
-        muteGain.disconnect(ctx.destination);
-      } catch (e) {}
-      try {
-        this.pipeline.analyser.connect(ctx.destination);
-      } catch (e) {
-        console.warn('Failed to reconnect analyser:', e);
-      }
-      if (recordCanvas && recordCanvas.parentNode) {
-        recordCanvas.parentNode.removeChild(recordCanvas);
-      }
-      overlay.style.display = 'none';
-      if (wasPlaying && !cancelled) this.engine.play();
-    };
-    
-    cancelBtn.onclick = () => {
-      cancelled = true;
-      recorder.stop();
-      cleanUp();
-    };
-    
-    recorder.onstop = () => {
-      if (cancelled) return;
-      statusText.textContent = `Saving ${includeVisualizer ? '720p WebM' : 'WebM audio'} file...`;
-      
-      const blob = new Blob(chunks, { type: 'video/webm' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${filename}.webm`;
-      a.click();
-      URL.revokeObjectURL(url);
-      
-      statusText.textContent = 'Done!';
-      setTimeout(() => {
-        cleanUp();
-      }, 500);
-    };
-    
-    this.renderer.resetState();
-    this.engine.playMode = 'song';
-    this.engine.play('song');
-    recorder.start();
-    
-    const totalRows = this.engine.totalRows;
-    this.lastRecordedRow = 0;
-    let recordedRowsCount = 0;
-    
-    const checkProgress = () => {
-      if (cancelled || recorder.state !== 'recording') return;
-      
-      let currentRow = 0;
-      for (let i = 0; i < this.engine.displayOrder; i++) {
-        const patIdx = this.engine.song.order[i];
-        const pat = this.engine.song.patterns[patIdx];
-        if (pat) currentRow += pat.rows;
-      }
-      currentRow += this.engine.displayRow;
-      const totalRecordedPct = Math.min(100, Math.floor((currentRow / totalRows) * 100));
-      
-      progress.style.width = `${totalRecordedPct}%`;
-      statusText.textContent = `Recording row ${currentRow} / ${totalRows} (${totalRecordedPct}%)`;
-      
-      if (recordVisualizer) {
-        let freqData = null;
-        let waveData = null;
-        if (this.pipeline && this.pipeline.analyser) {
-          const analyser = this.pipeline.analyser;
-          freqData = new Uint8Array(analyser.frequencyBinCount);
-          analyser.getByteFrequencyData(freqData);
-          waveData = new Uint8Array(analyser.frequencyBinCount);
-          analyser.getByteTimeDomainData(waveData);
-        }
-        const css = getComputedStyle(document.documentElement);
-        const accentColor = css.getPropertyValue('--accent').trim() || '#00f5d4';
-        recordVisualizer.draw(freqData, waveData, this.engine.bpm, true, accentColor);
-      }
-      
-      if (currentRow !== this.lastRecordedRow) {
-        this.lastRecordedRow = currentRow;
-      }
-      
-      if (!this.engine.playing) {
-        // Wait 1.0s for the audio buffer and reverb/delay tail to drain completely.
-        statusText.textContent = 'Draining audio tail...';
-        setTimeout(() => {
-          if (!cancelled && recorder.state === 'recording') {
-            recorder.stop();
-          }
-        }, 1000);
-        return;
-      }
-      
-      requestAnimationFrame(checkProgress);
-    };
-    
-    requestAnimationFrame(checkProgress);
   }
 }
 
