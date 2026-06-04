@@ -2186,9 +2186,8 @@ export const DEMO_SONGS = [
           pat.set(start + 10, 5, BD, I_808, vol * 0.85);
           pat.set(start + 8, 6, SD, I_808, vol * 0.9);
           for (let step = 0; step < 16; step++) {
-            if (step === 2 || step === 6 || step === 10) {
-              const hVol = (step === 6) ? vol * 0.4 : vol * 0.48;
-              pat.set(start + step, 7, CH, I_808, hVol);
+            if (step === 2 || step === 10) {
+              pat.set(start + step, 7, CH, I_808, vol * 0.48);
             }
           }
           pat.set(start + 14, 7, OH, I_808, vol * 0.22);
@@ -2201,9 +2200,8 @@ export const DEMO_SONGS = [
           pat.set(start, 5, BD, I_808, vol);
           pat.set(start + 10, 5, BD, I_808, vol * 0.85);
           for (let step = 0; step < 16; step++) {
-            if (step === 2 || step === 6 || step === 10 || step === 14) {
-              const hVol = (step === 6 || step === 14) ? vol * 0.35 : vol * 0.42;
-              pat.set(start + step, 7, CH, I_808, hVol);
+            if (step === 2 || step === 10) {
+              pat.set(start + step, 7, CH, I_808, vol * 0.42);
             }
           }
         }
