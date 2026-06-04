@@ -2469,5 +2469,140 @@ export const DEMO_SONGS = [
         rowsPerBeat: 4
       };
     }
+  },
+  {
+    name: "Where'd I Put My Keys?",
+    bpm: 128,
+    params: [
+      { name: "808 Acid Kit", type: "808", p0: [0, 0.55, 0.42, 0.7], p1: [0, 0, 0, 0] },
+      { name: "303 Acid Bass", type: "303", p0: [320, 0.92, 0.85, 0.6], p1: [1, 0.32, 0.34, 0] },
+      { name: "303 Screamer",  type: "303", p0: [1100, 0.95, 0.9, 0.55], p1: [1, 0.22, 0.28, 0] },
+      { name: "Moog Sub",      type: "moog", p0: [110, 0.15, 0.4, 0], p1: [1.0, 0.95, 0.5, 0.6] },
+      { name: "Organ Stab",    type: "dx7",
+        p0: [1, 3, 2.5, 0.0], p1: [32, 0.6, 0.9, 3],
+        ops: [
+          { coarse: 1.0, fine: 0, level: 99, detune: 0,  decay: 0.30, mode: 0, sustain: 0.55, release: 0.18 },
+          { coarse: 2.0, fine: 0, level: 75, detune: 2,  decay: 0.28, mode: 0, sustain: 0.50, release: 0.18 },
+          { coarse: 4.0, fine: 0, level: 50, detune: -2, decay: 0.25, mode: 0, sustain: 0.40, release: 0.15 },
+          { coarse: 1.0, fine: 0, level: 60, detune: 3,  decay: 0.30, mode: 0, sustain: 0.50, release: 0.18 },
+          { coarse: 0.5, fine: 0, level: 55, detune: 0,  decay: 0.35, mode: 0, sustain: 0.50, release: 0.20 },
+          { coarse: 3.0, fine: 0, level: 30, detune: 0,  decay: 0.22, mode: 0, sustain: 0.35, release: 0.15 }
+        ]
+      }
+    ],
+    fxParams: {
+      '303': Object.assign(defaultFxParams(), { dist: 7.0, tone: 0.58, level: 1.0, master: 0.6, delayMix: 0.18, delayFeedback: 0.40, delayTime: 0.234, reverbMix: 0.10, reverbDecay: 0.80 }),
+      'dx7': Object.assign(defaultFxParams(), { dist: 10.0, tone: 0.0, level: 2.0, master: 1.5, delayMix: 0.24, delayFeedback: 0.38, delayTime: 0.3515, reverbMix: 0.22, reverbDecay: 0.82, chorusMix: 0.30, chorusRate: 0.9, chorusDepth: 2.5 }),
+      '808': Object.assign(defaultFxParams(), { dist: 2.0, tone: 0.5, level: 1.0, master: 0.7, reverbMix: 0.06, width: 1.12 }),
+      'moog': Object.assign(defaultFxParams(), { dist: 1.0, tone: 0.5, level: 1.0, master: 1.5, width: 1.0 }),
+    },
+    data: () => {
+      const ROWS = 64, CH = 8;
+      const mk = () => new Pattern(ROWS, CH);
+      const P = [mk(), mk(), mk(), mk(), mk(), mk(), mk(), mk()]; // 0..7
+
+      const BD = 36, CLAP = 39, HH = 42, OH = 46, SD = 38;
+      const I_808 = 0, I_BASS = 1, I_LEAD = 2, I_SUB = 3, I_STAB = 4;
+
+      const BASE = 33;                  // A1
+      const prog = [0, 0, -4, -2];      // Am · Am · F · G (one root per bar)
+      const root = (r) => BASE + prog[Math.floor(r / 16) % 4];
+
+      // Four-on-the-floor kit: kick on the beat, claps on 2 & 4, ticking closed
+      // hats on the 16ths, the signature open hat on every offbeat.
+      const drums = (pat, { kick = true, clap = true, hats = true, opens = true, build = false } = {}) => {
+        for (let r = 0; r < ROWS; r++) {
+          const s = r % 16;
+          if (kick && s % 4 === 0) pat.set(r, 0, BD, I_808, s === 0 ? 0.98 : 0.9);
+          if (clap && (s === 4 || s === 12)) pat.set(r, 1, CLAP, I_808, 0.82);
+          if (hats && s % 2 === 1) pat.set(r, 2, HH, I_808, s % 4 === 3 ? 0.42 : 0.3);
+          if (opens && s % 4 === 2) pat.set(r, 3, OH, I_808, 0.5);
+        }
+        if (build) {                    // snare-roll ramp through the last bar
+          for (let r = 48; r < ROWS; r++) {
+            const k = r - 48;
+            if (k % 2 === 0 || k >= 8) pat.set(r, 1, SD, I_808, Math.min(0.95, 0.45 + (k / 16) * 0.5));
+          }
+        }
+      };
+
+      // Relentless 16th-note acid line with octave pops; accents drive the filter.
+      const ACID = [0, 0, 12, 0, 0, 12, 0, 3, 0, 0, 12, 0, 7, 12, 10, 5];
+      const ACCENT = new Set([0, 5, 10, 13]);
+      const bass = (pat, ch, inst, oct = 0, vol = 0.85) => {
+        for (let r = 0; r < ROWS; r++) {
+          const s = r % 16;
+          const n = root(r) + 12 * oct + ACID[s];
+          pat.set(r, ch, n, inst, ACCENT.has(s) ? Math.min(1.0, vol + 0.12) : vol);
+        }
+      };
+
+      // Higher, syncopated squelch lead (staccato — note-off after each hit).
+      const LEAD = [0, null, 7, 12, null, 10, 7, null, 0, 3, null, 7, 12, null, 10, null];
+      const lead = (pat, ch, inst, oct = 2, vol = 0.8) => {
+        for (let r = 0; r < ROWS; r++) {
+          const off = LEAD[r % 16];
+          if (off === null) continue;
+          pat.set(r, ch, root(r) + 12 * oct + off, inst, ACCENT.has(r % 16) ? Math.min(1.0, vol + 0.12) : vol);
+          pat.set(r + 1, ch, OFF, inst);
+        }
+      };
+
+      // Sub-bass root thump on the downbeats.
+      const sub = (pat, ch, inst, vol = 0.8) => {
+        for (let r = 0; r < ROWS; r += 4) {
+          pat.set(r, ch, root(r), inst, vol);
+          pat.set(r + 3, ch, OFF, inst);
+        }
+      };
+
+      // Stabby organ chord hits on the offbeats.
+      const stabs = (pat, ch, inst, oct = 2, vol = 0.7) => {
+        for (let r = 0; r < ROWS; r++) {
+          if (r % 4 === 2) {
+            pat.set(r, ch, root(r) + 12 * oct, inst, vol);
+            pat.set(r + 2, ch, OFF, inst);
+          }
+        }
+      };
+
+      drums(P[0], { kick: true, clap: false, hats: true, opens: false });            // intro
+
+      drums(P[1], { clap: false });                                                   // bass enters
+      bass(P[1], 4, I_BASS, 0, 0.8);
+
+      drums(P[2], {});                                                                // full groove
+      bass(P[2], 4, I_BASS, 0, 0.88);
+      sub(P[2], 6, I_SUB, 0.8);
+
+      drums(P[3], {});                                                                // lead variation
+      bass(P[3], 4, I_BASS, 0, 0.88);
+      sub(P[3], 6, I_SUB, 0.8);
+      lead(P[3], 5, I_LEAD, 2, 0.8);
+
+      drums(P[4], { kick: false, clap: false });                                      // breakdown
+      bass(P[4], 4, I_BASS, 0, 0.8);
+      stabs(P[4], 7, I_STAB, 2, 0.7);
+
+      drums(P[5], { build: true });                                                   // drop / peak
+      bass(P[5], 4, I_BASS, 0, 0.92);
+      sub(P[5], 6, I_SUB, 0.85);
+      lead(P[5], 5, I_LEAD, 2, 0.85);
+
+      drums(P[6], {});                                                                // stab section
+      bass(P[6], 4, I_BASS, 0, 0.88);
+      sub(P[6], 6, I_SUB, 0.8);
+      stabs(P[6], 7, I_STAB, 2, 0.72);
+
+      drums(P[7], { clap: false });                                                   // outro
+      bass(P[7], 4, I_BASS, 0, 0.7);
+
+      return {
+        patterns: P,
+        // 24 slots × 64 rows at 128 BPM ≈ 3:00.
+        order: [0, 0, 1, 1, 2, 2, 3, 2, 4, 4, 5, 5, 3, 2, 6, 5, 5, 4, 5, 5, 3, 2, 7, 7],
+        rowsPerBeat: 4
+      };
+    }
   }
 ];
