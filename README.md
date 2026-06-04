@@ -222,3 +222,4 @@ google-chrome --headless=new --enable-unsafe-swiftshader --dump-dom \
 - Per-channel stereo panning controls.
 - Save/load functionality to export and import song data as JSON.
 - Instrument editor for creating and editing instrument patches from scratch.
+- Update Moog instrument to be a faithful representation of a Mini-Moog Model D.
