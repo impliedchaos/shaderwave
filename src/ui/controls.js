@@ -119,6 +119,8 @@ export class Controls {
     this.selected = 0;
     this.activeOp = 0;
     this.dx7Patches = null;
+    this.activeRomFile = DX7_ROMS[0].file;
+    this.romCache = {};
 
     // Initialize Operator select dropdown if it exists
     const opSelect = document.getElementById('operator-select');
@@ -154,12 +156,31 @@ export class Controls {
       };
     }
 
-    // Load the first ROM initially
-    this.loadRom(DX7_ROMS[0].file, false);
+    // Preload all ROM banks
+    this.loadAllRoms();
 
     this._buildAddMenu();
     this._buildInstruments();
     this._buildParams();
+  }
+
+  async loadAllRoms() {
+    for (const rom of DX7_ROMS) {
+      try {
+        const response = await fetch(`./sysex/DX7/${rom.file}`);
+        if (response.ok) {
+          const arrayBuffer = await response.arrayBuffer();
+          const data = new Uint8Array(arrayBuffer);
+          this.romCache[rom.file] = this.parseSysex(data);
+        }
+      } catch (err) {
+        console.error(`Failed to cache ROM ${rom.file}:`, err);
+      }
+    }
+    this.dx7Patches = this.romCache[this.activeRomFile] || null;
+    if (this._type === 'dx7') {
+      this._populatePresets();
+    }
   }
 
   // The currently selected instrument-table instance and its engine type.
@@ -261,56 +282,58 @@ export class Controls {
   _findMatchingPreset() {
     const instName = this._type;
     const pr = this._instr;
-    if (!instName || !pr) return -1;
+    if (!instName || !pr) return { rom: null, index: -1 };
 
     if (instName === 'dx7') {
-      if (!this.dx7Patches) return -1;
-      for (let idx = 0; idx < this.dx7Patches.length; idx++) {
-        const patch = this.dx7Patches[idx];
-        if (pr.p1[0] !== patch.algo) continue;
-        if (Math.abs(pr.p0[3] - patch.feedback) > 0.001) continue;
-        let match = true;
-        for (let k = 0; k < 6; k++) {
-          const op = pr.ops[k];
-          const pop = patch.ops[k];
-          if (!op || !pop) {
-            match = false;
-            break;
-          }
-          const opCoarse = op.coarse !== undefined ? op.coarse : 1.0;
-          const popCoarse = pop.coarse !== undefined ? pop.coarse : 1.0;
-          const opFine = op.fine !== undefined ? op.fine : 0;
-          const popFine = pop.fine !== undefined ? pop.fine : 0;
-          const opLevel = op.level !== undefined ? op.level : 0;
-          const popLevel = pop.level !== undefined ? pop.level : 0;
-          const opDetune = op.detune !== undefined ? op.detune : 0;
-          const popDetune = pop.detune !== undefined ? pop.detune : 0;
-          const opDecay = op.decay !== undefined ? op.decay : 0.5;
-          const popDecay = pop.decay !== undefined ? pop.decay : 0.5;
-          const opMode = op.mode !== undefined ? op.mode : 0;
-          const popMode = pop.mode !== undefined ? pop.mode : 0;
-          const opSustain = op.sustain !== undefined ? op.sustain : 0.7;
-          const popSustain = pop.sustain !== undefined ? pop.sustain : 0.7;
-          const opRelease = op.release !== undefined ? op.release : 0.25;
-          const popRelease = pop.release !== undefined ? pop.release : 0.25;
+      for (const romFile of Object.keys(this.romCache)) {
+        const patches = this.romCache[romFile];
+        for (let idx = 0; idx < patches.length; idx++) {
+          const patch = patches[idx];
+          if (pr.p1[0] !== patch.algo) continue;
+          if (Math.abs(pr.p0[3] - patch.feedback) > 0.001) continue;
+          let match = true;
+          for (let k = 0; k < 6; k++) {
+            const op = pr.ops[k];
+            const pop = patch.ops[k];
+            if (!op || !pop) {
+              match = false;
+              break;
+            }
+            const opCoarse = op.coarse !== undefined ? op.coarse : 1.0;
+            const popCoarse = pop.coarse !== undefined ? pop.coarse : 1.0;
+            const opFine = op.fine !== undefined ? op.fine : 0;
+            const popFine = pop.fine !== undefined ? pop.fine : 0;
+            const opLevel = op.level !== undefined ? op.level : 0;
+            const popLevel = pop.level !== undefined ? pop.level : 0;
+            const opDetune = op.detune !== undefined ? op.detune : 0;
+            const popDetune = pop.detune !== undefined ? pop.detune : 0;
+            const opDecay = op.decay !== undefined ? op.decay : 0.5;
+            const popDecay = pop.decay !== undefined ? pop.decay : 0.5;
+            const opMode = op.mode !== undefined ? op.mode : 0;
+            const popMode = pop.mode !== undefined ? pop.mode : 0;
+            const opSustain = op.sustain !== undefined ? op.sustain : 0.7;
+            const popSustain = pop.sustain !== undefined ? pop.sustain : 0.7;
+            const opRelease = op.release !== undefined ? op.release : 0.25;
+            const popRelease = pop.release !== undefined ? pop.release : 0.25;
 
-          if (opCoarse !== popCoarse ||
-              opFine !== popFine ||
-              opLevel !== popLevel ||
-              opDetune !== popDetune ||
-              Math.abs(opDecay - popDecay) > 0.001 ||
-              opMode !== popMode ||
-              Math.abs(opSustain - popSustain) > 0.001 ||
-              Math.abs(opRelease - popRelease) > 0.001) {
-            match = false;
-            break;
+            if (opCoarse !== popCoarse ||
+                opFine !== popFine ||
+                opLevel !== popLevel ||
+                opDetune !== popDetune ||
+                Math.abs(opDecay - popDecay) > 0.001 ||
+                opMode !== popMode ||
+                Math.abs(opSustain - popSustain) > 0.001 ||
+                Math.abs(opRelease - popRelease) > 0.001) {
+              match = false;
+              break;
+            }
           }
+          if (match) return { rom: romFile, index: idx };
         }
-        if (match) return idx;
       }
     } else {
       const plist = PRESETS[instName];
-      if (!plist) return -1;
+      if (!plist) return { rom: null, index: -1 };
       for (let idx = 0; idx < plist.length; idx++) {
         const preset = plist[idx];
         if (!preset.p0 || !preset.p1 || pr.p0.length !== preset.p0.length || pr.p1.length !== preset.p1.length) {
@@ -330,10 +353,10 @@ export class Controls {
             break;
           }
         }
-        if (match) return idx;
+        if (match) return { rom: null, index: idx };
       }
     }
-    return -1;
+    return { rom: null, index: -1 };
   }
 
   _populatePresets() {
@@ -366,7 +389,12 @@ export class Controls {
       });
     }
 
-    presetSelect.value = this._findMatchingPreset();
+    const match = this._findMatchingPreset();
+    if (instName === 'dx7' && match.rom && match.rom !== this.activeRomFile) {
+      this.loadRom(match.rom, false);
+      return;
+    }
+    presetSelect.value = match.index;
   }
 
   loadPreset(presetIdx) {
@@ -410,22 +438,42 @@ export class Controls {
   }
 
   async loadRom(filename, autoLoadFirstPreset = false) {
-    try {
-      const response = await fetch(`./sysex/DX7/${filename}`);
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-      const arrayBuffer = await response.arrayBuffer();
-      const data = new Uint8Array(arrayBuffer);
-      this.dx7Patches = this.parseSysex(data);
-      
-      // If active instrument is dx7, refresh presets
+    if (this.romCache[filename]) {
+      this.activeRomFile = filename;
+      this.dx7Patches = this.romCache[filename];
+      const romSelect = document.getElementById('sysex-rom');
+      if (romSelect) {
+        romSelect.value = filename;
+      }
       if (this._type === 'dx7') {
         this._populatePresets();
         if (autoLoadFirstPreset) {
           this.loadPreset(0);
         }
       }
-    } catch (err) {
-      console.error("Failed to load DX7 SysEx ROM:", err);
+    } else {
+      try {
+        const response = await fetch(`./sysex/DX7/${filename}`);
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        const arrayBuffer = await response.arrayBuffer();
+        const data = new Uint8Array(arrayBuffer);
+        const patches = this.parseSysex(data);
+        this.romCache[filename] = patches;
+        this.activeRomFile = filename;
+        this.dx7Patches = patches;
+        const romSelect = document.getElementById('sysex-rom');
+        if (romSelect) {
+          romSelect.value = filename;
+        }
+        if (this._type === 'dx7') {
+          this._populatePresets();
+          if (autoLoadFirstPreset) {
+            this.loadPreset(0);
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load DX7 SysEx ROM:", err);
+      }
     }
   }
 
@@ -576,7 +624,12 @@ export class Controls {
         }
         const pSel = document.getElementById('instrument-preset');
         if (pSel) {
-          pSel.value = this._findMatchingPreset();
+          const match = this._findMatchingPreset();
+          if (this._type === 'dx7') {
+            pSel.value = (match.rom === this.activeRomFile) ? match.index : -1;
+          } else {
+            pSel.value = match.index;
+          }
         }
       }, formatFn);
     }
