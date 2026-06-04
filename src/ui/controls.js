@@ -573,7 +573,10 @@ export class Controls {
     if (!name || !pr) return;
     
     const defs = name === 'dx7' ? DX7_PARAM_DEFS : PARAM_DEFS[name];
-    
+    // Knobs that map to a p0/p1 param (not per-operator) — the UI loop drives
+    // these from live automation while playing. Reset on every rebuild.
+    this.paramKnobs = [];
+
     for (const d of defs) {
       const block = document.createElement('div');
       block.className = 'param-control-block';
@@ -633,6 +636,9 @@ export class Controls {
       // Preset matching scans every cached ROM bank, so run it once on drag-end
       // rather than on every pointer-move.
       () => this._refreshPresetSelection());
+
+      // Per-operator dx7 knobs have no automation target; p0/p1 knobs do.
+      if (d.type !== 'op') this.paramKnobs.push({ el: knob, bank: d.bank, i: d.i });
     }
   }
 
@@ -666,6 +672,14 @@ export function bindKnob(knobEl, valEl, min, max, step, initialVal, isPercent, o
   };
 
   updateUI(val);
+
+  // Lets the UI loop drive the knob from outside (e.g. live automation tracking).
+  // No-ops when the value is unchanged so per-frame calls are cheap.
+  knobEl._extSet = (v) => {
+    if (v === val || v == null || Number.isNaN(v)) return;
+    val = v;
+    updateUI(v);
+  };
 
   const onStart = (e) => {
     e.preventDefault();

@@ -5,8 +5,9 @@
 // Mapping: tracker channel index == voice index (8 channels → 8 voices, mono per
 // channel). When a new note hits a channel, it overwrites that voice.
 import { VOICES, INSTRUMENTS, INSTRUMENT_COLORS, noteToFreq, BLOCK } from '../constants.js';
-import { EMPTY, OFF } from './pattern.js';
+import { EMPTY, OFF, NO_FX } from './pattern.js';
 import { defaultParams, instrumentsFromParams, DRUM_MAP } from './song.js';
+import { targetById, denorm } from './automation.js';
 
 export const HELD = 1e9; // offRel sentinel: note is still held
 
@@ -16,6 +17,18 @@ export class Engine {
     this.song = null;
     this.rowsPerBeat = 4;
     this.bpm = 174;
+
+    // Per-engine-type fxParams (the same object the renderer's EffectsChains
+    // read). Set by the app whenever a song's fx is (re)built; used to apply
+    // 'fx'-scope automation commands. Null until wired.
+    this.fxParams = null;
+
+    // Live automation read-out for the UI. 'inst'-scope commands write the
+    // per-voice slot (not the instance base), so the sidebar knobs can't see
+    // them; we record the last applied value here, keyed `${instIdx}:${bank}:${i}`,
+    // so the UI can animate the knob during playback and revert on stop. ('fx'
+    // scope mutates the real fxParams object, so those knobs just re-read it.)
+    this.autoLive = { inst: new Map() };
 
     this.playing = false;
     this.startFrame = null;   // absolute frame mapped to song row 0
@@ -102,7 +115,7 @@ export class Engine {
     return sum;
   }
 
-  play(mode = 'song') { this.playMode = mode; this.playing = true; this.startFrame = null; }
+  play(mode = 'song') { this.playMode = mode; this.playing = true; this.startFrame = null; this.autoLive.inst.clear(); }
   stop() {
     this.playing = false;
     for (const v of this.voices) v.active = false;
@@ -289,6 +302,7 @@ export class Engine {
         const i = pat.idx(row, ch);
         this.triggerNote(ch, note, pat.inst[i], pat.vol[i], fr);
       }
+      this._applyAutomation(pat, row);
     } else {
       const total = this.totalRows;
       if (total <= 0) return;
@@ -302,7 +316,42 @@ export class Engine {
         const i = pat.idx(localRow, ch);
         this.triggerNote(ch, note, pat.inst[i], pat.vol[i], fr);
       }
+      this._applyAutomation(pat, localRow);
     }
+  }
+
+  // Apply this row's automation commands. Runs AFTER note triggers so a command
+  // sharing a cell with a note overrides the note-on param snapshot. 'inst'
+  // targets write the live per-voice slot (channel-local, holds until the next
+  // note re-snapshots); 'fx' targets write the engine-type's shared fxParams.
+  _applyAutomation(pat, row) {
+    for (let ch = 0; ch < pat.channels; ch++) {
+      const i = pat.idx(row, ch);
+      const id = pat.fxCmd[i];
+      if (id === NO_FX) continue;
+      const t = targetById(id);
+      if (!t) continue;
+      const value = denorm(t, pat.fxVal[i]);
+      if (t.scope === 'inst') {
+        const arr = t.bank === 'p1' ? this.vd.p1 : this.vd.p0;
+        arr[ch * 4 + t.index] = value;
+        const v = this.voices[ch];
+        const instrIdx = (v && v.active) ? v.instrument : pat.inst[i];
+        this.autoLive.inst.set(`${instrIdx}:${t.bank}:${t.index}`, value);
+      } else if (this.fxParams) {
+        const fp = this.fxParams[this._channelType(ch, pat, i)];
+        if (fp) fp[t.key] = value;
+      }
+    }
+  }
+
+  // Engine type driving a channel right now: the sounding voice's instrument if
+  // active, else the cell's own instrument, else the first instance.
+  _channelType(ch, pat, i) {
+    const v = this.voices[ch];
+    let instr = (v && v.active) ? this.instruments[v.instrument] : null;
+    if (!instr) instr = this.instruments[pat.inst[i]] || this.instruments[0];
+    return instr ? instr.type : '303';
   }
 
   _refreshVoiceData(blockStart) {

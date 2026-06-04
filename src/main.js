@@ -10,7 +10,8 @@ import { TrackerView } from './ui/tracker-view.js';
 import { Controls, bindKnob } from './ui/controls.js';
 import { DEMO_SONGS, loadSongInstruments } from './tracker/song.js';
 import { instGlow } from './constants.js';
-import { OFF, Pattern } from './tracker/pattern.js';
+import { OFF, NO_FX, Pattern } from './tracker/pattern.js';
+import { targetsForType, targetById, fmtValue } from './tracker/automation.js';
 import { showExportDialog } from './audio/export.js';
 import { renderArranger } from './ui/arranger.js';
 import { invalidateTheme, themeVar } from './ui/theme.js';
@@ -94,6 +95,7 @@ export class App {
     this.engine.loadSong(init.data);
     this.engine.bpm = initialSong.bpm;
     this.fxParams = cloneFx(initialSong.fxParams);
+    this.engine.fxParams = this.fxParams;   // let the engine apply fx-scope automation
 
     const bpmInput = $('bpm');
     if (bpmInput) {
@@ -166,6 +168,9 @@ export class App {
     const params = this.fxParams[itName];
     const host = $('fx');
     host.innerHTML = '';
+    // Knobs the UI loop re-reads from fxParams so fx-scope automation shows live.
+    this._fxKnobs = [];
+    this._fxPanelType = itName;
     for (const d of FX_DEFS) {
       if (d.category) {
         const cat = document.createElement('h3');
@@ -219,6 +224,7 @@ export class App {
       bindKnob(knob, valSpan, d.min, d.max, d.step, params[d.key], isPercent, (v) => {
         params[d.key] = v;
       });
+      this._fxKnobs.push({ el: knob, key: d.key });
     }
     const toggle = $('fx-toggle');
     toggle.className = params.enabled ? 'on' : '';
@@ -259,6 +265,11 @@ export class App {
         this.view.draw();
         this._renderSongEditor();
       };
+    }
+    const fxColBtn = $('fx-col-btn');
+    if (fxColBtn) {
+      fxColBtn.onclick = () => { this.view.toggleFx(); this._updateFxColBtn(); };
+      this._updateFxColBtn();
     }
     const volInput = $('volume');
     const volVal = $('volume-val');
@@ -302,6 +313,7 @@ export class App {
           const loaded = loadSongInstruments(songDef);
           this.engine.instruments = loaded.instruments;
           this.fxParams = cloneFx(songDef.fxParams);
+          this.engine.fxParams = this.fxParams;
 
           if (this.renderer) {
             for (const it of this.renderer.inst) {
@@ -454,6 +466,7 @@ export class App {
           '808': defaultFxParams(),
           'moog': defaultFxParams()
         };
+        this.engine.fxParams = this.fxParams;
 
         if (this.renderer) {
           for (const it of this.renderer.inst) {
@@ -517,7 +530,12 @@ export class App {
         input.value = Math.max(+input.min || 0, Math.min(+input.max || 8, (+input.value || 4) + 1));
         return;
       }
+      // Toggle the automation column (F), except while editing an fx field.
+      if (e.code === 'KeyF' && !e.ctrlKey && !e.metaKey && !e.altKey && this.view.cursor.col < 3) {
+        e.preventDefault(); this.view.toggleFx(); this._updateFxColBtn(); return;
+      }
       if (this._handleCursor(e)) { e.preventDefault(); return; }
+      if (this._handleFxEdit(e)) return;
       if (this._handleEdit(e)) return;
 
       if (e.repeat) return;
@@ -559,10 +577,14 @@ export class App {
 
   _handleCursor(e) {
     const c = this.view.cursor, p = this.view.pattern;
-    // Shift+Up/Down: fine volume nudge on the note under the cursor.
+    // Shift+Up/Down: fine nudge. In the fx-value column it steps the value byte;
+    // elsewhere it nudges the note's volume.
     if (e.shiftKey && (e.code === 'ArrowUp' || e.code === 'ArrowDown')) {
       const idx = p.idx(c.row, c.ch);
-      if (p.notes[idx] >= 0) {
+      if (c.col === 4 && p.fxCmd[idx] !== NO_FX) {
+        const d = e.code === 'ArrowUp' ? 1 : -1;
+        p.fxVal[idx] = Math.min(255, Math.max(0, p.fxVal[idx] + d));
+      } else if (p.notes[idx] >= 0) {
         const d = e.code === 'ArrowUp' ? 0.05 : -0.05;
         p.vol[idx] = Math.min(1.0, Math.max(0.0, p.vol[idx] + d));
       }
@@ -578,10 +600,10 @@ export class App {
       // Left/Right step through the note → instrument → volume sub-columns,
       // wrapping to the adjacent channel at the ends.
       case 'ArrowLeft':
-        if (c.col > 0) c.col--; else { c.ch = (c.ch - 1 + p.channels) % p.channels; c.col = 2; }
+        if (c.col > 0) c.col--; else { c.ch = (c.ch - 1 + p.channels) % p.channels; c.col = this.view.maxCol; }
         this._digitEntry = null; return true;
       case 'ArrowRight':
-        if (c.col < 2) c.col++; else { c.ch = (c.ch + 1) % p.channels; c.col = 0; }
+        if (c.col < this.view.maxCol) c.col++; else { c.ch = (c.ch + 1) % p.channels; c.col = 0; }
         this._digitEntry = null; return true;
       case 'Delete':
       case 'Backspace':
@@ -589,10 +611,13 @@ export class App {
           const s = this.view.selection;
           for (let r = s.r0; r <= s.r1; r++) {
             for (let ch = s.c0; ch <= s.c1; ch++) {
-              p.clear(r, ch);
+              p.clear(r, ch); p.clearFx(r, ch);
             }
           }
           this.view.draw();
+        } else if (c.col >= 3) {
+          p.clearFx(c.row, c.ch);          // fx columns: clear the automation command
+          this._advanceCursorRow();
         } else {
           p.clear(c.row, c.ch);
           this._advanceCursorRow();
@@ -609,7 +634,7 @@ export class App {
     const m = /^(?:Digit|Numpad)([0-9])$/.exec(e.code);
     if (!m) return false;
     const c = this.view.cursor;
-    if (c.col === 0) return false;                 // note column: let piano keys handle it
+    if (c.col !== 1 && c.col !== 2) return false;  // only instrument / volume here
     e.preventDefault();
     const p = this.view.pattern;
     const idx = p.idx(c.row, c.ch);
@@ -621,6 +646,136 @@ export class App {
     if (c.col === 1) p.inst[idx] = Math.min(val, this.engine.instruments.length - 1);
     else p.vol[idx] = Math.min(99, val) / 99;
     return true;
+  }
+
+  // FX columns: col 3 = command target (opens picker), col 4 = value byte (hex).
+  // Consumes all letter/number keys so they never leak to note entry.
+  _handleFxEdit(e) {
+    const c = this.view.cursor;
+    if (!this.view.showFx || c.col < 3) return false;
+    const isLetter = /^Key([A-Z])$/.exec(e.code);
+    const isDigit = /^(?:Digit|Numpad)([0-9])$/.exec(e.code);
+    if (!isLetter && !isDigit && e.code !== 'Enter') return false;
+    e.preventDefault();
+    const p = this.view.pattern, idx = p.idx(c.row, c.ch);
+
+    if (c.col === 3) {                         // command → target picker
+      if (e.code === 'Enter' || isLetter) this._openFxPicker(isLetter ? isLetter[1] : '');
+      return true;                             // consume digits too
+    }
+
+    // col 4 — value byte, two-hex accumulation (0-9, A-F). A command must exist.
+    if (p.fxCmd[idx] === NO_FX) return true;
+    let nyb = null;
+    if (isDigit) nyb = parseInt(isDigit[1], 10);
+    else if (isLetter && isLetter[1] <= 'F') nyb = parseInt(isLetter[1], 16);
+    if (nyb === null) return true;             // non-hex letter: swallow, no-op
+    const same = this._hexEntry && this._hexEntry.idx === idx;
+    p.fxVal[idx] = (same ? ((this._hexEntry.first << 4) | nyb) : nyb) & 0xff;
+    this._hexEntry = same ? null : { idx, first: nyb };
+    return true;
+  }
+
+  // Best engine type for a cell: its own note's instrument, else the nearest
+  // note above it on the channel, else the selected instrument.
+  _channelInstType(p, row, ch) {
+    if (p.notes[p.idx(row, ch)] >= 0) return this.engine.instruments[p.inst[p.idx(row, ch)]]?.type || '303';
+    for (let r = row - 1; r >= 0; r--) {
+      const j = p.idx(r, ch);
+      if (p.notes[j] >= 0) return this.engine.instruments[p.inst[j]]?.type || '303';
+    }
+    const sel = this.engine.instruments[this.controls.selected];
+    return sel ? sel.type : '303';
+  }
+
+  // Modal target picker for the cell under the cursor. `prefill` seeds the filter
+  // (so typing a code letter in the command column jumps straight to filtering).
+  _openFxPicker(prefill = '') {
+    this._closeFxPicker();
+    const p = this.view.pattern, c = this.view.cursor;
+    const type = this._channelInstType(p, c.row, c.ch);
+    const targets = targetsForType(type);
+    const idx = p.idx(c.row, c.ch);
+
+    const overlay = document.createElement('div');
+    overlay.className = 'fx-picker-overlay';
+    overlay.innerHTML = `<div class="fx-picker">
+      <div class="fx-picker-title">Automate ${type.toUpperCase()} · Ch ${c.ch + 1}</div>
+      <input class="fx-picker-input" placeholder="type code or name…" />
+      <ul class="fx-picker-list"></ul>
+      <div class="fx-picker-hint">↑↓ select · Enter set · Esc cancel · then type 2 hex digits for the value</div>
+    </div>`;
+    document.body.appendChild(overlay);
+    const input = overlay.querySelector('.fx-picker-input');
+    const list = overlay.querySelector('.fx-picker-list');
+    input.value = prefill;
+
+    let sel = 0, filtered = targets;
+    const commit = (t) => {
+      if (!t) return;
+      const keep = p.fxCmd[idx] !== NO_FX ? p.fxVal[idx] : 0x80; // default mid-value
+      p.setFx(c.row, c.ch, t.id, keep);
+      this._closeFxPicker();
+      this.view.cursor.col = 4;     // hop to the value field
+      this.view.draw();
+    };
+    const render = () => {
+      const q = input.value.trim().toLowerCase();
+      filtered = targets.filter((t) => !q || t.code.toLowerCase().startsWith(q) || t.label.toLowerCase().includes(q));
+      if (sel >= filtered.length) sel = Math.max(0, filtered.length - 1);
+      list.innerHTML = filtered.map((t, i) =>
+        `<li class="fx-picker-item${i === sel ? ' sel' : ''}${t.scope === 'fx' ? ' fx' : ''}" data-i="${i}">
+          <span class="fx-code">${t.code}</span><span class="fx-label">${t.label}</span>
+          ${t.scope === 'fx' ? '<span class="fx-tag">track</span>' : ''}</li>`).join('');
+      list.querySelectorAll('.fx-picker-item').forEach((li) => {
+        li.onclick = () => commit(filtered[+li.dataset.i]);
+      });
+    };
+    input.addEventListener('keydown', (ev) => {
+      if (ev.code === 'Escape') { ev.preventDefault(); this._closeFxPicker(); }
+      else if (ev.code === 'ArrowDown') { ev.preventDefault(); sel = Math.min(filtered.length - 1, sel + 1); render(); }
+      else if (ev.code === 'ArrowUp') { ev.preventDefault(); sel = Math.max(0, sel - 1); render(); }
+      else if (ev.code === 'Enter') { ev.preventDefault(); commit(filtered[sel]); }
+    });
+    input.addEventListener('input', () => { sel = 0; render(); });
+    overlay.addEventListener('mousedown', (ev) => { if (ev.target === overlay) this._closeFxPicker(); });
+    this._fxPicker = overlay;
+    render();
+    input.focus();
+    input.setSelectionRange(input.value.length, input.value.length);
+  }
+
+  _closeFxPicker() {
+    if (this._fxPicker) { this._fxPicker.remove(); this._fxPicker = null; }
+  }
+
+  _updateFxColBtn() {
+    const btn = $('fx-col-btn');
+    if (!btn) return;
+    btn.classList.toggle('on', this.view.showFx);
+    this.view.draw();
+  }
+
+  // Make the sidebar follow automation each frame. fx-scope commands mutate the
+  // real fxParams object, so those knobs just re-read it (also catches preset
+  // loads). inst-scope commands write the live voice slot, so while playing we
+  // show the engine's last applied value for the selected instance and fall back
+  // to the stored base when stopped.
+  _syncKnobs() {
+    const playing = this.engine.playing;
+    const instIdx = this.controls.selected;
+    const instr = this.engine.instruments[instIdx];
+
+    if (instr) {
+      for (const k of this.controls.paramKnobs || []) {
+        const live = playing ? this.engine.autoLive.inst.get(`${instIdx}:${k.bank}:${k.i}`) : undefined;
+        k.el._extSet(live !== undefined ? live : instr[k.bank][k.i]);
+      }
+      const fp = this.fxParams[this._fxPanelType];
+      if (fp && this._fxPanelType === instr.type) {
+        for (const k of this._fxKnobs || []) k.el._extSet(fp[k.key]);
+      }
+    }
   }
 
   _advanceCursorRow() {
@@ -641,8 +796,8 @@ export class App {
       const rowCells = [];
       for (let ch = c0; ch <= c1; ch++) {
         const i = p.idx(r, ch);
-        rowCells.push({ note: p.notes[i], inst: p.inst[i], vol: p.vol[i] });
-        if (cut) p.clear(r, ch);
+        rowCells.push({ note: p.notes[i], inst: p.inst[i], vol: p.vol[i], fxCmd: p.fxCmd[i], fxVal: p.fxVal[i] });
+        if (cut) { p.clear(r, ch); p.clearFx(r, ch); }
       }
       cells.push(rowCells);
     }
@@ -662,6 +817,7 @@ export class App {
         if (ch >= p.channels) break;
         const cell = cb.cells[dr][dc], i = p.idx(r, ch);
         p.notes[i] = cell.note; p.inst[i] = cell.inst; p.vol[i] = cell.vol;
+        p.fxCmd[i] = cell.fxCmd ?? NO_FX; p.fxVal[i] = cell.fxVal ?? 0;
       }
     }
   }
@@ -802,6 +958,7 @@ export class App {
     const tick = () => {
       this.view.draw();
       this._drawVisualizer();
+      this._syncKnobs();
 
       // Reflect play/pause state in button class/text
       if (playBtn) {

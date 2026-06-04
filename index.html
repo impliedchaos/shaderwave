@@ -810,6 +810,71 @@
     gap: 8px;
   }
 
+  .fx-col-btn {
+    background: rgba(22, 30, 46, 0.6);
+    border: 1px solid var(--panel-border);
+    color: var(--dim);
+    border-radius: 4px;
+    padding: 4px 10px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  .fx-col-btn:hover { border-color: #ffb700; color: #ffb700; }
+  .fx-col-btn.on {
+    border-color: #ffb700;
+    color: #ffb700;
+    background: rgba(255, 183, 0, 0.12);
+    box-shadow: 0 0 8px rgba(255, 183, 0, 0.4);
+  }
+
+  /* Automation target picker (modal over the grid) */
+  .fx-picker-overlay {
+    position: fixed; inset: 0; z-index: 1000;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(2, 4, 8, 0.55);
+  }
+  .fx-picker {
+    width: 320px; max-height: 70vh; display: flex; flex-direction: column;
+    background: rgba(10, 15, 26, 0.98);
+    border: 1px solid #ffb700;
+    border-radius: 8px;
+    box-shadow: 0 0 30px rgba(255, 183, 0, 0.25);
+    padding: 12px; gap: 8px;
+  }
+  .fx-picker-title {
+    font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 700;
+    color: #ffb700; letter-spacing: 0.8px; text-transform: uppercase;
+  }
+  .fx-picker-input {
+    background: rgba(3, 5, 8, 0.8); border: 1px solid rgba(45, 60, 85, 0.6);
+    border-radius: 4px; color: var(--text); font-family: 'JetBrains Mono', monospace;
+    font-size: 13px; padding: 6px 8px; outline: none;
+  }
+  .fx-picker-input:focus { border-color: #ffb700; box-shadow: 0 0 8px rgba(255, 183, 0, 0.3); }
+  .fx-picker-list { list-style: none; margin: 0; padding: 0; overflow-y: auto; flex: 1; }
+  .fx-picker-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 6px 8px; border-radius: 4px; cursor: pointer;
+    font-family: 'JetBrains Mono', monospace; font-size: 13px;
+  }
+  .fx-picker-item .fx-code { color: #5fd3ff; font-weight: 700; width: 38px; }
+  .fx-picker-item.fx .fx-code { color: #ffb700; }
+  .fx-picker-item .fx-label { color: var(--text); flex: 1; }
+  .fx-picker-item .fx-tag {
+    font-size: 9px; color: #ffb700; border: 1px solid rgba(255,183,0,0.5);
+    border-radius: 3px; padding: 1px 4px; text-transform: uppercase;
+  }
+  .fx-picker-item.sel { background: rgba(255, 183, 0, 0.16); }
+  .fx-picker-hint {
+    font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--dim);
+    border-top: 1px solid rgba(45,60,85,0.4); padding-top: 6px;
+  }
+
   .pat-nav-btn {
     background: rgba(22, 30, 46, 0.6);
     border: 1px solid var(--panel-border);
@@ -1078,7 +1143,7 @@
       <span id="volume-val" class="vol-val">32%</span>
     </div>
     <div class="spacer"></div>
-    <span class="hint">Z–M = keys · [ / ] = oct · Shift+↑/↓ = vol · Space = play/stop · ? = help</span>
+    <span class="hint">Z–M = keys · [ / ] = oct · Shift+↑/↓ = vol · F = FX col · Space = play/stop · ? = help</span>
   </header>
   <div id="main">
     <div id="tracker">
@@ -1098,6 +1163,8 @@
           <button id="play-pattern" class="play-pattern-btn">🔁 Play Pattern</button>
           <div class="toolbar-divider"></div>
           <label class="toolbar-label">Length <input id="pattern-len" class="toolbar-input" type="number" value="128" min="1" max="256" /></label>
+          <div class="toolbar-divider"></div>
+          <button id="fx-col-btn" class="fx-col-btn" title="Show/hide the automation (FX) column — shortcut: F">FX Col</button>
         </div>
         <div style="flex: 1; min-height: 0; position: relative; display: flex; flex-direction: column;">
           <canvas id="grid"></canvas>

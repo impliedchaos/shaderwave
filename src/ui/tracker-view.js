@@ -1,7 +1,8 @@
 // Canvas-rendered pattern grid: row numbers down the left, one column per
 // channel showing note + instrument, with a cursor cell and a moving playhead
 // row. Pure rendering + cursor/hit-testing; key handling lives in main.js.
-import { EMPTY, OFF } from '../tracker/pattern.js';
+import { EMPTY, OFF, NO_FX } from '../tracker/pattern.js';
+import { targetById } from '../tracker/automation.js';
 import { themeVar } from './theme.js';
 
 const NOTE_NAMES = ['C-', 'C#', 'D-', 'D#', 'E-', 'F-', 'F#', 'G-', 'G#', 'A-', 'A#', 'B-'];
@@ -26,12 +27,21 @@ const COL_W = [36, 32, CH_W - 72];
 // Text inset within each field (note is padded slightly more than inst/vol).
 const COL_TEXT_PAD = [6, 4, 4];
 
+// Optional automation column, appended after volume when `showFx` is on. It has
+// two cursor sub-fields: the command (target code) and the value (2 hex digits).
+// cols 3 = command, 4 = value. Offsets are relative to the channel's start-x.
+const FX_W = 56;
+const FX_COL_X = [CH_W + 2, CH_W + 32];
+const FX_COL_W = [30, 22];
+const FX_TEXT_PAD = [4, 2];
+
 export class TrackerView {
   constructor(canvas, engine) {
     this.canvas = canvas;
     this.engine = engine;
     this.ctx = canvas.getContext('2d');
-    this.cursor = { row: 0, ch: 0, col: 0 };   // col: 0 note · 1 instrument · 2 volume
+    this.cursor = { row: 0, ch: 0, col: 0 };   // col: 0 note · 1 inst · 2 vol · 3 fx-cmd · 4 fx-val
+    this.showFx = true;                         // automation column shown by default
     this.selection = null;                      // { r0, c0, r1, c1 } (normalized) or null
     this._dragAnchor = null;
     this.scroll = 0;                            // top visible row (when stopped)
@@ -51,6 +61,17 @@ export class TrackerView {
     return this.engine.song.patterns[this.engine.currentPatternIdx] || this.engine.song.patterns[0];
   }
 
+  // Full per-channel column stride (note/inst/vol + the optional fx column).
+  get chW() { return CH_W + (this.showFx ? FX_W : 0); }
+  // Highest valid cursor sub-column (4 when the fx column is shown, else 2).
+  get maxCol() { return this.showFx ? 4 : 2; }
+
+  // Toggle the automation column; clamp the cursor back into range when hiding.
+  toggleFx() {
+    this.showFx = !this.showFx;
+    if (!this.showFx && this.cursor.col > 2) this.cursor.col = 2;
+  }
+
   _resize() {
     const r = this.canvas.getBoundingClientRect();
     this.canvas.width = Math.floor(r.width * this.dpr);
@@ -61,12 +82,15 @@ export class TrackerView {
   _cellAt(e) {
     const r = this.canvas.getBoundingClientRect();
     const x = e.clientX - r.left, y = e.clientY - r.top;
-    const p = this.pattern;
-    const ch = Math.max(0, Math.min(p.channels - 1, Math.floor((x - NUM_W) / CH_W)));
+    const p = this.pattern, cw = this.chW;
+    const ch = Math.max(0, Math.min(p.channels - 1, Math.floor((x - NUM_W) / cw)));
     const row = Math.max(0, Math.min(p.rows - 1,
       Math.floor((y - this._topPad()) / ROW_H) + this._firstVisibleRow()));
-    const local = (x - NUM_W) - ch * CH_W;
-    const col = local >= COL_X[2] ? 2 : local >= COL_X[1] ? 1 : 0;
+    const local = (x - NUM_W) - ch * cw;
+    let col;
+    if (this.showFx && local >= FX_COL_X[1]) col = 4;
+    else if (this.showFx && local >= FX_COL_X[0]) col = 3;
+    else col = local >= COL_X[2] ? 2 : local >= COL_X[1] ? 1 : 0;
     return { row, ch, col };
   }
 
@@ -77,7 +101,7 @@ export class TrackerView {
 
     // Click on channel header toggles mute state.
     if (y >= 0 && y < this._topPad()) {
-      const ch = Math.floor((x - NUM_W) / CH_W);
+      const ch = Math.floor((x - NUM_W) / this.chW);
       if (ch >= 0 && ch < p.channels) this.engine.muted[ch] = !this.engine.muted[ch];
       return;
     }
@@ -109,8 +133,11 @@ export class TrackerView {
     };
   }
 
-  // x-rect of a cursor sub-field (note/inst/vol) within a channel column at x.
-  static colRect(x, col) {
+  // [x, width] of a cursor sub-field within a channel column whose left edge is x.
+  // cols 0-2 = note/inst/vol; 3 = fx command; 4 = fx value.
+  _colRect(x, col) {
+    if (col === 3) return [x + FX_COL_X[0], FX_COL_W[0]];
+    if (col === 4) return [x + FX_COL_X[1], FX_COL_W[1]];
     return [x + COL_X[col], COL_W[col]];
   }
 
@@ -146,7 +173,7 @@ export class TrackerView {
   }
 
   draw() {
-    const ctx = this.ctx, dpr = this.dpr, p = this.pattern;
+    const ctx = this.ctx, dpr = this.dpr, p = this.pattern, cw = this.chW;
     ctx.save();
     ctx.scale(dpr, dpr);
     const W = this.canvas.width / dpr, H = this.canvas.height / dpr;
@@ -207,7 +234,7 @@ export class TrackerView {
     ctx.lineWidth = 1;
     ctx.beginPath();
     for (let ch = 0; ch <= p.channels; ch++) {
-      const dividerX = NUM_W + ch * CH_W;
+      const dividerX = NUM_W + ch * cw;
       ctx.moveTo(dividerX, 0);
       ctx.lineTo(dividerX, H);
     }
@@ -216,8 +243,8 @@ export class TrackerView {
     // 3b. Draw drag-selection block (under the cursor highlight).
     if (this.selection) {
       const s = this.selection;
-      const sx = NUM_W + s.c0 * CH_W;
-      const sw = (s.c1 - s.c0 + 1) * CH_W;
+      const sx = NUM_W + s.c0 * cw;
+      const sw = (s.c1 - s.c0 + 1) * cw;
       ctx.fillStyle = 'rgba(140, 175, 255, 0.18)';
       for (let i = 0; i < viewRows; i++) {
         const row = first + i;
@@ -235,8 +262,8 @@ export class TrackerView {
       
       for (let ch = 0; ch < p.channels; ch++) {
         if (row === this.cursor.row && ch === this.cursor.ch) {
-          const x = NUM_W + ch * CH_W;
-          const [fx, fw] = TrackerView.colRect(x, this.cursor.col);
+          const x = NUM_W + ch * cw;
+          const [fx, fw] = this._colRect(x, this.cursor.col);
           ctx.fillStyle = C('--cursor');
           ctx.fillRect(fx + 0.5, y + 0.5, fw - 1, ROW_H - 1);
           ctx.strokeStyle = C('--cursor-border');
@@ -261,7 +288,7 @@ export class TrackerView {
     ctx.moveTo(0, pad);
     ctx.lineTo(W, pad);
     for (let ch = 0; ch <= p.channels; ch++) {
-      const dividerX = NUM_W + ch * CH_W;
+      const dividerX = NUM_W + ch * cw;
       ctx.moveTo(dividerX, 0);
       ctx.lineTo(dividerX, pad);
     }
@@ -309,14 +336,14 @@ export class TrackerView {
     };
 
     for (let ch = 0; ch < p.channels; ch++) {
-      const x = NUM_W + ch * CH_W;
+      const x = NUM_W + ch * cw;
       const isMuted = this.engine.muted[ch];
 
       ctx.fillStyle = isMuted ? 'rgba(106, 124, 150, 0.4)' : C('--dim');
       ctx.font = 'bold 13px "Rajdhani", sans-serif';
       ctx.fillText(`CH ${ch + 1}`, x + 8, pad / 2);
 
-      drawBadge(x + CH_W - 38, pad / 2 - 6, 30, 12, isMuted ? 'MUT' : 'ON', isMuted);
+      drawBadge(x + cw - 38, pad / 2 - 6, 30, 12, isMuted ? 'MUT' : 'ON', isMuted);
     }
 
     ctx.font = '14px "JetBrains Mono", "Fira Code", monospace';
@@ -330,7 +357,7 @@ export class TrackerView {
       ctx.fillText(String(row).padStart(2, '0'), 8, y + ROW_H / 2);
 
       for (let ch = 0; ch < p.channels; ch++) {
-        const x = NUM_W + ch * CH_W;
+        const x = NUM_W + ch * cw;
         const noteX = x + COL_X[0] + COL_TEXT_PAD[0];
         const instX = x + COL_X[1] + COL_TEXT_PAD[1];
         const volX = x + COL_X[2] + COL_TEXT_PAD[2];
@@ -380,6 +407,28 @@ export class TrackerView {
             ctx.fillStyle = isMuted ? 'rgba(45, 58, 82, 0.15)' : C('--grid');
             ctx.fillText('··', instX, y + ROW_H / 2);
             ctx.fillText('··', volX, y + ROW_H / 2);
+          }
+        }
+
+        // Automation column (independent of the note in this cell).
+        if (this.showFx) {
+          const fi = p.idx(row, ch);
+          const cmdX = x + FX_COL_X[0] + FX_TEXT_PAD[0];
+          const valX = x + FX_COL_X[1] + FX_TEXT_PAD[1];
+          const fxId = p.fxCmd[fi];
+          if (fxId === NO_FX) {
+            ctx.fillStyle = isMuted ? 'rgba(45, 58, 82, 0.15)' : C('--grid');
+            ctx.fillText('···', cmdX, y + ROW_H / 2);
+            ctx.fillText('··', valX, y + ROW_H / 2);
+          } else {
+            const t = targetById(fxId);
+            const hex = p.fxVal[fi].toString(16).toUpperCase().padStart(2, '0');
+            // fx-scope commands are track-wide for the engine → amber to flag it;
+            // inst-scope (per-channel) → cyan.
+            ctx.fillStyle = isMuted ? 'rgba(106, 124, 150, 0.3)'
+              : (t && t.scope === 'fx') ? '#ffb700' : '#5fd3ff';
+            ctx.fillText(t ? t.code : '???', cmdX, y + ROW_H / 2);
+            ctx.fillText(hex, valX, y + ROW_H / 2);
           }
         }
       }

@@ -1,6 +1,7 @@
 import { Pattern, OFF, EMPTY } from './pattern.js';
 import { INSTRUMENTS } from '../constants.js';
 import { defaultFxParams } from '../gl/effects.js';
+import { targetByCode, normByte } from './automation.js';
 
 // Default per-instrument param banks (p0, p1). See each shader for the layout.
 export function defaultParams() {
@@ -2566,36 +2567,63 @@ export const DEMO_SONGS = [
         }
       };
 
+      // Cutoff filter sweep on a 303 channel: a triangle LFO between loHz/hiHz
+      // over `cycles` open-close passes per pattern. Endpoints come from the CUT
+      // target's own log mapping so they're exact. Written on every row so it
+      // overrides each note's cutoff snapshot — the whole line breathes.
+      const CUT = targetByCode('303', 'CUT');
+      const sweep = (pat, ch, loHz, hiHz, cycles) => {
+        const lo = normByte(CUT, loHz), hi = normByte(CUT, hiHz);
+        for (let r = 0; r < ROWS; r++) {
+          const phase = ((r / ROWS) * cycles) % 1;
+          const tri = phase < 0.5 ? phase * 2 : 2 - phase * 2;
+          pat.setFx(r, ch, CUT.id, Math.round(lo + (hi - lo) * tri));
+        }
+      };
+      // Acid Bass (ch 4) sweeps 55–452 Hz, one wah per bar; Screamer (ch 5)
+      // sweeps 94–544 Hz, a slower pass every two bars.
+      const bassSweep = (pat) => sweep(pat, 4, 55, 452, 4);
+      const leadSweep = (pat) => sweep(pat, 5, 94, 544, 2);
+
       drums(P[0], { kick: true, clap: false, hats: true, opens: false });            // intro
 
       drums(P[1], { clap: false });                                                   // bass enters
       bass(P[1], 4, I_BASS, 0, 0.8);
+      bassSweep(P[1]);
 
       drums(P[2], {});                                                                // full groove
       bass(P[2], 4, I_BASS, 0, 0.88);
+      bassSweep(P[2]);
       sub(P[2], 6, I_SUB, 0.8);
 
       drums(P[3], {});                                                                // lead variation
       bass(P[3], 4, I_BASS, 0, 0.88);
+      bassSweep(P[3]);
       sub(P[3], 6, I_SUB, 0.8);
       lead(P[3], 5, I_LEAD, 2, 0.8);
+      leadSweep(P[3]);
 
       drums(P[4], { kick: false, clap: false });                                      // breakdown
       bass(P[4], 4, I_BASS, 0, 0.8);
+      bassSweep(P[4]);
       stabs(P[4], 7, I_STAB, 2, 0.7);
 
       drums(P[5], { build: true });                                                   // drop / peak
       bass(P[5], 4, I_BASS, 0, 0.92);
+      bassSweep(P[5]);
       sub(P[5], 6, I_SUB, 0.85);
       lead(P[5], 5, I_LEAD, 2, 0.85);
+      leadSweep(P[5]);
 
       drums(P[6], {});                                                                // stab section
       bass(P[6], 4, I_BASS, 0, 0.88);
+      bassSweep(P[6]);
       sub(P[6], 6, I_SUB, 0.8);
       stabs(P[6], 7, I_STAB, 2, 0.72);
 
       drums(P[7], { clap: false });                                                   // outro
       bass(P[7], 4, I_BASS, 0, 0.7);
+      bassSweep(P[7]);
 
       return {
         patterns: P,
@@ -2720,6 +2748,178 @@ export const DEMO_SONGS = [
       return {
         patterns: p,
         order: [0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 3, 3, 5, 5, 4, 4, 2, 6, 6],
+        rowsPerBeat: 4
+      };
+    }
+  },
+  {
+    name: "Dextroamphetamine Suppository",
+    bpm: 137,
+    params: [
+      { name: "Acid 303", type: "303", p0: [420, 0.85, 0.55, 0.55], p1: [1, 0.4, 0.4, 0] },
+      {
+        name: "Rave Stab",
+        type: "dx7",
+        p0: [1, 2, 2.2, 0.4],
+        p1: [3, 0.5, 0.6, 2],
+        ops: [
+          { coarse: 1.0, fine: 0, level: 99, detune: 0,  decay: 0.5, mode: 0, sustain: 0.4, release: 0.3 },
+          { coarse: 2.0, fine: 0, level: 75, detune: 3,  decay: 0.4, mode: 0, sustain: 0.3, release: 0.3 },
+          { coarse: 3.0, fine: 0, level: 70, detune: -3, decay: 0.4, mode: 0, sustain: 0.3, release: 0.3 },
+          { coarse: 1.0, fine: 0, level: 60, detune: 5,  decay: 0.6, mode: 0, sustain: 0.5, release: 0.4 },
+          { coarse: 5.0, fine: 0, level: 0,  detune: 0,  decay: 0.5, mode: 0, sustain: 0.0, release: 0.3 },
+          { coarse: 6.0, fine: 0, level: 0,  detune: 0,  decay: 0.5, mode: 0, sustain: 0.0, release: 0.3 }
+        ]
+      },
+      { name: "808 Kit", type: "808", p0: [0, 0.55, 0.5, 0.7], p1: [0, 0, 0, 0] },
+      { name: "Sub Bass", type: "moog", p0: [180, 0.6, 0.7, 0], p1: [5, 0.7, 0.5, 0.6] }
+    ],
+    fxParams: {
+      '303': Object.assign(defaultFxParams(), { dist: 9.0, tone: 0.6, level: 0.9, master: 0.78, delayMix: 0.32, delayTime: 0.375, delayFeedback: 0.42, reverbMix: 0.15 }),
+      'dx7': Object.assign(defaultFxParams(), { chorusMix: 0.3, chorusRate: 1.0, chorusDepth: 2.0, delayMix: 0.2, delayTime: 0.5, delayFeedback: 0.35, reverbMix: 0.25, reverbDecay: 0.85, level: 1.0, master: 1.3 }),
+      '808': Object.assign(defaultFxParams(), { dist: 4.0, tone: 0.55, level: 1.0, master: 0.9 }),
+      'moog': Object.assign(defaultFxParams(), { dist: 3.0, tone: 0.5, level: 1.0, master: 0.9, reverbMix: 0.1 })
+    },
+    data: () => {
+      const I_303 = 0, I_dx7 = 1, I_808 = 2, I_moog = 3;
+      const BD = 36, CP = 39, CH = 42, OH = 46, MT = 45, HT = 48;
+
+      // Fun 8-bar progression (C major):
+      //   Cmaj7 | Am7 | Dm7 | G7 | Em7 | A7 | Dm7→G7 | Cmaj7
+      // A7 in bar 6 is the hook — a secondary dominant (V7/ii) that pulls
+      // somewhere unexpected before the ii-V turnaround reels it home.
+      // DX7 stab voicings are rootless (mid register); the sub bass owns the root.
+      const chords = [
+        [64, 67, 71], // Cmaj7  (E  G  B)
+        [60, 64, 67], // Am7    (C  E  G)
+        [65, 69, 72], // Dm7    (F  A  C)
+        [59, 62, 65], // G7     (B  D  F)
+        [55, 59, 62], // Em7    (G  B  D)
+        [61, 64, 67], // A7     (C# E  G)  <-- the lift
+        [65, 69, 72], // Dm7    (bar 7, first half)
+        [64, 67, 71]  // Cmaj7
+      ];
+      const bar7b = [59, 62, 65];                          // G7 (bar 7, second half)
+      const bassRoots = [36, 33, 38, 31, 40, 45, 38, 36];  // C2 A1 D2 G1 E2 A2 D2 C2
+      const bar7bRoot = 31;                                // G1
+      const acidRoots = [48, 45, 50, 43, 52, 45, 50, 48];  // an octave above the bass
+
+      // 16-step squelchy acid riff: semitone offsets from the bar's acid root.
+      const acidRiff = [0, 12, 0, 7, null, 0, 12, 3, 0, 7, null, 12, 0, 7, 0, 10];
+
+      const writeDrums = (pat, opt) => {
+        for (let bar = 0; bar < 8; bar++) {
+          const s = bar * 16;
+          if (opt.kick) {
+            pat.set(s + 0, 0, BD, I_808, 0.95);
+            pat.set(s + 4, 0, BD, I_808, 0.9);
+            pat.set(s + 8, 0, BD, I_808, 0.95);
+            pat.set(s + 12, 0, BD, I_808, 0.9);
+            if (opt.kickRoll) pat.set(s + 14, 0, BD, I_808, 0.6);
+          }
+          if (opt.clap) {
+            pat.set(s + 4, 1, CP, I_808, 0.7);
+            pat.set(s + 12, 1, CP, I_808, 0.7);
+          }
+          if (opt.hats) {
+            for (let r = 2; r < 16; r += 4) pat.set(s + r, 2, CH, I_808, 0.4);
+            if (opt.openHat) for (let r = 6; r < 16; r += 8) pat.set(s + r, 2, OH, I_808, 0.45);
+          }
+          if (opt.fill && bar === 7) {       // tom fill closing the phrase
+            pat.set(s + 8, 1, MT, I_808, 0.6);
+            pat.set(s + 10, 1, MT, I_808, 0.6);
+            pat.set(s + 12, 1, HT, I_808, 0.65);
+            pat.set(s + 14, 1, HT, I_808, 0.7);
+          }
+        }
+      };
+
+      const writeChords = (pat, vol, octave = 0) => {
+        const stab = (n, ch, row, end, v) => { pat.set(row, ch, n + 12 * octave, I_dx7, v); pat.set(end, ch, OFF, I_dx7); };
+        for (let bar = 0; bar < 8; bar++) {
+          const s = bar * 16;
+          if (bar === 6) {                   // bar 7: Dm7 then G7 (the quick two-step)
+            chords[6].forEach((n, i) => stab(n, 5 + i, s, s + 7, vol));
+            bar7b.forEach((n, i) => stab(n, 5 + i, s + 8, s + 15, vol));
+          } else {                           // off-the-floor house stabs on beats 1 & 3
+            chords[bar].forEach((n, i) => {
+              stab(n, 5 + i, s, s + 7, vol);
+              stab(n, 5 + i, s + 8, s + 15, vol * 0.85);
+            });
+          }
+        }
+      };
+
+      const writeBass = (pat, vol, octave = 0) => {
+        for (let bar = 0; bar < 8; bar++) {
+          const s = bar * 16;
+          for (let step = 0; step < 8; step++) {            // driving 8th notes
+            const row = s + step * 2;
+            const root = (bar === 6 && step >= 4) ? bar7bRoot : bassRoots[bar];
+            let note = root + 12 * octave;
+            if (step % 4 === 3) note += 12;                 // octave pop
+            pat.set(row, 3, note, I_moog, step % 2 === 0 ? vol : vol * 0.8);
+            pat.set(row + 1, 3, OFF, I_moog);
+          }
+        }
+      };
+
+      const writeAcid = (pat, vol, octave = 0) => {
+        for (let bar = 0; bar < 8; bar++) {
+          const s = bar * 16;
+          const root = acidRoots[bar] + 12 * octave;
+          for (let step = 0; step < 16; step++) {
+            const off = acidRiff[step];
+            if (off === null) continue;
+            pat.set(s + step, 4, root + off, I_303, step % 4 === 0 ? vol : vol * 0.7);
+            pat.set(s + step + 1, 4, OFF, I_303);           // staccato; next note overwrites
+          }
+        }
+      };
+
+      // Acid filter sweep: write a CUT automation command on every row of the 303
+      // channel (4), a triangle LFO between 129 Hz and 844 Hz over `cycles` full
+      // open/close passes per 128-row pattern. Bytes come from the registry's own
+      // log-curve mapping so the endpoints are exact. Because the command shares
+      // the row with each note, it overrides the note-on cutoff snapshot — so the
+      // whole acid line breathes regardless of the per-note retriggers.
+      const CUT = targetByCode('303', 'CUT');
+      const SWEEP_LO = normByte(CUT, 129);
+      const SWEEP_HI = normByte(CUT, 844);
+      const writeAcidSweep = (pat, cycles) => {
+        for (let r = 0; r < 128; r++) {
+          const phase = ((r / 128) * cycles) % 1;           // 0..1 ramp per cycle
+          const tri = phase < 0.5 ? phase * 2 : 2 - phase * 2;  // 0→1→0 triangle
+          pat.setFx(r, 4, CUT.id, Math.round(SWEEP_LO + (SWEEP_HI - SWEEP_LO) * tri));
+        }
+      };
+
+      const p = Array.from({ length: 7 }, () => new Pattern(128, 8));
+
+      // p0 intro — pad + sub, hats only
+      writeChords(p[0], 0.75); writeBass(p[0], 0.5);  writeDrums(p[0], { hats: true });
+      // p1 build — kick + acid join; one slow filter-open over the whole pattern
+      writeChords(p[1], 0.75); writeBass(p[1], 0.6);  writeAcid(p[1], 0.55); writeAcidSweep(p[1], 1);
+      writeDrums(p[1], { kick: true, hats: true });
+      // p2 main drop — everything; sweep wahs every 4 bars
+      writeChords(p[2], 0.8);  writeBass(p[2], 0.7);  writeAcid(p[2], 0.7);  writeAcidSweep(p[2], 2);
+      writeDrums(p[2], { kick: true, clap: true, hats: true, openHat: true });
+      // p3 variation — acid up an octave + fill; faster sweep (every 2 bars)
+      writeChords(p[3], 0.8);  writeBass(p[3], 0.7);  writeAcid(p[3], 0.7, 1); writeAcidSweep(p[3], 4);
+      writeDrums(p[3], { kick: true, clap: true, hats: true, openHat: true, fill: true, kickRoll: true });
+      // p4 breakdown — pad + acid only, no kick; one long filter open (tension)
+      writeChords(p[4], 0.85);                         writeAcid(p[4], 0.6);  writeAcidSweep(p[4], 1);
+      writeDrums(p[4], { hats: true });
+      // p5 peak — full throttle, acid octave up, roll + fill; wide double sweep
+      writeChords(p[5], 0.85); writeBass(p[5], 0.75); writeAcid(p[5], 0.75, 1); writeAcidSweep(p[5], 2);
+      writeDrums(p[5], { kick: true, clap: true, hats: true, openHat: true, kickRoll: true, fill: true });
+      // p6 outro — pad + sub fade, hats trailing
+      writeChords(p[6], 0.6);  writeBass(p[6], 0.45); writeDrums(p[6], { hats: true });
+
+      return {
+        patterns: p,
+        // intro→build→drop→variation→breakdown→drop→peak→breakdown→drop→peak→outro
+        order: [0, 1, 2, 2, 3, 4, 2, 3, 5, 5, 4, 2, 3, 5, 6],
         rowsPerBeat: 4
       };
     }
