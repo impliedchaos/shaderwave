@@ -65,7 +65,7 @@
   }
   
   header {
-    display: flex; align-items: center; flex-wrap: wrap; gap: 12px 20px;
+    display: flex; align-items: center; flex-wrap: wrap; gap: 4px 20px;
     padding: 14px 24px;
     background: rgba(8, 11, 18, 0.9);
     backdrop-filter: blur(12px);
@@ -74,6 +74,9 @@
     box-shadow: 0 4px 30px rgba(0, 0, 0, 0.7);
     z-index: 10;
   }
+
+  /* Full-width flex item: forces everything after it onto a new header row. */
+  .header-break { flex-basis: 100%; height: 0; }
   
   header h1 {
     font-family: var(--font-heading);
@@ -198,7 +201,7 @@
     cursor: pointer;
     outline: none;
     transition: color 0.5s ease;
-    max-width: 170px;
+    max-width: 320px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -1142,8 +1145,9 @@
       <button id="play" class="primary">▶ Play</button>
       <button id="stop">■ Stop</button>
     </div>
+    <div class="header-break"></div>
     <div class="lcd-display">
-      <label>SONG 
+      <label>SONG
         <select id="song-select">
           <option>Loading songs...</option>
         </select>
@@ -1161,7 +1165,6 @@
       <span id="volume-val" class="vol-val">32%</span>
     </div>
     <div class="spacer"></div>
-    <span class="hint">Z–M = keys · [ / ] = oct · Shift+↑/↓ = vol · F = FX col · Space = play/stop · ? = help</span>
   </header>
   <div id="main">
     <div id="tracker">
