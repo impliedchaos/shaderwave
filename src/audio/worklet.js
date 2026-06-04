@@ -18,7 +18,14 @@ class SynthSink extends AudioWorkletProcessor {
     this.port.onmessage = (e) => {
       const d = e.data;
       if (d.block) this.queue.push(d.block);
-      else if (d.cmd === 'reset') { this.queue.length = 0; this.head = 0; }
+      else if (d.cmd === 'reset') {
+        // Full reset: drop the queue AND realign the monotonic counters with the
+        // producer (which zeroes its own writtenFrames/consumedFrames on flush).
+        // Leaving `consumed` at its old value would make the next report clobber
+        // the producer's reset count and send the fill loop into a runaway.
+        this.queue.length = 0; this.head = 0;
+        this.consumed = 0; this.started = false; this.sinceReport = 0;
+      }
       else if (d.cmd === 'stats') this._report();
     };
   }

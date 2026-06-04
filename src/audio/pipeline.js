@@ -50,6 +50,7 @@ export class AudioPipeline {
   async start(produce) {
     this.produce = produce;
     await this.ctx.resume();
+    if (this._timer) clearInterval(this._timer);   // never run two fill timers
     this._fill();                                  // prime before the first callback
     this._timer = setInterval(() => this._fill(), 4);
   }
@@ -57,6 +58,15 @@ export class AudioPipeline {
   stop() {
     if (this._timer) { clearInterval(this._timer); this._timer = null; }
     if (this.ctx) this.ctx.suspend();
+  }
+
+  // Drop the worklet's queued blocks and reset the producer's frame bookkeeping,
+  // so playback resumes cleanly (e.g. after an offline export) with no stale
+  // audio and no skewed queue-depth estimate.
+  flush() {
+    if (this.node) this.node.port.postMessage({ cmd: 'reset' });
+    this.writtenFrames = 0;
+    this.consumedFrames = 0;
   }
 
   // Top the worklet's queue back up to the target depth.

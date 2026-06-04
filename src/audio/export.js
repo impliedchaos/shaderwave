@@ -13,6 +13,17 @@ const $ = (id) => document.getElementById(id);
 // out instead of being clipped at the final note.
 const FX_TAIL_SECONDS = 2.0;
 
+// Return the app to a clean live-playback state after an export. Clears the
+// synth + FX state (so the export's reverb/delay/chorus tail doesn't bleed into
+// live audio), flushes the worklet's stale queue, and restarts the producer.
+async function restorePlayback(app, resumePlaying) {
+  app.engine.stop();
+  if (app.renderer) app.renderer.resetState();
+  app.pipeline.flush();
+  if (resumePlaying) app.engine.play();
+  if (app.pipeline.produce) await app.pipeline.start(app.pipeline.produce);
+}
+
 function sanitizeFilename(songName) {
   if (!songName) return 'untitled_song';
   return songName.toLowerCase().trim().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'untitled_song';
@@ -117,13 +128,7 @@ async function exportWav(app, filename, title, author) {
 
   let cancelled = false;
 
-  const restoreAudio = async () => {
-    if (app.pipeline.produce) {
-      await app.pipeline.start(app.pipeline.produce);
-    }
-    app.engine.stop();
-    if (wasPlaying && !cancelled) app.engine.play();
-  };
+  const restoreAudio = () => restorePlayback(app, wasPlaying && !cancelled);
 
   cancelBtn.onclick = () => {
     cancelled = true;
@@ -289,14 +294,7 @@ async function exportVideo(app, filename, title, author, includeVisualizer) {
   let cancelled = false;
 
   const cleanUp = () => {
-    app.engine.stop();
-    if (app.pipeline && app.pipeline.node) {
-      app.pipeline.node.port.postMessage({ cmd: 'reset' });
-    }
-    // Reset frame counters so the fill loop doesn't think the queue is
-    // already saturated from the export session's accumulated frames.
-    app.pipeline.writtenFrames = 0;
-    app.pipeline.consumedFrames = 0;
+    // Tear down the recording audio graph and restore normal monitoring.
     try {
       app.pipeline.analyser.disconnect(dest);
     } catch (e) {}
@@ -315,7 +313,8 @@ async function exportVideo(app, filename, title, author, includeVisualizer) {
       recordCanvas.parentNode.removeChild(recordCanvas);
     }
     overlay.style.display = 'none';
-    if (wasPlaying && !cancelled) app.engine.play();
+    // Clear state, flush the stale queue, and resume clean playback.
+    restorePlayback(app, wasPlaying && !cancelled);
   };
 
   cancelBtn.onclick = () => {
