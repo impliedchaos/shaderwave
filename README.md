@@ -66,11 +66,21 @@ envelope sweep and accent. Parameters: **Cutoff**, **Reso**, **EnvMod**,
 Analytical drum synthesis — swept-sine kick/toms, sine+noise snare, metallic
 hi-hats, clap, cowbell. Parameters: **Tone**, **Decay**, **Snappy**.
 
-### Moog — Analog Polysynth
+### Moog — Minimoog Model D
 
-3 detuned saw oscillators into a ladder filter with separate filter & amp
-ADSRs. Parameters: **Cutoff**, **Reso**, **EnvAmt**, **Detune**, **AmpSus**,
-**FiltDecay**, **AmpDecay**.
+A faithful Model D voice: three oscillators with independent **waveform**
+(triangle / saw / square / wide + narrow pulse) and **octave range** (32′–2′),
+mixed into a 4-pole transistor **ladder filter** with mixer overdrive,
+self-oscillation, and the Model D's uncompensated low-end loss as resonance
+climbs. Analog character comes from per-voice oscillator **drift** (a static
+detune plus a slow wander) and **exponential (RC-curve) contours** for the
+filter and amp envelopes. Also: **glide** (portamento), a **noise** source, and
+filter **keyboard tracking**.
+
+Parameters: **Cutoff**, **Reso**, **EnvAmt**, **KbdTrack**, **Detune**,
+**AmpSus**, **FiltDecay**, **AmpDecay**, per-oscillator **Wave** and **Oct**,
+**Glide**, and **Noise**. Glide and drift are computed analytically so
+oscillator phase stays continuous across render blocks with no extra state.
 
 ### DX7 — FM Synthesizer
 
@@ -87,10 +97,10 @@ SysEx data.
 
 ## Presets
 
-Each instrument ships with curated presets selectable from a dropdown in the
-sidebar. Presets set both the synth parameters and recommended effects settings
-(distortion, delay, reverb, chorus, etc.). Loading a demo song also syncs the
-full UI to the song's instrument/effect state.
+Each instrument ships with curated presets (defined in `src/ui/presets.js`)
+selectable from a dropdown in the sidebar. Presets set both the synth parameters
+and recommended effects settings (distortion, delay, reverb, chorus, etc.).
+Loading a demo song also syncs the full UI to the song's instrument/effect state.
 
 ## Effects Chain
 
@@ -221,7 +231,7 @@ src/gl/                    context, program helpers, SynthRenderer, shaders/
   shaders/*.glsl             raw GLSL, imported as strings via Vite's ?raw
   shaders/synth-303.glsl       acid bass synth
   shaders/synth-808.glsl       drum machine
-  shaders/synth-moog.glsl      analog polysynth
+  shaders/synth-moog.glsl      Minimoog Model D voice
   shaders/synth-dx7.glsl       6-op FM (all 32 algorithms)
   shaders/fx-distortion.glsl   DS-1 distortion stage
   shaders/fx-chorus-*.glsl     chorus ring update + tap
@@ -236,7 +246,7 @@ src/gl/                    context, program helpers, SynthRenderer, shaders/
 src/gl/effects.js          per-effect pass pipeline (data-driven chain order)
 src/audio/                 worklet.js (classic script), pipeline.js
 src/tracker/               pattern, song (+ demo songs), engine (BPM clock), automation (param-target registry)
-src/ui/                    tracker-view (canvas grid), controls (sidebar + SysEx loader)
+src/ui/                    tracker-view (canvas grid), controls (sidebar + SysEx loader), presets (instrument preset bank)
 public/sysex/DX7/          .syx patch banks (ROM 1A–4B, Bass)
 test/                      headless GLSL / render / audio harnesses
 ```
@@ -271,4 +281,3 @@ google-chrome --headless=new --enable-unsafe-swiftshader --dump-dom \
   byte is already CC-ready) and live recording of CC moves into the fx column.
 - Save/load functionality to export and import song data as JSON.
 - Instrument editor for creating and editing instrument patches from scratch.
-- Update Moog instrument to be a faithful representation of a Mini-Moog Model D.
