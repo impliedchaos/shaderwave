@@ -202,6 +202,22 @@ export const DEMO_SONGS = [
         }
       };
 
+      // ---- automation helpers ----
+      // Resonance climb (303, inst-scope): rides the acid lead from smooth to
+      // screaming self-oscillation across the pattern.
+      const RES = targetByCode('303', 'RES');     // 0..0.98
+      const resClimb = (pat, ch, lo, hi) => {
+        const loB = normByte(RES, lo), hiB = normByte(RES, hi);
+        for (let r = 0; r < 128; r++) pat.setFx(r, ch, RES.id, Math.round(loB + (hiB - loB) * (r / 127)));
+      };
+      // Reverb swell (moog, fx-scope → track-wide for the engine): drenches the
+      // breakdown. Written on a live moog channel so it resolves to the moog chain.
+      const MRV = targetByCode('moog', 'RVM');    // reverbMix 0..1
+      const revSwell = (pat, ch, lo, hi) => {
+        const loB = normByte(MRV, lo), hiB = normByte(MRV, hi);
+        for (let r = 0; r < 128; r++) pat.setFx(r, ch, MRV.id, Math.round(loB + (hiB - loB) * (r / 127)));
+      };
+
       // Playback map details
       setGoonMoogBass(p0, 3, I_moogBass1, 0.75);
 
@@ -273,39 +289,22 @@ export const DEMO_SONGS = [
       setGoonDrums(p13, true, false, false);
       setGoonMoogBass(p13, 3, I_moogBass1, 0.75);
 
+      // ---- automation ----
+      // Acid leads scream upward in resonance through the lead sections (303 lead
+      // is on ch5, with a second lead on ch6 in p9).
+      resClimb(p8, 5, 0.60, 0.95);
+      resClimb(p9, 5, 0.65, 0.97); resClimb(p9, 6, 0.60, 0.95);
+      resClimb(p12, 5, 0.70, 0.97);
+      // The breakdown (p10) drowns the moog in reverb; the riser (p11) snaps it
+      // dry again on its first row so the drop hits clean.
+      revSwell(p10, 3, 0.40, 0.85);
+      p11.setFx(0, 3, MRV.id, normByte(MRV, 0.40));
+
       return {
         patterns: [p0, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13],
         order: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 12, 13],
         rowsPerBeat: 4
       };
-    }
-  },
-  {
-    name: "Darkwave Electro",
-    bpm: 112,
-    params: makeParams({
-      '303': { p0: [600, 0.8, 0.7, 0.4], p1: [1, 0.25, 0.3, 0] }
-    }),
-    fxParams: makeFx({
-      '808': { drive: 1.8, reverbMix: 0.2 },
-      '303': { drive: 2.0, delayMix: 0.2 }
-    }),
-    data: () => {
-      const p = new Pattern(128, 8);
-      for (let r = 0; r < 128; r += 16) {
-        p.set(r, 0, 36, I['808'], 1.0);
-        p.set(r + 3, 0, 36, I['808'], 0.8);
-        p.set(r + 8, 0, 36, I['808'], 0.9);
-        p.set(r + 11, 0, 36, I['808'], 0.75);
-        p.set(r + 4, 1, 38, I['808'], 0.95);
-        p.set(r + 12, 1, 38, I['808'], 0.95);
-      }
-      const bass = [40, 40, 43, 40, 45, 40, 43, 40];
-      for (let r = 0; r < 128; r += 2) {
-        const step = Math.floor(r / 2) % bass.length;
-        p.set(r, 4, bass[step], I['moog'], 0.85);
-      }
-      return makeDemoPatterns(p);
     }
   },
   {
@@ -2743,6 +2742,25 @@ export const DEMO_SONGS = [
         }
       };
 
+      // ---- automation ----
+      // A slow pad "filter breath" (moog cutoff) and an evolving FM brightness on
+      // the harp (dx7 mod index). Both are inst-scope, so they ride the live voice
+      // and reset cleanly at each note — the pad sweep rides its sustained chords.
+      const CUT = targetByCode('moog', 'CUT');   // log 30..6000 Hz
+      const MOD = targetByCode('dx7', 'MOD');     // FM mod index 0..12
+      const padBreath = (pat, loHz, hiHz) => {
+        const lo = normByte(CUT, loHz), hi = normByte(CUT, hiHz);
+        for (let r = 0; r < 64; r++) {
+          const s = 0.5 - 0.5 * Math.cos((r / 64) * Math.PI * 2);   // one open/close per pattern
+          const byte = Math.round(lo + (hi - lo) * s);
+          for (let ch = 0; ch < 4; ch++) pat.setFx(r, ch, CUT.id, byte);
+        }
+      };
+      const harpBrighten = (pat, loIdx, hiIdx) => {
+        const lo = normByte(MOD, loIdx), hi = normByte(MOD, hiIdx);
+        for (let r = 0; r < 64; r++) pat.setFx(r, 4, MOD.id, Math.round(lo + (hi - lo) * (r / 63)));
+      };
+
       writeProgression(p[0], { padVol: 0.55, bassVol: 0, harpVol: 0, drums: false, harpOctave: 1 });
       writeProgression(p[1], { padVol: 0.6, bassVol: 0.55, harpVol: 0, drums: false, harpOctave: 1 });
       writeProgression(p[2], { padVol: 0.6, bassVol: 0.6, harpVol: 0.5, drums: false, harpOctave: 1 });
@@ -2750,6 +2768,16 @@ export const DEMO_SONGS = [
       writeProgression(p[4], { padVol: 0.65, bassVol: 0.65, harpVol: 0.6, drums: true, harpOctave: 2 });
       writeProgression(p[5], { padVol: 0.55, bassVol: 0.45, harpVol: 0.4, drums: false, harpOctave: 1 });
       writeProgression(p[6], { padVol: 0.4, bassVol: 0, harpVol: 0, drums: false, harpOctave: 1 });
+
+      // Pad breathes wider, and the harp's FM grows brighter, as the track builds
+      // to the p4 climax — then both ease back for the comedown and fade.
+      padBreath(p[0], 240, 650);
+      padBreath(p[1], 250, 800);
+      padBreath(p[2], 280, 950);  harpBrighten(p[2], 2.0, 4.0);
+      padBreath(p[3], 300, 1100); harpBrighten(p[3], 2.5, 5.0);
+      padBreath(p[4], 350, 1500); harpBrighten(p[4], 3.0, 6.5);   // climax: widest sweep, brightest FM
+      padBreath(p[5], 260, 750);  harpBrighten(p[5], 2.0, 3.5);
+      padBreath(p[6], 220, 500);
 
       return {
         patterns: p,
