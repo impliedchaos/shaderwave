@@ -80,10 +80,7 @@ export class SynthRenderer {
       gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, it.stateWrite, 0);
       gl.clear(gl.COLOR_BUFFER_BIT);
 
-      it.fx._clear(it.fx.delayRead);
-      it.fx._clear(it.fx.delayWrite);
-      it.fx._clear(it.fx.fdnRead);
-      it.fx._clear(it.fx.fdnWrite);
+      it.fx.reset();
     }
     gl.deleteFramebuffer(fbo);
   }

@@ -90,11 +90,16 @@ full UI to the song's instrument/effect state.
 ## Effects Chain
 
 A second shader stage runs between the synth mix and the audio readback. All
-effects are editable from the **Master FX** panel.
+effects are editable from the **Instrument FX** panel.
 
 ```
 input → Distortion → Chorus → Tremolo → Delay → Reverb → Bitcrusher → Width → Master Out
 ```
+
+Each effect is its own GPU pass over a `BLOCK × 1` stereo buffer; the chain runs
+in a data-driven order (`DEFAULT_FX_ORDER` in `src/gl/effects.js`), so the signal
+flow can be rearranged just by reordering that list. A terminal master pass
+applies the output gain and additively accumulates each instrument's result.
 
 ### Distortion — Boss DS-1 Emulation
 
@@ -159,7 +164,9 @@ Per render block the GPU runs:
    per voice). MRT also writes recursive filter state, ping-ponged across blocks.
 2. **Mix pass** → sums all voice rows with gain + equal-power pan into one stereo
    row (`BLOCK × 1`).
-3. **Effects pass** → distortion, chorus, tremolo, delay, reverb, width.
+3. **Effects pass** → one pass per effect over a `BLOCK × 1` stereo buffer, run in
+   a data-driven order (distortion → chorus → tremolo → delay → reverb →
+   bitcrusher → width → master).
 4. **Readback** (`readPixels`) → interleaved stereo `Float32Array` → ring buffer.
 
 The recursive ladder filter (303, Moog) can't be parallelised trivially, so each
@@ -181,12 +188,17 @@ src/gl/                    context, program helpers, SynthRenderer, shaders/
   shaders/synth-808.glsl       drum machine
   shaders/synth-moog.glsl      analog polysynth
   shaders/synth-dx7.glsl       6-op FM (all 32 algorithms)
-  shaders/fx-output.glsl       distortion, chorus, tremolo, width, master
-  shaders/fx-delay-update.glsl stereo delay ring
-  shaders/fx-fdn-update.glsl   FDN reverb
+  shaders/fx-distortion.glsl   DS-1 distortion stage
+  shaders/fx-chorus-*.glsl     chorus ring update + tap
+  shaders/fx-tremolo.glsl      auto-pan tremolo stage
+  shaders/fx-delay-*.glsl      stereo delay ring update + tap
+  shaders/fx-fdn-*.glsl        FDN reverb ring update + tap
+  shaders/fx-bitcrush.glsl     bit-depth / sample-rate crush stage
+  shaders/fx-width.glsl        mid/side stereo width stage
+  shaders/fx-master.glsl       master gain + additive accumulate
   shaders/mix.glsl             voice mixdown
   shaders/common.glsl          shared ADSR, noise, filter utilities (the prelude)
-src/gl/effects.js          effects chain orchestration
+src/gl/effects.js          per-effect pass pipeline (data-driven chain order)
 src/audio/                 worklet.js (classic script), pipeline.js
 src/tracker/               pattern, song (+ demo songs), engine (BPM clock)
 src/ui/                    tracker-view (canvas grid), controls (sidebar + SysEx loader)

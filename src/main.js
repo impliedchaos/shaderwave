@@ -33,20 +33,13 @@ const KEY_SEMI = {
 const DRUM_KEYS = [36, 38, 42, 46, 39, 41, 45, 48, 56];
 
 // FX panel layout: category headers (with bypass toggle) interleaved with knob
-// rows. Static, so it lives at module scope rather than being rebuilt per call.
+// rows. Ordered to follow the signal-flow chain (see DEFAULT_FX_ORDER in
+// effects.js). Static, so it lives at module scope rather than rebuilt per call.
 const FX_DEFS = [
   { category: 'Distortion', enableKey: 'distOn' },
   { label: 'Tone', key: 'tone', min: 0, max: 1, step: 0.01 },
   { label: 'Level', key: 'level', min: 0, max: 2, step: 0.01 },
   { label: 'Dist', key: 'dist', min: 0.001, max: 20, step: 0.1 },
-
-  { category: 'Bitcrusher', enableKey: 'bitcrushOn' },
-  { label: 'Crush Bits', key: 'bitcrushBits', min: 1, max: 16, step: 1 },
-  { label: 'Crush Hz', key: 'bitcrushRate', min: 100, max: 22000, step: 100 },
-
-  { category: 'Stereo Field & Output', enableKey: 'widthOn' },
-  { label: 'Width', key: 'width', min: 0, max: 2, step: 0.01 },
-  { label: 'Master', key: 'master', min: 0, max: 1.5, step: 0.01 },
 
   { category: 'Stereo Chorus', enableKey: 'chorusOn' },
   { label: 'Cho Mix', key: 'chorusMix', min: 0, max: 1, step: 0.01 },
@@ -66,6 +59,14 @@ const FX_DEFS = [
   { label: 'Rev Decay', key: 'reverbDecay', min: 0, max: 0.97, step: 0.01 },
   { label: 'Rev Damp', key: 'reverbDamp', min: 0, max: 0.95, step: 0.01 },
   { label: 'Rev Mix', key: 'reverbMix', min: 0, max: 1, step: 0.01 },
+
+  { category: 'Bitcrusher', enableKey: 'bitcrushOn' },
+  { label: 'Crush Bits', key: 'bitcrushBits', min: 1, max: 16, step: 1 },
+  { label: 'Crush Hz', key: 'bitcrushRate', min: 100, max: 22000, step: 100 },
+
+  { category: 'Stereo Field & Output', enableKey: 'widthOn' },
+  { label: 'Width', key: 'width', min: 0, max: 2, step: 0.01 },
+  { label: 'Master', key: 'master', min: 0, max: 1.5, step: 0.01 },
 ];
 
 export class App {
