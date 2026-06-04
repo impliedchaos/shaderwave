@@ -51,7 +51,7 @@ export class Engine {
       p1: new Float32Array(VOICES * 4),
       gain: new Float32Array(VOICES).fill(1),
       pan: new Float32Array(VOICES).fill(0.5),
-      master: 0.32,
+      master: 0.5,
       // Per-voice DX7 operator config, packed into two vec4 arrays (keeps the
       // fragment-uniform count low vs 8 scalar arrays). Indexed [v*6 + op]:
       //   A = (coarse, fine, level, detune)   B = (mode, sustain, release, decay)
