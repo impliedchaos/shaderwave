@@ -106,7 +106,7 @@ export class Controls {
         romSelect.appendChild(opt);
       });
       romSelect.onchange = (e) => {
-        this.loadRom(e.target.value);
+        this.loadRom(e.target.value, true);
       };
     }
 
@@ -120,7 +120,7 @@ export class Controls {
     }
 
     // Load the first ROM initially
-    this.loadRom(DX7_ROMS[0].file);
+    this.loadRom(DX7_ROMS[0].file, false);
 
     this._buildAddMenu();
     this._buildInstruments();
@@ -242,14 +242,31 @@ export class Controls {
             match = false;
             break;
           }
-          if (op.coarse !== pop.coarse ||
-              op.fine !== pop.fine ||
-              op.level !== pop.level ||
-              op.detune !== pop.detune ||
-              Math.abs(op.decay - pop.decay) > 0.001 ||
-              (pop.mode !== undefined && op.mode !== pop.mode) ||
-              (pop.sustain !== undefined && Math.abs(op.sustain - pop.sustain) > 0.001) ||
-              (pop.release !== undefined && Math.abs(op.release - pop.release) > 0.001)) {
+          const opCoarse = op.coarse !== undefined ? op.coarse : 1.0;
+          const popCoarse = pop.coarse !== undefined ? pop.coarse : 1.0;
+          const opFine = op.fine !== undefined ? op.fine : 0;
+          const popFine = pop.fine !== undefined ? pop.fine : 0;
+          const opLevel = op.level !== undefined ? op.level : 0;
+          const popLevel = pop.level !== undefined ? pop.level : 0;
+          const opDetune = op.detune !== undefined ? op.detune : 0;
+          const popDetune = pop.detune !== undefined ? pop.detune : 0;
+          const opDecay = op.decay !== undefined ? op.decay : 0.5;
+          const popDecay = pop.decay !== undefined ? pop.decay : 0.5;
+          const opMode = op.mode !== undefined ? op.mode : 0;
+          const popMode = pop.mode !== undefined ? pop.mode : 0;
+          const opSustain = op.sustain !== undefined ? op.sustain : 0.7;
+          const popSustain = pop.sustain !== undefined ? pop.sustain : 0.7;
+          const opRelease = op.release !== undefined ? op.release : 0.25;
+          const popRelease = pop.release !== undefined ? pop.release : 0.25;
+
+          if (opCoarse !== popCoarse ||
+              opFine !== popFine ||
+              opLevel !== popLevel ||
+              opDetune !== popDetune ||
+              Math.abs(opDecay - popDecay) > 0.001 ||
+              opMode !== popMode ||
+              Math.abs(opSustain - popSustain) > 0.001 ||
+              Math.abs(opRelease - popRelease) > 0.001) {
             match = false;
             break;
           }
@@ -357,7 +374,7 @@ export class Controls {
     }
   }
 
-  async loadRom(filename) {
+  async loadRom(filename, autoLoadFirstPreset = false) {
     try {
       const response = await fetch(`./sysex/DX7/${filename}`);
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
@@ -365,10 +382,12 @@ export class Controls {
       const data = new Uint8Array(arrayBuffer);
       this.dx7Patches = this.parseSysex(data);
       
-      // If active instrument is dx7, refresh presets and select first
+      // If active instrument is dx7, refresh presets
       if (this._type === 'dx7') {
         this._populatePresets();
-        this.loadPreset(0);
+        if (autoLoadFirstPreset) {
+          this.loadPreset(0);
+        }
       }
     } catch (err) {
       console.error("Failed to load DX7 SysEx ROM:", err);
