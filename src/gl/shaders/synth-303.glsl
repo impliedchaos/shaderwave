@@ -4,7 +4,7 @@
 //
 // Params (per voice):
 //   uP0 = (cutoffHz, resonance 0..1, envMod 0..1, accent 0..1)
-//   uP1 = (wave[0=saw,1=square], filterDecay s, ampDecay s, _)
+//   uP1 = (wave[0=saw,1=square,2=triangle,3=sine,4=noise], filterDecay s, ampDecay s, _)
 
 void main(){
   int x = int(gl_FragCoord.x);
@@ -24,7 +24,12 @@ void main(){
     if (t < 0.0) continue;                       // before note-on: hold state
     float tRel = (float(i) - uOffRel[v]) / uSampleRate;
     float phase = fract(freq * t);
-    float osc = wave < 0.5 ? oscSaw(phase, dt) : (wave < 1.5 ? oscSquare(phase, dt, 0.5) : oscTri(phase));
+    float osc;
+    if      (wave < 0.5) osc = oscSaw(phase, dt);
+    else if (wave < 1.5) osc = oscSquare(phase, dt, 0.5);
+    else if (wave < 2.5) osc = oscTri(phase);
+    else if (wave < 3.5) osc = oscSine(phase);
+    else                 osc = noise1(uBlockStart + float(i));   // filtered by the ladder
 
     float fenv = exp(-t / max(fDecay, 0.01));     // classic downward sweep
     float amp  = adsr(t, tRel, 0.002, aDecay, 0.85, 0.06);

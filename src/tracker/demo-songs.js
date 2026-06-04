@@ -3117,5 +3117,130 @@ export const DEMO_SONGS = [
         rowsPerBeat: 4
       };
     }
+  },
+  {
+    name: "Tinnitus Cathedral",
+    bpm: 122,
+    params: [
+      { name: "808 Vault", type: "808", p0: [0, 0.45, 0.5, 0.5], p1: [0, 0, 0, 0] },
+      { name: "Sine Sub", type: "303", p0: [400, 0.0, 0.0, 0.0], p1: [3, 0.3, 0.6, 0] },         // wave 3 = sine, clean sub
+      { name: "Cathedral Acid", type: "303", p0: [500, 0.82, 0.7, 0.5], p1: [1, 0.3, 0.35, 0] }, // wave 1 = square
+      { name: "Resonant Wind", type: "303", p0: [300, 0.9, 0.0, 0.0], p1: [4, 0.5, 1.5, 0] },    // wave 4 = noise, high reso → whistling filtered noise
+      {
+        name: "Vault Pad", type: "moog",
+        p0: [350, 0.15, 0.3, 0.1], p1: [14, 0.9, 2.5, 2.5],
+        p2: [1, 1, 0, 0], p3: [2, 2, 1, 0.08]
+      }
+    ],
+    fxParams: {
+      '303': Object.assign(defaultFxParams(), { dist: 3.0, tone: 0.5, level: 1.0, master: 0.8, delayMix: 0.22, delayTime: 0.41, delayFeedback: 0.42, reverbMix: 0.32, reverbDecay: 0.92 }),
+      'dx7': defaultFxParams(),
+      '808': Object.assign(defaultFxParams(), { dist: 1.5, tone: 0.5, level: 1.0, master: 0.9, reverbMix: 0.16, reverbDecay: 0.85 }),
+      'moog': Object.assign(defaultFxParams(), { dist: 1.5, tone: 0.5, level: 1.0, master: 0.8, chorusMix: 0.3, reverbMix: 0.6, reverbDecay: 0.96 })
+    },
+    data: () => {
+      const I_808 = 0, I_sub = 1, I_acid = 2, I_noise = 3, I_pad = 4;
+      const BD = 36, CP = 39, CH = 42, OH = 46;
+
+      // 8-bar D-minor lament: Dm Dm Bb C | Dm Dm Gm A
+      const subRoots  = [38, 38, 34, 36, 38, 38, 31, 33];   // D2 D2 Bb1 C2 D2 D2 G1 A1
+      const acidRoots = [50, 50, 46, 48, 50, 50, 43, 45];
+      const padDyads  = [[62,69],[62,69],[58,65],[60,67],[62,69],[62,69],[55,62],[57,64]];
+      const acidRiff  = [0, 12, 0, 7, null, 10, 0, 3, 0, 7, null, 12, 0, 5, 0, 7];
+
+      const drums = (pat, o) => {
+        for (let bar = 0; bar < 8; bar++) {
+          const s = bar * 16;
+          if (o.kick) for (let b = 0; b < 16; b += 4) pat.set(s + b, 0, BD, I_808, b === 0 ? 0.96 : 0.9);
+          if (o.clap) { pat.set(s + 4, 1, CP, I_808, 0.65); pat.set(s + 12, 1, CP, I_808, 0.65); }
+          if (o.hats) { for (let b = 2; b < 16; b += 4) pat.set(s + b, 2, CH, I_808, 0.38); if (o.openHat) pat.set(s + 14, 2, OH, I_808, 0.42); }
+        }
+      };
+      const sub = (pat, vol) => {
+        for (let bar = 0; bar < 8; bar++) {
+          const s = bar * 16, root = subRoots[bar];
+          for (let b = 0; b < 16; b += 4) { pat.set(s + b, 3, root, I_sub, vol); pat.set(s + b + 3, 3, OFF, I_sub); }
+        }
+      };
+      const acid = (pat, vol, oct = 0) => {
+        for (let bar = 0; bar < 8; bar++) {
+          const s = bar * 16, root = acidRoots[bar] + 12 * oct;
+          for (let step = 0; step < 16; step++) {
+            const off = acidRiff[step];
+            if (off === null) continue;
+            pat.set(s + step, 4, root + off, I_acid, step % 4 === 0 ? vol : vol * 0.7);
+            pat.set(s + step + 1, 4, OFF, I_acid);
+          }
+        }
+      };
+      const pad = (pat, vol) => {
+        for (let bar = 0; bar < 8; bar++) {
+          const s = bar * 16;
+          padDyads[bar].forEach((n, i) => { pat.set(s, 6 + i, n, I_pad, vol); pat.set(s + 15, 6 + i, OFF, I_pad); });
+        }
+      };
+      // The noise 303 is unpitched, so one sustained voice per pattern is enough —
+      // the motion comes entirely from sweeping its cutoff (the resonant peak).
+      const wind = (pat, vol) => { pat.set(0, 5, 36, I_noise, vol); };
+
+      // ---- automation ----
+      const CUT3 = targetByCode('303', 'CUT'), RES3 = targetByCode('303', 'RES');
+      const CUTm = targetByCode('moog', 'CUT'), MRV = targetByCode('moog', 'RVM');
+      const ramp = (pat, ch, tgt, loB, hiB, shape) => {
+        for (let r = 0; r < 128; r++) {
+          let f;
+          if (shape === 'up') f = r / 127;
+          else if (shape === 'down') f = 1 - r / 127;
+          else f = 0.5 - 0.5 * Math.cos((r / 128) * Math.PI * 2);   // sine breath
+          pat.setFx(r, ch, tgt.id, Math.round(loB + (hiB - loB) * f));
+        }
+      };
+      const acidSweep = (pat, loHz, hiHz, cyc) => {
+        const lo = normByte(CUT3, loHz), hi = normByte(CUT3, hiHz);
+        for (let r = 0; r < 128; r++) { const ph = ((r / 128) * cyc) % 1; const t = ph < 0.5 ? ph * 2 : 2 - ph * 2; pat.setFx(r, 4, CUT3.id, Math.round(lo + (hi - lo) * t)); }
+      };
+      const acidScream = (pat, lo, hi) => ramp(pat, 4, RES3, normByte(RES3, lo), normByte(RES3, hi), 'up');
+      const windRiser  = (pat, loHz, hiHz) => ramp(pat, 5, CUT3, normByte(CUT3, loHz), normByte(CUT3, hiHz), 'up');
+      const windBreath = (pat, loHz, hiHz) => ramp(pat, 5, CUT3, normByte(CUT3, loHz), normByte(CUT3, hiHz), 'breath');
+      const windFall   = (pat, loHz, hiHz) => ramp(pat, 5, CUT3, normByte(CUT3, loHz), normByte(CUT3, hiHz), 'down');
+      const windHold   = (pat, hz) => { const b = normByte(CUT3, hz); for (let r = 0; r < 128; r++) pat.setFx(r, 5, CUT3.id, b); };
+      const padBreath  = (pat, loHz, hiHz, chans) => { const lo = normByte(CUTm, loHz), hi = normByte(CUTm, hiHz); for (let r = 0; r < 128; r++) { const sn = 0.5 - 0.5 * Math.cos((r / 128) * Math.PI * 2); const v = Math.round(lo + (hi - lo) * sn); for (const ch of chans) pat.setFx(r, ch, CUTm.id, v); } };
+      const revWash    = (pat, ch, lo, hi) => ramp(pat, ch, MRV, normByte(MRV, lo), normByte(MRV, hi), 'breath');
+
+      const p = Array.from({ length: 7 }, () => new Pattern(128, 8));
+
+      // p0 intro — pad + sub + drifting resonant wind
+      pad(p[0], 0.45); sub(p[0], 0.5); wind(p[0], 0.3);
+      padBreath(p[0], 200, 600, [6, 7]); windBreath(p[0], 200, 1000);
+      // p1 beat-in — kick, hats, acid (filtered low), wind rising slowly
+      pad(p[1], 0.5); sub(p[1], 0.6); acid(p[1], 0.45); wind(p[1], 0.25);
+      drums(p[1], { kick: true, hats: true });
+      padBreath(p[1], 250, 750, [6, 7]); acidSweep(p[1], 150, 600, 2); windBreath(p[1], 250, 1100);
+      // p2 groove — full kit
+      pad(p[2], 0.5); sub(p[2], 0.62); acid(p[2], 0.55); wind(p[2], 0.22);
+      drums(p[2], { kick: true, clap: true, hats: true, openHat: true });
+      padBreath(p[2], 280, 900, [6, 7]); acidSweep(p[2], 200, 900, 2); windBreath(p[2], 300, 1300);
+      // p3 build — the noise wave whooshes upward into the drop (the showcase riser)
+      pad(p[3], 0.52); sub(p[3], 0.7); acid(p[3], 0.6); wind(p[3], 0.32);
+      drums(p[3], { kick: true, clap: true, hats: true, openHat: true });
+      padBreath(p[3], 300, 1000, [6, 7]); acidSweep(p[3], 300, 1100, 4); windRiser(p[3], 150, 4000);
+      // p4 drop — acid screams, sub solid, wind sits as a bright resonant sizzle
+      pad(p[4], 0.55); sub(p[4], 0.72); acid(p[4], 0.72); wind(p[4], 0.26);
+      drums(p[4], { kick: true, clap: true, hats: true, openHat: true });
+      padBreath(p[4], 350, 1300, [6, 7]); acidScream(p[4], 0.6, 0.95); windHold(p[4], 1800);
+      // p5 breakdown — no drums; pad + sub + a vast wind sweep, moog drowned in reverb
+      pad(p[5], 0.5); sub(p[5], 0.5); wind(p[5], 0.36);
+      padBreath(p[5], 250, 850, [6]); windBreath(p[5], 200, 3000); revWash(p[5], 7, 0.4, 0.85);
+      // p6 outro — pad + sub fade, wind falling away
+      pad(p[6], 0.4); sub(p[6], 0.45); wind(p[6], 0.25);
+      padBreath(p[6], 200, 450, [6, 7]); windFall(p[6], 1200, 200);
+
+      return {
+        patterns: p,
+        // intro→beat→groove→riser→drop→groove→riser→drop→breakdown→groove→riser→drop→drop→outro
+        order: [0, 1, 2, 3, 4, 2, 3, 4, 5, 2, 3, 4, 4, 6],
+        rowsPerBeat: 4
+      };
+    }
   }
 ];

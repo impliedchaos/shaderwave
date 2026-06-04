@@ -23,7 +23,7 @@ const INST = {
     { code: 'RES', label: 'Resonance',    bank: 'p0', index: 1, min: 0,  max: 0.98, curve: 'lin' },
     { code: 'ENV', label: 'Env Mod',      bank: 'p0', index: 2, min: 0,  max: 1,    curve: 'lin' },
     { code: 'ACC', label: 'Accent',       bank: 'p0', index: 3, min: 0,  max: 1,    curve: 'lin' },
-    { code: 'WAV', label: 'Wave',         bank: 'p1', index: 0, min: 0,  max: 2,    curve: 'enum' },
+    { code: 'WAV', label: 'Wave',         bank: 'p1', index: 0, min: 0,  max: 4,    curve: 'enum' },
     { code: 'FDC', label: 'Filter Decay', bank: 'p1', index: 1, min: 0.05, max: 1,  curve: 'lin', unit: 's' },
     { code: 'ADC', label: 'Amp Decay',    bank: 'p1', index: 2, min: 0.05, max: 1,  curve: 'lin', unit: 's' },
   ],

@@ -26,7 +26,7 @@ const PARAM_DEFS = {
     { label: 'Reso', bank: 'p0', i: 1, min: 0, max: 0.98, step: 0.01 },
     { label: 'EnvMod', bank: 'p0', i: 2, min: 0, max: 1, step: 0.01 },
     { label: 'Accent', bank: 'p0', i: 3, min: 0, max: 1, step: 0.01 },
-    { label: 'Wave', bank: 'p1', i: 0, min: 0, max: 2, step: 1 },
+    { label: 'Wave', bank: 'p1', i: 0, min: 0, max: 4, step: 1 },
     { label: 'FiltDecay', bank: 'p1', i: 1, min: 0.05, max: 1, step: 0.01 },
     { label: 'AmpDecay', bank: 'p1', i: 2, min: 0.05, max: 1, step: 0.01 },
   ],
@@ -552,7 +552,7 @@ export class Controls {
 
       const isPercent = d.min === 0 && d.max === 1 && d.step < 1;
       const formatFn = (d.label === 'Wave' && name === '303') ? (v) => {
-        const map = { 0: 'Saw', 1: 'Square', 2: 'Triangle' };
+        const map = { 0: 'Saw', 1: 'Square', 2: 'Triangle', 3: 'Sine', 4: 'Noise' };
         return map[Math.round(v)] || v.toString();
       } : (name === 'moog' && /Wave$/.test(d.label)) ? (v) => MOOG_WAVES[Math.round(v)] || v.toString()
         : (name === 'moog' && /Oct$/.test(d.label)) ? (v) => MOOG_OCTS[Math.round(v)] || v.toString()
