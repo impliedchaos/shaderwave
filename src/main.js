@@ -46,7 +46,8 @@ export class App {
     // Sort indices alphabetically to determine the default song index
     const sortedIndices = DEMO_SONGS.map((s, i) => ({ s, i }))
       .sort((a, b) => a.s.name.localeCompare(b.s.name));
-    this.currentSongIdx = sortedIndices[0].i;
+    const defaultIdx = DEMO_SONGS.findIndex(s => s.name === "Antiseptik USA");
+    this.currentSongIdx = defaultIdx !== -1 ? defaultIdx : sortedIndices[0].i;
     const initialSong = DEMO_SONGS[this.currentSongIdx];
     const init = loadSongInstruments(initialSong);
     this.engine.instruments = init.instruments;

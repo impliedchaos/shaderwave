@@ -67,7 +67,8 @@ const PRESETS = {
     { name: 'BouncyNut', p0: [800, 0.6, 0.4, 0.3], p1: [1, 0.2, 0.3, 0] },
     { name: 'MurderChug', p0: [400, 0.85, 0.3, 0.45], p1: [1, 0.1, 0.25, 0] },
     { name: 'LipstickLube', p0: [900, 0.4, 0.45, 0.25], p1: [1, 0.15, 0.25, 0] },
-    { name: 'GymnopedieLead', p0: [600, 0.1, 0.4, 0.2], p1: [2.0, 0.3, 0.4, 0] }
+    { name: 'GymnopedieLead', p0: [600, 0.1, 0.4, 0.2], p1: [2.0, 0.3, 0.4, 0] },
+    { name: 'Voltage Control Osc', p0: [1800, 0.96, 0.85, 0.6], p1: [1.0, 0.15, 0.25, 0] }
   ],
   '808': [
     { name: 'Classic 808 Kit', p0: [0, 0.6, 0.5, 0.6], p1: [0, 0, 0, 0], fx: { dist: 0.001, tone: 0.5, level: 1.0, width: 1.0, master: 0.32 } },
@@ -80,7 +81,8 @@ const PRESETS = {
     { name: 'LeftNutKit', p0: [0, 0.55, 0.4, 0.5], p1: [0, 0, 0, 0] },
     { name: 'MurderPartyKit', p0: [0, 0.6, 0.8, 0.4], p1: [0, 0, 0, 0] },
     { name: 'LatchkeyKit', p0: [0, 0.5, 0.45, 0.5], p1: [0, 0, 0, 0] },
-    { name: 'VinylKit', p0: [0, 0.45, 0.5, 0.5], p1: [0, 0, 0, 0] }
+    { name: 'VinylKit', p0: [0, 0.45, 0.5, 0.5], p1: [0, 0, 0, 0] },
+    { name: 'Booty Metal Kit', p0: [0, 0.6, 0.5, 0.6], p1: [0, 0, 0, 0] }
   ],
   'moog': [
     { name: 'Classic Poly Pluck', p0: [800, 0.45, 0.5, 0], p1: [8, 0.8, 0.6, 0.9], fx: { dist: 0.001, tone: 0.5, level: 1.0, width: 1.0, master: 0.32 } },
@@ -107,7 +109,8 @@ const PRESETS = {
     { name: 'ZeppelinLead', p0: [950, 0.3, 0.5, 0], p1: [15, 0.7, 0.75, 0.5] },
     { name: 'LatchkeyBass', p0: [150, 0.05, 0.8, 0], p1: [1, 0.98, 0.8, 1] },
     { name: 'TailpipePulse', p0: [1000, 0.25, 0.45, 0], p1: [12, 0.6, 0.75, 0.5] },
-    { name: 'SubGymnopedie', p0: [150, 0.2, 0.5, 0], p1: [2.0, 0.9, 0.8, 0.8] }
+    { name: 'SubGymnopedie', p0: [150, 0.2, 0.5, 0], p1: [2.0, 0.9, 0.8, 0.8] },
+    { name: 'Axe Bass', p0: [600, 0.6, 0.7, 0], p1: [12.0, 0.8, 0.6, 0.8] }
   ]
 };
 

@@ -2265,5 +2265,198 @@ export const DEMO_SONGS = [
         rowsPerBeat: 4
       };
     }
+  },
+  {
+    name: "Antiseptik USA",
+    bpm: 142,
+    params: [
+      { name: "VCO Noise Guitar", type: "303", p0: [1800, 0.96, 0.85, 0.6], p1: [1.0, 0.15, 0.25, 0] },
+      {
+        name: "Tape Glitch FM",
+        type: "dx7",
+        p0: [1, 2, 2.5, 0.4],
+        p1: [12, 0.6, 0.9, 3],
+        ops: [
+          { coarse: 1.0, fine: 0, level: 99, detune: 5,  decay: 1.5, mode: 0, sustain: 0.85, release: 1.5 },
+          { coarse: 1.0, fine: 1, level: 90, detune: -3, decay: 1.2, mode: 0, sustain: 0.8, release: 1.2 },
+          { coarse: 2.0, fine: 0, level: 85, detune: 6,  decay: 1.0, mode: 0, sustain: 0.75, release: 1.0 },
+          { coarse: 2.0, fine: 2, level: 75, detune: -4, decay: 0.8, mode: 0, sustain: 0.7, release: 0.8 },
+          { coarse: 0.5, fine: 0, level: 95, detune: 3,  decay: 2.0, mode: 0, sustain: 0.9, release: 1.8 },
+          { coarse: 1.0, fine: 0, level: 65, detune: 1,  decay: 1.5, mode: 0, sustain: 0.6, release: 1.0 }
+        ]
+      },
+      { name: "Booty Metal Kit", type: "808", p0: [0, 0.6, 0.5, 0.6], p1: [0, 0, 0, 0] },
+      { name: "Axe Bass", type: "moog", p0: [600, 0.6, 0.7, 0], p1: [12.0, 0.8, 0.6, 0.8] }
+    ],
+    fxParams: {
+      '303': Object.assign(defaultFxParams(), { distOn: true, dist: 15.0, tone: 0.45, chorusMix: 0.4, delayMix: 0.35, delayTime: 0.375, reverbMix: 0.4 }),
+      'dx7': Object.assign(defaultFxParams(), { chorusMix: 0.55, chorusRate: 1.2, delayMix: 0.4, delayTime: 0.5, delayFeedback: 0.45, reverbMix: 0.5, reverbDecay: 0.9 }),
+      '808': Object.assign(defaultFxParams(), { distOn: true, dist: 8.0, tone: 0.35, master: 0.9, bitcrushOn: true, bitcrushMix: 0.35, bitcrushRate: 6000, bitcrushDepth: 6 }),
+      'moog': Object.assign(defaultFxParams(), { distOn: true, dist: 12.0, tone: 0.4, level: 1.0, master: 0.85, delayMix: 0.2, reverbMix: 0.35 })
+    },
+    data: () => {
+      const p = Array.from({ length: 8 }, () => new Pattern(128, 8));
+      
+      const I_303 = 0;
+      const I_dx7 = 1;
+      const I_808 = 2;
+      const I_moog = 3;
+
+      const BD = 36;
+      const SD = 38;
+      const CH = 42;
+      const OH = 46;
+
+      const chordVoicings = {
+        Dm:  [50, 57, 62],
+        F:   [53, 60, 65],
+        G:   [55, 62, 67],
+        Bb:  [46, 53, 58],
+        A:   [45, 52, 57]
+      };
+
+      const progression = [
+        "Dm", "F", "G", "Bb",
+        "Dm", "F", "A", "G"
+      ];
+
+      const writeChords = (pat, vol = 0.45) => {
+        progression.forEach((chordName, barIdx) => {
+          const start = barIdx * 16;
+          const voicing = chordVoicings[chordName];
+          voicing.forEach((note, ni) => {
+            pat.set(start, ni, note, I_dx7, vol);
+            pat.set(start + 11, ni, OFF, I_dx7);
+          });
+        });
+      };
+
+      const writeBass = (pat, vol = 0.7) => {
+        const roots = [38, 41, 43, 34, 38, 41, 45, 43];
+        roots.forEach((rootNote, barIdx) => {
+          const start = barIdx * 16;
+          for (let step = 0; step < 16; step += 2) {
+            pat.set(start + step, 4, rootNote, I_moog, vol);
+            pat.set(start + step + 1, 4, OFF, I_moog);
+          }
+        });
+      };
+
+      const writeBassSparse = (pat, vol = 0.6) => {
+        const roots = [38, 41, 43, 34, 38, 41, 45, 43];
+        roots.forEach((rootNote, barIdx) => {
+          const start = barIdx * 16;
+          pat.set(start, 4, rootNote, I_moog, vol);
+          pat.set(start + 8, 4, rootNote, I_moog, vol * 0.9);
+          pat.set(start + 7, 4, OFF, I_moog);
+          pat.set(start + 15, 4, OFF, I_moog);
+        });
+      };
+
+      const writeDrums = (pat, vol = 0.85) => {
+        for (let bar = 0; bar < 8; bar++) {
+          const start = bar * 16;
+          pat.set(start, 5, BD, I_808, vol);
+          pat.set(start + 6, 5, BD, I_808, vol * 0.9);
+          pat.set(start + 10, 5, BD, I_808, vol * 0.95);
+          
+          pat.set(start + 4, 6, SD, I_808, vol);
+          pat.set(start + 12, 6, SD, I_808, vol);
+          
+          for (let step = 0; step < 16; step += 2) {
+            pat.set(start + step, 7, CH, I_808, vol * 0.5);
+          }
+          pat.set(start + 14, 7, OH, I_808, vol * 0.3);
+        }
+      };
+
+      const writeLowKeyDrums = (pat, vol = 0.65) => {
+        for (let bar = 0; bar < 8; bar++) {
+          const start = bar * 16;
+          pat.set(start, 5, BD, I_808, vol);
+          pat.set(start + 10, 5, BD, I_808, vol * 0.85);
+          for (let step = 0; step < 16; step += 4) {
+            pat.set(start + step, 7, CH, I_808, vol * 0.4);
+          }
+        }
+      };
+
+      const melodyA = [
+        [8, 62, 4], [12, 65, 4], [16, 67, 8], [28, 65, 4],
+        [32, 62, 4], [36, 60, 4], [40, 58, 8], [52, 60, 4],
+        [64, 62, 4], [68, 65, 4], [72, 67, 8], [84, 69, 4],
+        [88, 70, 4], [92, 69, 4], [96, 67, 8], [112, 65, 8], [120, 62, 8]
+      ];
+
+      const melodyB = [
+        [8, 69, 4], [12, 72, 4], [16, 74, 8], [28, 72, 4],
+        [32, 69, 4], [36, 67, 4], [40, 65, 8], [52, 67, 4],
+        [64, 69, 4], [68, 72, 4], [72, 74, 8], [84, 76, 4],
+        [88, 77, 4], [92, 76, 4], [96, 74, 8], [112, 72, 8], [120, 69, 8]
+      ];
+
+      const writeMelody = (pat, melody, vol = 0.72) => {
+        melody.forEach(([row, note, dur]) => {
+          pat.set(row, 3, note, I_303, vol);
+          pat.set(row + dur, 3, OFF, I_303);
+        });
+      };
+
+      // Pattern 0: Intro (low-key drums, sparse bass, no leads)
+      writeLowKeyDrums(p[0], 0.6);
+      writeBassSparse(p[0], 0.55);
+
+      // Pattern 1: Bass enters fully, FM chords
+      writeLowKeyDrums(p[1], 0.65);
+      writeBass(p[1], 0.65);
+      writeChords(p[1], 0.4);
+
+      // Pattern 2: Verse 1
+      writeDrums(p[2], 0.75);
+      writeBass(p[2], 0.7);
+      writeChords(p[2], 0.45);
+      writeMelody(p[2], melodyA, 0.7);
+
+      // Pattern 3: Verse 2 (Melody B)
+      writeDrums(p[3], 0.75);
+      writeBass(p[3], 0.7);
+      writeChords(p[3], 0.45);
+      writeMelody(p[3], melodyB, 0.7);
+
+      // Pattern 4: Verse 1 variation (transposed/modulated up by an octave for intensity)
+      writeDrums(p[4], 0.8);
+      writeBass(p[4], 0.72);
+      writeChords(p[4], 0.45);
+      writeMelody(p[4], melodyA.map(([r, n, d]) => [r, n + 12, d]), 0.68);
+      p[4].set(127, 3, OFF, I_303);
+
+      // Pattern 5: Chorus / Climax
+      writeDrums(p[5], 0.85);
+      writeBass(p[5], 0.75);
+      writeChords(p[5], 0.5);
+      writeMelody(p[5], melodyB.map(([r, n, d]) => [r, n + 12, d]), 0.68);
+      p[5].set(127, 3, OFF, I_303);
+
+      // Pattern 6: Ambient Breakdown / "Transsexual Witch" coven vibe
+      writeLowKeyDrums(p[6], 0.5);
+      writeBassSparse(p[6], 0.5);
+      writeChords(p[6], 0.5);
+
+      // Pattern 7: Outro Noise Jam (all instruments going wild, max energy)
+      writeDrums(p[7], 0.8);
+      writeBass(p[7], 0.7);
+      writeChords(p[7], 0.45);
+      // VCO guitar noise screams
+      for (let r = 0; r < 128; r += 16) {
+        p[7].set(r, 3, 62 + Math.floor(Math.random() * 24), I_303, 0.75);
+        p[7].set(r + 12, 3, OFF, I_303);
+      }
+
+      return {
+        patterns: p,
+        order: [0, 1, 2, 3, 4, 5, 2, 3, 4, 5, 6, 7, 7, 0],
+        rowsPerBeat: 4
+      };
+    }
   }
 ];
