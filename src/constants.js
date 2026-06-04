@@ -6,8 +6,9 @@ export const CHANNELS = 2;       // stereo, interleaved per frame
 
 // Audio is handed to the worklet as transferable stereo blocks via postMessage
 // (no SharedArrayBuffer → no cross-origin-isolation headers → any static host).
-// The main thread keeps this many blocks queued ahead of playback.
-export const PREBUFFER_BLOCKS = 10;
+// The main thread keeps this many blocks queued ahead of playback. This is the
+// default; it's adjustable at runtime via the buffer control in the status bar.
+export const PREBUFFER_BLOCKS = 16;
 
 // Instrument identifiers — also used as the synth shader program keys.
 export const INSTRUMENTS = ['303', 'dx7', '808', 'moog'];

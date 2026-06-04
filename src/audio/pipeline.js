@@ -10,8 +10,6 @@
 // on any static host with no COOP/COEP headers.
 import { BLOCK, PREBUFFER_BLOCKS } from '../constants.js';
 
-const TARGET_FRAMES = PREBUFFER_BLOCKS * BLOCK;
-
 export class AudioPipeline {
   constructor() {
     this.ctx = null;
@@ -22,7 +20,14 @@ export class AudioPipeline {
     this.underruns = 0;
     this._timer = null;
     this.onStats = null;        // optional callback({underruns, depth})
+    // How many blocks to keep queued ahead of playback. Higher = fewer underruns
+    // but more output latency. Adjustable live from the status-bar control.
+    this.prebufferBlocks = PREBUFFER_BLOCKS;
   }
+
+  // Buffer depth expressed as latency in ms (the dominant, user-tunable part of
+  // total output latency).
+  get bufferLatencyMs() { return (this.prebufferBlocks * BLOCK / this.sampleRate) * 1000; }
 
   async init() {
     this.ctx = new AudioContext({ latencyHint: 'interactive' });
@@ -72,8 +77,9 @@ export class AudioPipeline {
   // Top the worklet's queue back up to the target depth.
   _fill() {
     if (!this.produce) return;
+    const targetFrames = this.prebufferBlocks * BLOCK;
     let pushed = 0;
-    while (this.writtenFrames - this.consumedFrames < TARGET_FRAMES) {
+    while (this.writtenFrames - this.consumedFrames < targetFrames) {
       const block = this.produce(this.writtenFrames).slice(); // own buffer for transfer
       this.node.port.postMessage({ block }, [block.buffer]);
       this.writtenFrames += BLOCK;

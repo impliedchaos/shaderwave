@@ -146,6 +146,7 @@ export class App {
     this._renderSongEditor();
     this._updatePatternSelector();
     this._bindKeys();
+    this._bindBufferControl();
     initHelp();
     this._loop();
 
@@ -157,6 +158,7 @@ export class App {
     if (this.audioReady) return;
     const sr = await this.pipeline.init();
     this.engine.sampleRate = sr;
+    this._updateLatencyDisplay();   // now reflects the real sample rate
     this.renderer = new SynthRenderer(this.gl, sr, this.fxParams);
     const produce = (blockStart) => this.renderer.renderBlock(this.engine.advance(blockStart), blockStart);
     await this.pipeline.start(produce);
@@ -754,6 +756,26 @@ export class App {
     if (!btn) return;
     btn.classList.toggle('on', this.view.showFx);
     this.view.draw();
+  }
+
+  // Status-bar buffer control: sets the pipeline's prebuffer depth live and shows
+  // the resulting latency. Deeper buffer = fewer underruns, more latency.
+  _bindBufferControl() {
+    const input = $('prebuffer');
+    if (!input) return;
+    input.value = this.pipeline.prebufferBlocks;
+    input.onchange = () => {
+      const v = Math.max(2, Math.min(64, Math.round(+input.value) || this.pipeline.prebufferBlocks));
+      input.value = v;
+      this.pipeline.prebufferBlocks = v;
+      this._updateLatencyDisplay();
+    };
+    this._updateLatencyDisplay();
+  }
+
+  _updateLatencyDisplay() {
+    const el = $('latency-display');
+    if (el) el.textContent = `· ~${Math.round(this.pipeline.bufferLatencyMs)} ms`;
   }
 
   // Make the sidebar follow automation each frame. fx-scope commands mutate the
