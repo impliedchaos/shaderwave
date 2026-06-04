@@ -11,7 +11,11 @@ void main(){
   int v = int(gl_FragCoord.y);
   if (!voiceLive(v)) { outAudio = vec4(0.0); outState = vec4(0.0); return; }
 
-  vec4 st = texelFetch(uPrevState, ivec2(uBlock - 1, v), 0);
+  // Checkpoint at the strip's left edge: the state after the previous sample.
+  // For the first strip that's the previous block's last column; otherwise the
+  // column the prior strip just wrote.
+  int readCol = uSubOffset == 0 ? (uBlock - 1) : (uSubOffset - 1);
+  vec4 st = texelFetch(uPrevState, ivec2(readCol, v), 0);
   float freq = uFreq[v], vel = uVel[v];
   vec4 p0 = uP0[v], p1 = uP1[v];
   float baseCut = p0.x, res = p0.y, envmod = p0.z, accent = p0.w;
@@ -19,7 +23,7 @@ void main(){
   float dt = freq / uSampleRate;
 
   float y = 0.0;
-  for (int i = 0; i <= x; i++) {
+  for (int i = uSubOffset; i <= x; i++) {
     float t = (float(i) - uOnRel[v]) / uSampleRate;
     if (t < 0.0) continue;                       // before note-on: hold state
     float tRel = (float(i) - uOffRel[v]) / uSampleRate;

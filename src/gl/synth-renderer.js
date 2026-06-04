@@ -24,6 +24,9 @@ export class SynthRenderer {
   constructor(gl, sampleRate, fxParams) {
     this.gl = gl;
     this.sampleRate = sampleRate;
+    // Strip width for the recursive ladder (303/Moog). Smaller = fewer filter
+    // recomputes but more draw calls; BLOCK = the old single-pass behaviour.
+    this.subBlock = 64;
 
     this.inst = INSTRUMENTS.map((name, id) => {
       const prog = createProgram(gl, COMMON + SYNTH_SRC[name]);
@@ -91,15 +94,20 @@ export class SynthRenderer {
     const gl = this.gl;
     gl.disable(gl.BLEND);
 
-    // 1. Synth voice pass for each instrument
+    // 1. Synth voice pass for each instrument. The 303/Moog ladder is recursive,
+    //    so each output sample must recompute the filter from a known state. We
+    //    render the block in SUB-wide strips, ping-ponging the per-sample state
+    //    texture between them, so each fragment only recomputes within its strip
+    //    (state at the strip edge = the prior strip's last column). That turns the
+    //    per-block cost from O(BLOCK^2) into O(BLOCK*SUB) with identical output.
+    //    Closed-form engines (dx7, 808) need no recursion → one full-width pass.
     for (const it of this.inst) {
       gl.useProgram(it.prog);
+      const p = it.prog;
       gl.bindFramebuffer(gl.FRAMEBUFFER, it.fbo);
       gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, it.audio, 0);
-      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, it.stateWrite, 0);
       gl.drawBuffers([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1]);
 
-      const p = it.prog;
       gl.uniform1f(p.u('uSampleRate'), this.sampleRate);
       gl.uniform1f(p.u('uBlockStart'), blockStart);
       gl.uniform1i(p.u('uBlock'), BLOCK);
@@ -124,13 +132,21 @@ export class SynthRenderer {
       }
 
       gl.activeTexture(gl.TEXTURE0);
-      gl.bindTexture(gl.TEXTURE_2D, it.stateRead);
 
-      gl.viewport(0, 0, BLOCK, VOICES);
-      drawQuad(gl);
-
-      // Ping-pong the state for next block.
-      const tmp = it.stateRead; it.stateRead = it.stateWrite; it.stateWrite = tmp;
+      // Recursive ladder engines render in strips; the rest in one pass.
+      const sub = (it.name === '303' || it.name === 'moog') ? this.subBlock : BLOCK;
+      let readTex = it.stateRead, writeTex = it.stateWrite;
+      for (let o = 0; o < BLOCK; o += sub) {
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, writeTex, 0);
+        gl.uniform1i(p.u('uSubOffset'), o);
+        gl.bindTexture(gl.TEXTURE_2D, readTex);       // uPrevState (unit 0)
+        gl.viewport(o, 0, sub, VOICES);
+        drawQuad(gl);
+        const t = readTex; readTex = writeTex; writeTex = t;
+      }
+      // readTex now holds the final per-sample state (incl. column BLOCK-1) for
+      // the next block; writeTex is the spare for next time's ping-pong.
+      it.stateRead = readTex; it.stateWrite = writeTex;
     }
 
     // Clear the final mixed output buffer before accumulating instruments

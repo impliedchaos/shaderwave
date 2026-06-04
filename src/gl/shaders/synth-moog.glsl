@@ -73,7 +73,8 @@ void main(){
   int v = int(gl_FragCoord.y);
   if (!voiceLive(v)) { outAudio = vec4(0.0); outState = vec4(0.0); return; }
 
-  vec4 st = texelFetch(uPrevState, ivec2(uBlock - 1, v), 0);
+  int readCol = uSubOffset == 0 ? (uBlock - 1) : (uSubOffset - 1);   // strip checkpoint
+  vec4 st = texelFetch(uPrevState, ivec2(readCol, v), 0);
   float freq = uFreq[v], vel = uVel[v];
   float fromFreq = uFreqFrom[v] > 1.0 ? uFreqFrom[v] : freq;
   vec4 p0 = uP0[v], p1 = uP1[v], p2 = uP2[v], p3 = uP3[v];
@@ -95,7 +96,7 @@ void main(){
   float track = pow(max(freq, 1.0) / 261.6256, kbdTrack);   // filter keyboard tracking
 
   float y = 0.0;
-  for (int i = 0; i <= x; i++) {
+  for (int i = uSubOffset; i <= x; i++) {
     float t = (float(i) - uOnRel[v]) * invSR;
     if (t < 0.0) continue;
     float tRel = (float(i) - uOffRel[v]) * invSR;

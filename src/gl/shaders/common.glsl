@@ -19,6 +19,7 @@ precision highp int;
 uniform float uSampleRate;
 uniform float uBlockStart;      // absolute frame of sample x=0 (for noise continuity)
 uniform int   uBlock;
+uniform int   uSubOffset;       // first sample index of the current sub-block strip (recursive synths)
 uniform int   uInstId;
 uniform int   uActive[VOICES];
 uniform int   uInst[VOICES];
