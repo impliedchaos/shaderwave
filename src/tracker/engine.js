@@ -72,6 +72,22 @@ export class Engine {
   get samplesPerRow() {
     return (this.sampleRate * 60) / (this.bpm * this.rowsPerBeat);
   }
+  // Wall-clock seconds per pattern row (sample-rate independent — works before
+  // audio has started).
+  get secondsPerRow() {
+    return 60 / (this.bpm * this.rowsPerBeat);
+  }
+  // Total rows of the whole arrangement (every order slot), regardless of the
+  // current play mode. Used for the track-length display.
+  songRowCount() {
+    if (!this.song) return 0;
+    let sum = 0;
+    for (const patIdx of this.song.order) {
+      const pat = this.song.patterns[patIdx];
+      if (pat) sum += pat.rows;
+    }
+    return sum;
+  }
   get totalRows() {
     if (!this.song) return 0;
     if (this.playMode === 'pattern') {

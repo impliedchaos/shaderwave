@@ -65,8 +65,8 @@
   }
   
   header {
-    display: flex; align-items: center; gap: 20px;
-    padding: 14px 24px; 
+    display: flex; align-items: center; flex-wrap: wrap; gap: 12px 20px;
+    padding: 14px 24px;
     background: rgba(8, 11, 18, 0.9);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
@@ -118,6 +118,7 @@
     border: 1px solid rgba(45, 60, 85, 0.5);
     padding: 4px 8px; border-radius: 8px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    flex-shrink: 0;
   }
 
   .vol-label {
@@ -151,6 +152,7 @@
     box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.95), 0 0 15px rgba(0, 245, 212, 0.02);
     position: relative;
     overflow: hidden;
+    flex-shrink: 0;
   }
   
   .lcd-display label {
@@ -159,6 +161,8 @@
     font-weight: 700;
     color: var(--dim);
     letter-spacing: 0.8px;
+    white-space: nowrap;
+    flex-shrink: 0;
   }
   
   .lcd-display input[type="number"] {
@@ -194,6 +198,10 @@
     cursor: pointer;
     outline: none;
     transition: color 0.5s ease;
+    max-width: 170px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .lcd-display select option {
     background: var(--panel-solid);
@@ -207,6 +215,16 @@
     box-shadow: none;
   }
   
+  .lcd-display .lcd-time {
+    color: var(--accent);
+    text-shadow: 0 0 6px var(--accent-glow);
+    font-size: 15px;
+    font-weight: 700;
+    font-family: 'JetBrains Mono', monospace;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
   .lcd-divider {
     height: 16px;
     width: 1px;
@@ -1051,6 +1069,8 @@
       <label>BPM <input id="bpm" type="number" value="174" min="40" max="300" /></label>
       <div class="lcd-divider"></div>
       <label>OCT <input id="octave" type="number" value="4" min="0" max="8" /></label>
+      <div class="lcd-divider"></div>
+      <label>TIME <span id="track-time" class="lcd-time">0:00 / 0:00</span></label>
     </div>
     <div class="control-group">
       <span class="vol-label">VOL</span>

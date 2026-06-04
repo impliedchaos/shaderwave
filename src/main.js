@@ -797,6 +797,7 @@ export class App {
     const playPatBtn = $('play-pattern');
     const perfStatus = $('perf-status');
     const orderListEl = $('arranger-order-list');
+    const trackTimeEl = $('track-time');
 
     const tick = () => {
       this.view.draw();
@@ -864,6 +865,12 @@ export class App {
       if (perfStatus) {
         perfStatus.textContent = this.audioReady ? `underruns: ${this.underruns}` : '';
       }
+
+      if (trackTimeEl) {
+        const spr = this.engine.secondsPerRow;
+        const text = `${this._fmtTime(this._currentSongRow() * spr)} / ${this._fmtTime(this.engine.songRowCount() * spr)}`;
+        if (trackTimeEl.textContent !== text) trackTimeEl.textContent = text;
+      }
       requestAnimationFrame(tick);
     };
     requestAnimationFrame(tick);
@@ -913,6 +920,43 @@ export class App {
     if (lenInput && this.view.pattern) {
       lenInput.value = this.view.pattern.rows;
     }
+  }
+
+  // The current position on the song timeline, as a row index.
+  //  - playing a song: the live playhead (order slot + local row);
+  //  - otherwise: the editor pattern's FIRST occurrence in the order, offset by
+  //    the cursor row (or the playhead row when auditioning a single pattern).
+  _currentSongRow() {
+    const eng = this.engine, song = eng.song;
+    if (!song) return 0;
+    const order = song.order;
+
+    if (eng.playing && eng.playMode === 'song') {
+      let row = 0;
+      for (let i = 0; i < eng.displayOrder; i++) {
+        const pat = song.patterns[order[i]];
+        if (pat) row += pat.rows;
+      }
+      return row + eng.displayRow;
+    }
+
+    const patIdx = eng.currentPatternIdx;
+    const localRow = (eng.playing && eng.playMode === 'pattern') ? eng.displayRow : this.view.cursor.row;
+    let row = 0, found = false;
+    for (let i = 0; i < order.length; i++) {
+      if (order[i] === patIdx) { found = true; break; }
+      const pat = song.patterns[order[i]];
+      if (pat) row += pat.rows;
+    }
+    return (found ? row : 0) + localRow;
+  }
+
+  // Seconds → "m:ss".
+  _fmtTime(sec) {
+    sec = Math.max(0, sec);
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60);
+    return `${m}:${String(s).padStart(2, '0')}`;
   }
 }
 
