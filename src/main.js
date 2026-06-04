@@ -14,6 +14,7 @@ import { OFF, Pattern } from './tracker/pattern.js';
 import { showExportDialog } from './audio/export.js';
 import { renderArranger } from './ui/arranger.js';
 import { invalidateTheme, themeVar } from './ui/theme.js';
+import { initHelp } from './ui/help.js';
 
 const $ = (id) => document.getElementById(id);
 
@@ -143,6 +144,7 @@ export class App {
     this._renderSongEditor();
     this._updatePatternSelector();
     this._bindKeys();
+    initHelp();
     this._loop();
 
     this.pipeline.onStats = (s) => { this.underruns = s.underruns; };

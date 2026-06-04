@@ -36,6 +36,9 @@ served from a domain root or a subpath.
 | **=**                       | Note-off                                                      |
 | **Space**                   | Play / Stop                                                   |
 | **[ / ]**                   | Octave down / up                                              |
+| **Ctrl/⌘+A**               | Select the whole pattern                                      |
+| **Click a channel header**  | Mute / unmute that channel                                    |
+| **?**                       | Open the help / shortcuts dialog                              |
 
 The transport bar's **LEN** field sets the current pattern's row count.
 
