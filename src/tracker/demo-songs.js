@@ -2492,7 +2492,7 @@ export const DEMO_SONGS = [
     ],
     fxParams: {
       '303': Object.assign(defaultFxParams(), { dist: 7.0, tone: 0.58, level: 1.0, master: 0.6, delayMix: 0.18, delayFeedback: 0.40, delayTime: 0.234, reverbMix: 0.10, reverbDecay: 0.80 }),
-      'dx7': Object.assign(defaultFxParams(), { dist: 10.0, tone: 0.0, level: 2.0, master: 1.5, delayMix: 0.24, delayFeedback: 0.38, delayTime: 0.3515, reverbMix: 0.22, reverbDecay: 0.82, chorusMix: 0.30, chorusRate: 0.9, chorusDepth: 2.5 }),
+      'dx7': Object.assign(defaultFxParams(), { dist: 10.0, tone: 0.0, level: 2.0, master: 1.0, delayMix: 0.24, delayFeedback: 0.38, delayTime: 0.3515, reverbMix: 0.22, reverbDecay: 0.82, chorusMix: 0.30, chorusRate: 0.9, chorusDepth: 2.5 }),
       '808': Object.assign(defaultFxParams(), { dist: 2.0, tone: 0.5, level: 1.0, master: 0.7, reverbMix: 0.06, width: 1.12 }),
       'moog': Object.assign(defaultFxParams(), { dist: 1.0, tone: 0.5, level: 1.0, master: 1.5, width: 1.0 }),
     },
