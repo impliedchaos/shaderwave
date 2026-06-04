@@ -2112,7 +2112,7 @@ export const DEMO_SONGS = [
     fxParams: {
       '303': Object.assign(defaultFxParams(), { delayMix: 0.35, delayTime: 0.375, reverbMix: 0.4 }),
       'dx7': Object.assign(defaultFxParams(), { chorusMix: 0.45, chorusRate: 0.6, chorusDepth: 3.5, delayMix: 0.4, delayTime: 0.5, delayFeedback: 0.4, reverbMix: 0.5, reverbDecay: 0.9 }),
-      '808': Object.assign(defaultFxParams(), { dist: 2.0, tone: 0.4, master: 0.95, bitcrushOn: true, bitcrushMix: 0.15, bitcrushRate: 10000, bitcrushDepth: 8 }),
+      '808': Object.assign(defaultFxParams(), { dist: 2.0, tone: 0.4, master: 0.95, bitcrushOn: false, delayMix: 0.08, delayFeedback: 0.25 }),
       'moog': Object.assign(defaultFxParams(), { dist: 0.001, tone: 0.5, level: 1.0, master: 0.9 })
     },
     data: () => {
@@ -2193,6 +2193,18 @@ export const DEMO_SONGS = [
         }
       };
 
+      const writeLowKeyDrums = (pat, vol = 0.6) => {
+        for (let bar = 0; bar < 8; bar++) {
+          const start = bar * 16;
+          pat.set(start, 5, BD, I_808, vol);
+          pat.set(start + 10, 5, BD, I_808, vol * 0.85);
+          for (let step = 0; step < 16; step += 2) {
+            const hVol = (step % 4 === 0) ? vol * 0.4 : vol * 0.25;
+            pat.set(start + step, 7, CH, I_808, hVol);
+          }
+        }
+      };
+
       const melodyA = [
         [8, 66, 8], [16, 67, 4], [20, 69, 12], [32, 66, 8],
         [40, 62, 4], [44, 59, 4], [48, 61, 4], [52, 62, 4], [56, 64, 4], [60, 57, 8],
@@ -2214,9 +2226,11 @@ export const DEMO_SONGS = [
       };
 
       writeChords(p[0], 0.4);
+      writeLowKeyDrums(p[0], 0.6);
 
       writeChords(p[1], 0.45);
       writeBass(p[1], 0.55);
+      writeLowKeyDrums(p[1], 0.6);
 
       writeChords(p[2], 0.48);
       writeBass(p[2], 0.6);
@@ -2237,9 +2251,11 @@ export const DEMO_SONGS = [
       writeBass(p[5], 0.6);
       writeDrums(p[5], 0.75);
       writeMelody(p[5], melodyA, 0.72);
+      p[5].set(127, 3, OFF, I_303);
 
       writeChords(p[6], 0.4);
       writeBass(p[6], 0.45);
+      writeLowKeyDrums(p[6], 0.5);
 
       return {
         patterns: p,
