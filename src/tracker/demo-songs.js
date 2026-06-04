@@ -2267,7 +2267,7 @@ export const DEMO_SONGS = [
     }
   },
   {
-    name: "Crypto-Bro Golf Tourney",
+    name: "Two-Fingered Typing (FOB)",
     bpm: 142,
     params: [
       { name: "VCO Noise Guitar", type: "303", p0: [1800, 0.96, 0.85, 0.6], p1: [1.0, 0.15, 0.25, 0] },
