@@ -223,6 +223,67 @@ export class Controls {
     if (this.onSelect) this.onSelect(i);
   }
 
+  _findMatchingPreset() {
+    const instName = this._type;
+    const pr = this._instr;
+    if (!instName || !pr) return -1;
+
+    if (instName === 'dx7') {
+      if (!this.dx7Patches) return -1;
+      for (let idx = 0; idx < this.dx7Patches.length; idx++) {
+        const patch = this.dx7Patches[idx];
+        if (pr.p1[0] !== patch.algo) continue;
+        if (Math.abs(pr.p0[3] - patch.feedback) > 0.001) continue;
+        let match = true;
+        for (let k = 0; k < 6; k++) {
+          const op = pr.ops[k];
+          const pop = patch.ops[k];
+          if (!op || !pop) {
+            match = false;
+            break;
+          }
+          if (op.coarse !== pop.coarse ||
+              op.fine !== pop.fine ||
+              op.level !== pop.level ||
+              op.detune !== pop.detune ||
+              Math.abs(op.decay - pop.decay) > 0.001 ||
+              (pop.mode !== undefined && op.mode !== pop.mode) ||
+              (pop.sustain !== undefined && Math.abs(op.sustain - pop.sustain) > 0.001) ||
+              (pop.release !== undefined && Math.abs(op.release - pop.release) > 0.001)) {
+            match = false;
+            break;
+          }
+        }
+        if (match) return idx;
+      }
+    } else {
+      const plist = PRESETS[instName];
+      if (!plist) return -1;
+      for (let idx = 0; idx < plist.length; idx++) {
+        const preset = plist[idx];
+        if (!preset.p0 || !preset.p1 || pr.p0.length !== preset.p0.length || pr.p1.length !== preset.p1.length) {
+          continue;
+        }
+        let match = true;
+        for (let i = 0; i < pr.p0.length; i++) {
+          if (Math.abs(pr.p0[i] - preset.p0[i]) > 0.001) {
+            match = false;
+            break;
+          }
+        }
+        if (!match) continue;
+        for (let i = 0; i < pr.p1.length; i++) {
+          if (Math.abs(pr.p1[i] - preset.p1[i]) > 0.001) {
+            match = false;
+            break;
+          }
+        }
+        if (match) return idx;
+      }
+    }
+    return -1;
+  }
+
   _populatePresets() {
     const presetSelect = document.getElementById('instrument-preset');
     if (!presetSelect) return;
@@ -230,6 +291,12 @@ export class Controls {
     presetSelect.innerHTML = '';
     const instName = this._type;
     if (!instName) return;
+
+    // Add a blank option at the top
+    const blankOpt = document.createElement('option');
+    blankOpt.value = -1;
+    blankOpt.textContent = '';
+    presetSelect.appendChild(blankOpt);
 
     if (instName === 'dx7' && this.dx7Patches) {
       this.dx7Patches.forEach((p, idx) => {
@@ -246,9 +313,12 @@ export class Controls {
         presetSelect.appendChild(opt);
       });
     }
+
+    presetSelect.value = this._findMatchingPreset();
   }
 
   loadPreset(presetIdx) {
+    if (presetIdx === -1) return;
     const instName = this._type;
     if (!instName) return;
     if (instName === 'dx7') {
@@ -281,6 +351,10 @@ export class Controls {
       }
     }
     this._buildParams();
+    const presetSelect = document.getElementById('instrument-preset');
+    if (presetSelect) {
+      presetSelect.value = presetIdx;
+    }
   }
 
   async loadRom(filename) {
@@ -445,6 +519,10 @@ export class Controls {
           }
         } else {
           pr[d.bank][d.i] = v;
+        }
+        const pSel = document.getElementById('instrument-preset');
+        if (pSel) {
+          pSel.value = this._findMatchingPreset();
         }
       }, formatFn);
     }
