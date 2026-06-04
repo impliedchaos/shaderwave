@@ -202,12 +202,11 @@ export class TrackerView {
     }
     ctx.stroke();
 
-    // Vertical line separating row numbers
+    // Vertical line separating row numbers and channel columns (1px lines)
+    ctx.strokeStyle = 'rgba(45, 58, 82, 0.28)';
+    ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.moveTo(NUM_W, 0);
-    ctx.lineTo(NUM_W, H);
-    // Vertical dividers between channels
-    for (let ch = 0; ch < p.channels; ch++) {
+    for (let ch = 0; ch <= p.channels; ch++) {
       const dividerX = NUM_W + ch * CH_W;
       ctx.moveTo(dividerX, 0);
       ctx.lineTo(dividerX, H);
@@ -255,12 +254,17 @@ export class TrackerView {
     ctx.fillStyle = C('--panel-solid');
     ctx.fillRect(0, 0, W, pad);
     
-    // Bottom border for header
+    // Bottom border and vertical dividers for header
     ctx.strokeStyle = 'rgba(45, 58, 82, 0.3)';
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(0, pad);
     ctx.lineTo(W, pad);
+    for (let ch = 0; ch <= p.channels; ch++) {
+      const dividerX = NUM_W + ch * CH_W;
+      ctx.moveTo(dividerX, 0);
+      ctx.lineTo(dividerX, pad);
+    }
     ctx.stroke();
 
     const drawBadge = (bx, by, bw, bh, text, isMuted) => {
