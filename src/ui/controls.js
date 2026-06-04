@@ -290,7 +290,7 @@ export class Controls {
         for (let idx = 0; idx < patches.length; idx++) {
           const patch = patches[idx];
           if (pr.p1[0] !== patch.algo) continue;
-          if (Math.abs(pr.p0[3] - patch.feedback) > 0.001) continue;
+          if (Math.abs(pr.p0[3] - patch.feedback) > 0.12) continue;
           let match = true;
           for (let k = 0; k < 6; k++) {
             const op = pr.ops[k];
@@ -320,10 +320,10 @@ export class Controls {
                 opFine !== popFine ||
                 opLevel !== popLevel ||
                 opDetune !== popDetune ||
-                Math.abs(opDecay - popDecay) > 0.001 ||
+                Math.abs(opDecay - popDecay) > 0.05 ||
                 opMode !== popMode ||
-                Math.abs(opSustain - popSustain) > 0.001 ||
-                Math.abs(opRelease - popRelease) > 0.001) {
+                Math.abs(opSustain - popSustain) > 0.02 ||
+                Math.abs(opRelease - popRelease) > 0.05) {
               match = false;
               break;
             }
