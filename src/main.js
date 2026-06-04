@@ -987,12 +987,12 @@ export class App {
         if (this.engine.playing && this.engine.playMode === 'song') {
           if (!playBtn.classList.contains('playing')) {
             playBtn.classList.add('playing');
-            playBtn.innerHTML = '⏸ Pause';
+            playBtn.innerHTML = '⏸︎ Pause';
           }
         } else {
           if (playBtn.classList.contains('playing')) {
             playBtn.classList.remove('playing');
-            playBtn.innerHTML = '▶ Play';
+            playBtn.innerHTML = '▶︎ Play';
             this._updatePatternSelector(); // sync back when song stops
           }
         }
