@@ -26,13 +26,15 @@ served from a domain root or a subpath.
 | Key                         | Action                                                        |
 | --------------------------- | ------------------------------------------------------------- |
 | **Z–M** / **S,D,G,H,J**    | Piano keys — write a note to the cursor cell & preview        |
-| **Arrows**                  | Move cursor; **←/→** step note → instrument → volume columns  |
-| **0–9**                     | On the instrument / volume column, set that field (2-digit)   |
-| **Shift+↑/↓**              | Nudge the note's volume ±5%                                   |
+| **Arrows**                  | Move cursor; **←/→** step note → instrument → volume → fx columns |
+| **0–9** / **A–F**          | Set the inst/volume field (2-digit); on the fx-value column, enter a hex byte |
+| **Enter** (fx command col)  | Open the parameter-target picker for the cell                 |
+| **F**                       | Show / hide the automation (FX) column                        |
+| **Shift+↑/↓**              | Nudge the note's volume ±5% (or the fx value byte ±1)         |
 | **PageUp/Dn**, **Home/End** | Page / jump the cursor; **mouse wheel** scrolls the grid      |
 | **Click+drag**              | Select a block of cells                                       |
-| **Ctrl/⌘+C/X/V**           | Copy / cut / paste the selected block (or cursor cell)        |
-| **Del**                     | Clear cell                                                    |
+| **Ctrl/⌘+C/X/V**           | Copy / cut / paste the selected block (note + automation)        |
+| **Del**                     | Clear cell (or the automation command, in the fx columns)     |
 | **=**                       | Note-off                                                      |
 | **Space**                   | Play / Stop                                                   |
 | **[ / ]**                   | Octave down / up                                              |
@@ -150,6 +152,36 @@ per-line damping lowpass:
 
 Mid/side stereo width control. Values > 1.0 widen; < 1.0 narrow toward mono.
 
+## Automation (FX Column)
+
+Each pattern cell can carry one **effect command** in an optional automation
+column — a parameter *target* plus a value. Toggle the column with the **FX Col**
+button or **F** (shown by default). A command reads as a short code + two hex
+digits, e.g. `CUT·A4`.
+
+- **Set the target** — on the command sub-column, press **Enter** (or start
+  typing a code) to open a picker of every parameter the channel's instrument can
+  automate; arrow + Enter to choose, or type the 2-letter code to filter.
+- **Set the value** — on the value sub-column, type two hex digits (`00`–`FF`),
+  or **Shift+↑/↓** to nudge. The byte maps across the parameter's real range
+  (log-scaled for cutoffs, linear elsewhere).
+
+Two scopes, distinguished by colour in the grid:
+
+- **Instrument params** (cyan) — cutoff, resonance, FM mod index, … written to
+  that channel's live voice slot, so the change is per-channel and resets on the
+  next note. A column of CUT commands is the classic acid filter sweep.
+- **Effect params** (amber) — distortion, delay/reverb mix, … written to the
+  instrument's shared FX chain, so the change is track-wide for that engine type.
+
+Commands apply per row during playback, right after the row's note triggers
+(so a command sharing a cell with a note overrides the note's snapshot). The
+sidebar knobs follow the automation live and revert to the stored base on stop.
+The registry lives in `src/tracker/automation.js`; the stored value is a single
+normalised byte — the same currency intended for future **MIDI CC** mapping.
+The demo songs *Dextroamphetamine Suppository* and *Where'd I Put My Keys?* use
+it for 303 cutoff sweeps.
+
 ## How It Works
 
 ```
@@ -203,7 +235,7 @@ src/gl/                    context, program helpers, SynthRenderer, shaders/
   shaders/common.glsl          shared ADSR, noise, filter utilities (the prelude)
 src/gl/effects.js          per-effect pass pipeline (data-driven chain order)
 src/audio/                 worklet.js (classic script), pipeline.js
-src/tracker/               pattern, song (+ demo songs), engine (BPM clock)
+src/tracker/               pattern, song (+ demo songs), engine (BPM clock), automation (param-target registry)
 src/ui/                    tracker-view (canvas grid), controls (sidebar + SysEx loader)
 public/sysex/DX7/          .syx patch banks (ROM 1A–4B, Bass)
 test/                      headless GLSL / render / audio harnesses
@@ -235,6 +267,8 @@ google-chrome --headless=new --enable-unsafe-swiftshader --dump-dom \
 - DX7 envelope is simplified ADSR; full rate/level 4-stage envelope not yet
   implemented.
 - Per-channel stereo panning controls.
+- MIDI input, with CC messages mapped onto automation targets (the stored value
+  byte is already CC-ready) and live recording of CC moves into the fx column.
 - Save/load functionality to export and import song data as JSON.
 - Instrument editor for creating and editing instrument patches from scratch.
 - Update Moog instrument to be a faithful representation of a Mini-Moog Model D.
