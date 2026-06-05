@@ -117,4 +117,5 @@ and `git status` before committing** so they don't get swept into a commit.
 - Branch only if asked; the user directs commits/pushes explicitly.
 - End commit messages with:
   `Co-Authored-By: ` and then the name of the agent and model it's using.
+- After every commit, increment the patch version in `package.json`. If it's a larger change increment the minor version, and if there are breaking changes, increment the major version.
 - The remote prints a jokey server-hook banner on push — it's not an error.
