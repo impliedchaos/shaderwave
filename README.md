@@ -55,13 +55,15 @@ sidebar; a song shows only the instruments it uses.
 
 ## Instruments
 
-### 303 — Acid Bass
+### 303 — Acid Bass (Roland TB-303)
 
 Saw/square oscillator through a 4-pole nonlinear ladder filter with downward
 envelope sweep and accent. Parameters: **Cutoff**, **Reso**, **EnvMod**,
 **Accent**, **Wave** (saw/square), **FiltDecay**, **AmpDecay**.
 
-### 808 — Drum Machine
+Modded to also allow triangle/sine/noise oscillators.
+
+### 808 — Drum Machine (Roland TR-808)
 
 Analytical drum synthesis — swept-sine kick/toms, sine+noise snare, metallic
 hi-hats, clap, cowbell. Parameters: **Tone**, **Decay**, **Snappy**.
@@ -82,7 +84,7 @@ Parameters: **Cutoff**, **Reso**, **EnvAmt**, **KbdTrack**, **Detune**,
 **Glide**, and **Noise**. Glide and drift are computed analytically so
 oscillator phase stays continuous across render blocks with no extra state.
 
-### DX7 — FM Synthesizer
+### DX7 — FM Synthesizer (Yamaha DX7)
 
 6-operator FM synthesis with all 32 DX7 algorithms, operator-level envelope
 control (per-operator **Decay**, **Sustain**, **Release**), individual
