@@ -3249,201 +3249,208 @@ export const DEMO_SONGS = [
   {
     name: "Frying pans. Who knew?",
     bpm: 128,
-    // A kitchen-chaos electro romp that abuses the new per-channel pan: hats
-    // ping-pong wall to wall, a metallic DX7 "pan clang" swirls across the
-    // field, and two 303s trade acid licks hard-left vs hard-right. 13 slots ×
-    // 128 rows @ 128 BPM ≈ 3:15.
+    // Kitchen-electro in A minor (i–VI–III–VII–i–VI–iv–V) that puts the new
+    // per-channel pan to work *musically*: a DX7 bell arpeggio sprayed L↔R, two
+    // 303s holding a hard-left/hard-right acid conversation, ping-pong hats, and
+    // slow stereo washes in the breakdown. Drums are deliberately dry. 13 order
+    // slots × 128 rows @ 128 BPM ≈ 3:15.
     params: [
       { name: "Skillet Kit", type: "808", p0: [0, 0.5, 0.5, 0.6], p1: [0, 0, 0, 0] },
-      // Inharmonic, percussive bell — short sustain so each hit is a clang.
+      // Bell: mildly inharmonic FM with a little sustain so it rings, not clangs.
       {
-        name: "Pan Clang", type: "dx7",
-        p0: [1, 2, 5.5, 0.55], p1: [1, 0.35, 0.4, 3],
+        name: "Pan Bell", type: "dx7",
+        p0: [1, 2, 3.6, 0.32], p1: [1, 0.5, 0.85, 3],
         ops: [
-          { coarse: 1.0,  fine: 0, level: 99, detune: 0,  decay: 0.5,  mode: 0, sustain: 0.0, release: 0.3 },
-          { coarse: 3.5,  fine: 0, level: 86, detune: 7,  decay: 0.35, mode: 0, sustain: 0.0, release: 0.25 },
-          { coarse: 5.0,  fine: 0, level: 70, detune: -5, decay: 0.3,  mode: 0, sustain: 0.0, release: 0.2 },
-          { coarse: 7.07, fine: 0, level: 55, detune: 4,  decay: 0.25, mode: 0, sustain: 0.0, release: 0.2 },
-          { coarse: 9.0,  fine: 0, level: 0,  detune: 0,  decay: 0.5,  mode: 0, sustain: 0.0, release: 0.2 },
-          { coarse: 11.0, fine: 0, level: 0,  detune: 0,  decay: 0.5,  mode: 0, sustain: 0.0, release: 0.2 }
+          { coarse: 1.0,  fine: 0, level: 99, detune: 0,  decay: 0.85, mode: 0, sustain: 0.25, release: 0.4 },
+          { coarse: 3.0,  fine: 0, level: 78, detune: 6,  decay: 0.6,  mode: 0, sustain: 0.1,  release: 0.3 },
+          { coarse: 4.99, fine: 0, level: 58, detune: -4, decay: 0.5,  mode: 0, sustain: 0.0,  release: 0.25 },
+          { coarse: 7.0,  fine: 0, level: 40, detune: 3,  decay: 0.4,  mode: 0, sustain: 0.0,  release: 0.2 },
+          { coarse: 9.0,  fine: 0, level: 0,  detune: 0,  decay: 0.5,  mode: 0, sustain: 0.0,  release: 0.2 },
+          { coarse: 11.0, fine: 0, level: 0,  detune: 0,  decay: 0.5,  mode: 0, sustain: 0.0,  release: 0.2 }
         ]
       },
-      { name: "Acid Drip L", type: "303", p0: [320, 0.85, 0.6, 0.5], p1: [1, 0.3, 0.35, 0] },
-      { name: "Acid Drip R", type: "303", p0: [440, 0.88, 0.55, 0.45], p1: [0, 0.28, 0.32, 0] },
-      { name: "Cast-Iron Sub", type: "moog", p0: [90, 0.25, 0.8, 0], p1: [2, 0.95, 0.6, 0.9], p2: [1, 1, 0, 0], p3: [1, 1, 1, 0] },
-      { name: "Greasy Lead", type: "moog", p0: [1100, 0.4, 0.5, 0.4], p1: [10, 0.45, 0.7, 0.5], p2: [1, 2, 1, 0.04], p3: [2, 2, 2, 0] }
+      { name: "Acid L", type: "303", p0: [300, 0.82, 0.62, 0.55], p1: [1, 0.32, 0.4, 0] },
+      { name: "Acid R", type: "303", p0: [420, 0.85, 0.58, 0.5],  p1: [0, 0.3, 0.36, 0] },
+      { name: "Cast-Iron Sub", type: "moog", p0: [140, 0.3, 0.8, 0.5], p1: [2, 0.92, 0.55, 0.9], p2: [2, 2, 0, 0], p3: [1, 1, 1, 0] },
+      { name: "Greasy Lead", type: "moog", p0: [1300, 0.35, 0.5, 0.4], p1: [10, 0.5, 0.7, 0.6], p2: [1, 2, 1, 0.05], p3: [2, 2, 2, 0] }
     ],
     fxParams: {
-      '303': Object.assign(defaultFxParams(), { dist: 7.0, tone: 0.6, level: 1.0, master: 0.82, delayMix: 0.22, delayFeedback: 0.4 }),
-      'dx7': Object.assign(defaultFxParams(), { level: 1.0, master: 0.8, delayMix: 0.28, delayFeedback: 0.42, reverbMix: 0.42, reverbDecay: 0.86 }),
-      '808': Object.assign(defaultFxParams(), { dist: 3.0, tone: 0.5, level: 1.0, master: 0.9 }),
-      'moog': Object.assign(defaultFxParams(), { dist: 4.0, tone: 0.5, level: 1.0, master: 0.82, reverbMix: 0.3, reverbDecay: 0.85 }),
+      '303': Object.assign(defaultFxParams(), { dist: 6.0, tone: 0.6, level: 1.0, master: 0.8, delayMix: 0.24, delayFeedback: 0.4, reverbMix: 0.14 }),
+      'dx7': Object.assign(defaultFxParams(), { distOn: false, level: 1.0, master: 0.78, delayMix: 0.3, delayFeedback: 0.45, reverbMix: 0.4, reverbDecay: 0.86 }),
+      // Drums dry: distortion / delay / reverb / chorus / tremolo / width all off.
+      '808': Object.assign(defaultFxParams(), { distOn: false, delayOn: false, reverbOn: false, chorusOn: false, tremoloOn: false, widthOn: false, master: 0.9 }),
+      'moog': Object.assign(defaultFxParams(), { dist: 3.0, tone: 0.5, level: 1.0, master: 0.82, delayMix: 0.15, reverbMix: 0.28, reverbDecay: 0.85 }),
     },
     data: () => {
       const p = [];
       for (let i = 0; i < 9; i++) p.push(new Pattern(128, 8));
 
       const BD = 36, SD = 38, HH = 42, OH = 46, CLAP = 39;
-      const I_808 = 0, I_clang = 1, I_acidL = 2, I_acidR = 3, I_sub = 4, I_lead = 5;
-      // Channels: 0 kick · 1 snare · 2 hats · 3 clang · 4 acid-L · 5 acid-R · 6 sub · 7 lead.
+      const I_808 = 0, I_bell = 1, I_acidL = 2, I_acidR = 3, I_sub = 4, I_lead = 5;
+      // ch: 0 kick · 1 snare · 2 hats · 3 bell · 4 acid-L · 5 acid-R · 6 sub · 7 lead
 
-      // Bar roots (16 rows/bar, 8 bars): Am – F – G – Em in A minor (oct 2-3).
-      const ROOTS = [45, 45, 41, 41, 43, 43, 40, 40];
-      const barRoot = (r) => ROOTS[Math.floor(r / 16) % 8];
-      const MIN = [0, 2, 3, 5, 7, 8, 10]; // natural-minor degrees
+      // 8-bar harmony (16 rows/bar): Am F C G Am F Dm E.
+      const BASS = [33, 29, 36, 31, 33, 29, 38, 28];   // roots, sub octave
+      const TRIAD = [
+        [69, 72, 76], // Am  A C E
+        [65, 69, 72], // F   F A C
+        [72, 76, 79], // C   C E G
+        [67, 71, 74], // G   G B D
+        [69, 72, 76], // Am
+        [65, 69, 72], // F
+        [74, 77, 81], // Dm  D F A
+        [76, 80, 83], // E   E G# B  (G# = leading tone)
+      ];
 
-      // ---- pan automation (the whole point) ----
-      const PAN = targetByCode('303', 'PAN'); // chan-scope, engine-agnostic
-      const pan = (pat, row, ch, v) =>
-        pat.setFx(row, ch, PAN.id, normByte(PAN, Math.max(0, Math.min(1, v))));
-      // Establish a deterministic "home" image on row 0 for every channel, so a
-      // pan held in a prior pattern can't bleed across the order boundary.
-      const HOME = [0.5, 0.5, 0.5, 0.5, 0.18, 0.82, 0.5, 0.5];
-      const setHome = (pat, pans = HOME) => { for (let c = 0; c < 8; c++) pan(pat, 0, c, pans[c]); };
-      // Wall-to-wall ping-pong every `step` rows.
-      const pingPong = (pat, ch, step = 1, lo = 0.06, hi = 0.94, startRight = false) => {
-        for (let r = 0; r < pat.rows; r += step) {
-          const even = (Math.floor(r / step) % 2 === 0);
-          pan(pat, r, ch, (even === startRight) ? hi : lo);
+      // --- pan automation (chan-scope PAN, engine-agnostic) ---
+      const PAN = targetByCode('303', 'PAN');
+      const pan = (pat, row, ch, v) => pat.setFx(row, ch, PAN.id, normByte(PAN, Math.max(0, Math.min(1, v))));
+      const HOME = [0.5, 0.5, 0.5, 0.5, 0.15, 0.85, 0.5, 0.5];
+      const setHome = (pat, pans) => { const a = pans || HOME; for (let c = 0; c < 8; c++) pan(pat, 0, c, a[c]); };
+      const pingPong = (pat, ch, step, lo, hi, startRight) => {
+        const L = (lo == null ? 0.08 : lo), H = (hi == null ? 0.92 : hi), s = step || 1;
+        for (let r = 0; r < pat.rows; r += s) {
+          const even = (Math.floor(r / s) % 2 === 0);
+          pan(pat, r, ch, (even === !!startRight) ? H : L);
         }
       };
-      // Triangle swirl: lo→hi→lo, `cycles` times across the pattern.
-      const swirl = (pat, ch, cycles = 2, lo = 0.05, hi = 0.95, stepRows = 2) => {
-        for (let r = 0; r < pat.rows; r += stepRows) {
-          const ph = (r / pat.rows) * cycles;
-          const tri = 1 - Math.abs(((ph % 1) * 2) - 1);
-          pan(pat, r, ch, lo + (hi - lo) * tri);
+      const swirl = (pat, ch, cycles, lo, hi) => {
+        const L = (lo == null ? 0.05 : lo), H = (hi == null ? 0.95 : hi), c = cycles || 1;
+        for (let r = 0; r < pat.rows; r += 2) {
+          const ph = (r / pat.rows) * c, tri = 1 - Math.abs(((ph % 1) * 2) - 1);
+          pan(pat, r, ch, L + (H - L) * tri);
         }
       };
-      // Sine sweep with phase, for smooth drifting.
-      const sweep = (pat, ch, cycles = 1, lo = 0.1, hi = 0.9, stepRows = 2, phase = 0) => {
-        for (let r = 0; r < pat.rows; r += stepRows) {
-          const s = 0.5 + 0.5 * Math.sin(2 * Math.PI * (cycles * r / pat.rows) + phase);
-          pan(pat, r, ch, lo + (hi - lo) * s);
+      const sweep = (pat, ch, cycles, lo, hi, phase) => {
+        const c = cycles || 1, L = (lo == null ? 0.1 : lo), H = (hi == null ? 0.9 : hi), ph = phase || 0;
+        for (let r = 0; r < pat.rows; r += 2) {
+          const s = 0.5 + 0.5 * Math.sin(2 * Math.PI * (c * r / pat.rows) + ph);
+          pan(pat, r, ch, L + (H - L) * s);
         }
       };
 
-      // ---- note content ----
-      const drums = (pat, { kick = true, snare = true, hats = true, busy = false } = {}) => {
+      // --- voices ---
+      const drums = (pat, opt) => {
+        const o = opt || {};
+        const kick = o.kick !== false, snare = o.snare !== false, hats = o.hats !== false;
+        const four = !!o.four, busy = !!o.busy;
         for (let r = 0; r < 128; r++) {
           const s = r % 16;
-          if (kick && (s === 0 || s === 6 || s === 10)) pat.set(r, 0, BD, I_808, 0.95);
-          if (snare && (s === 4 || s === 12)) pat.set(r, 1, SD, I_808, 0.8);
-          if (snare && busy && (s === 7 || s === 14)) pat.set(r, 1, CLAP, I_808, 0.6);
+          if (kick) {
+            if (four) { if (s % 4 === 0) pat.set(r, 0, BD, I_808, 0.96); }
+            else if (s === 0 || s === 10 || (busy && s === 6)) pat.set(r, 0, BD, I_808, 0.95);
+          }
+          if (snare && (s === 4 || s === 12)) pat.set(r, 1, (s === 12 && busy) ? CLAP : SD, I_808, 0.8);
           if (hats) {
-            if (s % 2 === 1) pat.set(r, 2, HH, I_808, 0.4);
-            if (s === 2 || s === 10) pat.set(r, 2, OH, I_808, 0.5);
+            if (s % 2 === 1) pat.set(r, 2, HH, I_808, 0.38);
+            if (s === 2 || s === 10) pat.set(r, 2, OH, I_808, 0.48);
           }
         }
       };
-      const sub = (pat, vol = 0.85) => {
+      const bass = (pat, vol) => {
+        const v = (vol == null ? 0.9 : vol);
         for (let bar = 0; bar < 8; bar++) {
-          const r = bar * 16, root = ROOTS[bar] - 12;
-          [0, 6, 8, 14].forEach((off) => { pat.set(r + off, 6, root, I_sub, vol); pat.set(r + off + 1, 6, OFF, I_sub); });
+          const r = bar * 16, R = BASS[bar];
+          const hits = [[0, R], [3, R], [6, R + 12], [8, R], [11, R + 12], [14, R + 7]];
+          hits.forEach(function (h) { pat.set(r + h[0], 6, h[1], I_sub, v); pat.set(r + h[0] + 1, 6, OFF, I_sub); });
         }
       };
-      const acid = (pat, ch, inst, seed, vol = 0.7, octave = 12) => {
-        for (let r = 0; r < 128; r++) {
-          if (((r * 7 + seed) % 5) < 2) {
-            const note = barRoot(r) + octave + MIN[(r + seed) % MIN.length];
-            pat.set(r, ch, note, inst, vol);
-            pat.set(r + 1, ch, OFF, inst);
-          }
-        }
+      // One bar's chord, arpeggiated as a 303 acid lick on channel `ch`.
+      const acidBar = (pat, ch, inst, bar, vol) => {
+        const v = (vol == null ? 0.72 : vol), lo = TRIAD[bar].map(function (n) { return n - 24; });
+        const seq = [[0, 0], [2, 2], [3, 1], [6, 0], [7, 2], [8, 0], [10, 1], [11, 2], [13, 0], [14, 1]];
+        const r = bar * 16;
+        seq.forEach(function (s) {
+          const oct = (s[0] === 8 || s[0] === 13) ? 12 : 0;
+          pat.set(r + s[0], ch, lo[s[1]] + oct, inst, v);
+          pat.set(r + s[0] + 1, ch, OFF, inst);
+        });
       };
-      const clang = (pat, vol = 0.72) => {
-        for (let r = 0; r < 128; r++) {
-          const s = r % 16;
-          if (s === 2 || s === 7 || s === 11 || s === 13) {
-            const note = barRoot(r) + 24 + MIN[Math.floor(r / 2) % MIN.length];
-            pat.set(r, 3, note, I_clang, vol);
-          }
-        }
-      };
-      const lead = (pat, vol = 0.68) => {
-        const mel = [0, 3, 7, 5, 3, 2, 0, -2];
+      // The acid conversation: L answers R bar by bar (or both, when `both`).
+      const acidCall = (pat, vol, both) => {
         for (let bar = 0; bar < 8; bar++) {
-          const r = bar * 16;
-          pat.set(r, 7, barRoot(r) + 24 + mel[bar % mel.length], I_lead, vol);
-          pat.set(r + 12, 7, OFF, I_lead);
+          if (both || bar % 2 === 0) acidBar(pat, 4, I_acidL, bar, vol);
+          if (both || bar % 2 === 1) acidBar(pat, 5, I_acidR, bar, vol);
         }
       };
+      // Bell arpeggio on the offbeats — chord tones rising, rings out.
+      const bell = (pat, vol) => {
+        const v = (vol == null ? 0.6 : vol);
+        for (let bar = 0; bar < 8; bar++) {
+          const r = bar * 16, t = TRIAD[bar];
+          [2, 6, 10, 14].forEach(function (st, i) { pat.set(r + st, 3, t[i % 3] + (i >= 3 ? 12 : 0), I_bell, v); });
+        }
+      };
+      // The hook: a hand-written lead melody [absStep, note, durRows].
+      const LEAD = [
+        [0, 76, 6], [6, 72, 4], [10, 74, 4], [14, 72, 2],
+        [16, 69, 6], [22, 72, 4], [26, 77, 6],
+        [32, 79, 6], [38, 76, 4], [40, 72, 4], [44, 74, 2],
+        [48, 74, 6], [54, 71, 4], [58, 79, 6],
+        [64, 76, 6], [70, 72, 4], [74, 69, 4], [78, 71, 2],
+        [80, 69, 6], [86, 72, 4], [90, 65, 6],
+        [96, 77, 4], [100, 74, 4], [104, 81, 6], [110, 79, 2],
+        [112, 76, 6], [118, 80, 4], [122, 76, 6],
+      ];
+      const lead = (pat, vol) => {
+        const v = (vol == null ? 0.7 : vol);
+        LEAD.forEach(function (n) { pat.set(n[0], 7, n[1], I_lead, v); pat.set(n[0] + n[2], 7, OFF, I_lead); });
+      };
 
-      // ---- p0 · intro: just clatter — swirling clang + ping-pong hats ----
-      setHome(p[0]);
-      clang(p[0], 0.6); drums(p[0], { kick: false, snare: false, hats: true });
-      pingPong(p[0], 2, 1); swirl(p[0], 3, 2);
+      // ===== arrangement =====
+      // p0 · intro — bell shimmer across the field + airy lead, no kick
+      setHome(p[0]); bell(p[0], 0.6); drums(p[0], { kick: false, snare: false, hats: true });
+      lead(p[0], 0.5); pingPong(p[0], 3, 2, 0.06, 0.94); pingPong(p[0], 2, 1);
 
-      // ---- p1 · the kit walks in ----
-      setHome(p[1]);
-      drums(p[1], { kick: true, snare: false, hats: true }); sub(p[1], 0.8); clang(p[1], 0.65);
-      pingPong(p[1], 2, 1); swirl(p[1], 3, 2); sweep(p[1], 6, 0.5, 0.4, 0.6); // sub barely wobbles
+      // p1 · build — kick + bass walk in
+      setHome(p[1]); drums(p[1], { kick: true, snare: false, hats: true });
+      bass(p[1], 0.85); bell(p[1], 0.62); lead(p[1], 0.6);
+      pingPong(p[1], 3, 2, 0.06, 0.94); pingPong(p[1], 2, 1);
 
-      // ---- p2 · acids enter, trading sides ----
-      setHome(p[2]);
-      drums(p[2], { kick: true, snare: true, hats: true }); sub(p[2], 0.85);
-      acid(p[2], 4, I_acidL, 0, 0.7); acid(p[2], 5, I_acidR, 3, 0.7); clang(p[2], 0.7);
-      pingPong(p[2], 2, 1); swirl(p[2], 3, 3);
-      pan(p[2], 0, 4, 0.12); pan(p[2], 0, 5, 0.88); // hard L / hard R, held
+      // p2 · pre — the L/R acid conversation enters
+      setHome(p[2]); drums(p[2], { kick: true, snare: true, hats: true });
+      bass(p[2], 0.9); acidCall(p[2], 0.72); bell(p[2], 0.6);
+      pingPong(p[2], 2, 1); pingPong(p[2], 3, 2, 0.06, 0.94);
 
-      // ---- p3 · main groove: everything moving ----
-      setHome(p[3]);
-      drums(p[3], { kick: true, snare: true, hats: true, busy: true }); sub(p[3], 0.9);
-      acid(p[3], 4, I_acidL, 0, 0.72); acid(p[3], 5, I_acidR, 3, 0.72);
-      clang(p[3], 0.72); lead(p[3], 0.68);
-      pingPong(p[3], 2, 1); swirl(p[3], 3, 3);
-      pan(p[3], 0, 4, 0.1); pan(p[3], 0, 5, 0.9);
-      sweep(p[3], 7, 1, 0.15, 0.85);             // lead drifts a full L→R→L
+      // p3 · DROP — the full hook
+      setHome(p[3]); drums(p[3], { four: true, snare: true, hats: true, busy: true });
+      bass(p[3], 0.95); acidCall(p[3], 0.74); lead(p[3], 0.72); bell(p[3], 0.6);
+      pingPong(p[3], 2, 1); pingPong(p[3], 3, 2, 0.05, 0.95);
 
-      // ---- p4 · chaos: acids sweep past each other, fast clang swirl ----
-      setHome(p[4]);
-      drums(p[4], { kick: true, snare: true, hats: true, busy: true }); sub(p[4], 0.9);
-      acid(p[4], 4, I_acidL, 1, 0.74); acid(p[4], 5, I_acidR, 4, 0.74);
-      clang(p[4], 0.74); lead(p[4], 0.7);
-      pingPong(p[4], 2, 2, 0.06, 0.94, true);    // offbeat ping-pong
-      swirl(p[4], 3, 4);                         // dizzy clang
-      sweep(p[4], 4, 1.5, 0.05, 0.95, 2, 0);     // acid-L sweeps...
-      sweep(p[4], 5, 1.5, 0.05, 0.95, 2, Math.PI); // ...acid-R counter-phase
-      sweep(p[4], 7, 2, 0.2, 0.8);
+      // p4 · variation — both acids chatter, lead drifts across
+      setHome(p[4]); drums(p[4], { four: true, snare: true, hats: true, busy: true });
+      bass(p[4], 0.95); acidCall(p[4], 0.7, true); lead(p[4], 0.72); bell(p[4], 0.58);
+      pingPong(p[4], 2, 1); pingPong(p[4], 3, 2, 0.05, 0.95); sweep(p[4], 7, 1, 0.25, 0.75);
 
-      // ---- p5 · breakdown: drums drop, big slow stereo washes ----
-      setHome(p[5]);
-      clang(p[5], 0.66); lead(p[5], 0.66); sub(p[5], 0.6);
+      // p5 · breakdown — drums out; bell + lead glide opposite slow arcs
+      setHome(p[5]); bell(p[5], 0.6); lead(p[5], 0.66); bass(p[5], 0.6);
       drums(p[5], { kick: false, snare: false, hats: true });
-      sweep(p[5], 3, 0.5, 0.05, 0.95);           // clang glides one slow arc
-      sweep(p[5], 7, 0.5, 0.95, 0.05);           // lead glides the opposite arc
-      pingPong(p[5], 2, 4);                       // lazy hat bounce
-      sweep(p[5], 6, 0.25, 0.4, 0.6);
+      swirl(p[5], 3, 1, 0.05, 0.95); sweep(p[5], 7, 0.5, 0.9, 0.1); pingPong(p[5], 2, 4);
 
-      // ---- p6 · drop: triple ping-pong, acids pinned wide for contrast ----
-      setHome(p[6]);
-      drums(p[6], { kick: true, snare: true, hats: true, busy: true }); sub(p[6], 0.95);
-      acid(p[6], 4, I_acidL, 2, 0.76); acid(p[6], 5, I_acidR, 5, 0.76);
-      clang(p[6], 0.76); lead(p[6], 0.72);
-      pingPong(p[6], 2, 1);                       // hats hard ping-pong
-      pingPong(p[6], 3, 2, 0.04, 0.96, true);     // clang ping-pong, opposite start
-      pingPong(p[6], 7, 4, 0.1, 0.9);             // lead bounces too
-      pan(p[6], 0, 4, 0.05); pan(p[6], 0, 5, 0.95); // acids pinned hard wide
+      // p6 · DROP 2 — everything, tasteful triple stereo motion
+      setHome(p[6]); drums(p[6], { four: true, snare: true, hats: true, busy: true });
+      bass(p[6], 0.98); acidCall(p[6], 0.74); lead(p[6], 0.74); bell(p[6], 0.62);
+      pingPong(p[6], 2, 1); pingPong(p[6], 3, 2, 0.04, 0.96, true); sweep(p[6], 7, 2, 0.3, 0.7);
 
-      // ---- p7 · outro: clatter fades, one last slow swirl ----
-      setHome(p[7]);
-      clang(p[7], 0.5); lead(p[7], 0.55); sub(p[7], 0.5);
+      // p7 · outro — wind down, sparse bell + lead, gentle swirl
+      setHome(p[7]); bell(p[7], 0.5); lead(p[7], 0.55); bass(p[7], 0.6);
       drums(p[7], { kick: true, snare: false, hats: true });
-      swirl(p[7], 3, 1); sweep(p[7], 7, 0.5, 0.3, 0.7); pingPong(p[7], 2, 2);
+      swirl(p[7], 3, 1, 0.1, 0.9); pingPong(p[7], 2, 2);
 
-      // ---- p8 · the last pan: one centred clang hit ringing out ----
-      setHome(p[8], [0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5]);
-      p[8].set(0, 3, 45 + 24, I_clang, 0.8);     // a single A clang, dead centre
-      p[8].set(0, 6, 45 - 12, I_sub, 0.6); p[8].set(96, 6, OFF, I_sub);
+      // p8 · tail — a final Am chord spread across the field, ringing out
+      setHome(p[8], [0.5, 0.5, 0.5, 0.5, 0.2, 0.8, 0.5, 0.5]);
+      p[8].set(0, 3, 69, I_bell, 0.7);                                   // A (centre)
+      p[8].set(0, 4, 72, I_acidL, 0.5); p[8].set(48, 4, OFF, I_acidL);   // C (left)
+      p[8].set(0, 5, 76, I_acidR, 0.5); p[8].set(48, 5, OFF, I_acidR);   // E (right)
+      p[8].set(0, 6, 33, I_sub, 0.6);   p[8].set(112, 6, OFF, I_sub);    // A (sub)
 
       return {
         patterns: p,
-        // intro→walk-in→acids→groove→chaos→groove→breakdown→drop→groove→chaos→drop→outro→tail
-        order: [0, 1, 2, 3, 4, 3, 5, 6, 3, 4, 6, 7, 8],
+        // intro·build·pre·DROP·DROP·var·breakdown·DROP2·DROP2·DROP·var·outro·tail
+        order: [0, 1, 2, 3, 3, 4, 5, 6, 6, 3, 4, 7, 8],
         rowsPerBeat: 4,
-        // Static base image (shown when stopped / before automation fires):
-        // acids parked L/R, everything else centred — playback then abuses it.
-        pan: [0.5, 0.5, 0.5, 0.5, 0.18, 0.82, 0.5, 0.5],
+        // Static base image: acids parked L/R, rest centred; playback moves it.
+        pan: [0.5, 0.5, 0.5, 0.5, 0.15, 0.85, 0.5, 0.5],
       };
     }
   }
