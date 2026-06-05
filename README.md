@@ -27,15 +27,13 @@ served from a domain root or a subpath.
 | Key                         | Action                                                        |
 | --------------------------- | ------------------------------------------------------------- |
 | **Z–M** / **S,D,G,H,J**    | Piano keys — write a note to the cursor cell & preview        |
-| **Arrows**                  | Move cursor; **←/→** step note → instrument → volume → fx columns |
-| **0–9** / **A–F**          | Set the inst/volume field (2-digit); on the fx-value column, enter a hex byte |
-| **Enter** (fx command col)  | Open the parameter-target picker for the cell                 |
-| **F**                       | Show / hide the automation (FX) column                        |
-| **Shift+↑/↓**              | Nudge the note's volume ±5% (or the fx value byte ±1)         |
+| **Arrows**                  | Move cursor; **←/→** step note → instrument → volume sub-columns, then across automation-track columns |
+| **0–9** / **A–F**          | Set the inst/volume field (2-digit); on an automation-track column, enter a hex byte (`00`–`FF`) |
+| **Shift+↑/↓**              | Nudge the note's volume ±5%                                  |
 | **PageUp/Dn**, **Home/End** | Page / jump the cursor; **mouse wheel** scrolls the grid      |
-| **Click+drag**              | Select a block of cells                                       |
-| **Ctrl/⌘+C/X/V**           | Copy / cut / paste the selected block (note + automation)        |
-| **Del**                     | Clear cell (or the automation command, in the fx columns)     |
+| **Click+drag**              | Select a block of cells (note channels and automation tracks) |
+| **Ctrl/⌘+C/X/V**           | Copy / cut / paste the selected block (notes + automation)    |
+| **Del**                     | Clear the cell (a note, or an automation-track value)         |
 | **=**                       | Note-off                                                      |
 | **Space**                   | Play / Stop                                                   |
 | **[ / ]**                   | Octave down / up                                              |
@@ -166,48 +164,54 @@ per-line damping lowpass:
 
 Mid/side stereo width control. Values > 1.0 widen; < 1.0 narrow toward mono.
 
-## Automation (FX Column)
+## Volume
 
-Each pattern cell can carry one **effect command** in an optional automation
-column — a parameter *target* plus a value. Toggle the column with the **FX Col**
-button or **F** (shown by default). A command reads as a short code + two hex
-digits, e.g. `CUT·A4`.
+Two independent volumes:
 
-- **Set the target** — on the command sub-column, press **Enter** (or start
-  typing a code) to open a picker of every parameter the channel's instrument can
-  automate; arrow + Enter to choose, or type the 2-letter code to filter.
-- **Set the value** — on the value sub-column, type two hex digits (`00`–`FF`),
-  or **Shift+↑/↓** to nudge. The byte maps across the parameter's real range
-  (log-scaled for cutoffs, linear elsewhere).
+- **Global volume** — the render-level output gain, baked into the rendered audio,
+  so it **affects recordings/exports**. Set it per song with the **Volume** knob in
+  the **Song Editor** tab (100% = the default), saved with the song, and reset to
+  the default on **New Song**. It's also automatable as the **Volume** (global)
+  target, and the per-engine FX **Level** trims each engine within the mix.
+- **Playback volume** — the monitor slider in the header. Affects only what you
+  hear; it never touches the render or a recording.
 
-Three scopes, distinguished by colour in the grid:
+Automation lives in dedicated **tracks** — extra columns to the right of the note
+channels, each sequencing one parameter independently of note triggers. Click
+**+ Auto Track** in the Pattern Editor toolbar to pick a parameter; a new column
+appears. Type two hex digits (`00`–`FF`) per row to set a value; an empty `··` row
+holds the previous value. Right-click a track's header to remove it.
 
-- **Instrument params** (cyan) — cutoff, resonance, FM mod index, … written to
-  that channel's live voice slot, so the change is per-channel and resets on the
-  next note. A column of CUT commands is the classic acid filter sweep.
-- **Effect params** (amber) — distortion, delay/reverb mix, … written to the
-  instrument's shared FX chain, so the change is track-wide for that engine type.
-- **Channel params** (cyan) — currently **PAN**. Per-channel and engine-agnostic
-  (offered on every channel); the value reads as `L../C/R..`. The channel header's
-  pan slider sets the base (saved with the song); a pan command overrides it for
-  the rest of playback and reverts on stop.
+The byte maps across the parameter's real range (log-scaled for cutoffs, linear
+elsewhere). The parameter-target registry lives in `src/tracker/automation.ts`, and
+that normalised byte is also the currency for MIDI-CC recording (below).
 
-Commands apply per row during playback, right after the row's note triggers
-(so a command sharing a cell with a note overrides the note's snapshot). The
-sidebar knobs follow the automation live and revert to the stored base on stop.
-The registry lives in `src/tracker/automation.ts`; the stored value is a single
-normalised byte — the same currency intended for future **MIDI CC** mapping.
-The demo songs *Dextroamphetamine Suppository* and *Where'd I Put My Keys?* use
-it for 303 cutoff sweeps.
+Four scopes, distinguished by colour/tag in the grid:
 
-### Dedicated Automation Tracks (AutoTracks)
+- **Instrument** (cyan) — cutoff, resonance, FM mod index, … applied to an
+  instrument *instance*. It holds across that instance's note retriggers, so a
+  column of cutoff values is the classic acid filter sweep, and reverts to the
+  instrument's base on stop.
+- **Effect** (amber) — distortion, delay/reverb mix, … written to the engine
+  type's shared FX chain, so the change is track-wide for that engine. Persists
+  until re-set.
+- **Channel** (cyan) — currently **PAN**, per-channel and engine-agnostic; the
+  value reads as `L../C/R..`. The channel header's pan slider sets the base (saved
+  with the song); an automation value overrides it during playback, reverting on stop.
+- **Global** (red) — **BPM** and **Volume** (the global output level). Song-wide.
 
-In addition to per-cell FX commands, you can add dedicated automation tracks.
-Click **+ Auto Track** in the pattern toolbar to select a global, channel, or
-instrument parameter. A new column will appear in the grid dedicated to that
-parameter, allowing you to sequence automation independently of note triggers.
-These tracks are perfect for sweeping the Master volume, BPM, or instrument
-parameters continuously across rows without needing note events.
+Values apply per row during playback, right after the row's note triggers, so a
+value on a note's row overrides the note's snapshot; sidebar knobs follow live and
+revert to the stored base on stop. The demo songs *Dextroamphetamine Suppository*,
+*Where'd I Put My Keys?*, *Feral Roomba Sabbath* and *Tinnitus Cathedral* use 303
+cutoff/resonance sweeps; *Frying pans. Who knew?* uses per-channel PAN.
+
+### MIDI input
+
+With a Web MIDI device connected, note on/off play (and, with **record** armed,
+write to the pattern). CC knobs map to the selected instrument's parameters and
+record straight into the matching automation track — created on the fly if one
+doesn't exist yet.
 
 ## How It Works
 

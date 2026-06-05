@@ -82,19 +82,34 @@ and `git status` before committing** so they don't get swept into a commit.
   returns null for absent uniforms → `gl.uniform*` is a silent no-op.
 - **Effects** are per *engine type* (`fxParams['303']` etc.), shared by all instances/
   channels of that type — they operate on the summed instrument output.
-- **Automation** (`src/tracker/automation.ts`): per-cell effect commands. Each cell
-  stores a `ParamTarget` id (`fxCmd`) + a normalized value byte 0–255 (`fxVal`). The
-  byte is the universal currency (storage, 2-hex display, future MIDI CC). Three scopes:
-  `inst` writes the live per-voice slot (channel-local); `fx` writes the shared
-  `fxParams` (track-wide for that engine); `chan` writes a per-channel mix param
-  (currently `PAN`, engine-agnostic so it's offered on every channel). Applied per row
-  in `engine._applyAutomation`, after note triggers, so a command on a note's row
-  overrides the note's snapshot.
+- **Automation** (`src/tracker/automation.ts` + `Pattern.autoTracks`): dedicated
+  per-pattern **tracks**, each sequencing one `ParamTarget` over the rows as an
+  `Int16Array` (`-1` = hold, `0–255` = a normalized value byte — the universal
+  currency for storage, 2-hex display, and MIDI-CC recording). `pattern.getOrCreate
+  AutoTrack(instIdx, paramId)` derives scope from the param (single source of truth).
+  Four scopes: `inst` targets an instrument *instance* — instance-wide, applied to
+  live voices and merged on note-on via `autoLive` (never the pristine base params;
+  reset on play/stop); `fx` writes the engine type's shared `fxParams` (track-wide,
+  resolved from the targeted instance's type); `chan` writes a per-channel mix param
+  (`PAN`; `targetInstIdx` is reused as the channel index); `global` is song-wide
+  (`BPM`, `VOL`→`vd.master`). Applied per row in `engine._applyAutomation`, after note
+  triggers. `targetInstIdx` is remapped wherever instruments shift (`loadSongInstruments`
+  prune, `removeInstrument`). `autoTracks` is a parallel structure — every path that
+  copies/remaps a pattern handles it (clone, `resize`, copy/paste).
 - **Pan** is per channel (channel index == voice index). `engine.channelPan[]` is the
   base the header slider sets and a song persists via `data().pan` (read in `loadSong`);
   `engine.panAuto[]` holds a transient `chan`-automation override (cleared on play/stop).
-  Both feed `vd.pan[]` each block — the mix shader (`mix.glsl`) already does equal-power
-  pan from `uPan`, so the whole audio path is stereo end-to-end.
+  Both feed `vd.pan[]` each block — the mix shader (`mix.glsl`) does equal-power pan
+  from `uPan`, so the whole audio path is stereo end-to-end. **Reverb decode must keep
+  both stereo taps zero-sum** (`fx-fdn-tap.glsl`) or the mono reverb send leaks into one
+  channel (was a +4.6 dB right bias).
+- **Global volume** is `vd.master` — the render-level output gain, baked into the audio
+  (so it affects recordings), default `DEFAULT_MASTER` (`constants.ts`). Per-song
+  (`SongData.master`, applied in `loadSong`; absent → default, so New Song resets it).
+  Base lives in `engine.songMaster`, restored on play/stop; `engine.setMaster()` is the
+  Song Editor knob's setter. Distinct from the monitor-only playback slider
+  (`pipeline.setVolume`, post-analyser so it's not in exports). The `VOL` target's `max`
+  is derived (`DEFAULT_MASTER*255/128`) so automation byte `0x80` == the default.
 
 ## Conventions & gotchas
 
@@ -110,11 +125,14 @@ and `git status` before committing** so they don't get swept into a commit.
 - **Automation value precision**: endpoints are 8-bit, so e.g. 844 Hz on a log curve may
   land a few Hz off — that's expected quantization, not a bug. Use
   `normByte(target, realValue)` (from `automation.ts`) when authoring exact-ish endpoints.
-- **One fx command per cell.** Can't put two automation targets on the same `(row, ch)`.
-  Put different targets on different channels/rows. `fx`-scope automation must sit on a
-  cell whose channel has a *live voice of that engine type* (else `_channelType` resolves
-  the wrong engine); `fx` changes persist until re-set, so reset them or use a
-  self-returning ramp.
+- **One track per target.** A track is keyed by `(scope, targetInstIdx, paramId)`;
+  `getOrCreateAutoTrack` dedupes on that. `fx`-scope changes persist until re-set, so
+  reset them or use a self-returning ramp. `inst`-scope is instance-*wide* (every channel
+  playing that instance moves together) — distinct from the old per-channel FX model.
+- **Demo-song automation targets an instrument *index*, not a channel.** A common past
+  bug: passing a channel number to `getOrCreateAutoTrack('inst', …)`. Out-of-range indices
+  are now ignored by `loadSongInstruments` (no crash), but the value still won't land —
+  pass the instrument the channel actually plays.
 - **Presets** live in `src/ui/presets.ts` (keyed by engine type). Preset matching compares
   `p0`/`p1` only; `loadPreset` applies `p2`/`p3` for moog (defaulting to classic when
   absent). DX7 patches come from SysEx ROMs, not presets.

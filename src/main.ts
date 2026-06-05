@@ -872,8 +872,7 @@ export class App {
 
   _handleCursor(e: KeyboardEvent) {
     const c = this.view.cursor, p = this.view.pattern;
-    // Shift+Up/Down: fine nudge. In the fx-value column it steps the value byte;
-    // elsewhere it nudges the note's volume.
+    // Shift+Up/Down: fine nudge of the note's volume (±5%).
     if (e.shiftKey && (e.code === 'ArrowUp' || e.code === 'ArrowDown')) {
       const idx = p.idx(c.row, c.ch);
       if (p.notes[idx] >= 0) {
