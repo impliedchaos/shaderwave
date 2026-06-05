@@ -17,6 +17,13 @@ import { showExportDialog } from './audio/export.js';
 import { renderArranger } from './ui/arranger.js';
 import { invalidateTheme, themeVar } from './ui/theme.js';
 import { initHelp } from './ui/help.js';
+import pkg from '../package.json';
+
+// Display version from package.json
+const versionSpan = document.getElementById('app-version');
+if (versionSpan) {
+  versionSpan.textContent = `v${pkg.version}`;
+}
 
 const $ = (id) => document.getElementById(id);
 
