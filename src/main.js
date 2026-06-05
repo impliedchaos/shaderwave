@@ -19,6 +19,9 @@ import { initHelp } from './ui/help.js';
 
 const $ = (id) => document.getElementById(id);
 
+const PLAY_ICON = `<svg class="icon" viewBox="0 0 16 16" width="14" height="14"><path d="M4 2.5v11l9-5.5-9-5.5z" fill="currentColor"/></svg>`;
+const PAUSE_ICON = `<svg class="icon" viewBox="0 0 16 16" width="14" height="14"><path d="M3 2.5h3.5v11H3zm6.5 0h3.5v11H9.5z" fill="currentColor"/></svg>`;
+
 // Deep-clone song params so slider mutations never corrupt the DEMO_SONGS defs.
 function cloneFx(src) {
   const dst = {};
@@ -860,7 +863,8 @@ export class App {
     this._vuL = Math.max(pl, (this._vuL || 0) * 0.82);
     this._vuR = Math.max(pr, (this._vuR || 0) * 0.82);
     const apply = (el, v) => {
-      el.style.width = Math.min(100, (v / 1.25) * 100) + '%';
+      // Linear mapping matching the volume slider thumb's center offset at 100% volume (77.375% width)
+      el.style.width = Math.min(100, v * 77.375) + '%';
       el.classList.toggle('clip', v > 1.0);
     };
     apply(lEl, this._vuL);
@@ -1008,12 +1012,14 @@ export class App {
         if (this.engine.playing && this.engine.playMode === 'song') {
           if (!playBtn.classList.contains('playing')) {
             playBtn.classList.add('playing');
-            playBtn.innerHTML = '⏸︎ Pause';
+            playBtn.innerHTML = PAUSE_ICON;
+            playBtn.title = 'Pause';
           }
         } else {
           if (playBtn.classList.contains('playing')) {
             playBtn.classList.remove('playing');
-            playBtn.innerHTML = '▶︎ Play';
+            playBtn.innerHTML = PLAY_ICON;
+            playBtn.title = 'Play';
             this._updatePatternSelector(); // sync back when song stops
           }
         }

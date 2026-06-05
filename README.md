@@ -13,9 +13,10 @@ npm install
 npm run dev        # dev server with HMR → http://localhost:5173
 npm run build      # production bundle → dist/
 npm run preview    # serve the production build locally
+npm run deploy     # build and deploy to the remote server
 ```
 
-Then click **▶ Play**. The `dist/` output is plain static files — host it anywhere
+Then click the **▶** (Play) button. The `dist/` output is plain static files — host it anywhere
 (GitHub Pages, S3, nginx…). No special headers are needed: audio is delivered to the
 AudioWorklet via `postMessage` (no `SharedArrayBuffer`), so no cross-origin-isolation
 (`COOP`/`COEP`) headers are required. The build uses a relative `base`, so it works

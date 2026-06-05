@@ -16,6 +16,7 @@ npm install
 npm run dev        # Vite dev server + HMR → http://localhost:5173
 npm run build      # production bundle → dist/  (also the fastest "does it compile" check)
 npm run preview    # serve the built bundle
+npm run deploy     # build and deploy to the remote server
 ```
 
 There is **no unit-test framework**. Verification is done two ways:

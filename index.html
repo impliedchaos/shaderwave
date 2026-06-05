@@ -137,7 +137,7 @@
      width. The fill maps 0..125% of full scale to the bar width (so its 100%
      point lines up with the slider's), accent colour up to unity, the hot
      colour once it clips. */
-  .vol-meter { display: flex; flex-direction: column; gap: 2px; width: 160px; }
+  .vol-meter { display: flex; flex-direction: column; gap: 2px; width: 160px; position: relative; }
   .vol-meter input[type="range"] { width: 160px; margin: 0; }
   .vol-meter .vu {
     height: 4px;
@@ -155,6 +155,40 @@
   .vol-meter .vu-fill.clip {
     background: var(--hot);
     box-shadow: 0 0 6px var(--hot-glow);
+  }
+  .vol-ticks {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    pointer-events: none;
+    z-index: 1;
+  }
+  .vol-tick {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    transform: translateX(-50%);
+  }
+  .vol-tick::before {
+    content: '';
+    position: absolute;
+    top: -2px;
+    height: 8px;
+    width: 1px;
+    background: rgba(255, 255, 255, 0.22);
+    box-shadow: 0 0 1px rgba(0, 0, 0, 0.4);
+  }
+  .vol-tick::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    height: 8px;
+    width: 1px;
+    background: rgba(255, 255, 255, 0.22);
+    box-shadow: 0 0 1px rgba(0, 0, 0, 0.4);
   }
 
   /* Futuristic LCD screen styling for settings */
@@ -293,9 +327,13 @@
     box-shadow: 0 0 18px var(--hot-glow);
   }
 
-  /* Lock the play/pause button height so the Play↔Pause glyph/label swap can
-     never resize it (box-sizing is border-box; matches #stop's natural 32px). */
-  #play { height: 32px; }
+  /* Style transport buttons as square icon-only controls */
+  #play, #stop {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    font-size: 14px;
+  }
 
   #main { display: flex; flex: 1; min-height: 0; }
   
@@ -1167,13 +1205,21 @@
   <header>
     <h1>ShaderWave</h1>
     <div class="control-group">
-      <button id="play" class="primary">▶︎ Play</button>
-      <button id="stop">■ Stop</button>
+      <button id="play" class="primary" title="Play"><svg class="icon" viewBox="0 0 16 16" width="14" height="14"><path d="M4 2.5v11l9-5.5-9-5.5z" fill="currentColor"/></svg></button>
+      <button id="stop" title="Stop"><svg class="icon" viewBox="0 0 16 16" width="14" height="14"><rect x="3" y="3" width="10" height="10" rx="1.5" fill="currentColor"/></svg></button>
       <span class="vol-label">VOL</span>
       <div class="vol-meter">
         <div class="vu"><div class="vu-fill" id="vu-l"></div></div>
         <input id="volume" type="range" min="0" max="125" value="100" />
         <div class="vu"><div class="vu-fill" id="vu-r"></div></div>
+        <div class="vol-ticks">
+          <span class="vol-tick" style="left: calc(7px + 0.0 * (100% - 14px));"></span>
+          <span class="vol-tick" style="left: calc(7px + 0.2 * (100% - 14px));"></span>
+          <span class="vol-tick" style="left: calc(7px + 0.4 * (100% - 14px));"></span>
+          <span class="vol-tick" style="left: calc(7px + 0.6 * (100% - 14px));"></span>
+          <span class="vol-tick" style="left: calc(7px + 0.8 * (100% - 14px));"></span>
+          <span class="vol-tick" style="left: calc(7px + 1.0 * (100% - 14px));"></span>
+        </div>
       </div>
       <span id="volume-val" class="vol-val">100%</span>
     </div>
