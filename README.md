@@ -221,10 +221,12 @@ Per render block the GPU runs:
    bitcrusher → width → master).
 4. **Readback** (`readPixels`) → interleaved stereo `Float32Array` → ring buffer.
 
-The recursive ladder filter (303, Moog) can't be parallelised trivially, so each
-output sample recomputes its voice's filter from the block start using carried-in
-state. It's O(N²) per block but trivial for the GPU at `BLOCK=512`. The clean O(N)
-optimisation is a checkpoint/scan — noted for later.
+The recursive ladder filter (303, Moog) can't be parallelised trivially: each
+output sample recomputes its voice's filter from a checkpoint using carried-in
+state. To keep that from being an O(N²) recompute per block, the ladder is
+rendered in strips of `subBlock` samples (default 64), each picking up from the
+previous strip's saved state — O(N·subBlock), and bit-identical to the old
+single-pass render. See `synth-renderer.js`.
 
 ## Layout
 
@@ -280,7 +282,6 @@ google-chrome --headless=new --enable-unsafe-swiftshader --dump-dom \
   minutes) will drift. Fix: carry phase in the state texture like the filter.
 - Song is a single looping pattern; multi-pattern song order is modelled but has no
   editor UI.
-- O(N²) ladder recompute — replace with a checkpoint scan if profiling demands it.
 - DX7 envelope is simplified ADSR; full rate/level 4-stage envelope not yet
   implemented.
 - MIDI input, with CC messages mapped onto automation targets (the stored value
