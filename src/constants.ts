@@ -4,7 +4,7 @@ import type { InstrumentType } from './types.js';
 export const BLOCK = 512;        // samples rendered per GPU pass (per channel)
 export const VOICES = 8;         // simultaneous voices per instrument
 export const CHANNELS = 2;       // stereo, interleaved per frame
-export const DEFAULT_MASTER = 0.32;  // global output gain, baked into the render (→ affects recording); per-song, reset on New Song
+export const DEFAULT_MASTER = 0.5;   // global output gain, baked into the render (→ affects recording); per-song, reset on New Song
 
 // Audio is handed to the worklet as transferable stereo blocks via postMessage
 // (no SharedArrayBuffer → no cross-origin-isolation headers → any static host).
