@@ -59,7 +59,7 @@ export interface InstrumentSpec extends InstrumentParams {
 
 // ── Automation ────────────────────────────────────────────────────────────
 export type ParamCurve = 'log' | 'lin' | 'enum';
-export type ParamScope = 'inst' | 'fx' | 'chan';
+export type ParamScope = 'inst' | 'fx' | 'chan' | 'global';
 
 // One automatable parameter. `scope` selects which fields are meaningful:
 //   inst → bank + index (into p0/p1) and a concrete engine `type`
@@ -141,6 +141,17 @@ export interface VoiceData {
   master: number;
   // Per-voice DX7 operator config, packed [v*6 + op] into vec4 arrays.
   dx7Ops: { A: Float32Array; B: Float32Array; C: Float32Array; D: Float32Array };
+}
+
+// ── Dedicated Automation Tracks ─────────────────────────────────────────────
+// An automation track sequences a single parameter over the length of a pattern.
+// targetInstIdx is null if the scope is global or chan.
+// data is Int16Array: -1 means empty/hold, 0..255 are normalized values.
+export interface AutoTrack {
+  targetScope: ParamScope;
+  targetInstIdx: number | null;
+  targetParamId: number;
+  data: Int16Array;
 }
 
 // ── Songs ─────────────────────────────────────────────────────────────────

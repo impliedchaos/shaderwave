@@ -62,6 +62,9 @@ export function loadSongInstruments(songDef: SongDef): { instruments: Instrument
     for (let i = 0; i < pat.inst.length; i++) {
       if (pat.notes[i] !== EMPTY) used.add(pat.inst[i]);
     }
+    for (const track of pat.autoTracks) {
+      if (track.targetInstIdx !== null) used.add(track.targetInstIdx);
+    }
   }
   if (used.size === 0) used.add(0);                      // always keep ≥1
 
@@ -73,6 +76,12 @@ export function loadSongInstruments(songDef: SongDef): { instruments: Instrument
     for (let i = 0; i < pat.inst.length; i++) {
       const m = remap.get(pat.inst[i]);
       pat.inst[i] = m === undefined ? 0 : m;             // unused cells → instance 0
+    }
+    for (const track of pat.autoTracks) {
+      if (track.targetInstIdx !== null) {
+        const m = remap.get(track.targetInstIdx);
+        track.targetInstIdx = m === undefined ? 0 : m;
+      }
     }
   }
   return { instruments, data };

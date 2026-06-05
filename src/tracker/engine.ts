@@ -449,18 +449,64 @@ export class Engine {
         const instrIdx = (v && v.active) ? v.instrument : pat.inst[i];
         this.autoLive.inst.set(`${instrIdx}:${t.bank}:${t.index}`, value);
       } else if (t.scope === 'chan') {
-        // Per-channel pan: override the slider base until cleared (play/stop).
         this.panAuto[ch] = value;
+      } else if (t.scope === 'global') {
+        if (t.code === 'BPM') this.bpm = value;
+        else if (t.code === 'MST') this.vd.master = value;
       } else if (this.fxParams) {
         const fp = this.fxParams[this._channelType(ch, pat, i)];
         if (fp) fp[t.key!] = value;
+      }
+    }
+
+    for (const track of pat.autoTracks) {
+      const val255 = track.data[row];
+      if (val255 < 0) continue;
+      const t = targetById(track.targetParamId);
+      if (!t) continue;
+      const value = denorm(t, val255);
+      
+      if (t.scope === 'global') {
+        if (t.code === 'BPM') this.bpm = value;
+        else if (t.code === 'MST') this.vd.master = value;
+      } else if (t.scope === 'chan' && track.targetInstIdx !== null) {
+        // chan scope targeted to a specific channel index? No, wait, AutoTracks don't have a channel index!
+        // chan scope is tricky for AutoTracks unless targetInstIdx is interpreted as channel index.
+        // Let's assume targetInstIdx for chan scope means channel index.
+        this.panAuto[track.targetInstIdx] = value;
+      } else if (track.targetInstIdx !== null) {
+        const instr = this.instruments[track.targetInstIdx];
+        if (!instr) continue;
+        if (t.scope === 'inst') {
+          // For inst scope, we need to find ALL active voices playing this instrument, OR just write to the autoLive map?
+          // If we write to autoLive, how does the next note get it? It snapshots from the sidebar params. 
+          // Wait, 'inst' automation in legacy FX columns writes directly to the channel's live voice slot (p0/p1).
+          // An AutoTrack targets an *instrument*, not a channel!
+          // So it should probably update the instrument's base params AND all active voices playing it!
+          const arrBase = t.bank === 'p1' ? instr.p1 : instr.p0;
+          arrBase[t.index!] = value;
+          this.autoLive.inst.set(`${track.targetInstIdx}:${t.bank}:${t.index}`, value);
+          // And update live voices playing this instrument:
+          for (let v = 0; v < VOICES; v++) {
+            if (this.voices[v].active && this.voices[v].instrument === track.targetInstIdx) {
+              const vdArr = t.bank === 'p1' ? this.vd.p1 : this.vd.p0;
+              vdArr[v * 4 + t.index!] = value;
+            }
+          }
+        } else if (t.scope === 'fx' && this.fxParams) {
+          const fp = this.fxParams[instr.type];
+          if (fp) fp[t.key!] = value;
+        }
       }
     }
   }
 
   applyAutomationLive(target: any, instIdx: number, ch: number, val255: number) {
     const value = denorm(target, val255);
-    if (target.scope === 'inst') {
+    if (target.scope === 'global') {
+      if (target.code === 'BPM') this.bpm = value;
+      else if (target.code === 'MST') this.vd.master = value;
+    } else if (target.scope === 'inst') {
       const arr = target.bank === 'p1' ? this.vd.p1 : this.vd.p0;
       arr[ch * 4 + target.index!] = value;
       this.autoLive.inst.set(`${instIdx}:${target.bank}:${target.index}`, value);

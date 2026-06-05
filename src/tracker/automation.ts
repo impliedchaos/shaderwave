@@ -76,6 +76,12 @@ const CHAN: RawTarget[] = [
   { code: 'PAN', label: 'Pan', key: 'pan', min: 0, max: 1, curve: 'lin', unit: 'pan' },
 ];
 
+// global-scope targets. Song-level properties.
+const GLOBAL: RawTarget[] = [
+  { code: 'BPM', label: 'BPM', key: 'bpm', min: 40, max: 300, curve: 'lin', unit: 'bpm' },
+  { code: 'MST', label: 'Master Vol', key: 'master', min: 0, max: 2, curve: 'lin' },
+];
+
 // Flatten into a stable, id-indexed table. Order = append-only.
 export const TARGETS: ParamTarget[] = [];
 for (const type of ['303', 'moog', 'dx7', '808'] as InstrumentType[]) {
@@ -83,15 +89,16 @@ for (const type of ['303', 'moog', 'dx7', '808'] as InstrumentType[]) {
 }
 for (const t of FX) TARGETS.push({ ...t, scope: 'fx', type: '*', id: TARGETS.length });
 for (const t of CHAN) TARGETS.push({ ...t, scope: 'chan', type: '*', id: TARGETS.length });
+for (const t of GLOBAL) TARGETS.push({ ...t, scope: 'global', type: '*', id: TARGETS.length });
 
 export function targetById(id: number): ParamTarget | null {
   return (id >= 0 && id < TARGETS.length) ? TARGETS[id] : null;
 }
 
 // Targets selectable for a given engine type: its own inst targets + all fx +
-// all per-channel (chan) targets.
+// all per-channel (chan) targets + all global targets.
 export function targetsForType(type: InstrumentType): ParamTarget[] {
-  return TARGETS.filter((t) => t.scope === 'fx' || t.scope === 'chan' || t.type === type);
+  return TARGETS.filter((t) => t.scope === 'fx' || t.scope === 'chan' || t.scope === 'global' || t.type === type);
 }
 
 export function targetByCode(type: InstrumentType, code: string): ParamTarget | null {

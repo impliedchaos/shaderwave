@@ -11,7 +11,7 @@ import { Controls, bindKnob } from './ui/controls.js';
 import { DEMO_SONGS, loadSongInstruments } from './tracker/song.js';
 import { instGlow } from './constants.js';
 import { OFF, NO_FX, Pattern } from './tracker/pattern.js';
-import { targetsForType } from './tracker/automation.js';
+import { targetsForType, TARGETS } from './tracker/automation.js';
 import { showExportDialog } from './audio/export.js';
 import { renderArranger } from './ui/arranger.js';
 import { invalidateTheme, themeVar } from './ui/theme.js';
@@ -118,7 +118,7 @@ export class App {
   _fxKnobs: { el: KnobEl; key: string }[] = [];
   _fxPanelType?: string;
   _digitEntry: { idx: number; col: number; first: number } | null = null;
-  _hexEntry: { idx: number; first: number } | null = null;
+  _hexEntry: { idx?: number; ch?: number; row?: number; first: number } | null = null;
   _clipboard: { rows: number; chans: number; cells: ClipCell[][] } | null = null;
   _fxPicker: HTMLElement | null = null;
   _vuL = 0;
@@ -276,7 +276,25 @@ export class App {
         const patIdx = this.engine.currentPatternIdx;
         const p = this.engine.song?.patterns[patIdx];
         if (p) {
-          p.setFx(row, curCh, target.id, val255);
+          // If the cursor is on an AutoTrack that matches this target, record there.
+          // Otherwise, if there is ANY AutoTrack matching this target, record there.
+          // Otherwise, record to the legacy FX column of the current channel (if not an AutoTrack).
+          let recorded = false;
+          for (let i = 0; i < p.autoTracks.length; i++) {
+            const track = p.autoTracks[i];
+            // Match target and instrument index
+            if (track.targetParamId === target.id && (track.targetScope === 'global' || track.targetScope === 'chan' || track.targetInstIdx === instIdx)) {
+              if (curCh - p.channels === i || !recorded) {
+                track.data[row] = val255;
+                recorded = true;
+                if (curCh - p.channels === i) break; // Prefer the focused track
+              }
+            }
+          }
+          
+          if (!recorded && curCh < p.channels) {
+            p.setFx(row, curCh, target.id, val255);
+          }
           this.view.draw();
         }
       }
@@ -295,9 +313,11 @@ export class App {
         const patIdx = this.engine.currentPatternIdx;
         const p = this.engine.song?.patterns[patIdx];
         if (p) {
-          p.set(row, curCh, note, instIdx, data2 / 127.0);
-          if (!this.engine.playing) {
-             this._advanceCursorRow();
+          if (curCh < p.channels) {
+            p.set(row, curCh, note, instIdx, data2 / 127.0);
+            if (!this.engine.playing) {
+               this._advanceCursorRow();
+            }
           }
           this.view.draw();
         }
@@ -435,6 +455,10 @@ export class App {
     if (fxColBtn) {
       fxColBtn.onclick = () => { this.view.toggleFx(); this._updateFxColBtn(); };
       this._updateFxColBtn();
+    }
+    const addAutoTrackBtn = $('add-auto-track-btn');
+    if (addAutoTrackBtn) {
+      addAutoTrackBtn.onclick = () => this._openAutoTrackPicker();
     }
     const volInput = $<HTMLInputElement>('volume');
     const volVal = $('volume-val');
@@ -664,6 +688,89 @@ export class App {
     }
   }
 
+  _openAutoTrackPicker() {
+    this._closeFxPicker(); // We can reuse the same modal mechanism
+    const p = this.view.pattern;
+    const instruments = this.engine.instruments;
+    
+    // Build a unified target list: Global targets + targets for every instrument instance
+    const allTargets: { target: ParamTarget, instIdx: number | null, instName: string }[] = [];
+    
+    for (const t of TARGETS) {
+      if (t.scope === 'global') {
+        allTargets.push({ target: t, instIdx: null, instName: 'Global' });
+      } else if (t.scope === 'chan') {
+        // chan scope targets are per-channel, so we add one for each channel
+        for (let ch = 0; ch < p.channels; ch++) {
+          allTargets.push({ target: t, instIdx: ch, instName: `Channel ${ch}` });
+        }
+      }
+    }
+    
+    for (let i = 0; i < instruments.length; i++) {
+      const instr = instruments[i];
+      const targets = targetsForType(instr.type);
+      for (const t of targets) {
+        if (t.scope === 'inst' || t.scope === 'fx') {
+          allTargets.push({ target: t, instIdx: i, instName: `${i}: ${instr.type.toUpperCase()}` });
+        }
+      }
+    }
+
+    const overlay = document.createElement('div');
+    overlay.className = 'fx-picker-overlay';
+    overlay.innerHTML = `<div class="fx-picker">
+      <div class="fx-picker-title">Add Auto Track</div>
+      <input class="fx-picker-input" placeholder="type code or name…" />
+      <ul class="fx-picker-list"></ul>
+      <div class="fx-picker-hint">↑↓ select · Enter add track · Esc cancel</div>
+    </div>`;
+    document.body.appendChild(overlay);
+    const input = overlay.querySelector('.fx-picker-input') as HTMLInputElement;
+    const list = overlay.querySelector('.fx-picker-list') as HTMLElement;
+    input.value = '';
+
+    let sel = 0, filtered = allTargets;
+    const commit = (entry: typeof allTargets[0] | undefined) => {
+      if (!entry) return;
+      p.autoTracks.push({
+        targetScope: entry.target.scope,
+        targetInstIdx: entry.instIdx,
+        targetParamId: entry.target.id,
+        data: new Int16Array(p.rows).fill(-1)
+      });
+      this._closeFxPicker();
+      this.view._resize();
+      this.view.draw();
+    };
+    const render = () => {
+      const q = input.value.trim().toLowerCase();
+      filtered = allTargets.filter((e) => !q || 
+        e.target.code.toLowerCase().startsWith(q) || 
+        e.target.label.toLowerCase().includes(q) ||
+        e.instName.toLowerCase().includes(q)
+      );
+      if (sel >= filtered.length) sel = Math.max(0, filtered.length - 1);
+      list.innerHTML = filtered.map((e, i) =>
+        `<li class="fx-picker-item${i === sel ? ' sel' : ''}${e.target.scope === 'fx' ? ' fx' : ''}" data-i="${i}">
+          <span class="fx-code">${e.instName}</span><span class="fx-code" style="margin-left: 10px">${e.target.code}</span><span class="fx-label">${e.target.label}</span>
+          ${e.target.scope === 'global' ? '<span class="fx-tag" style="background: #ff5f5f; color: #000;">global</span>' : ''}</li>`).join('');
+    };
+    input.onkeydown = (e) => {
+      if (e.key === 'Escape') this._closeFxPicker();
+      else if (e.key === 'ArrowDown') { sel = (sel + 1) % filtered.length; render(); e.preventDefault(); }
+      else if (e.key === 'ArrowUp') { sel = (sel - 1 + filtered.length) % filtered.length; render(); e.preventDefault(); }
+      else if (e.key === 'Enter') commit(filtered[sel]);
+    };
+    input.oninput = () => { sel = 0; render(); };
+    list.onclick = (e) => {
+      const li = (e.target as HTMLElement).closest('.fx-picker-item');
+      if (li) commit(filtered[parseInt(li.getAttribute('data-i')!, 10)]);
+    };
+    render();
+    input.focus();
+  }
+
   _bindKeys() {
     document.addEventListener('keydown', (e) => {
       const tag = (e.target as HTMLElement | null)?.tagName;
@@ -706,10 +813,13 @@ export class App {
         e.preventDefault(); this.view.toggleFx(); this._updateFxColBtn(); return;
       }
       if (this._handleCursor(e)) { e.preventDefault(); return; }
+      if (this._handleAutoTrackEdit(e)) return;
       if (this._handleFxEdit(e)) return;
       if (this._handleEdit(e)) return;
 
       if (e.repeat) return;
+      if (this.view.cursor.ch >= this.view.pattern.channels) return; // No note entry in AutoTracks
+
       const note = this._keyToNote(e.code);
       if (note == null) return;
       e.preventDefault();
@@ -771,10 +881,25 @@ export class App {
       // Left/Right step through the note → instrument → volume sub-columns,
       // wrapping to the adjacent channel at the ends.
       case 'ArrowLeft':
-        if (c.col > 0) c.col--; else { c.ch = (c.ch - 1 + p.channels) % p.channels; c.col = this.view.maxCol; }
+        if (c.ch >= p.channels) {
+          if (c.ch > p.channels) c.ch--;
+          else { c.ch = p.channels - 1; c.col = this.view.maxCol; }
+        } else {
+          if (c.col > 0) c.col--; else {
+            if (c.ch > 0) { c.ch--; c.col = this.view.maxCol; }
+            else { c.ch = p.channels + p.autoTracks.length - 1; c.col = c.ch >= p.channels ? 0 : this.view.maxCol; }
+          }
+        }
         this._digitEntry = null; return true;
       case 'ArrowRight':
-        if (c.col < this.view.maxCol) c.col++; else { c.ch = (c.ch + 1) % p.channels; c.col = 0; }
+        if (c.ch >= p.channels) {
+          if (c.ch < p.channels + p.autoTracks.length - 1) c.ch++;
+          else { c.ch = 0; c.col = 0; }
+        } else {
+          if (c.col < this.view.maxCol) c.col++; else {
+            c.ch++; c.col = 0;
+          }
+        }
         this._digitEntry = null; return true;
       case 'Delete':
       case 'Backspace':
@@ -782,10 +907,19 @@ export class App {
           const s = this.view.selection;
           for (let r = s.r0; r <= s.r1; r++) {
             for (let ch = s.c0; ch <= s.c1; ch++) {
-              p.clear(r, ch); p.clearFx(r, ch);
+              if (ch >= p.channels) {
+                const tIdx = ch - p.channels;
+                if (tIdx < p.autoTracks.length) p.autoTracks[tIdx].data[r] = -1;
+              } else {
+                p.clear(r, ch); p.clearFx(r, ch);
+              }
             }
           }
           this.view.draw();
+        } else if (c.ch >= p.channels) {
+          const tIdx = c.ch - p.channels;
+          if (tIdx < p.autoTracks.length) p.autoTracks[tIdx].data[c.row] = -1;
+          this._advanceCursorRow();
         } else if (c.col >= 3) {
           p.clearFx(c.row, c.ch);          // fx columns: clear the automation command
           this._advanceCursorRow();
@@ -797,6 +931,34 @@ export class App {
       case 'Equal': p.set(c.row, c.ch, OFF, this.controls.selected); this._advanceCursorRow(); return true;
       default: return false;
     }
+  }
+
+  _handleAutoTrackEdit(e: KeyboardEvent) {
+    const c = this.view.cursor, p = this.view.pattern;
+    if (c.ch < p.channels) return false;
+    
+    const isDigit = /^(?:Digit|Numpad)([0-9])$/.exec(e.code);
+    const isLetter = /^Key([A-Z])$/.exec(e.code);
+    if (!isDigit && !isLetter) return false;
+    
+    e.preventDefault();
+    const tIdx = c.ch - p.channels;
+    if (tIdx >= p.autoTracks.length) return true;
+    
+    let nyb = null;
+    if (isDigit) nyb = parseInt(isDigit[1], 10);
+    else if (isLetter && isLetter[1] <= 'F') nyb = parseInt(isLetter[1], 16);
+    if (nyb === null) return true;
+    
+    const track = p.autoTracks[tIdx];
+    const same = this._hexEntry && this._hexEntry.ch === c.ch && this._hexEntry.row === c.row;
+    
+    track.data[c.row] = (same ? ((this._hexEntry!.first << 4) | nyb) : nyb) & 0xff;
+    this._hexEntry = same ? null : { ch: c.ch, row: c.row, first: nyb };
+    
+    // Automatically advance cursor on second digit
+    if (same) this._advanceCursorRow();
+    return true;
   }
 
   // Digit keys edit the instrument (col 1) or volume (col 2) of the note under
@@ -965,6 +1127,15 @@ export class App {
       const fp = this._fxPanelType ? (this.fxParams as Record<string, FxParams>)[this._fxPanelType] : undefined;
       if (fp && this._fxPanelType === instr.type) {
         for (const k of this._fxKnobs || []) k.el._extSet?.(fp[k.key] as number);
+      }
+    }
+    
+    if (playing) {
+      const bpmInput = $<HTMLInputElement>('bpm');
+      if (bpmInput && document.activeElement !== bpmInput) {
+        if (Math.round(this.engine.bpm).toString() !== bpmInput.value) {
+          bpmInput.value = Math.round(this.engine.bpm).toString();
+        }
       }
     }
   }

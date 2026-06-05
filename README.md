@@ -200,6 +200,15 @@ normalised byte — the same currency intended for future **MIDI CC** mapping.
 The demo songs *Dextroamphetamine Suppository* and *Where'd I Put My Keys?* use
 it for 303 cutoff sweeps.
 
+### Dedicated Automation Tracks (AutoTracks)
+
+In addition to per-cell FX commands, you can add dedicated automation tracks.
+Click **+ Auto Track** in the pattern toolbar to select a global, channel, or
+instrument parameter. A new column will appear in the grid dedicated to that
+parameter, allowing you to sequence automation independently of note triggers.
+These tracks are perfect for sweeping the Master volume, BPM, or instrument
+parameters continuously across rows without needing note events.
+
 ## How It Works
 
 ```

@@ -16,6 +16,7 @@ export class Pattern {
   vol: Float32Array;       // 0..1
   fxCmd: Int16Array;       // ParamTarget id or NO_FX
   fxVal: Uint8Array;       // normalized value byte 0..255
+  autoTracks: import('../types.js').AutoTrack[];
 
   constructor(rows = 64, channels = VOICES) {
     this.rows = rows;
@@ -29,6 +30,7 @@ export class Pattern {
     // parallel arrays so it serialises/copies just like notes/inst/vol.
     this.fxCmd = new Int16Array(n).fill(NO_FX);
     this.fxVal = new Uint8Array(n);
+    this.autoTracks = [];
   }
   idx(row: number, ch: number) { return row * this.channels + ch; }
   note(row: number, ch: number) { return this.notes[this.idx(row, ch)]; }
@@ -69,5 +71,10 @@ export class Pattern {
     fxVal.set(this.fxVal.subarray(0, keep));
     this.notes = notes; this.inst = inst; this.vol = vol;
     this.fxCmd = fxCmd; this.fxVal = fxVal; this.rows = newRows;
+    for (const track of this.autoTracks) {
+      const data = new Int16Array(newRows).fill(-1);
+      data.set(track.data.subarray(0, Math.min(track.data.length, newRows)));
+      track.data = data;
+    }
   }
 }

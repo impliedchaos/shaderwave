@@ -37,6 +37,8 @@ const FX_COL_X = [CH_W + 2, CH_W + 32];
 const FX_COL_W = [30, 22];
 const FX_TEXT_PAD = [4, 2];
 
+const AUTO_W = 40;
+
 type Selection = { r0: number; c0: number; r1: number; c1: number };
 type PanSlider = { trackX: number; trackW: number; trackY: number };
 
@@ -88,6 +90,16 @@ export class TrackerView {
   // Highest valid cursor sub-column (4 when the fx column is shown, else 2).
   get maxCol() { return this.showFx ? 4 : 2; }
 
+  _trackX(ch: number): number {
+    const p = this.pattern;
+    if (ch <= p.channels) return NUM_W + ch * this.chW;
+    return NUM_W + p.channels * this.chW + (ch - p.channels) * AUTO_W;
+  }
+  
+  _trackW(ch: number): number {
+    return ch < this.pattern.channels ? this.chW : AUTO_W;
+  }
+
   // Toggle the automation column; clamp the cursor back into range when hiding.
   toggleFx() {
     this.showFx = !this.showFx;
@@ -104,15 +116,27 @@ export class TrackerView {
   _cellAt(e: MouseEvent) {
     const r = this.canvas.getBoundingClientRect();
     const x = e.clientX - r.left, y = e.clientY - r.top;
-    const p = this.pattern, cw = this.chW;
-    const ch = Math.max(0, Math.min(p.channels - 1, Math.floor((x - NUM_W) / cw)));
+    const p = this.pattern;
     const row = Math.max(0, Math.min(p.rows - 1,
       Math.floor((y - this._topPad()) / ROW_H) + this._firstVisibleRow()));
-    const local = (x - NUM_W) - ch * cw;
-    let col;
-    if (this.showFx && local >= FX_COL_X[1]) col = 4;
-    else if (this.showFx && local >= FX_COL_X[0]) col = 3;
-    else col = local >= COL_X[2] ? 2 : local >= COL_X[1] ? 1 : 0;
+
+    let ch = 0;
+    let local = x - NUM_W;
+    const totalChs = p.channels + p.autoTracks.length;
+    for (let i = 0; i < totalChs; i++) {
+      const w = this._trackW(i);
+      if (local < w || i === totalChs - 1) { ch = i; break; }
+      local -= w;
+    }
+    
+    let col = 0;
+    if (ch >= p.channels) {
+      col = 0; // AutoTrack only has one column
+    } else {
+      if (this.showFx && local >= FX_COL_X[1]) col = 4;
+      else if (this.showFx && local >= FX_COL_X[0]) col = 3;
+      else col = local >= COL_X[2] ? 2 : local >= COL_X[1] ? 1 : 0;
+    }
     return { row, ch, col };
   }
 
@@ -123,7 +147,15 @@ export class TrackerView {
 
     // Header: the pan-slider strip drags pan; elsewhere toggles mute.
     if (y >= 0 && y < this._topPad()) {
-      const ch = Math.floor((x - NUM_W) / this.chW);
+      let ch = 0;
+      let local = x - NUM_W;
+      const totalChs = p.channels + p.autoTracks.length;
+      for (let i = 0; i < totalChs; i++) {
+        const w = this._trackW(i);
+        if (local < w || i === totalChs - 1) { ch = i; break; }
+        local -= w;
+      }
+      
       if (ch >= 0 && ch < p.channels) {
         const s = this._panSlider(ch);
         if (x >= s.trackX - 5 && x <= s.trackX + s.trackW + 5) {
@@ -165,7 +197,8 @@ export class TrackerView {
 
   // [x, width] of a cursor sub-field within a channel column whose left edge is x.
   // cols 0-2 = note/inst/vol; 3 = fx command; 4 = fx value.
-  _colRect(x: number, col: number): [number, number] {
+  _colRect(x: number, col: number, isAutoTrack = false): [number, number] {
+    if (isAutoTrack) return [x + 2, AUTO_W - 4];
     if (col === 3) return [x + FX_COL_X[0], FX_COL_W[0]];
     if (col === 4) return [x + FX_COL_X[1], FX_COL_W[1]];
     return [x + COL_X[col], COL_W[col]];
@@ -296,18 +329,22 @@ export class TrackerView {
     ctx.strokeStyle = 'rgba(45, 58, 82, 0.28)';
     ctx.lineWidth = 1;
     ctx.beginPath();
-    for (let ch = 0; ch <= p.channels; ch++) {
-      const dividerX = NUM_W + ch * cw;
+    for (let ch = 0; ch <= p.channels + p.autoTracks.length; ch++) {
+      const dividerX = this._trackX(ch);
       ctx.moveTo(dividerX, 0);
       ctx.lineTo(dividerX, H);
     }
+    // and one extra line to close the grid on the far right
+    const finalDividerX = this._trackX(p.channels + p.autoTracks.length);
+    ctx.moveTo(finalDividerX, 0);
+    ctx.lineTo(finalDividerX, H);
     ctx.stroke();
 
     // 3b. Draw drag-selection block (under the cursor highlight).
     if (this.selection) {
       const s = this.selection;
-      const sx = NUM_W + s.c0 * cw;
-      const sw = (s.c1 - s.c0 + 1) * cw;
+      const sx = this._trackX(s.c0);
+      const sw = this._trackX(s.c1 + 1) - sx;
       ctx.fillStyle = 'rgba(140, 175, 255, 0.18)';
       for (let i = 0; i < viewRows; i++) {
         const row = first + i;
@@ -323,16 +360,15 @@ export class TrackerView {
       if (row >= p.rows) break;
       const y = pad + i * ROW_H;
       
-      for (let ch = 0; ch < p.channels; ch++) {
-        if (row === this.cursor.row && ch === this.cursor.ch) {
-          const x = NUM_W + ch * cw;
-          const [fx, fw] = this._colRect(x, this.cursor.col);
-          ctx.fillStyle = C('--cursor');
-          ctx.fillRect(fx + 0.5, y + 0.5, fw - 1, ROW_H - 1);
-          ctx.strokeStyle = C('--cursor-border');
-          ctx.lineWidth = 1.5;
-          ctx.strokeRect(fx + 0.5, y + 0.5, fw - 1, ROW_H - 1);
-        }
+      const ch = this.cursor.ch;
+      if (row === this.cursor.row) {
+        const x = this._trackX(ch);
+        const [fx, fw] = this._colRect(x, this.cursor.col, ch >= p.channels);
+        ctx.fillStyle = C('--cursor');
+        ctx.fillRect(fx + 0.5, y + 0.5, fw - 1, ROW_H - 1);
+        ctx.strokeStyle = C('--cursor-border');
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(fx + 0.5, y + 0.5, fw - 1, ROW_H - 1);
       }
     }
 
@@ -399,7 +435,7 @@ export class TrackerView {
     };
 
     for (let ch = 0; ch < p.channels; ch++) {
-      const x = NUM_W + ch * cw;
+      const x = this._trackX(ch);
       const isMuted = this.engine.muted[ch];
 
       ctx.fillStyle = isMuted ? 'rgba(106, 124, 150, 0.4)' : C('--dim');
@@ -474,6 +510,18 @@ export class TrackerView {
 
       ctx.fill();
       ctx.stroke();
+    }
+
+    for (let tIdx = 0; tIdx < p.autoTracks.length; tIdx++) {
+      const x = this._trackX(p.channels + tIdx);
+      const track = p.autoTracks[tIdx];
+      const t = targetById(track.targetParamId);
+      ctx.fillStyle = C('--dim');
+      ctx.font = 'bold 10px "Rajdhani", sans-serif';
+      ctx.textAlign = 'center';
+      // Center the code in the 40px column
+      ctx.fillText(t ? t.code : '---', x + AUTO_W / 2, pad / 2);
+      ctx.textAlign = 'left';
     }
 
     ctx.font = '14px "JetBrains Mono", "Fira Code", monospace';
@@ -561,6 +609,23 @@ export class TrackerView {
             ctx.fillText(hex, valX, y + ROW_H / 2);
           }
         }
+      }
+
+      for (let tIdx = 0; tIdx < p.autoTracks.length; tIdx++) {
+        const x = this._trackX(p.channels + tIdx);
+        const track = p.autoTracks[tIdx];
+        const val = track.data[row];
+        ctx.textAlign = 'center';
+        if (val < 0) {
+          ctx.fillStyle = C('--grid');
+          ctx.fillText('··', x + AUTO_W / 2, y + ROW_H / 2);
+        } else {
+          const hex = val.toString(16).toUpperCase().padStart(2, '0');
+          const t = targetById(track.targetParamId);
+          ctx.fillStyle = (!t) ? C('--text') : (t.scope === 'fx' ? '#ffb700' : (t.scope === 'global' ? '#ff5f5f' : '#5fd3ff'));
+          ctx.fillText(hex, x + AUTO_W / 2, y + ROW_H / 2);
+        }
+        ctx.textAlign = 'left';
       }
     }
     ctx.restore();
