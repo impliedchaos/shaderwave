@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Orchestrates the GPU audio graph for one render block:
 //
 //   for each instrument:  synth pass → audioTex[i] (BLOCK×VOICES) + state carry (MRT)

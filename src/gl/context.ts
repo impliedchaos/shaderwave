@@ -1,3 +1,4 @@
+// @ts-nocheck
 // WebGL2 context creation + the float-texture extensions we depend on.
 export function createGL(canvas) {
   const gl = canvas.getContext('webgl2', {

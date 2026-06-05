@@ -1,3 +1,4 @@
+// @ts-nocheck
 // App entry: builds the GL renderer + audio pipeline + tracker engine + UI and
 // wires keyboard/transport. Audio is created lazily on the first user gesture
 // (browser autoplay policy), so the grid is interactive before any sound.

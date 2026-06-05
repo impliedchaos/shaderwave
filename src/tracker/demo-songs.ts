@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { Pattern, OFF, EMPTY } from './pattern.js';
 import { INSTRUMENTS } from '../constants.js';
 import { defaultFxParams } from '../gl/effects.js';

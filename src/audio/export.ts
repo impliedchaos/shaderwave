@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Offline rendering / capture: WAV (offline GPU render → PCM) and WebM video
 // (live MediaRecorder capture, optionally with the 720p GL visualizer). Pulled
 // out of main.js — every entry point takes the App instance so it can reach the

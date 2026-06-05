@@ -11,6 +11,8 @@
     "deploy": "npm run build && ssh dmaez@dataphile \"/usr/bin/rm -rf /home/tug/fun/shaderwave/*\" && scp -r dist/* dmaez@dataphile:/home/tug/fun/shaderwave/"
   },
   "devDependencies": {
-    "vite": "^6.0.0"
+    "typescript": "^6.0.3",
+    "vite": "^6.0.0",
+    "vite-plugin-glsl": "^1.6.0"
   }
 }

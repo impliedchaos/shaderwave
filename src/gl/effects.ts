@@ -1,3 +1,4 @@
+// @ts-nocheck
 // GPU effects chain. Each effect is its own shader pass; the signal flows through
 // an ORDERED list of stages, ping-ponging between two BLOCK×1 scratch buffers. A
 // terminal master pass applies master gain and additively blends each instrument's

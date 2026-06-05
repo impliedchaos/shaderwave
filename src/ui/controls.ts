@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Sidebar: instrument selector + parameter sliders. The selector lists the
 // engine's instrument table (instances); editing a slider writes straight into
 // the selected instance, which the engine snapshots onto each new note.

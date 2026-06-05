@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Cached reads of CSS custom properties (theme vars). getComputedStyle +
 // getPropertyValue were being called dozens of times per animation frame from
 // the tracker grid and visualizer; the values only change when the accent is

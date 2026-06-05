@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Built-in instrument presets, keyed by engine type. Each entry sets the synth
 // param banks (p0/p1, plus p2/p3 for the Moog's osc/glide/noise) and optionally
 // a recommended effects snapshot (`fx`). The sidebar preset dropdown loads these

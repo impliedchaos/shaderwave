@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Canvas-rendered pattern grid: row numbers down the left, one column per
 // channel showing note + instrument, with a cursor cell and a moving playhead
 // row. Pure rendering + cursor/hit-testing; key handling lives in main.js.

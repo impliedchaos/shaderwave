@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Tracker engine: turns the BPM clock + pattern grid into per-block voice data
 // for the GPU renderer. It is sample-accurate — note-ons are scheduled at exact
 // frames within a render block, not quantised to block boundaries.

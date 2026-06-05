@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Song = ordered list of patterns + the default instrument parameter banks, plus
 // a built-in demo so the app makes sound on first load.
 import { Pattern, OFF, EMPTY } from './pattern.js';

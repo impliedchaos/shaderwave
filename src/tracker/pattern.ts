@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Pattern = a rows×channels grid of cells. Stored as parallel typed arrays for
 // compactness. One channel maps 1:1 to one synth voice.
 import { VOICES } from '../constants.js';

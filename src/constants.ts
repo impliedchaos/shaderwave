@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Shared constants across audio + GL + tracker.
 
 export const BLOCK = 512;        // samples rendered per GPU pass (per channel)

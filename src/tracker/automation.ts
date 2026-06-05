@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Automation / effect-command registry.
 //
 // Every automatable parameter is a "ParamTarget". A pattern cell can carry one

@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { createProgram, drawQuad } from '../gl/program.js';
 
 const FRAG_SRC = `#version 300 es

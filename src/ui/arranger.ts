@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Song-arranger panel DOM: the pattern list (clone/delete) and the order list
 // (per-slot pattern picker + reorder/remove). Pulled out of main.js; takes the
 // App instance and calls back into it to re-render and redraw after edits.

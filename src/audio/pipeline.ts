@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Owns the AudioContext + worklet node + the render-ahead producer loop.
 //
 // Bridges two clocks: the audio thread pulls 128-frame quanta at the hardware

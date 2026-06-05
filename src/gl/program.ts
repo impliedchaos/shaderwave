@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Tiny helpers: compile/link programs and run a fullscreen-quad pass.
 // Every audio shader is a fragment shader over a fullscreen quad; the vertex
 // shader never changes, so it lives here.

@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Help / shortcuts overlay. Content mirrors the README (keyboard controls,
 // instruments, effects chain) plus a few things only the code knows (channel
 // mute, select-all, right-click remove). Built lazily on first open and toggled

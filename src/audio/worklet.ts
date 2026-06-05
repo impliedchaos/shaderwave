@@ -1,3 +1,4 @@
+// @ts-nocheck
 // AudioWorkletProcessor: the real-time consumer. It does NO synthesis — it drains
 // a queue of stereo blocks delivered from the main thread via postMessage. No
 // SharedArrayBuffer, so the page needs no cross-origin-isolation headers and can
