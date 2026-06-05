@@ -2089,7 +2089,7 @@ export const DEMO_SONGS: SongDef[] = [
   {
     name: "Affreusement Épouvantable",
     bpm: 76,
-    master: DEFAULT_MASTER * 0.7,
+    master: DEFAULT_MASTER * 0.65,
     params: [
       { name: "Satie Lead", type: "303", p0: [600, 0.1, 0.4, 0.2], p1: [2.0, 0.3, 0.4, 0] },
       {
@@ -2113,7 +2113,7 @@ export const DEMO_SONGS: SongDef[] = [
     fxParams: {
       '303': Object.assign(defaultFxParams(), { delayMix: 0.35, delayTime: 0.375, reverbMix: 0.4 }),
       'dx7': Object.assign(defaultFxParams(), { chorusMix: 0.45, chorusRate: 0.6, chorusDepth: 3.5, delayMix: 0.4, delayTime: 0.5, delayFeedback: 0.4, reverbMix: 0.5, reverbDecay: 0.9 }),
-      '808': Object.assign(defaultFxParams(), { distOn: true, dist: 1.4, tone: 0.38, master: 0.9, bitcrushOn: true, bitcrushBits: 12.0, bitcrushRate: 18000.0, delayMix: 0.05, delayTime: 0.33, delayFeedback: 0.4, reverbMix: 0.06, reverbDecay: 0.7 }),
+      '808': Object.assign(defaultFxParams(), { distOn: true, dist: 1.4, tone: 0.38, master: 0.9, bitcrushOn: false, bitcrushBits: 12.0, bitcrushRate: 18000.0, delayMix: 0.05, delayTime: 0.33, delayFeedback: 0.4, reverbMix: 0.06, reverbDecay: 0.7 }),
       'moog': Object.assign(defaultFxParams(), { dist: 1.6, tone: 0.45, chorusMix: 0.3, chorusRate: 0.8, chorusDepth: 2.0, master: 0.85 })
     },
     data: () => {
