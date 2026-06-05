@@ -9,7 +9,7 @@ import { Engine } from './tracker/engine.js';
 import { TrackerView } from './ui/tracker-view.js';
 import { Controls, bindKnob } from './ui/controls.js';
 import { DEMO_SONGS, loadSongInstruments } from './tracker/song.js';
-import { instGlow } from './constants.js';
+import { instGlow, DEFAULT_MASTER } from './constants.js';
 import { EMPTY, OFF, Pattern } from './tracker/pattern.js';
 import { targetsForType, TARGETS } from './tracker/automation.js';
 import { showExportDialog } from './audio/export.js';
@@ -118,6 +118,7 @@ export class App {
   lastRecordedRow = 0;        // video-export progress cursor
   _playbackVolume?: number;
   _fxKnobs: { el: KnobEl; key: string }[] = [];
+  _songVolumeKnob?: KnobEl;
   _fxPanelType?: string;
   _digitEntry: { idx: number; col: number; first: number } | null = null;
   _hexEntry: { idx?: number; ch?: number; row?: number; first: number } | null = null;
@@ -463,6 +464,18 @@ export class App {
         this._playbackVolume = val / 100;
         this.pipeline.setVolume(this._playbackVolume);
       };
+    }
+    // Global output volume knob (Song Editor): sets the song's base master — the
+    // render-level gain baked into recordings — NOT the monitor slider above. Same
+    // range as the VOL automation target, so 100% == a 0x80 VOL cell == default.
+    const volKnob = $('song-volume-knob') as KnobEl;
+    const volKnobVal = $('song-volume-val');
+    if (volKnob && volKnobVal) {
+      this._songVolumeKnob = volKnob;
+      const max = DEFAULT_MASTER * 255 / 128;
+      bindKnob(volKnob, volKnobVal, 0, max, max / 255, this.engine.songMaster, false,
+        (v) => this.engine.setMaster(v),
+        (v) => `${Math.round((v / DEFAULT_MASTER) * 100)}%`);
     }
     const songSelect = $<HTMLSelectElement>('song-select');
     if (songSelect) {
@@ -1358,6 +1371,7 @@ export class App {
 
   _renderSongEditor() {
     renderArranger(this);
+    this._songVolumeKnob?._extSet?.(this.engine.songMaster);   // reflect the loaded song's volume
   }
 
   _updatePatternSelector() {

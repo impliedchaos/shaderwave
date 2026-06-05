@@ -1041,6 +1041,12 @@
   .song-editor-section.timeline-section {
     flex: 1.5;
   }
+
+  /* Compact section that just holds the global-output volume knob. */
+  .song-editor-section.output-section {
+    flex: 0 0 auto;
+    align-items: center;
+  }
   
   .song-editor-section h3 {
     margin: 0 0 15px 0;
@@ -1260,7 +1266,7 @@
     <div id="tracker">
       <div class="tracker-tabs">
         <button id="tab-pattern" class="tab-btn active">🎹 Pattern Editor</button>
-        <button id="tab-song" class="tab-btn">🎬 Song Arranger</button>
+        <button id="tab-song" class="tab-btn">🎬 Song Editor</button>
       </div>
       <div id="pattern-editor-content" class="tab-content">
         <div class="pattern-toolbar">
@@ -1291,6 +1297,16 @@
           <div class="song-editor-section timeline-section">
             <h3>Arrangement Timeline <button id="add-order-btn" class="plus-btn" title="Add pattern slot to song order">+</button></h3>
             <div id="arranger-order-list" class="arranger-list"></div>
+          </div>
+          <div class="song-editor-section output-section">
+            <h3>Output</h3>
+            <div class="param-control-block">
+              <label>Volume</label>
+              <div class="knob-wrapper">
+                <div class="knob" id="song-volume-knob" title="Global output volume — saved with the song, baked into recordings (100% = default)"></div>
+                <span class="knob-value" id="song-volume-val"></span>
+              </div>
+            </div>
           </div>
         </div>
       </div>

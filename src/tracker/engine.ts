@@ -152,6 +152,15 @@ export class Engine {
     }
   }
 
+  // Set the song's base global volume from the UI (the Song Editor's Volume knob).
+  // Updates the live render gain and persists onto the song so it survives play/
+  // stop (which reset vd.master to songMaster) and is saved with the song.
+  setMaster(v: number) {
+    this.songMaster = v;
+    this.vd.master = v;
+    if (this.song) this.song.master = v;
+  }
+
   get samplesPerRow() {
     return (this.sampleRate * 60) / (this.bpm * this.rowsPerBeat);
   }

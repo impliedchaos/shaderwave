@@ -18,6 +18,7 @@
 // Target ids are the flat index into TARGETS and must stay append-only (they are
 // persisted in patterns and will key MIDI-CC maps).
 import type { InstrumentType, ParamTarget } from '../types.js';
+import { DEFAULT_MASTER } from '../constants.js';
 
 // A target as authored in the tables below — the scope/type/id are stamped on
 // when flattening into TARGETS.
@@ -79,7 +80,10 @@ const CHAN: RawTarget[] = [
 // global-scope targets. Song-level properties.
 const GLOBAL: RawTarget[] = [
   { code: 'BPM', label: 'BPM', key: 'bpm', min: 40, max: 300, curve: 'lin', unit: 'bpm' },
-  { code: 'VOL', label: 'Volume', key: 'master', min: 0, max: 2, curve: 'lin' },
+  // max chosen so byte 0x80 (128) denormalizes to exactly DEFAULT_MASTER:
+  // denorm = max·(128/255), so max = DEFAULT_MASTER·255/128. A neutral 0x80 cell
+  // then equals the un-automated default for any default value; 0xFF ≈ 2× it.
+  { code: 'VOL', label: 'Volume', key: 'master', min: 0, max: DEFAULT_MASTER * 255 / 128, curve: 'lin' },
 ];
 
 // Flatten into a stable, id-indexed table. Order = append-only.
