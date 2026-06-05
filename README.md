@@ -101,7 +101,7 @@ SysEx data.
 
 ## Presets
 
-Each instrument ships with curated presets (defined in `src/ui/presets.js`)
+Each instrument ships with curated presets (defined in `src/ui/presets.ts`)
 selectable from a dropdown in the sidebar. Presets set both the synth parameters
 and recommended effects settings (distortion, delay, reverb, chorus, etc.).
 Loading a demo song also syncs the full UI to the song's instrument/effect state.
@@ -116,7 +116,7 @@ input → Distortion → Chorus → Tremolo → Delay → Reverb → Bitcrusher 
 ```
 
 Each effect is its own GPU pass over a `BLOCK × 1` stereo buffer; the chain runs
-in a data-driven order (`DEFAULT_FX_ORDER` in `src/gl/effects.js`), so the signal
+in a data-driven order (`DEFAULT_FX_ORDER` in `src/gl/effects.ts`), so the signal
 flow can be rearranged just by reordering that list. A terminal master pass
 applies the output gain and additively accumulates each instrument's result.
 
@@ -195,7 +195,7 @@ Three scopes, distinguished by colour in the grid:
 Commands apply per row during playback, right after the row's note triggers
 (so a command sharing a cell with a note overrides the note's snapshot). The
 sidebar knobs follow the automation live and revert to the stored base on stop.
-The registry lives in `src/tracker/automation.js`; the stored value is a single
+The registry lives in `src/tracker/automation.ts`; the stored value is a single
 normalised byte — the same currency intended for future **MIDI CC** mapping.
 The demo songs *Dextroamphetamine Suppository* and *Where'd I Put My Keys?* use
 it for 303 cutoff sweeps.
@@ -227,7 +227,7 @@ output sample recomputes its voice's filter from a checkpoint using carried-in
 state. To keep that from being an O(N²) recompute per block, the ladder is
 rendered in strips of `subBlock` samples (default 64), each picking up from the
 previous strip's saved state — O(N·subBlock), and bit-identical to the old
-single-pass render. See `synth-renderer.js`.
+single-pass render. See `synth-renderer.ts`.
 
 ## Layout
 
@@ -235,8 +235,8 @@ single-pass render. See `synth-renderer.js`.
 index.html                 app shell, tracker grid, sidebar controls (Vite entry)
 vite.config.js             build config (relative base, worklet emitted as a file)
 public/                    static assets copied verbatim (favicon, sysex banks)
-src/constants.js           shared sizes, note→freq, ring layout
-src/main.js                app init, song loading, UI sync
+src/constants.ts           shared sizes, note→freq, ring layout
+src/main.ts                app init, song loading, UI sync
 src/gl/                    context, program helpers, SynthRenderer, shaders/
   shaders/*.glsl             raw GLSL, imported as strings via Vite's ?raw
   shaders/synth-303.glsl       acid bass synth
@@ -253,8 +253,8 @@ src/gl/                    context, program helpers, SynthRenderer, shaders/
   shaders/fx-master.glsl       master gain + additive accumulate
   shaders/mix.glsl             voice mixdown
   shaders/common.glsl          shared ADSR, noise, filter utilities (the prelude)
-src/gl/effects.js          per-effect pass pipeline (data-driven chain order)
-src/audio/                 worklet.js (classic script), pipeline.js
+src/gl/effects.ts          per-effect pass pipeline (data-driven chain order)
+src/audio/                 worklet.ts (classic script), pipeline.ts
 src/tracker/               pattern, song (+ demo songs), engine (BPM clock), automation (param-target registry)
 src/ui/                    tracker-view (canvas grid), controls (sidebar + SysEx loader), presets (instrument preset bank)
 public/sysex/DX7/          .syx patch banks (ROM 1A–4B, Bass)
