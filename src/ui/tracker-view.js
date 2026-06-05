@@ -386,7 +386,7 @@ export class TrackerView {
 
       ctx.fillStyle = isMuted ? 'rgba(106, 124, 150, 0.4)' : C('--dim');
       ctx.font = 'bold 13px "Rajdhani", sans-serif';
-      ctx.fillText(`CH ${ch + 1}`, x + 8, pad / 2);
+      ctx.fillText(`CH ${ch}`, x + 8, pad / 2);
 
       drawBadge(x + cw - 38, pad / 2 - 6, 30, 12, isMuted ? 'MUT' : 'ON', isMuted);
 

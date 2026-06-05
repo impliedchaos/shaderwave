@@ -1976,9 +1976,9 @@ export const DEMO_SONGS = [
       const writeLead = (pat, melody, vol = 0.72) => {
         melody.forEach(([row, note, dur]) => {
           if (row < pat.rows) {
-            pat.set(row, 6, note, I_lead, vol);
+            pat.set(row, 7, note, I_lead, vol);
             if (dur && row + dur < pat.rows) {
-              pat.set(row + dur, 6, OFF, I_lead);
+              pat.set(row + dur, 7, OFF, I_lead);
             }
           }
         });
@@ -2087,6 +2087,13 @@ export const DEMO_SONGS = [
       writeDrums(p[14], 'slow');
       writeLead(p[14], [[0, 64, 32]], 0.55);
 
+      // Cut any Moog lead tails ringing in from previous patterns
+      p[0].set(0, 7, OFF, I_lead);
+      p[3].set(0, 7, OFF, I_lead);
+      p[4].set(0, 7, OFF, I_lead);
+      p[9].set(0, 7, OFF, I_lead);
+      p[11].set(0, 7, OFF, I_lead);
+
       return {
         patterns: p,
         order: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14],
@@ -2114,13 +2121,14 @@ export const DEMO_SONGS = [
         ]
       },
       { name: "Lo-Fi Vinyl Kit", type: "808", p0: [0, 0.45, 0.5, 0.5], p1: [0, 0, 0, 0] },
-      { name: "Moog Sub Bass", type: "moog", p0: [150, 0.2, 0.5, 0], p1: [2.0, 0.9, 0.8, 0.8], p2: [2, 1, 1, 0], p3: [2, 2, 1, 0] }
+      { name: "Moog Sub Bass", type: "moog", p0: [180, 0.35, 0.6, 0.2], p1: [8.0, 0.9, 0.8, 0.8], p2: [2, 1, 1, 0.06], p3: [2, 2, 1, 0.05] },
+      { name: "Vinyl Crackle", type: "303", p0: [350, 0.75, 0.0, 0.0], p1: [4.0, 10.0, 10.0, 0] }
     ],
     fxParams: {
       '303': Object.assign(defaultFxParams(), { delayMix: 0.35, delayTime: 0.375, reverbMix: 0.4 }),
       'dx7': Object.assign(defaultFxParams(), { chorusMix: 0.45, chorusRate: 0.6, chorusDepth: 3.5, delayMix: 0.4, delayTime: 0.5, delayFeedback: 0.4, reverbMix: 0.5, reverbDecay: 0.9 }),
-      '808': Object.assign(defaultFxParams(), { distOn: false, dist: 2.0, tone: 0.4, master: 0.95, bitcrushOn: false, delayMix: 0.45, delayTime: 0.33, delayFeedback: 0.5 }),
-      'moog': Object.assign(defaultFxParams(), { dist: 0.001, tone: 0.5, level: 1.0, master: 0.9 })
+      '808': Object.assign(defaultFxParams(), { distOn: true, dist: 1.4, tone: 0.38, master: 0.9, bitcrushOn: true, bitcrushBits: 12.0, bitcrushRate: 18000.0, delayMix: 0.05, delayTime: 0.33, delayFeedback: 0.4, reverbMix: 0.06, reverbDecay: 0.7 }),
+      'moog': Object.assign(defaultFxParams(), { dist: 1.6, tone: 0.45, chorusMix: 0.3, chorusRate: 0.8, chorusDepth: 2.0, master: 0.85 })
     },
     data: () => {
       const p = Array.from({ length: 7 }, () => new Pattern(128, 8));
@@ -2129,11 +2137,13 @@ export const DEMO_SONGS = [
       const I_dx7 = 1;
       const I_808 = 2;
       const I_moog = 3;
+      const I_vinyl = 4;
 
       const BD = 36;
       const SD = 38;
       const CH = 42;
       const OH = 46;
+      const CLAP = 39;
 
       const chordVoicings = {
         Gmaj7: [59, 62, 66],
@@ -2189,15 +2199,38 @@ export const DEMO_SONGS = [
       const writeDrums = (pat, vol = 0.8) => {
         for (let bar = 0; bar < 8; bar++) {
           const start = bar * 16;
-          pat.set(start, 5, BD, I_808, vol);
-          pat.set(start + 10, 5, BD, I_808, vol * 0.85);
-          pat.set(start + 8, 6, SD, I_808, vol * 0.9);
-          for (let step = 0; step < 16; step++) {
-            if (step === 2 || step === 10) {
-              pat.set(start + step, 7, CH, I_808, vol * 0.48);
-            }
+          if (bar % 2 === 0) {
+            pat.set(start, 5, BD, I_808, vol);
+            pat.set(start + 10, 5, BD, I_808, vol * 0.85);
+            pat.set(start + 14, 5, BD, I_808, vol * 0.6);
+            pat.set(start + 8, 6, SD, I_808, vol * 0.9);
+            
+            pat.set(start + 2, 6, CH, I_808, vol * 0.45);
+            pat.set(start + 4, 6, CH, I_808, vol * 0.3);
+            pat.set(start + 6, 6, CH, I_808, vol * 0.45);
+            pat.set(start + 10, 6, CH, I_808, vol * 0.4);
+            pat.set(start + 12, 6, CH, I_808, vol * 0.35);
+            pat.set(start + 13, 6, CH, I_808, vol * 0.45);
+            pat.set(start + 15, 6, CH, I_808, vol * 0.3);
+            
+            pat.set(start + 14, 6, OH, I_808, vol * 0.25);
+          } else {
+            pat.set(start, 5, BD, I_808, vol);
+            pat.set(start + 3, 5, BD, I_808, vol * 0.5);
+            pat.set(start + 10, 5, BD, I_808, vol * 0.85);
+            pat.set(start + 8, 6, SD, I_808, vol * 0.9);
+            pat.set(start + 15, 6, SD, I_808, vol * 0.4);
+            
+            pat.set(start + 2, 6, CH, I_808, vol * 0.45);
+            pat.set(start + 4, 6, CH, I_808, vol * 0.3);
+            pat.set(start + 6, 6, CH, I_808, vol * 0.45);
+            pat.set(start + 10, 6, CH, I_808, vol * 0.45);
+            pat.set(start + 12, 6, CH, I_808, vol * 0.35);
+            pat.set(start + 13, 6, CH, I_808, vol * 0.45);
+            
+            pat.set(start + 12, 6, CLAP, I_808, vol * 0.4);
+            pat.set(start + 14, 6, OH, I_808, vol * 0.25);
           }
-          pat.set(start + 14, 7, OH, I_808, vol * 0.22);
         }
       };
 
@@ -2206,12 +2239,23 @@ export const DEMO_SONGS = [
           const start = bar * 16;
           pat.set(start, 5, BD, I_808, vol);
           pat.set(start + 10, 5, BD, I_808, vol * 0.85);
-          for (let step = 0; step < 16; step++) {
-            if (step === 2 || step === 10) {
-              pat.set(start + step, 7, CH, I_808, vol * 0.42);
-            }
+          
+          pat.set(start + 8, 6, CLAP, I_808, vol * 0.5);
+          
+          pat.set(start + 2, 6, CH, I_808, vol * 0.4);
+          pat.set(start + 6, 6, CH, I_808, vol * 0.4);
+          pat.set(start + 10, 6, CH, I_808, vol * 0.4);
+          
+          if (bar % 2 === 1) {
+            pat.set(start + 14, 6, OH, I_808, vol * 0.18);
+          } else {
+            pat.set(start + 14, 6, CH, I_808, vol * 0.3);
           }
         }
+      };
+
+      const writeVinylNoise = (pat, vol = 0.22) => {
+        pat.set(0, 7, 36, I_vinyl, vol);
       };
 
       const melodyA = [
@@ -2236,35 +2280,42 @@ export const DEMO_SONGS = [
 
       writeChords(p[0], 0.4);
       writeLowKeyDrums(p[0], 0.6);
+      writeVinylNoise(p[0], 0.25);
 
       writeChords(p[1], 0.45);
       writeBass(p[1], 0.55);
       writeLowKeyDrums(p[1], 0.6);
+      writeVinylNoise(p[1], 0.25);
 
       writeChords(p[2], 0.48);
       writeBass(p[2], 0.6);
       writeDrums(p[2], 0.75);
       writeMelody(p[2], melodyA, 0.72);
+      writeVinylNoise(p[2], 0.25);
 
       writeChords(p[3], 0.48);
       writeBass(p[3], 0.6);
       writeDrums(p[3], 0.75);
       writeMelody(p[3], melodyB, 0.72);
+      writeVinylNoise(p[3], 0.25);
 
       writeChords(p[4], 0.52);
       writeBass(p[4], 0.65);
       writeDrums(p[4], 0.8);
       writeMelody(p[4], melodyA.map(([r, n, d]) => [r, n + 12, d]), 0.65);
+      writeVinylNoise(p[4], 0.25);
 
       writeChords(p[5], 0.48);
       writeBass(p[5], 0.6);
       writeDrums(p[5], 0.75);
       writeMelody(p[5], melodyA, 0.72);
       p[5].set(127, 3, OFF, I_303);
+      writeVinylNoise(p[5], 0.25);
 
       writeChords(p[6], 0.4);
       writeBass(p[6], 0.45);
       writeLowKeyDrums(p[6], 0.5);
+      writeVinylNoise(p[6], 0.2);
 
       return {
         patterns: p,

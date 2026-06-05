@@ -707,7 +707,7 @@ export class App {
     const overlay = document.createElement('div');
     overlay.className = 'fx-picker-overlay';
     overlay.innerHTML = `<div class="fx-picker">
-      <div class="fx-picker-title">Automate ${type.toUpperCase()} · Ch ${c.ch + 1}</div>
+      <div class="fx-picker-title">Automate ${type.toUpperCase()} · Ch ${c.ch}</div>
       <input class="fx-picker-input" placeholder="type code or name…" />
       <ul class="fx-picker-list"></ul>
       <div class="fx-picker-hint">↑↓ select · Enter set · Esc cancel · then type 2 hex digits for the value</div>
