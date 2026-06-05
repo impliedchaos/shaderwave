@@ -241,11 +241,10 @@ export class App {
   _bindTransport() {
     $('play').onclick = async () => {
       await this.ensureAudio();
-      if (this.engine.playing && this.engine.playMode === 'song') {
-        this.engine.stop();
-      } else {
-        this.engine.play('song');
-      }
+      const e = this.engine;
+      if (e.playing && e.playMode === 'song') e.pause();
+      else if (e.paused && e.playMode === 'song') e.resume();
+      else e.play('song');
     };
     $('stop').onclick = () => this.engine.stop();
     $('bpm').oninput = (e) => {
@@ -354,11 +353,10 @@ export class App {
     if (playPatBtn) {
       playPatBtn.onclick = async () => {
         await this.ensureAudio();
-        if (this.engine.playing && this.engine.playMode === 'pattern') {
-          this.engine.stop();
-        } else {
-          this.engine.play('pattern');
-        }
+        const e = this.engine;
+        if (e.playing && e.playMode === 'pattern') e.pause();
+        else if (e.paused && e.playMode === 'pattern') e.resume();
+        else e.play('pattern');
       };
     }
 

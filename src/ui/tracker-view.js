@@ -53,8 +53,12 @@ export class TrackerView {
     window.addEventListener('resize', () => this._resize());
   }
 
+  // True while the transport holds a live position — playing OR paused — so the
+  // view keeps showing the playhead's pattern/row instead of snapping back.
+  get _atPlayhead() { return this.engine.playing || this.engine.paused; }
+
   get pattern() {
-    if (this.engine.playing && this.engine.playMode === 'song') {
+    if (this._atPlayhead && this.engine.playMode === 'song') {
       const idx = this.engine.song.order[this.engine.displayOrder];
       return this.engine.song.patterns[idx] || this.engine.song.patterns[0];
     }
@@ -190,10 +194,10 @@ export class TrackerView {
   _maxScroll() { return Math.max(0, this.pattern.rows - this._viewRows()); }
 
   _firstVisibleRow() {
-    // While playing, follow the playhead (centred) and keep `scroll` synced so
-    // stopping doesn't jump. While stopped, the user controls `scroll` (wheel /
-    // PageUp-Down / cursor reveal).
-    if (this.engine.playing) {
+    // While playing or paused, follow the playhead (centred) and keep `scroll`
+    // synced so stopping doesn't jump. While stopped, the user controls `scroll`
+    // (wheel / PageUp-Down / cursor reveal).
+    if (this._atPlayhead) {
       this.scroll = this.engine.displayRow - Math.floor(this._viewRows() / 2);
     }
     this.scroll = Math.max(0, Math.min(this._maxScroll(), this.scroll));
@@ -229,7 +233,7 @@ export class TrackerView {
     const pad = this._topPad();
     const first = this._firstVisibleRow();
     const viewRows = Math.ceil((H - pad) / ROW_H);
-    const playRow = this.engine.playing ? this.engine.displayRow : -1;
+    const playRow = this._atPlayhead ? this.engine.displayRow : -1;
 
     // 2. Draw row backgrounds (beat emphasis and playhead)
     for (let i = 0; i < viewRows; i++) {

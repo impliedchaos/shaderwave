@@ -31,6 +31,8 @@ export class Engine {
     this.autoLive = { inst: new Map() };
 
     this.playing = false;
+    this.paused = false;       // stopped-but-holding-position (Pause vs Stop)
+    this._resumeOffset = 0;     // frames into the song timeline to resume from
     this.startFrame = null;   // absolute frame mapped to song row 0
     this.lastBlockStart = 0;
     this.displayRow = 0;
@@ -137,11 +139,29 @@ export class Engine {
 
   play(mode = 'song') {
     this.playMode = mode; this.playing = true; this.startFrame = null;
+    this.paused = false; this._resumeOffset = 0; // fresh start → row 0
     this.autoLive.inst.clear();
     this.panAuto.fill(NaN);
   }
+  // Pause: hold the current song position (so resume() continues from here) and
+  // silence the voices. The transport clock keeps running while paused; the
+  // elapsed offset is re-anchored against the live block in advance() on resume.
+  pause() {
+    if (!this.playing) return;
+    this._resumeOffset = (this.startFrame === null) ? 0 : Math.max(0, this.lastBlockStart - this.startFrame);
+    this.playing = false;
+    this.paused = true;
+    for (const v of this.voices) v.active = false;
+  }
+  resume() {
+    if (!this.paused) return;
+    this.playing = true;
+    this.paused = false;
+    this.startFrame = null; // advance() re-anchors using _resumeOffset
+  }
   stop() {
     this.playing = false;
+    this.paused = false; this._resumeOffset = 0;
     for (const v of this.voices) v.active = false;
     this.panAuto.fill(NaN); // drop automation overrides; slider base returns
   }
@@ -259,7 +279,9 @@ export class Engine {
     this.lastBlockStart = blockStart;
 
     if (this.playing && this.song) {
-      if (this.startFrame === null) this.startFrame = blockStart;
+      // Anchor row 0. On a fresh play _resumeOffset is 0 (start at the top); on
+      // resume it's the paused elapsed, so we back-date startFrame to continue.
+      if (this.startFrame === null) { this.startFrame = blockStart - this._resumeOffset; this._resumeOffset = 0; }
       const spr = this.samplesPerRow;
       const blockEnd = blockStart + BLOCK;
       let k = Math.ceil((blockStart - this.startFrame) / spr);
