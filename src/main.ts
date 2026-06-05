@@ -1361,6 +1361,7 @@ export class App {
   }
 
   _updatePatternSelector() {
+    this.view.clampCursor();   // track/row counts vary per pattern — keep the cursor valid
     const patNum = $('pat-num-display');
     if (patNum) {
       patNum.textContent = String(this.engine.currentPatternIdx);

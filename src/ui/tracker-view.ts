@@ -250,6 +250,27 @@ export class TrackerView {
     this.scroll = Math.max(0, Math.min(this._maxScroll(), this.scroll + rows));
   }
 
+  // Keep the cursor inside the current pattern's bounds. Track count and row
+  // count vary per pattern, so switching patterns can leave the cursor pointing
+  // at a column/row that no longer exists.
+  clampCursor() {
+    const p = this.pattern;
+    if (!p) return;
+    const maxCh = p.channels + p.autoTracks.length - 1;
+    if (this.cursor.ch > maxCh) { this.cursor.ch = maxCh; this.cursor.col = this.cursor.ch >= p.channels ? 0 : this.maxCol; }
+    if (this.cursor.ch < 0) this.cursor.ch = 0;
+    if (this.cursor.row >= p.rows) this.cursor.row = p.rows - 1;
+    if (this.cursor.row < 0) this.cursor.row = 0;
+    // A drag-selection from another pattern may reference columns/rows this one
+    // lacks; clamp it, dropping it entirely if that inverts the range.
+    if (this.selection) {
+      const sel = this.selection;
+      sel.c1 = Math.min(sel.c1, maxCh);
+      sel.r1 = Math.min(sel.r1, p.rows - 1);
+      if (sel.c0 > sel.c1 || sel.r0 > sel.r1) this.selection = null;
+    }
+  }
+
   // Adjust scroll so the cursor row stays within the visible window.
   revealCursor() {
     const vr = this._viewRows();
