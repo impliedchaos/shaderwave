@@ -1203,7 +1203,28 @@
 <body>
 <div id="app">
   <header>
-    <h1>ShaderWave <span id="app-version" style="font-size: 10px; font-family: 'JetBrains Mono', monospace; color: var(--dim); vertical-align: top; letter-spacing: 0;"></span></h1>
+    <h1>
+      <svg class="sw-logo" viewBox="0 0 220 32" width="180" height="26" style="overflow: visible;">
+        <defs>
+          <linearGradient id="sw-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stop-color="#00f0ff" />
+            <stop offset="45%" stop-color="#0099ff" />
+            <stop offset="50%" stop-color="#ffffff" />
+            <stop offset="55%" stop-color="#ff007f" />
+            <stop offset="100%" stop-color="#5000ff" />
+          </linearGradient>
+          <filter id="sw-glow" x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="2" dy="2" stdDeviation="0" flood-color="#00f0ff" flood-opacity="0.8" />
+            <feDropShadow dx="-1" dy="-1" stdDeviation="3" flood-color="#ff007f" flood-opacity="0.8" />
+          </filter>
+        </defs>
+        <!-- Background thick stroke for edge -->
+        <text x="2" y="25" font-family="var(--font-heading)" font-weight="900" font-size="26" font-style="italic" fill="none" stroke="#000" stroke-width="4" stroke-linejoin="round">ShaderWave</text>
+        <!-- Foreground gradient text -->
+        <text x="2" y="25" font-family="var(--font-heading)" font-weight="900" font-size="26" font-style="italic" fill="url(#sw-grad)" filter="url(#sw-glow)" letter-spacing="1">ShaderWave</text>
+      </svg>
+      <span id="app-version" style="font-size: 10px; font-family: 'JetBrains Mono', monospace; color: var(--dim); vertical-align: top; letter-spacing: 0;"></span>
+    </h1>
     <div class="control-group">
       <button id="play" class="primary" title="Play"><svg class="icon" viewBox="0 0 16 16" width="14" height="14"><path d="M4 2.5v11l9-5.5-9-5.5z" fill="currentColor"/></svg></button>
       <button id="stop" title="Stop"><svg class="icon" viewBox="0 0 16 16" width="14" height="14"><rect x="3" y="3" width="10" height="10" rx="1.5" fill="currentColor"/></svg></button>
