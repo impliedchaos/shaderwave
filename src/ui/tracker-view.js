@@ -169,7 +169,7 @@ export class TrackerView {
   // dropping any automation override. A small detent snaps to dead centre.
   _setPanFromX(ch, s, x) {
     let pn = Math.max(0, Math.min(1, (x - s.trackX) / s.trackW));
-    if (Math.abs(pn - 0.5) < 0.04) pn = 0.5;
+    if (Math.abs(pn - 0.5) < 0.05) pn = 0.5;
     this.engine.channelPan[ch] = pn;
     this.engine.panAuto[ch] = NaN;
     this.engine.vd.pan[ch] = pn; // reflect immediately even if no block renders
