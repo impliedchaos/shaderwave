@@ -31,6 +31,10 @@ interface InstRender {
   audio: WebGLTexture;
   stateRead: WebGLTexture;
   stateWrite: WebGLTexture;
+  phaseRead: WebGLTexture;
+  phaseWrite: WebGLTexture;
+  phase2Read: WebGLTexture;
+  phase2Write: WebGLTexture;
   fbo: WebGLFramebuffer | null;
   mixTex: WebGLTexture;
   mixFbo: WebGLFramebuffer | null;
@@ -69,6 +73,10 @@ export class SynthRenderer {
         audio: makeTex(gl, BLOCK, VOICES),
         stateRead: makeTex(gl, BLOCK, VOICES),
         stateWrite: makeTex(gl, BLOCK, VOICES),
+        phaseRead: makeTex(gl, BLOCK, VOICES),
+        phaseWrite: makeTex(gl, BLOCK, VOICES),
+        phase2Read: makeTex(gl, BLOCK, VOICES),
+        phase2Write: makeTex(gl, BLOCK, VOICES),
         fbo: gl.createFramebuffer(),
         mixTex,
         mixFbo,
@@ -87,10 +95,13 @@ export class SynthRenderer {
     this.readBuf = new Float32Array(BLOCK * 4);     // RGBA readback
     this.outBuf = new Float32Array(BLOCK * 2);      // interleaved stereo result
 
-    // Tell each synth program its uPrevState sampler lives on texture unit 0.
+    // Tell each synth program its uPrevState sampler lives on texture unit 0,
+    // and uPrevPhase/uPrevPhase2 on units 1 and 2.
     for (const it of this.inst) {
       gl.useProgram(it.prog);
       gl.uniform1i(it.prog.u('uPrevState'), 0);
+      gl.uniform1i(it.prog.u('uPrevPhase'), 1);
+      gl.uniform1i(it.prog.u('uPrevPhase2'), 2);
     }
     
     // Tell mixProg its uInstTex sampler lives on texture unit 0.
@@ -108,6 +119,14 @@ export class SynthRenderer {
       gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, it.stateRead, 0);
       gl.clear(gl.COLOR_BUFFER_BIT);
       gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, it.stateWrite, 0);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, it.phaseRead, 0);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, it.phaseWrite, 0);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, it.phase2Read, 0);
+      gl.clear(gl.COLOR_BUFFER_BIT);
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, it.phase2Write, 0);
       gl.clear(gl.COLOR_BUFFER_BIT);
 
       it.fx.reset();
@@ -133,7 +152,7 @@ export class SynthRenderer {
       const p = it.prog;
       gl.bindFramebuffer(gl.FRAMEBUFFER, it.fbo);
       gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, it.audio, 0);
-      gl.drawBuffers([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1]);
+      gl.drawBuffers([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1, gl.COLOR_ATTACHMENT2, gl.COLOR_ATTACHMENT3]);
 
       gl.uniform1f(p.u('uSampleRate'), this.sampleRate);
       gl.uniform1f(p.u('uBlockStart'), blockStart);
@@ -165,17 +184,32 @@ export class SynthRenderer {
       // Recursive ladder engines render in strips; the rest in one pass.
       const sub = (it.name === '303' || it.name === 'moog') ? this.subBlock : BLOCK;
       let readTex = it.stateRead, writeTex = it.stateWrite;
+      let pRead = it.phaseRead, pWrite = it.phaseWrite;
+      let p2Read = it.phase2Read, p2Write = it.phase2Write;
       for (let o = 0; o < BLOCK; o += sub) {
         gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, writeTex, 0);
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT2, gl.TEXTURE_2D, pWrite, 0);
+        gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT3, gl.TEXTURE_2D, p2Write, 0);
         gl.uniform1i(p.u('uSubOffset'), o);
-        gl.bindTexture(gl.TEXTURE_2D, readTex);       // uPrevState (unit 0)
+        
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, readTex);       // uPrevState
+        gl.activeTexture(gl.TEXTURE1);
+        gl.bindTexture(gl.TEXTURE_2D, pRead);         // uPrevPhase
+        gl.activeTexture(gl.TEXTURE2);
+        gl.bindTexture(gl.TEXTURE_2D, p2Read);        // uPrevPhase2
+        
         gl.viewport(o, 0, sub, VOICES);
         drawQuad(gl);
+        
         const t = readTex; readTex = writeTex; writeTex = t;
+        const pt = pRead; pRead = pWrite; pWrite = pt;
+        const p2t = p2Read; p2Read = p2Write; p2Write = p2t;
       }
-      // readTex now holds the final per-sample state (incl. column BLOCK-1) for
-      // the next block; writeTex is the spare for next time's ping-pong.
+      // Save final state
       it.stateRead = readTex; it.stateWrite = writeTex;
+      it.phaseRead = pRead; it.phaseWrite = pWrite;
+      it.phase2Read = p2Read; it.phase2Write = p2Write;
     }
 
     // Clear the final mixed output buffer before accumulating instruments

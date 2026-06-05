@@ -40,19 +40,10 @@ float mAdsr(float t, float tRel, float a, float d, float s, float r){
   return lvl * exp(-5.0 * tRel / max(r, 1e-5));
 }
 
-// Glide: instantaneous frequency and its phase integral (closed form for an
-// exponential pitch ramp f0→f1 over T seconds, constant thereafter). Both are
-// pure functions of t, so phase is continuous across blocks with no state.
+// Glide: instantaneous frequency. (Phase is now carried to prevent drift).
 float glideFreq(float f0, float f1, float T, float t){
   if (T < 1e-4 || abs(f1 - f0) < 1e-3 || f0 <= 0.0) return f1;
   return t >= T ? f1 : f0 * pow(f1 / f0, t / T);
-}
-float glidePhase(float f0, float f1, float T, float t){
-  if (T < 1e-4 || abs(f1 - f0) < 1e-3 || f0 <= 0.0) return f1 * t;
-  float lr = log(f1 / f0);
-  if (t < T) return f0 * T / lr * (pow(f1 / f0, t / T) - 1.0);
-  float pT = f0 * T / lr * (f1 / f0 - 1.0);
-  return pT + f1 * (t - T);
 }
 
 // Moog transistor ladder: 4-pole, tanh saturation, resonance feedback (k→4 self-
@@ -75,6 +66,7 @@ void main(){
 
   int readCol = uSubOffset == 0 ? (uBlock - 1) : (uSubOffset - 1);   // strip checkpoint
   vec4 st = texelFetch(uPrevState, ivec2(readCol, v), 0);
+  vec4 pPhase = texelFetch(uPrevPhase, ivec2(readCol, v), 0);
   float freq = uFreq[v], vel = uVel[v];
   float fromFreq = uFreqFrom[v] > 1.0 ? uFreqFrom[v] : freq;
   vec4 p0 = uP0[v], p1 = uP1[v], p2 = uP2[v], p3 = uP3[v];
@@ -110,9 +102,24 @@ void main(){
     float f0b = fromFreq * m2 * det * s2,  f1b = freq * m2 * det * s2;
     float f0c = fromFreq * m3 / det * s3,  f1c = freq * m3 / det * s3;
 
-    float ph1 = fract(glidePhase(f0a, f1a, glide, t) + dr1);
-    float ph2 = fract(glidePhase(f0b, f1b, glide, t) + dr2);
-    float ph3 = fract(glidePhase(f0c, f1c, glide, t) + dr3);
+    float gf1 = glideFreq(f0a, f1a, glide, t);
+    float gf2 = glideFreq(f0b, f1b, glide, t);
+    float gf3 = glideFreq(f0c, f1c, glide, t);
+
+    if (float(i) == ceil(uOnRel[v])) {
+      float dt0 = float(i) - uOnRel[v];
+      pPhase.x = fract(gf1 * dt0 * invSR);
+      pPhase.y = fract(gf2 * dt0 * invSR);
+      pPhase.z = fract(gf3 * dt0 * invSR);
+    } else {
+      pPhase.x = fract(pPhase.x + gf1 * invSR);
+      pPhase.y = fract(pPhase.y + gf2 * invSR);
+      pPhase.z = fract(pPhase.z + gf3 * invSR);
+    }
+
+    float ph1 = fract(pPhase.x + dr1);
+    float ph2 = fract(pPhase.y + dr2);
+    float ph3 = fract(pPhase.z + dr3);
 
     float osc = moogOsc(w1, ph1, glideFreq(f0a, f1a, glide, t) * invSR)
               + moogOsc(w2, ph2, glideFreq(f0b, f1b, glide, t) * invSR) * 0.85
@@ -128,4 +135,6 @@ void main(){
   }
   outAudio = vec4(y * vel, 0.0, 0.0, 1.0);
   outState = st;
+  outPhase = pPhase;
+  outPhase2 = vec4(0.0);
 }

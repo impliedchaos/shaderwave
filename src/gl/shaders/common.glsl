@@ -30,9 +30,13 @@ uniform float uOffRel[VOICES];  // note-off frame, relative; +1e9 sentinel while
 uniform vec4  uP0[VOICES];      // per-instrument param bank A
 uniform vec4  uP1[VOICES];      // per-instrument param bank B
 uniform sampler2D uPrevState;   // previous block's end-of-block state (ladder etc.)
+uniform sampler2D uPrevPhase;   // previous block's end-of-block phase
+uniform sampler2D uPrevPhase2;  // for DX7 operators 5/6
 
 layout(location = 0) out vec4 outAudio;  // R = this voice's mono sample
 layout(location = 1) out vec4 outState;  // carried recursive state (e.g. ladder)
+layout(location = 2) out vec4 outPhase;  // carried phase
+layout(location = 3) out vec4 outPhase2; // carried phase 2
 
 const float PI  = 3.14159265358979;
 const float TAU = 6.28318530717959;

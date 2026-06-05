@@ -458,6 +458,23 @@ export class Engine {
     }
   }
 
+  applyAutomationLive(target: any, instIdx: number, ch: number, val255: number) {
+    const value = denorm(target, val255);
+    if (target.scope === 'inst') {
+      const arr = target.bank === 'p1' ? this.vd.p1 : this.vd.p0;
+      arr[ch * 4 + target.index!] = value;
+      this.autoLive.inst.set(`${instIdx}:${target.bank}:${target.index}`, value);
+    } else if (target.scope === 'chan') {
+      this.panAuto[ch] = value;
+    } else if (this.fxParams) {
+      const instr = this.instruments[instIdx];
+      if (instr) {
+        const fp = this.fxParams[instr.type];
+        if (fp) fp[target.key!] = value;
+      }
+    }
+  }
+
   // Engine type driving a channel right now: the sounding voice's instrument if
   // active, else the cell's own instrument, else the first instance.
   _channelType(ch: number, pat: Pattern, i: number): InstrumentType {

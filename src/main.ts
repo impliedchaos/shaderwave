@@ -125,6 +125,7 @@ export class App {
   _vuR = 0;
   _freqData?: Uint8Array<ArrayBuffer>;
   _waveData?: Uint8Array<ArrayBuffer>;
+  _recordEnabled = false;
 
   constructor() {
     // GL renders audio entirely into FBOs (read back via readPixels), so its
@@ -202,6 +203,7 @@ export class App {
     this._bindKeys();
     this._bindBufferControl();
     initHelp();
+    this._initMidi();
     this._loop();
 
     this.pipeline.onStats = (s) => { this.underruns = s.underruns; };
@@ -219,6 +221,95 @@ export class App {
     this.pipeline.setVolume(this._playbackVolume ?? 1.0); // apply the slider's monitor gain
     this.audioReady = true;
     $('audio-status').innerHTML = `audio: <span class="ok">running</span> @ ${sr | 0}Hz`;
+  }
+
+  _initMidi() {
+    if ((navigator as any).requestMIDIAccess) {
+      (navigator as any).requestMIDIAccess().then((midiAccess: any) => {
+        const attachInputs = () => {
+          for (const input of midiAccess.inputs.values()) {
+            input.onmidimessage = (msg: any) => this._onMidiMessage(msg);
+          }
+        };
+        attachInputs();
+        midiAccess.onstatechange = attachInputs;
+        const ms = $('midi-status');
+        if (ms) ms.innerHTML = `midi: <span class="ok">connected</span>`;
+      }).catch((e: any) => {
+        console.warn("MIDI disabled", e);
+        const ms = $('midi-status');
+        if (ms) ms.innerHTML = `midi: <span class="err">failed</span>`;
+      });
+    } else {
+      const ms = $('midi-status');
+      if (ms) ms.innerHTML = `midi: <span class="err">unsupported</span>`;
+    }
+  }
+
+  _onMidiMessage(msg: any) {
+    if (!msg.data) return;
+    const status = msg.data[0] & 0xf0;
+    const data1 = msg.data[1];
+    const data2 = msg.data.length > 2 ? msg.data[2] : 0;
+
+    if (status === 0xb0) { // CC
+      const cc = data1;
+      const val = data2; // 0-127
+      const instIdx = this.controls.selected;
+      const instr = this.engine.instruments[instIdx];
+      if (!instr) return;
+      
+      const targets = targetsForType(instr.type);
+      const targetIdx = cc >= 70 ? cc - 70 : cc - 1;
+      const target = targets[targetIdx];
+      if (!target) return;
+      
+      const val255 = (val << 1) | (val >> 6);
+
+      // 1. Apply it live to the engine
+      this.engine.applyAutomationLive(target, instIdx, this.view.cursor.ch, val255);
+
+      // 2. If recording is enabled, write it to the pattern
+      if (this._recordEnabled) {
+        const row = this.engine.playing ? this.engine.displayRow : this.view.cursor.row;
+        const curCh = this.view.cursor.ch;
+        const patIdx = this.engine.currentPatternIdx;
+        const p = this.engine.song?.patterns[patIdx];
+        if (p) {
+          p.setFx(row, curCh, target.id, val255);
+          this.view.draw();
+        }
+      }
+    } else if (status === 0x90 && data2 > 0) { // Note On
+      const note = data1;
+      const instIdx = this.controls.selected;
+      
+      this.ensureAudio().then(() => {
+        const voice = this.engine.previewNote(instIdx, note, data2 / 127.0);
+        this.held.set(`midi-${note}`, voice);
+      });
+      
+      if (this._recordEnabled) {
+        const row = this.engine.playing ? this.engine.displayRow : this.view.cursor.row;
+        const curCh = this.view.cursor.ch;
+        const patIdx = this.engine.currentPatternIdx;
+        const p = this.engine.song?.patterns[patIdx];
+        if (p) {
+          p.set(row, curCh, note, instIdx, data2 / 127.0);
+          if (!this.engine.playing) {
+             this._advanceCursorRow();
+          }
+          this.view.draw();
+        }
+      }
+    } else if (status === 0x80 || (status === 0x90 && data2 === 0)) { // Note Off
+      const note = data1;
+      const key = `midi-${note}`;
+      if (this.held.has(key)) {
+        this.engine.previewOff(this.held.get(key)!);
+        this.held.delete(key);
+      }
+    }
   }
 
   _buildFxPanel(itName: string) {
@@ -303,7 +394,22 @@ export class App {
       else if (e.paused && e.playMode === 'song') e.resume();
       else e.play('song');
     };
-    $('stop').onclick = () => this.engine.stop();
+    $('stop').onclick = () => {
+      this.engine.stop();
+      if (this._recordEnabled) {
+        this._recordEnabled = false;
+        const rBtn = $('record');
+        if (rBtn) rBtn.classList.remove('playing');
+      }
+    };
+    const recordBtn = $('record');
+    if (recordBtn) {
+      recordBtn.onclick = () => {
+        this._recordEnabled = !this._recordEnabled;
+        if (this._recordEnabled) recordBtn.classList.add('playing');
+        else recordBtn.classList.remove('playing');
+      };
+    }
     $<HTMLInputElement>('bpm').oninput = (e) => {
       const val = Math.max(40, Math.min(300, +(e.target as HTMLInputElement).value || 125));
       this.engine.bpm = val;

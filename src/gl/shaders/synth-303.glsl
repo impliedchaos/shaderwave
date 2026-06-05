@@ -16,6 +16,7 @@ void main(){
   // column the prior strip just wrote.
   int readCol = uSubOffset == 0 ? (uBlock - 1) : (uSubOffset - 1);
   vec4 st = texelFetch(uPrevState, ivec2(readCol, v), 0);
+  float current_phase = texelFetch(uPrevPhase, ivec2(readCol, v), 0).x;
   float freq = uFreq[v], vel = uVel[v];
   vec4 p0 = uP0[v], p1 = uP1[v];
   float baseCut = p0.x, res = p0.y, envmod = p0.z, accent = p0.w;
@@ -27,7 +28,11 @@ void main(){
     float t = (float(i) - uOnRel[v]) / uSampleRate;
     if (t < 0.0) continue;                       // before note-on: hold state
     float tRel = (float(i) - uOffRel[v]) / uSampleRate;
-    float phase = fract(freq * t);
+    
+    if (float(i) == ceil(uOnRel[v])) current_phase = fract(freq * (float(i) - uOnRel[v]) / uSampleRate);
+    else current_phase = fract(current_phase + freq / uSampleRate);
+    
+    float phase = current_phase;
     float osc;
     if      (wave < 0.5) osc = oscSaw(phase, dt);
     else if (wave < 1.5) osc = oscSquare(phase, dt, 0.5);
@@ -46,4 +51,6 @@ void main(){
   }
   outAudio = vec4(y * vel, 0.0, 0.0, 1.0);
   outState = st;
+  outPhase = vec4(current_phase, 0.0, 0.0, 0.0);
+  outPhase2 = vec4(0.0);
 }

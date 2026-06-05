@@ -153,4 +153,6 @@ void main(){
   }
 
   outAudio = vec4(tanh(s * vel * 1.4), 0.0, 0.0, 1.0);
+  outPhase = vec4(0.0);
+  outPhase2 = vec4(0.0);
 }

@@ -68,12 +68,18 @@ void main(){
              freq * (uOpA[b+5].x * (1.0 + uOpA[b+5].y * 0.01) + uOpA[b+5].w * 0.0002);
 
   // Operator base phases
-  float ph1 = fract(f1 * t);
-  float ph2 = fract(f2 * t);
-  float ph3 = fract(f3 * t);
-  float ph4 = fract(f4 * t);
-  float ph5 = fract(f5 * t);
-  float ph6 = fract(f6 * t);
+  int readCol = uBlock - 1;
+  vec4 pPhase1 = texelFetch(uPrevPhase, ivec2(readCol, v), 0);
+  vec4 pPhase2 = texelFetch(uPrevPhase2, ivec2(readCol, v), 0);
+
+  float t_carry = float(x + 1) / uSampleRate;
+  
+  float ph1 = uOnRel[v] >= 0.0 ? fract(f1 * t) : fract(pPhase1.x + f1 * t_carry);
+  float ph2 = uOnRel[v] >= 0.0 ? fract(f2 * t) : fract(pPhase1.y + f2 * t_carry);
+  float ph3 = uOnRel[v] >= 0.0 ? fract(f3 * t) : fract(pPhase1.z + f3 * t_carry);
+  float ph4 = uOnRel[v] >= 0.0 ? fract(f4 * t) : fract(pPhase1.w + f4 * t_carry);
+  float ph5 = uOnRel[v] >= 0.0 ? fract(f5 * t) : fract(pPhase2.x + f5 * t_carry);
+  float ph6 = uOnRel[v] >= 0.0 ? fract(f6 * t) : fract(pPhase2.y + f6 * t_carry);
 
   // Self-feedback modulation (for algorithms containing feedback operators)
   float fbVal = fb * 0.38;
@@ -380,4 +386,6 @@ void main(){
   s /= carriers;
 
   outAudio = vec4(s * vel * 0.88, 0.0, 0.0, 1.0);
+  outPhase = vec4(ph1, ph2, ph3, ph4);
+  outPhase2 = vec4(ph5, ph6, 0.0, 0.0);
 }
