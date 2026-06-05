@@ -116,5 +116,5 @@ and `git status` before committing** so they don't get swept into a commit.
 
 - Branch only if asked; the user directs commits/pushes explicitly.
 - End commit messages with:
-  `Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>`
+  `Co-Authored-By: ` and then the name of the agent and model it's using.
 - The remote prints a jokey server-hook banner on push — it's not an error.
