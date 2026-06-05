@@ -108,7 +108,7 @@ export function showExportDialog(app: App) {
   };
 }
 
-async function exportWav(app: App, filename: string, title: string, author: string) {
+async function exportWav(app: App, filename: string, _title: string, _author: string) {
   await app.ensureAudio();
 
   const wasPlaying = app.engine.playing;
@@ -211,7 +211,7 @@ async function exportWav(app: App, filename: string, title: string, author: stri
   requestAnimationFrame(renderBatch);
 }
 
-async function exportVideo(app: App, filename: string, title: string, author: string, includeVisualizer: boolean) {
+async function exportVideo(app: App, filename: string, _title: string, _author: string, includeVisualizer: boolean) {
   await app.ensureAudio();
 
   const wasPlaying = app.engine.playing;

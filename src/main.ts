@@ -11,13 +11,13 @@ import { Controls, bindKnob } from './ui/controls.js';
 import { DEMO_SONGS, loadSongInstruments } from './tracker/song.js';
 import { instGlow } from './constants.js';
 import { OFF, NO_FX, Pattern } from './tracker/pattern.js';
-import { targetsForType, targetById, fmtValue } from './tracker/automation.js';
+import { targetsForType } from './tracker/automation.js';
 import { showExportDialog } from './audio/export.js';
 import { renderArranger } from './ui/arranger.js';
 import { invalidateTheme, themeVar } from './ui/theme.js';
 import { initHelp } from './ui/help.js';
 import pkg from '../package.json';
-import type { FxParams, FxParamsByType, InstrumentType, ParamTarget, SongData } from './types.js';
+import type { FxParams, FxParamsByType, InstrumentType, ParamTarget } from './types.js';
 
 // Display version from package.json
 const versionSpan = document.getElementById('app-version');

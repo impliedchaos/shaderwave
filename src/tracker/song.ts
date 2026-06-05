@@ -1,8 +1,7 @@
 // Song = ordered list of patterns + the default instrument parameter banks, plus
 // a built-in demo so the app makes sound on first load.
-import { Pattern, OFF, EMPTY } from './pattern.js';
+import { EMPTY } from './pattern.js';
 import { INSTRUMENTS, INSTRUMENT_COLORS } from '../constants.js';
-import { defaultFxParams } from '../gl/effects.js';
 import { DEMO_SONGS, defaultParams, makeParams, makeFx } from './demo-songs.js';
 import type { InstrumentInstance, InstrumentParams, InstrumentSpec, InstrumentType, SongData, SongDef } from '../types.js';
 

@@ -1,5 +1,4 @@
-import { Pattern, OFF, EMPTY } from './pattern.js';
-import { INSTRUMENTS } from '../constants.js';
+import { Pattern, OFF } from './pattern.js';
 import { defaultFxParams } from '../gl/effects.js';
 import { targetByCode, normByte } from './automation.js';
 import type { FxParams, InstrumentParams, InstrumentType, ParamTarget, SongDef } from '../types.js';
@@ -70,46 +69,6 @@ export function makeFx(overrides: Partial<Record<InstrumentType, Partial<FxParam
   };
 }
 
-const I = Object.fromEntries(INSTRUMENTS.map((n, i) => [n, i])); // name → index
-
-function makeDemoPatterns(p: Pattern) {
-  // Pattern 0: Intro (Drums muted)
-  const pIntro = new Pattern(p.rows, p.channels);
-  pIntro.notes.set(p.notes);
-  pIntro.inst.set(p.inst);
-  pIntro.vol.set(p.vol);
-  
-  // Clear channel 0 (Kick), 1 (Snare), and 2 (Hats/Clap) in pIntro
-  for (let r = 0; r < p.rows; r++) {
-    for (let c = 0; c < 3; c++) {
-      const idx = r * p.channels + c;
-      pIntro.notes[idx] = EMPTY;
-      pIntro.inst[idx] = 0;
-      pIntro.vol[idx] = 0;
-    }
-  }
-
-  // Pattern 2: Modulated Variation (Bass/Leads transposed up by a perfect fourth)
-  const pBridge = new Pattern(p.rows, p.channels);
-  pBridge.notes.set(p.notes);
-  pBridge.inst.set(p.inst);
-  pBridge.vol.set(p.vol);
-
-  for (let r = 0; r < p.rows; r++) {
-    for (let c = 0; c < p.channels; c++) {
-      const idx = r * p.channels + c;
-      const note = pBridge.notes[idx];
-      if (note !== EMPTY && note !== OFF) {
-        if (c === 3 || c === 4 || c === 5 || c === 6) {
-          pBridge.notes[idx] = note + 5;
-        }
-      }
-    }
-  }
-
-  return { patterns: [pIntro, p, pBridge], order: [0, 1, 2], rowsPerBeat: 4 };
-}
-
 export const DEMO_SONGS: SongDef[] = [
   {
     name: "Gooner Prolapse",
@@ -147,7 +106,7 @@ export const DEMO_SONGS: SongDef[] = [
       const p12 = new Pattern(128, 8);
       const p13 = new Pattern(128, 8);
 
-      const BD = 36, SD = 38, HH = 42, OH = 46, CLAP = 39;
+      const BD = 36, SD = 38, HH = 42, OH = 46;
       const I_808 = 0;
       const I_303_1 = 1, I_303_2 = 2, I_303_3 = 3, I_303_4 = 4;
       const I_moogBass1 = 5, I_moogBass2 = 6, I_moogLead1 = 7, I_moogLead2 = 8;
@@ -596,7 +555,7 @@ export const DEMO_SONGS: SongDef[] = [
       const p8 = new Pattern(128, 8);
       const p9 = new Pattern(128, 8);
 
-      const BD = 36, SD = 38, HH = 42, OH = 46, CLAP = 39;
+      const BD = 36, SD = 38, HH = 42, OH = 46;
       const I_bass = 0, I_808 = 1, I_pad = 2, I_chime = 3, I_moog = 4;
 
       const v1Bass = [
@@ -1357,7 +1316,7 @@ export const DEMO_SONGS: SongDef[] = [
       const p: Pattern[] = [];
       for (let i = 0; i < 12; i++) p.push(new Pattern(128, 8));
 
-      const BD = 36, SD = 38, HH = 42, OH = 46, CLAP = 39, RIM = 37;
+      const BD = 36, SD = 38, HH = 42, OH = 46, CLAP = 39;
       const I_pad = 0, I_303 = 1, I_808 = 2, I_bass = 3, I_lead = 4;
 
       const verseProg = ['Bm', 'G', 'Em', 'F#'];
@@ -1897,7 +1856,7 @@ export const DEMO_SONGS: SongDef[] = [
       const p: Pattern[] = [];
       for (let i = 0; i < 15; i++) p.push(new Pattern(128, 8));
 
-      const BD = 36, SD = 38, HH = 42, OH = 46, CLAP = 39, RIM = 37;
+      const BD = 36, SD = 38, HH = 42, OH = 46;
       const I_pad = 0, I_303 = 1, I_808 = 2, I_bass = 3, I_lead = 4;
 
       const rpgProg = ['Am', 'Dm', 'G', 'C', 'F', 'Bdim', 'E7', 'Am'];
@@ -2742,7 +2701,6 @@ export const DEMO_SONGS: SongDef[] = [
     data: () => {
       const p = Array.from({ length: 7 }, () => new Pattern(64, 8));
       
-      const I_303 = 0;
       const I_dx7 = 1;
       const I_808 = 2;
       const I_moog = 3;

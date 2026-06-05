@@ -94,7 +94,7 @@ export function renderArranger(app: App) {
 
       const select = document.createElement('select');
       select.className = 'arranger-select';
-      song.patterns.forEach((p: Pattern, pIdx: number) => {
+      song.patterns.forEach((_p: Pattern, pIdx: number) => {
         const opt = document.createElement('option');
         opt.value = String(pIdx);
         opt.textContent = `Pattern ${pIdx}`;
