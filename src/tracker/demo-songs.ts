@@ -3495,7 +3495,7 @@ export const DEMO_SONGS = [
       p[8].set(0, 4, 72, I_acidL, 0.5); p[8].set(48, 4, OFF, I_acidL);   // C (left)
       p[8].set(0, 5, 76, I_acidR, 0.5); p[8].set(48, 5, OFF, I_acidR);   // E (right)
       p[8].set(0, 6, 33, I_sub, 0.6);   p[8].set(112, 6, OFF, I_sub);    // A (sub)
-
+      for (let c = 0; c < 8; c++) pingPong(p[8], c, 1, 0.05, 0.95, c % 2 === 0);
       return {
         patterns: p,
         // intro·build·pre·DROP·DROP·var·breakdown·DROP2·DROP2·DROP·var·outro·tail
