@@ -4,7 +4,7 @@
 //
 // Mapping: tracker channel index == voice index (8 channels → 8 voices, mono per
 // channel). When a new note hits a channel, it overwrites that voice.
-import { VOICES, INSTRUMENTS, INSTRUMENT_COLORS, noteToFreq, BLOCK } from '../constants.js';
+import { VOICES, INSTRUMENTS, INSTRUMENT_COLORS, noteToFreq, BLOCK, DEFAULT_MASTER } from '../constants.js';
 import { EMPTY, OFF } from './pattern.js';
 import type { Pattern } from './pattern.js';
 import { defaultParams, instrumentsFromParams, DRUM_MAP } from './song.js';
@@ -48,6 +48,7 @@ export class Engine {
   muted: boolean[];
   channelPan: Float32Array;
   panAuto: Float32Array;
+  songMaster = DEFAULT_MASTER;   // the loaded song's base global volume; VOL automation overrides vd.master transiently
   vd: VoiceData;
   _preview: number;
 
@@ -118,7 +119,7 @@ export class Engine {
       freqFrom: new Float32Array(VOICES),
       gain: new Float32Array(VOICES).fill(1),
       pan: new Float32Array(VOICES).fill(0.5),
-      master: 0.32,
+      master: DEFAULT_MASTER,
       // Per-voice DX7 operator config, packed into vec4 arrays (keeps the
       // fragment-uniform count low vs 8 scalar arrays). Indexed [v*6 + op]:
       //   A = (coarse, fine, level, detune)   B = (mode, sustain, release, decay)
@@ -137,6 +138,11 @@ export class Engine {
   loadSong(song: SongData) {
     this.song = song;
     this.rowsPerBeat = song.rowsPerBeat || 4;
+    // Global output gain saved with the song; absent → engine default (so a new
+    // blank song resets it). This is the render-level master baked into the audio
+    // (it affects recording), distinct from the monitor-only playback slider.
+    this.songMaster = song.master ?? DEFAULT_MASTER;
+    this.vd.master = this.songMaster;
     // Per-channel pan saved with the song; absent → centre. Clears any live
     // automation override so the loaded base shows immediately.
     const pan = song.pan;
@@ -184,6 +190,7 @@ export class Engine {
     this.paused = false; this._resumeOffset = 0; // fresh start → row 0
     this.autoLive.inst.clear();
     this.panAuto.fill(NaN);
+    this.vd.master = this.songMaster;   // drop any VOL automation override
   }
   // Pause: hold the current song position (so resume() continues from here) and
   // silence the voices. The transport clock keeps running while paused; the
@@ -207,6 +214,7 @@ export class Engine {
     for (const v of this.voices) v.active = false;
     this.panAuto.fill(NaN);     // drop pan automation overrides; slider base returns
     this.autoLive.inst.clear(); // drop inst automation overrides; base params return
+    this.vd.master = this.songMaster; // drop VOL automation override; song base returns
   }
 
   // --- note triggering ----------------------------------------------------
@@ -464,7 +472,7 @@ export class Engine {
       
       if (t.scope === 'global') {
         if (t.code === 'BPM') this.bpm = value;
-        else if (t.code === 'MST') this.vd.master = value;
+        else if (t.code === 'VOL') this.vd.master = value;
       } else if (t.scope === 'chan' && track.targetInstIdx !== null) {
         // chan-scope tracks have no engine; targetInstIdx is reused as the channel
         // index the command pans (channel index == voice index). Cleared on play/stop.
@@ -497,7 +505,7 @@ export class Engine {
     const value = denorm(target, val255);
     if (target.scope === 'global') {
       if (target.code === 'BPM') this.bpm = value;
-      else if (target.code === 'MST') this.vd.master = value;
+      else if (target.code === 'VOL') this.vd.master = value;
     } else if (target.scope === 'inst') {
       const arr = target.bank === 'p1' ? this.vd.p1 : this.vd.p0;
       arr[ch * 4 + target.index!] = value;

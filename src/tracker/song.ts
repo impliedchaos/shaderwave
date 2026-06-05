@@ -56,6 +56,7 @@ export function instrumentsFromParams(
 export function loadSongInstruments(songDef: SongDef): { instruments: InstrumentInstance[]; data: SongData } {
   const full = instrumentsFromParams(songDef.params);   // 4, in INSTRUMENTS order
   const data = songDef.data();
+  if (data.master === undefined) data.master = songDef.master;   // top-level → runtime (data() may override)
 
   const used = new Set<number>();
   for (const pat of data.patterns) {

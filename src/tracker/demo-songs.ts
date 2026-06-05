@@ -73,6 +73,7 @@ export const DEMO_SONGS: SongDef[] = [
   {
     name: "Gooner Prolapse",
     bpm: 135,
+    master: 0.32,
     params: [
       { name: "808 Kick", type: "808", p0: [0, 0.5, 0.8, 0.8], p1: [0, 0, 0, 0] },
       { name: "303 Bass A", type: "303", p0: [300, 0.8, 0.7, 0.5], p1: [1, 0.3, 0.4, 0] },
@@ -286,6 +287,7 @@ export const DEMO_SONGS: SongDef[] = [
   {
     name: "Perky Wombat Tits",
     bpm: 160,
+    master: 0.32,
     params: [
       {
         name: "Lately Bass",
@@ -510,6 +512,7 @@ export const DEMO_SONGS: SongDef[] = [
   {
     name: "Fake My Breath Away",
     bpm: 116,
+    master: 0.32,
     params: [
       {
         name: "BASS 2",
@@ -805,6 +808,7 @@ export const DEMO_SONGS: SongDef[] = [
   {
     name: "Nonconsensual Assisted Suicide",
     bpm: 78,
+    master: 0.32,
     params: [
       {
         name: "DX7 Lush Pad",
@@ -1034,6 +1038,7 @@ export const DEMO_SONGS: SongDef[] = [
   {
     name: "Antiseptik USA",
     bpm: 120,
+    master: 0.32,
     params: [
       {
         name: "DX7 Glass String",
@@ -1289,6 +1294,7 @@ export const DEMO_SONGS: SongDef[] = [
   {
     name: "Lance's Left Nut",
     bpm: 125,
+    master: 0.32,
     params: [
       {
         name: "DX7 Retro Brass",
@@ -1567,6 +1573,7 @@ export const DEMO_SONGS: SongDef[] = [
   {
     name: "Myfanwy Murder Party",
     bpm: 96,
+    master: 0.32,
     params: [
       {
         name: "DX7 Clean Pluck",
@@ -1829,6 +1836,7 @@ export const DEMO_SONGS: SongDef[] = [
   {
     name: "Lipstick-Stained Tailpipe",
     bpm: 120,
+    master: 0.32,
     params: [
       {
         name: "DX7 Chiptune Bell",
@@ -2080,6 +2088,7 @@ export const DEMO_SONGS: SongDef[] = [
   {
     name: "Affreusement Épouvantable",
     bpm: 76,
+    master: 0.32,
     params: [
       { name: "Satie Lead", type: "303", p0: [600, 0.1, 0.4, 0.2], p1: [2.0, 0.3, 0.4, 0] },
       {
@@ -2303,6 +2312,7 @@ export const DEMO_SONGS: SongDef[] = [
   {
     name: "Two-Fingered Typing (FOB)",
     bpm: 142,
+    master: 0.32,
     params: [
       { name: "VCO Noise Guitar", type: "303", p0: [1800, 0.96, 0.85, 0.6], p1: [1.0, 0.15, 0.25, 0] },
       {
@@ -2507,6 +2517,7 @@ export const DEMO_SONGS: SongDef[] = [
   {
     name: "Where'd I Put My Keys?",
     bpm: 128,
+    master: 0.32,
     params: [
       { name: "808 Acid Kit", type: "808", p0: [0, 0.55, 0.42, 0.7], p1: [0, 0, 0, 0] },
       { name: "303 Acid Bass", type: "303", p0: [320, 0.92, 0.85, 0.6], p1: [1, 0.32, 0.34, 0] },
@@ -2669,6 +2680,7 @@ export const DEMO_SONGS: SongDef[] = [
   {
     name: "Diabetic Foot Amputation",
     bpm: 75,
+    master: 0.32,
     params: [
       { name: "Satie Lead", type: "303", p0: [600, 0.1, 0.4, 0.2], p1: [2.0, 0.3, 0.4, 0] },
       {
@@ -2820,6 +2832,7 @@ export const DEMO_SONGS: SongDef[] = [
   {
     name: "Dextroamphetamine Suppository",
     bpm: 137,
+    master: 0.32,
     params: [
       { name: "Acid 303", type: "303", p0: [420, 0.85, 0.55, 0.55], p1: [1, 0.4, 0.4, 0] },
       {
@@ -2991,6 +3004,7 @@ export const DEMO_SONGS: SongDef[] = [
   {
     name: "Feral Roomba Sabbath",
     bpm: 124,
+    master: 0.32,
     params: [
       { name: "Roomba 808", type: "808", p0: [0, 0.5, 0.5, 0.55], p1: [0, 0, 0, 0] },
       {
@@ -3159,6 +3173,7 @@ export const DEMO_SONGS: SongDef[] = [
   {
     name: "Tinnitus Cathedral",
     bpm: 122,
+    master: 0.32,
     params: [
       { name: "808 Vault", type: "808", p0: [0, 0.45, 0.5, 0.5], p1: [0, 0, 0, 0] },
       { name: "Sine Sub", type: "303", p0: [400, 0.0, 0.0, 0.0], p1: [3, 0.3, 0.6, 0] },         // wave 3 = sine, clean sub
@@ -3287,6 +3302,7 @@ export const DEMO_SONGS: SongDef[] = [
   {
     name: "Frying pans. Who knew?",
     bpm: 128,
+    master: 0.32,
     // Kitchen-electro in A minor (i–VI–III–VII–i–VI–iv–V) that puts the new
     // per-channel pan to work *musically*: a DX7 bell arpeggio sprayed L↔R, two
     // 303s holding a hard-left/hard-right acid conversation, ping-pong hats, and

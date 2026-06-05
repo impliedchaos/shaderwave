@@ -92,7 +92,7 @@ const FX_DEFS: FxDef[] = [
 
   { category: 'Stereo Field & Output', enableKey: 'widthOn' },
   { label: 'Width', key: 'width', min: 0, max: 2, step: 0.01 },
-  { label: 'Master', key: 'master', min: 0, max: 1.5, step: 0.01 },
+  { label: 'Level', key: 'master', min: 0, max: 1.5, step: 0.01 },
 ];
 
 // A knob <div> the UI loop drives externally (see bindKnob in controls.ts).

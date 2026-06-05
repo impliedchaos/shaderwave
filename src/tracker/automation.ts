@@ -59,7 +59,7 @@ const INST: Record<InstrumentType, RawTarget[]> = {
 // fx-scope targets. `key` is a fxParams field; these apply to whichever engine
 // type the channel's instrument is, and are shared across that type's channels.
 const FX: RawTarget[] = [
-  { code: 'MST', label: 'FX Master',     key: 'master',        min: 0,     max: 1.5,   curve: 'lin' },
+  { code: 'LVL', label: 'FX Level',      key: 'master',        min: 0,     max: 1.5,   curve: 'lin' },
   { code: 'DRV', label: 'Distortion',    key: 'dist',          min: 0.001, max: 20,    curve: 'log' },
   { code: 'DLM', label: 'Delay Mix',     key: 'delayMix',      min: 0,     max: 1,     curve: 'lin' },
   { code: 'DLF', label: 'Delay Fbk',     key: 'delayFeedback', min: 0,     max: 0.9,   curve: 'lin' },
@@ -79,7 +79,7 @@ const CHAN: RawTarget[] = [
 // global-scope targets. Song-level properties.
 const GLOBAL: RawTarget[] = [
   { code: 'BPM', label: 'BPM', key: 'bpm', min: 40, max: 300, curve: 'lin', unit: 'bpm' },
-  { code: 'MST', label: 'Master Vol', key: 'master', min: 0, max: 2, curve: 'lin' },
+  { code: 'VOL', label: 'Volume', key: 'master', min: 0, max: 2, curve: 'lin' },
 ];
 
 // Flatten into a stable, id-indexed table. Order = append-only.

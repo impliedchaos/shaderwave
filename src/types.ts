@@ -156,13 +156,15 @@ export interface AutoTrack {
 
 // ── Songs ─────────────────────────────────────────────────────────────────
 // The runtime state a song's data() produces: the patterns, the play order
-// (indices into patterns), and timing. `pan` is an optional per-channel base.
+// (indices into patterns), and timing. `pan` is an optional per-channel base;
+// `master` is the song's global output gain (absent → engine default).
 export interface SongData {
   patterns: Pattern[];
   order: number[];
   rowsPerBeat: number;
   bpm?: number;
   pan?: number[];
+  master?: number;
 }
 
 // A demo-song definition. `params` may be a keyed record (one entry per engine
@@ -170,6 +172,7 @@ export interface SongData {
 export interface SongDef {
   name: string;
   bpm: number;
+  master?: number;   // global output gain; absent → engine default
   params: Partial<Record<InstrumentType, InstrumentParams>> | InstrumentSpec[];
   fxParams: FxParamsByType;
   data: () => SongData;
