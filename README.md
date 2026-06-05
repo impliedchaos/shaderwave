@@ -39,7 +39,8 @@ served from a domain root or a subpath.
 | **Space**                   | Play / Stop                                                   |
 | **[ / ]**                   | Octave down / up                                              |
 | **Ctrl/⌘+A**               | Select the whole pattern                                      |
-| **Click a channel header**  | Mute / unmute that channel                                    |
+| **Click a channel header**  | Mute / unmute that channel (outside the pan slider)           |
+| **Drag a header pan slider**| Pan that channel left / right (snaps to centre)               |
 | **?**                       | Open the help / shortcuts dialog                              |
 
 The transport bar's **LEN** field sets the current pattern's row count.
@@ -178,13 +179,17 @@ digits, e.g. `CUT·A4`.
   or **Shift+↑/↓** to nudge. The byte maps across the parameter's real range
   (log-scaled for cutoffs, linear elsewhere).
 
-Two scopes, distinguished by colour in the grid:
+Three scopes, distinguished by colour in the grid:
 
 - **Instrument params** (cyan) — cutoff, resonance, FM mod index, … written to
   that channel's live voice slot, so the change is per-channel and resets on the
   next note. A column of CUT commands is the classic acid filter sweep.
 - **Effect params** (amber) — distortion, delay/reverb mix, … written to the
   instrument's shared FX chain, so the change is track-wide for that engine type.
+- **Channel params** (cyan) — currently **PAN**. Per-channel and engine-agnostic
+  (offered on every channel); the value reads as `L../C/R..`. The channel header's
+  pan slider sets the base (saved with the song); a pan command overrides it for
+  the rest of playback and reverts on stop.
 
 Commands apply per row during playback, right after the row's note triggers
 (so a command sharing a cell with a note overrides the note's snapshot). The
@@ -278,7 +283,6 @@ google-chrome --headless=new --enable-unsafe-swiftshader --dump-dom \
 - O(N²) ladder recompute — replace with a checkpoint scan if profiling demands it.
 - DX7 envelope is simplified ADSR; full rate/level 4-stage envelope not yet
   implemented.
-- Per-channel stereo panning controls.
 - MIDI input, with CC messages mapped onto automation targets (the stored value
   byte is already CC-ready) and live recording of CC moves into the fx column.
 - Save/load functionality to export and import song data as JSON.

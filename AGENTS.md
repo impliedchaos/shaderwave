@@ -73,10 +73,17 @@ and `git status` before committing** so they don't get swept into a commit.
   channels of that type — they operate on the summed instrument output.
 - **Automation** (`src/tracker/automation.js`): per-cell effect commands. Each cell
   stores a `ParamTarget` id (`fxCmd`) + a normalized value byte 0–255 (`fxVal`). The
-  byte is the universal currency (storage, 2-hex display, future MIDI CC). Two scopes:
+  byte is the universal currency (storage, 2-hex display, future MIDI CC). Three scopes:
   `inst` writes the live per-voice slot (channel-local); `fx` writes the shared
-  `fxParams` (track-wide for that engine). Applied per row in `engine._applyAutomation`,
-  after note triggers, so a command on a note's row overrides the note's snapshot.
+  `fxParams` (track-wide for that engine); `chan` writes a per-channel mix param
+  (currently `PAN`, engine-agnostic so it's offered on every channel). Applied per row
+  in `engine._applyAutomation`, after note triggers, so a command on a note's row
+  overrides the note's snapshot.
+- **Pan** is per channel (channel index == voice index). `engine.channelPan[]` is the
+  base the header slider sets and a song persists via `data().pan` (read in `loadSong`);
+  `engine.panAuto[]` holds a transient `chan`-automation override (cleared on play/stop).
+  Both feed `vd.pan[]` each block — the mix shader (`mix.glsl`) already does equal-power
+  pan from `uPan`, so the whole audio path is stereo end-to-end.
 
 ## Conventions & gotchas
 
