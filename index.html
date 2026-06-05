@@ -1297,7 +1297,9 @@
           <div class="toolbar-divider"></div>
           <label class="toolbar-label">Length <input id="pattern-len" class="toolbar-input" type="number" value="128" min="1" max="256" /></label>
           <div class="toolbar-divider"></div>
-          <button id="fx-col-btn" class="fx-col-btn" title="Show/hide the automation (FX) column — shortcut: F">FX Col</button>
+          <label class="toolbar-label" title="Show/hide the automation (FX) column — shortcut: F" style="cursor: pointer; display: flex; align-items: center; gap: 4px;">
+            <input type="checkbox" id="fx-col-btn" /> FX Col
+          </label>
         </div>
         <div style="flex: 1; min-height: 0; position: relative; display: flex; flex-direction: column;">
           <canvas id="grid"></canvas>

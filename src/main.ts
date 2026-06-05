@@ -765,9 +765,9 @@ export class App {
   }
 
   _updateFxColBtn() {
-    const btn = $('fx-col-btn');
+    const btn = $('fx-col-btn') as HTMLInputElement;
     if (!btn) return;
-    btn.classList.toggle('on', this.view.showFx);
+    btn.checked = this.view.showFx;
     this.view.draw();
   }
 
