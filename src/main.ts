@@ -10,7 +10,7 @@ import { TrackerView } from './ui/tracker-view.js';
 import { Controls, bindKnob } from './ui/controls.js';
 import { DEMO_SONGS, loadSongInstruments } from './tracker/song.js';
 import { instGlow } from './constants.js';
-import { OFF, Pattern } from './tracker/pattern.js';
+import { EMPTY, OFF, Pattern } from './tracker/pattern.js';
 import { targetsForType, TARGETS } from './tracker/automation.js';
 import { showExportDialog } from './audio/export.js';
 import { renderArranger } from './ui/arranger.js';
@@ -98,7 +98,9 @@ const FX_DEFS: FxDef[] = [
 // A knob <div> the UI loop drives externally (see bindKnob in controls.ts).
 type KnobEl = HTMLElement & { _extSet?: (v: number) => void };
 // One copied tracker cell.
-type ClipCell = { note: number; inst: number; vol: number };
+// A copied cell is either a note cell (note/inst/vol) or an automation-track
+// cell (`auto` = the row's Int16 value). `auto === undefined` discriminates.
+type ClipCell = { note: number; inst: number; vol: number; auto?: number };
 
 export class App {
   gl: WebGL2RenderingContext;
@@ -1048,13 +1050,21 @@ export class App {
     for (let r = r0; r <= r1; r++) {
       const rowCells: ClipCell[] = [];
       for (let ch = c0; ch <= c1; ch++) {
-        const i = p.idx(r, ch);
-        rowCells.push({ note: p.notes[i], inst: p.inst[i], vol: p.vol[i] });
-        if (cut) p.clear(r, ch);
+        if (ch >= p.channels) {                          // automation-track column
+          const tIdx = ch - p.channels;
+          const has = tIdx < p.autoTracks.length;
+          rowCells.push({ note: EMPTY, inst: 0, vol: 0, auto: has ? p.autoTracks[tIdx].data[r] : -1 });
+          if (cut && has) p.autoTracks[tIdx].data[r] = -1;
+        } else {
+          const i = p.idx(r, ch);
+          rowCells.push({ note: p.notes[i], inst: p.inst[i], vol: p.vol[i] });
+          if (cut) p.clear(r, ch);
+        }
       }
       cells.push(rowCells);
     }
     this._clipboard = { rows: r1 - r0 + 1, chans: c1 - c0 + 1, cells };
+    if (cut) this.view.draw();
   }
 
   // Paste the clipboard block with its top-left at the cursor, clipped to bounds.
@@ -1067,11 +1077,18 @@ export class App {
       if (r >= p.rows) break;
       for (let dc = 0; dc < cb.chans; dc++) {
         const ch = c.ch + dc;
-        if (ch >= p.channels) break;
-        const cell = cb.cells[dr][dc], i = p.idx(r, ch);
-        p.notes[i] = cell.note; p.inst[i] = cell.inst; p.vol[i] = cell.vol;
+        if (ch >= p.channels + p.autoTracks.length) break;
+        const cell = cb.cells[dr][dc];
+        if (ch >= p.channels) {                          // pasting into a track column
+          const tIdx = ch - p.channels;
+          if (cell.auto !== undefined && tIdx < p.autoTracks.length) p.autoTracks[tIdx].data[r] = cell.auto;
+        } else if (cell.auto === undefined) {            // note cell into a note column
+          const i = p.idx(r, ch);
+          p.notes[i] = cell.note; p.inst[i] = cell.inst; p.vol[i] = cell.vol;
+        }
       }
     }
+    this.view.draw();
   }
 
   async _togglePlay() {

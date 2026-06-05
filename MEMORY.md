@@ -72,6 +72,18 @@ out-of-range X (e.g. 4 in a 4-instrument song) made `loadSongInstruments` build 
 Audit script (esbuild+node): for each song, flag inst/fx tracks whose `targetInstIdx` is
 out-of-range or whose instrument type ≠ the param's `type`. Re-run if touching automation.
 
+**`autoTracks` is a parallel pattern structure — every path that copies/remaps patterns
+or instruments must handle it.** Bugs found where it was forgotten (all FIXED 2026-06-05):
+`engine.removeInstrument` (didn't shift inst/fx `targetInstIdx` like it shifts `pat.inst`
+cells → tracks retargeted the wrong instrument); arranger **Clone pattern** (copied
+notes/inst/vol but not autoTracks → clone lost all automation); block copy/paste
+(`_copyBlock`/`_pasteBlock` read out-of-bounds for track columns and paste `break`'d at
+the channel boundary → automation excluded; now handled positionally like the Delete
+key, ClipCell gained an optional `auto` field). Paths already correct: `pattern.resize`,
+`loadSongInstruments` prune/remap. (Also fixed: cut/paste never called `view.draw()`.)
+When adding fields to Pattern, grep for every `new Pattern`, `.notes.set`, and
+instrument-index remap and confirm the new field is handled.
+
 After fixing, suggest squashing into one coherent commit so `fe40fc8` isn't left
 half-migrated. Verify with `npm run build` and the esbuild+node song-load loop
 (`loadSongInstruments(s)` over `DEMO_SONGS` — pass the song object, NOT `s.data()`;

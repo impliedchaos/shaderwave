@@ -285,6 +285,15 @@ export class Engine {
           if (pat.inst[i] === idx) pat.inst[i] = 0;
           else if (pat.inst[i] > idx) pat.inst[i]--;
         }
+        // Same shift for inst/fx automation tracks (their targetInstIdx is an
+        // instrument index). chan tracks key on a channel and global tracks are
+        // null, so both are left alone.
+        for (const track of pat.autoTracks) {
+          if ((track.targetScope === 'inst' || track.targetScope === 'fx') && track.targetInstIdx !== null) {
+            if (track.targetInstIdx === idx) track.targetInstIdx = 0;
+            else if (track.targetInstIdx > idx) track.targetInstIdx--;
+          }
+        }
       }
     }
     return true;

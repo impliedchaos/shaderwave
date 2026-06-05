@@ -53,6 +53,13 @@ export function renderArranger(app: App) {
         newPat.notes.set(pat.notes);
         newPat.inst.set(pat.inst);
         newPat.vol.set(pat.vol);
+        // Deep-copy automation tracks (fresh data arrays so the clone is independent).
+        newPat.autoTracks = pat.autoTracks.map((t) => ({
+          targetScope: t.targetScope,
+          targetInstIdx: t.targetInstIdx,
+          targetParamId: t.targetParamId,
+          data: new Int16Array(t.data),
+        }));
         song.patterns.push(newPat);
         app.engine.currentPatternIdx = song.patterns.length - 1;
         app._renderSongEditor();
