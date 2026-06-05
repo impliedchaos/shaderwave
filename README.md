@@ -281,8 +281,6 @@ google-chrome --headless=new --enable-unsafe-swiftshader --dump-dom \
 
 - Oscillator phase is derived from time-since-note-on; very long notes (>tens of
   minutes) will drift. Fix: carry phase in the state texture like the filter.
-- DX7 envelope is simplified ADSR; full rate/level 4-stage envelope not yet
-  implemented.
 - MIDI input, with CC messages mapped onto automation targets (the stored value
   byte is already CC-ready) and live recording of CC moves into the fx column.
 - Save/load functionality to export and import song data as JSON.
