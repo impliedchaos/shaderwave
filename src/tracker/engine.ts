@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Tracker engine: turns the BPM clock + pattern grid into per-block voice data
 // for the GPU renderer. It is sample-accurate — note-ons are scheduled at exact
 // frames within a render block, not quantised to block boundaries.
@@ -7,13 +6,52 @@
 // channel). When a new note hits a channel, it overwrites that voice.
 import { VOICES, INSTRUMENTS, INSTRUMENT_COLORS, noteToFreq, BLOCK } from '../constants.js';
 import { EMPTY, OFF, NO_FX } from './pattern.js';
+import type { Pattern } from './pattern.js';
 import { defaultParams, instrumentsFromParams, DRUM_MAP } from './song.js';
 import { targetById, denorm } from './automation.js';
+import type {
+  FxParamsByType, InstrumentInstance, InstrumentType, SongData, VoiceData,
+} from '../types.js';
 
 export const HELD = 1e9; // offRel sentinel: note is still held
 
+// Per-voice runtime state (absolute frames). `instrument` indexes the instrument
+// table; `inst` is the engine-type id used for shader dispatch.
+interface Voice {
+  active: boolean;
+  inst: number;
+  instrument: number;
+  freq: number;
+  vel: number;
+  onFrame: number;
+  offFrame: number;
+}
+
 export class Engine {
-  constructor(sampleRate) {
+  sampleRate: number;
+  song: SongData | null;
+  rowsPerBeat: number;
+  bpm: number;
+  fxParams: FxParamsByType | null;
+  autoLive: { inst: Map<string, number> };
+  playing: boolean;
+  paused: boolean;
+  _resumeOffset: number;
+  startFrame: number | null;
+  lastBlockStart: number;
+  displayRow: number;
+  displayOrder: number;
+  playMode: string;
+  currentPatternIdx: number;
+  instruments: InstrumentInstance[];
+  voices: Voice[];
+  muted: boolean[];
+  channelPan: Float32Array;
+  panAuto: Float32Array;
+  vd: VoiceData;
+  _preview: number;
+
+  constructor(sampleRate: number) {
     this.sampleRate = sampleRate;
     this.song = null;
     this.rowsPerBeat = 4;
@@ -93,7 +131,7 @@ export class Engine {
     this._preview = 0; // round-robin voice cursor for live keyboard preview
   }
 
-  loadSong(song) {
+  loadSong(song: SongData) {
     this.song = song;
     this.rowsPerBeat = song.rowsPerBeat || 4;
     // Per-channel pan saved with the song; absent → centre. Clears any live
@@ -138,7 +176,7 @@ export class Engine {
     return sum;
   }
 
-  play(mode = 'song') {
+  play(mode: string = 'song') {
     this.playMode = mode; this.playing = true; this.startFrame = null;
     this.paused = false; this._resumeOffset = 0; // fresh start → row 0
     this.autoLive.inst.clear();
@@ -170,7 +208,7 @@ export class Engine {
   // --- note triggering ----------------------------------------------------
 
   // `inst` is an index into this.instruments (the instrument table).
-  triggerNote(ch, note, inst, vol, frame) {
+  triggerNote(ch: number, note: number, inst: number, vol: number, frame: number) {
     const v = this.voices[ch];
     if (note === OFF) { v.offFrame = frame; return; }
     const wasActive = v.active, prevFreq = v.freq;    // for glide (capture before overwrite)
@@ -197,7 +235,7 @@ export class Engine {
   // Copy an instrument instance's param banks into the voice's slots. For 808,
   // override the drum-slot field (p0.x) from the note's drum index. p2/p3 are
   // Moog-only and copied when the instance has them.
-  _writeParams(ch, instr, drumSlot) {
+  _writeParams(ch: number, instr: InstrumentInstance, drumSlot: number | null) {
     const o = ch * 4;
     for (let k = 0; k < 4; k++) { this.vd.p0[o + k] = instr.p0[k]; this.vd.p1[o + k] = instr.p1[k]; }
     if (instr.p2) for (let k = 0; k < 4; k++) this.vd.p2[o + k] = instr.p2[k];
@@ -206,12 +244,12 @@ export class Engine {
   }
 
   // Append a new instrument instance of the given engine type; returns its index.
-  addInstrument(type) {
-    const dp = defaultParams()[type];
+  addInstrument(type: InstrumentType): number {
+    const dp = defaultParams()[type] as InstrumentInstance;
     const used = new Set(this.instruments.map((i) => i.color));
     const color = INSTRUMENT_COLORS.find((c) => !used.has(c))
       || INSTRUMENT_COLORS[this.instruments.length % INSTRUMENT_COLORS.length];
-    const e = { name: type.toUpperCase(), type, color, p0: [...dp.p0], p1: [...dp.p1] };
+    const e: InstrumentInstance = { name: type.toUpperCase(), type, color, p0: [...dp.p0], p1: [...dp.p1] };
     if (dp.ops) e.ops = dp.ops.map((o) => ({ ...o }));
     if (type === 'moog') { e.p2 = dp.p2 ? [...dp.p2] : [1, 1, 1, 0]; e.p3 = dp.p3 ? [...dp.p3] : [2, 2, 2, 0]; }
     this.instruments.push(e);
@@ -220,7 +258,7 @@ export class Engine {
 
   // Remove an instance (keeps ≥1). Silences voices on it, shifts higher voice/
   // pattern references down, and remaps cells that pointed at it to instance 0.
-  removeInstrument(idx) {
+  removeInstrument(idx: number): boolean {
     if (this.instruments.length <= 1) return false;
     this.instruments.splice(idx, 1);
     for (const v of this.voices) {
@@ -240,20 +278,20 @@ export class Engine {
 
   // Live keyboard preview — round-robins across voices so chords are possible.
   // Returns the voice index so the UI can release it on key-up.
-  previewNote(instIndex, note, vol = 0.9) {
+  previewNote(instIndex: number, note: number, vol = 0.9): number {
     const ch = this._preview;
     this._preview = (this._preview + 1) % VOICES;
     const frame = this.lastBlockStart + BLOCK; // next block
     this.triggerNote(ch, note, instIndex, vol, frame);
     return ch;
   }
-  previewOff(ch) {
+  previewOff(ch: number) {
     if (ch != null) this.voices[ch].offFrame = this.lastBlockStart + BLOCK;
   }
 
   // --- per-block update ---------------------------------------------------
 
-  resolveSongRow(songRow) {
+  resolveSongRow(songRow: number) {
     if (!this.song) return { orderIdx: 0, patIdx: 0, localRow: 0 };
     let accum = 0;
     for (let i = 0; i < this.song.order.length; i++) {
@@ -276,7 +314,7 @@ export class Engine {
 
   // Called once per render block with the absolute start frame. Schedules any
   // row triggers landing in [blockStart, blockStart+BLOCK) and refreshes vd.
-  advance(blockStart) {
+  advance(blockStart: number): VoiceData {
     this.lastBlockStart = blockStart;
 
     if (this.playing && this.song) {
@@ -308,7 +346,7 @@ export class Engine {
       // Row shown in the UI = the row covering the end of this block.
       const cur = Math.floor((blockEnd - 1 - this.startFrame) / spr);
       if (this.playMode === 'pattern') {
-        const pat = this.song.patterns[this.currentPatternIdx];
+        const pat = this.song!.patterns[this.currentPatternIdx];
         if (pat) {
           const totalPat = pat.rows;
           const r = ((cur % totalPat) + totalPat) % totalPat;
@@ -346,10 +384,12 @@ export class Engine {
     return this.vd;
   }
 
-  _triggerRow(k, frame) {
+  _triggerRow(k: number, frame: number) {
     const fr = Math.round(frame);
+    const song = this.song;
+    if (!song) return;
     if (this.playMode === 'pattern') {
-      const pat = this.song.patterns[this.currentPatternIdx];
+      const pat = song.patterns[this.currentPatternIdx];
       if (!pat) return;
       const row = ((k % pat.rows) + pat.rows) % pat.rows;
       for (let ch = 0; ch < pat.channels; ch++) {
@@ -364,7 +404,7 @@ export class Engine {
       if (total <= 0) return;
       const songRow = ((k % total) + total) % total;
       const { patIdx, localRow } = this.resolveSongRow(songRow);
-      const pat = this.song.patterns[patIdx];
+      const pat = song.patterns[patIdx];
       if (!pat) return;
       for (let ch = 0; ch < pat.channels; ch++) {
         const note = pat.note(localRow, ch);
@@ -380,7 +420,7 @@ export class Engine {
   // sharing a cell with a note overrides the note-on param snapshot. 'inst'
   // targets write the live per-voice slot (channel-local, holds until the next
   // note re-snapshots); 'fx' targets write the engine-type's shared fxParams.
-  _applyAutomation(pat, row) {
+  _applyAutomation(pat: Pattern, row: number) {
     for (let ch = 0; ch < pat.channels; ch++) {
       const i = pat.idx(row, ch);
       const id = pat.fxCmd[i];
@@ -390,7 +430,7 @@ export class Engine {
       const value = denorm(t, pat.fxVal[i]);
       if (t.scope === 'inst') {
         const arr = t.bank === 'p1' ? this.vd.p1 : this.vd.p0;
-        arr[ch * 4 + t.index] = value;
+        arr[ch * 4 + t.index!] = value;
         const v = this.voices[ch];
         const instrIdx = (v && v.active) ? v.instrument : pat.inst[i];
         this.autoLive.inst.set(`${instrIdx}:${t.bank}:${t.index}`, value);
@@ -399,21 +439,21 @@ export class Engine {
         this.panAuto[ch] = value;
       } else if (this.fxParams) {
         const fp = this.fxParams[this._channelType(ch, pat, i)];
-        if (fp) fp[t.key] = value;
+        if (fp) fp[t.key!] = value;
       }
     }
   }
 
   // Engine type driving a channel right now: the sounding voice's instrument if
   // active, else the cell's own instrument, else the first instance.
-  _channelType(ch, pat, i) {
+  _channelType(ch: number, pat: Pattern, i: number): InstrumentType {
     const v = this.voices[ch];
     let instr = (v && v.active) ? this.instruments[v.instrument] : null;
     if (!instr) instr = this.instruments[pat.inst[i]] || this.instruments[0];
     return instr ? instr.type : '303';
   }
 
-  _refreshVoiceData(blockStart) {
+  _refreshVoiceData(blockStart: number) {
     const vd = this.vd;
     for (let v = 0; v < VOICES; v++) {
       const vc = this.voices[v];

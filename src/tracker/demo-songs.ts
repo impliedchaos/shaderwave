@@ -1,11 +1,19 @@
-// @ts-nocheck
 import { Pattern, OFF, EMPTY } from './pattern.js';
 import { INSTRUMENTS } from '../constants.js';
 import { defaultFxParams } from '../gl/effects.js';
 import { targetByCode, normByte } from './automation.js';
+import type { FxParams, InstrumentParams, InstrumentType, ParamTarget, SongDef } from '../types.js';
+
+// Resolve an automation target for song authoring, asserting it exists (the
+// codes here are all known-good, so a miss is a programming error).
+function tgt(type: InstrumentType, code: string): ParamTarget {
+  const t = targetByCode(type, code);
+  if (!t) throw new Error(`Unknown automation target ${type}/${code}`);
+  return t;
+}
 
 // Default per-instrument param banks (p0, p1). See each shader for the layout.
-export function defaultParams() {
+export function defaultParams(): Record<InstrumentType, InstrumentParams> {
   return {
     '303':  { p0: [400, 0.72, 0.6, 0.4], p1: [0, 0.3, 0.4, 0] },
     'dx7':  {
@@ -27,20 +35,25 @@ export function defaultParams() {
   };
 }
 
-export function makeParams(overrides) {
+export function makeParams(
+  overrides: Partial<Record<InstrumentType, Partial<InstrumentParams>>>,
+): Record<InstrumentType, InstrumentParams> {
   const p = defaultParams();
-  for (const k in overrides) {
-    if (overrides[k].p0) p[k].p0 = [...overrides[k].p0];
-    if (overrides[k].p1) p[k].p1 = [...overrides[k].p1];
-    if (overrides[k].p2) p[k].p2 = [...overrides[k].p2];
-    if (overrides[k].p3) p[k].p3 = [...overrides[k].p3];
-    if (overrides[k].ops) p[k].ops = overrides[k].ops.map(o => ({ ...o }));
+  for (const key in overrides) {
+    const k = key as InstrumentType;
+    const ov = overrides[k];
+    if (!ov) continue;
+    if (ov.p0) p[k].p0 = [...ov.p0];
+    if (ov.p1) p[k].p1 = [...ov.p1];
+    if (ov.p2) p[k].p2 = [...ov.p2];
+    if (ov.p3) p[k].p3 = [...ov.p3];
+    if (ov.ops) p[k].ops = ov.ops.map(o => ({ ...o }));
   }
   return p;
 }
 
-export function makeFx(overrides) {
-  const mapInst = (instName) => {
+export function makeFx(overrides: Partial<Record<InstrumentType, Partial<FxParams>>>) {
+  const mapInst = (instName: InstrumentType): FxParams => {
     const res = Object.assign(defaultFxParams(), overrides[instName] || {});
     if (res.drive !== undefined) {
       // Map old drive range (1.0 - 6.0) to DS-1 dist range (0.001 - 20.0)
@@ -59,7 +72,7 @@ export function makeFx(overrides) {
 
 const I = Object.fromEntries(INSTRUMENTS.map((n, i) => [n, i])); // name → index
 
-function makeDemoPatterns(p) {
+function makeDemoPatterns(p: Pattern) {
   // Pattern 0: Intro (Drums muted)
   const pIntro = new Pattern(p.rows, p.channels);
   pIntro.notes.set(p.notes);
@@ -97,7 +110,7 @@ function makeDemoPatterns(p) {
   return { patterns: [pIntro, p, pBridge], order: [0, 1, 2], rowsPerBeat: 4 };
 }
 
-export const DEMO_SONGS = [
+export const DEMO_SONGS: SongDef[] = [
   {
     name: "Gooner Prolapse",
     bpm: 135,
@@ -139,13 +152,13 @@ export const DEMO_SONGS = [
       const I_303_1 = 1, I_303_2 = 2, I_303_3 = 3, I_303_4 = 4;
       const I_moogBass1 = 5, I_moogBass2 = 6, I_moogLead1 = 7, I_moogLead2 = 8;
 
-      const getDarkRoot = (row) => {
+      const getDarkRoot = (row: number) => {
         const progression = [38, 38, 37, 37, 36, 36, 35, 35, 38, 38, 41, 41, 44, 44, 43, 43];
         const bar = Math.floor(row / 16);
         return progression[bar % progression.length];
       };
 
-      const setGoonDrums = (pat, hasKick, hasSnare, hasHats) => {
+      const setGoonDrums = (pat: Pattern, hasKick: boolean, hasSnare: boolean, hasHats: boolean) => {
         for (let r = 0; r < 128; r++) {
           const step = r % 16;
           if (hasKick) {
@@ -162,7 +175,7 @@ export const DEMO_SONGS = [
         }
       };
 
-      const setGoonMoogBass = (pat, ch, inst, vol = 0.85) => {
+      const setGoonMoogBass = (pat: Pattern, ch: number, inst: number, vol = 0.85) => {
         for (let r = 0; r < 128; r += 2) {
           const root = getDarkRoot(r);
           pat.set(r, ch, root, inst, vol);
@@ -170,7 +183,7 @@ export const DEMO_SONGS = [
         }
       };
 
-      const setGoon303Bass = (pat, ch, inst, vol = 0.8) => {
+      const setGoon303Bass = (pat: Pattern, ch: number, inst: number, vol = 0.8) => {
         for (let r = 0; r < 128; r++) {
           const step = r % 16;
           if (step === 0 || step === 3 || step === 6 || step === 8 || step === 11 || step === 14) {
@@ -182,7 +195,7 @@ export const DEMO_SONGS = [
         }
       };
 
-      const setGoon303Lead = (pat, ch, inst, vol = 0.75, offset = 12) => {
+      const setGoon303Lead = (pat: Pattern, ch: number, inst: number, vol = 0.75, offset = 12) => {
         for (let r = 0; r < 128; r++) {
           const step = r % 8;
           if (step === 0 || step === 3 || step === 5) {
@@ -193,7 +206,7 @@ export const DEMO_SONGS = [
         }
       };
 
-      const setGoonMoogLead = (pat, ch, inst, vol = 0.8, offset = 24) => {
+      const setGoonMoogLead = (pat: Pattern, ch: number, inst: number, vol = 0.8, offset = 24) => {
         for (let r = 0; r < 128; r += 4) {
           const root = getDarkRoot(r);
           const notes = [0, 1, 3, 4, 3, 1, 0, -1];
@@ -206,15 +219,15 @@ export const DEMO_SONGS = [
       // ---- automation helpers ----
       // Resonance climb (303, inst-scope): rides the acid lead from smooth to
       // screaming self-oscillation across the pattern.
-      const RES = targetByCode('303', 'RES');     // 0..0.98
-      const resClimb = (pat, ch, lo, hi) => {
+      const RES = tgt('303', 'RES');     // 0..0.98
+      const resClimb = (pat: Pattern, ch: number, lo: number, hi: number) => {
         const loB = normByte(RES, lo), hiB = normByte(RES, hi);
         for (let r = 0; r < 128; r++) pat.setFx(r, ch, RES.id, Math.round(loB + (hiB - loB) * (r / 127)));
       };
       // Reverb swell (moog, fx-scope → track-wide for the engine): drenches the
       // breakdown. Written on a live moog channel so it resolves to the moog chain.
-      const MRV = targetByCode('moog', 'RVM');    // reverbMix 0..1
-      const revSwell = (pat, ch, lo, hi) => {
+      const MRV = tgt('moog', 'RVM');    // reverbMix 0..1
+      const revSwell = (pat: Pattern, ch: number, lo: number, hi: number) => {
         const loB = normByte(MRV, lo), hiB = normByte(MRV, hi);
         for (let r = 0; r < 128; r++) pat.setFx(r, ch, MRV.id, Math.round(loB + (hiB - loB) * (r / 127)));
       };
@@ -361,13 +374,13 @@ export const DEMO_SONGS = [
       const BD = 36, SD = 38, HH = 42, OH = 46, CLAP = 39;
       const I_lately = 0, I_808 = 1, I_sqA = 2, I_sqB = 3, I_moog = 4, I_chords = 5;
 
-      const getHappyRoot = (row) => {
+      const getHappyRoot = (row: number) => {
         const progression = [36, 36, 36, 36, 43, 43, 43, 43, 45, 45, 45, 45, 41, 41, 41, 41];
         const bar = Math.floor(row / 16);
         return progression[bar % progression.length];
       };
 
-      const setHappyDrums = (pat, hasKick, hasSnare, hasHats, hasClap) => {
+      const setHappyDrums = (pat: Pattern, hasKick: boolean, hasSnare: boolean, hasHats: boolean, hasClap: boolean) => {
         for (let r = 0; r < 128; r++) {
           const step = r % 16;
           if (hasKick) {
@@ -395,7 +408,7 @@ export const DEMO_SONGS = [
         }
       };
 
-      const setLatelyBass = (pat, ch, inst, vol = 0.85) => {
+      const setLatelyBass = (pat: Pattern, ch: number, inst: number, vol = 0.85) => {
         for (let r = 0; r < 128; r++) {
           const step = r % 16;
           const root = getHappyRoot(r);
@@ -416,7 +429,7 @@ export const DEMO_SONGS = [
         79, 81, 83, 84, 86, 84, 83, 84
       ];
 
-      const setSquareLead = (pat, ch, inst, vol = 0.8) => {
+      const setSquareLead = (pat: Pattern, ch: number, inst: number, vol = 0.8) => {
         for (let r = 0; r < 128; r += 2) {
           const step = Math.floor(r / 2) % happyMelody.length;
           const note = happyMelody[step];
@@ -425,7 +438,7 @@ export const DEMO_SONGS = [
         }
       };
 
-      const setSquareHarmony = (pat, ch, inst, vol = 0.7) => {
+      const setSquareHarmony = (pat: Pattern, ch: number, inst: number, vol = 0.7) => {
         for (let r = 0; r < 128; r += 2) {
           const step = Math.floor(r / 2) % happyMelody.length;
           const note = happyMelody[step] + 12; // octave harmony
@@ -434,23 +447,23 @@ export const DEMO_SONGS = [
         }
       };
 
-      const setBellChords = (pat, ch, inst, vol = 0.6) => {
+      const setBellChords = (pat: Pattern, ch: number, inst: number, vol = 0.6) => {
         for (let r = 0; r < 128; r += 8) {
           const root = getHappyRoot(r);
-          let notes = [];
+          let notes: number[] = [];
           if (root === 36) notes = [60, 64, 67];
           else if (root === 43) notes = [55, 59, 62];
           else if (root === 45) notes = [57, 60, 64];
           else if (root === 41) notes = [53, 57, 60];
           
-          notes.forEach(note => {
+          notes.forEach((note: number) => {
             pat.set(r, ch, note, inst, vol);
           });
           pat.set(r + 6, ch, OFF, inst);
         }
       };
 
-      const setMoogLead = (pat, ch, inst, vol = 0.75) => {
+      const setMoogLead = (pat: Pattern, ch: number, inst: number, vol = 0.75) => {
         const solo = [
           79, 81, 84, 86, 88, 86, 84, 81,
           83, 84, 86, 88, 91, 88, 86, 84,
@@ -690,26 +703,26 @@ export const DEMO_SONGS = [
         [51, 55, 58],
       ];
 
-      const writeBass = (pat, barsArray, transpose = 0) => {
-        barsArray.forEach((bar, barIdx) => {
+      const writeBass = (pat: Pattern, barsArray: number[][][], transpose = 0) => {
+        barsArray.forEach((bar: number[][], barIdx: number) => {
           const startRow = barIdx * 16;
-          bar.forEach(([offset, note]) => {
+          bar.forEach(([offset, note]: number[]) => {
             pat.set(startRow + offset, 3, note + transpose + 12, I_bass, 0.88);
           });
         });
       };
 
-      const writePads = (pat, chordsArray, transpose = 0) => {
-        chordsArray.forEach((chord, barIdx) => {
+      const writePads = (pat: Pattern, chordsArray: number[][], transpose = 0) => {
+        chordsArray.forEach((chord: number[], barIdx: number) => {
           const startRow = barIdx * 16;
-          chord.forEach(note => {
+          chord.forEach((note: number) => {
             pat.set(startRow, 4, note + transpose, I_pad, 0.58);
           });
           pat.set(startRow + 14, 4, OFF, I_pad);
         });
       };
 
-      const setGatedDrums = (pat, hasKick, hasSnare, hasHats) => {
+      const setGatedDrums = (pat: Pattern, hasKick: boolean, hasSnare: boolean, hasHats: boolean) => {
         for (let r = 0; r < 128; r++) {
           const step = r % 16;
           if (hasKick) {
@@ -732,7 +745,7 @@ export const DEMO_SONGS = [
         }
       };
 
-      const setChimeMelody = (pat, ch, inst, vol = 0.7, transpose = 0) => {
+      const setChimeMelody = (pat: Pattern, ch: number, inst: number, vol = 0.7, transpose = 0) => {
         for (let r = 0; r < 128; r++) {
           const step = r % 16;
           const bar = Math.floor(r / 16);
@@ -759,7 +772,7 @@ export const DEMO_SONGS = [
         }
       };
 
-      const setSoaringMoog = (pat, ch, inst, vol = 0.7, transpose = 0) => {
+      const setSoaringMoog = (pat: Pattern, ch: number, inst: number, vol = 0.7, transpose = 0) => {
         const lead = [
           82, 82, 81, 81, 79, 79, 77, 77,
           75, 75, 77, 77, 79, 79, 81, 81
@@ -873,10 +886,10 @@ export const DEMO_SONGS = [
       const CH = 8;
       const I_pad = 0, I_bass = 1, I_shimmer = 2, I_bell = 3, I_sub = 4;
 
-      const p = [];
+      const p: Pattern[] = [];
       for (let i = 0; i < 8; i++) p.push(new Pattern(128, CH));
 
-      const chords = {
+      const chords: Record<string, number[]> = {
         D:   [62, 66, 69],
         Bm:  [59, 62, 66],
         G:   [55, 59, 62],
@@ -885,7 +898,7 @@ export const DEMO_SONGS = [
         Fm:  [54, 57, 61],
       };
 
-      const highChords = {
+      const highChords: Record<string, number[]> = {
         D:   [74, 78, 81],
         Bm:  [71, 74, 78],
         G:   [67, 71, 74],
@@ -894,35 +907,35 @@ export const DEMO_SONGS = [
         Fm:  [66, 69, 73],
       };
 
-      const bassNotes = {
+      const bassNotes: Record<string, number> = {
         D: 38, Bm: 47, G: 43, A: 45, Em: 40, Fm: 42,
       };
 
-      const subNotes = {
+      const subNotes: Record<string, number> = {
         D: 38, Bm: 35, G: 31, A: 33, Em: 28, Fm: 30,
       };
 
-      const writePadChords = (pat, progression, vol = 0.5) => {
-        progression.forEach((chordName, barIdx) => {
+      const writePadChords = (pat: Pattern, progression: string[], vol = 0.5) => {
+        progression.forEach((chordName: string, barIdx: number) => {
           const startRow = barIdx * 16;
           const chord = chords[chordName];
-          chord.forEach((note, ni) => {
+          chord.forEach((note: number, ni: number) => {
             pat.set(startRow, 0 + ni, note, I_pad, vol);
           });
           if (barIdx < progression.length - 1) {
-            chord.forEach((_, ni) => {
+            chord.forEach((_: number, ni: number) => {
               pat.set(startRow + 15, 0 + ni, OFF, I_pad);
             });
           } else {
-            chord.forEach((_, ni) => {
+            chord.forEach((_: number, ni: number) => {
               pat.set(127, 0 + ni, OFF, I_pad);
             });
           }
         });
       };
 
-      const writeBassLine = (pat, progression, vol = 0.65) => {
-        progression.forEach((chordName, barIdx) => {
+      const writeBassLine = (pat: Pattern, progression: string[], vol = 0.65) => {
+        progression.forEach((chordName: string, barIdx: number) => {
           const startRow = barIdx * 16;
           const rootNote = bassNotes[chordName];
           pat.set(startRow, 3, rootNote, I_bass, vol);
@@ -934,7 +947,7 @@ export const DEMO_SONGS = [
         });
       };
 
-      const writeSubDrone = (pat, progression, vol = 0.4) => {
+      const writeSubDrone = (pat: Pattern, progression: string[], vol = 0.4) => {
         for (let barIdx = 0; barIdx < progression.length; barIdx += 2) {
           const startRow = barIdx * 16;
           const note = subNotes[progression[barIdx]];
@@ -943,8 +956,8 @@ export const DEMO_SONGS = [
         }
       };
 
-      const writeShimmerArp = (pat, progression, vol = 0.3) => {
-        progression.forEach((chordName, barIdx) => {
+      const writeShimmerArp = (pat: Pattern, progression: string[], vol = 0.3) => {
+        progression.forEach((chordName: string, barIdx: number) => {
           const startRow = barIdx * 16;
           const notes = highChords[chordName];
           for (let step = 0; step < 16; step += 4) {
@@ -955,8 +968,8 @@ export const DEMO_SONGS = [
         });
       };
 
-      const writeBellMelody = (pat, melody, vol = 0.35) => {
-        melody.forEach(([row, note, dur]) => {
+      const writeBellMelody = (pat: Pattern, melody: number[][], vol = 0.35) => {
+        melody.forEach(([row, note, dur]: number[]) => {
           pat.set(row, 5, note, I_bell, vol);
           if (dur) pat.set(row + dur, 5, OFF, I_bell);
         });
@@ -1086,7 +1099,7 @@ export const DEMO_SONGS = [
       'moog': Object.assign(defaultFxParams(), { distOn: false, bitcrushOn: false, chorusMix: 0.3, delayMix: 0.3, reverbMix: 0.35 }),
     },
     data: () => {
-      const p = [];
+      const p: Pattern[] = [];
       for (let i = 0; i < 12; i++) p.push(new Pattern(128, 8));
 
       const BD = 36, SD = 38, HH = 42, OH = 46, CLAP = 39, RIM = 37;
@@ -1095,33 +1108,33 @@ export const DEMO_SONGS = [
       const minorProg = ['Am7', 'Fmaj7', 'D7', 'Esus4', 'Am7', 'Fmaj7', 'D7', 'Esus4'];
       const majorProg = ['Amaj7', 'B7', 'C#m7', 'F#m7', 'Amaj7', 'B7', 'C#m7', 'F#m7'];
 
-      const minorVoicings = {
+      const minorVoicings: Record<string, number[]> = {
         Am7: [57, 60, 64],
         Fmaj7: [53, 57, 60],
         D7: [54, 57, 60],
         Esus4: [52, 57, 59]
       };
-      const majorVoicings = {
+      const majorVoicings: Record<string, number[]> = {
         Amaj7: [57, 61, 64, 68],
         B7: [59, 63, 66, 69],
         "C#m7": [56, 59, 64],
         "F#m7": [54, 57, 61]
       };
 
-      const minorBass = { Am7: 45, Fmaj7: 41, D7: 38, Esus4: 40 };
-      const majorBass = { Amaj7: 45, B7: 47, "C#m7": 37, "F#m7": 42 };
+      const minorBass: Record<string, number> = { Am7: 45, Fmaj7: 41, D7: 38, Esus4: 40 };
+      const majorBass: Record<string, number> = { Amaj7: 45, B7: 47, "C#m7": 37, "F#m7": 42 };
 
-      const writePadsAndBass = (pat, isMajor = false, volP = 0.45, volB = 0.65) => {
+      const writePadsAndBass = (pat: Pattern, isMajor = false, volP = 0.45, volB = 0.65) => {
         const prog = isMajor ? majorProg : minorProg;
         const voicings = isMajor ? majorVoicings : minorVoicings;
         const bass = isMajor ? majorBass : minorBass;
         const padChannels = [0, 3, 4, 7];
 
-        prog.forEach((chordName, barIdx) => {
+        prog.forEach((chordName: string, barIdx: number) => {
           const start = barIdx * 16;
           const voicing = voicings[chordName];
 
-          padChannels.forEach(ch => {
+          padChannels.forEach((ch: number) => {
             for (let step = 0; step < 16; step++) {
               pat.clear(start + step, ch);
             }
@@ -1146,11 +1159,11 @@ export const DEMO_SONGS = [
         });
       };
 
-      const writeDrivingBass = (pat, isMajor = false, vol = 0.7) => {
+      const writeDrivingBass = (pat: Pattern, isMajor = false, vol = 0.7) => {
         const prog = isMajor ? majorProg : minorProg;
         const bass = isMajor ? majorBass : minorBass;
 
-        prog.forEach((chordName, barIdx) => {
+        prog.forEach((chordName: string, barIdx: number) => {
           const start = barIdx * 16;
           const root = bass[chordName];
           for (let step = 0; step < 16; step += 2) {
@@ -1161,14 +1174,14 @@ export const DEMO_SONGS = [
         });
       };
 
-      const write303Pluck = (pat, isMajor = false, density = 0.5, vol = 0.65) => {
+      const write303Pluck = (pat: Pattern, isMajor = false, density = 0.5, vol = 0.65) => {
         const prog = isMajor ? majorProg : minorProg;
         const voicings = isMajor ? majorVoicings : minorVoicings;
 
-        prog.forEach((chordName, barIdx) => {
+        prog.forEach((chordName: string, barIdx: number) => {
           const start = barIdx * 16;
           const voicing = voicings[chordName];
-          const notes = voicing.map(n => n + 24);
+          const notes = voicing.map((n: number) => n + 24);
           const threshold = Math.round(density * 10);
           for (let step = 0; step < 16; step += 2) {
             if (((step * 7 + barIdx * 3) % 10) < threshold) {
@@ -1180,7 +1193,7 @@ export const DEMO_SONGS = [
         });
       };
 
-      const writeDrums = (pat, style = 'dreamy') => {
+      const writeDrums = (pat: Pattern, style = 'dreamy') => {
         for (let r = 0; r < 128; r++) {
           const step = r % 16;
           if (style === 'dreamy') {
@@ -1220,8 +1233,8 @@ export const DEMO_SONGS = [
         }
       };
 
-      const writeLead = (pat, melody, vol = 0.72) => {
-        melody.forEach(([row, note, dur]) => {
+      const writeLead = (pat: Pattern, melody: number[][], vol = 0.72) => {
+        melody.forEach(([row, note, dur]: number[]) => {
           pat.set(row, 6, note, I_lead, vol);
           if (dur) pat.set(row + dur, 6, OFF, I_lead);
         });
@@ -1341,7 +1354,7 @@ export const DEMO_SONGS = [
       'moog': Object.assign(defaultFxParams(), { distOn: false, bitcrushOn: false, chorusMix: 0.4, delayMix: 0.3, reverbMix: 0.35 }),
     },
     data: () => {
-      const p = [];
+      const p: Pattern[] = [];
       for (let i = 0; i < 12; i++) p.push(new Pattern(128, 8));
 
       const BD = 36, SD = 38, HH = 42, OH = 46, CLAP = 39, RIM = 37;
@@ -1351,7 +1364,7 @@ export const DEMO_SONGS = [
       const chorusProg = ['D', 'Bb', 'C', 'A'];
       const bridgeProg = ['G', 'A', 'G', 'A'];
 
-      const voicings = {
+      const voicings: Record<string, number[]> = {
         Bm: [59, 62, 66, 71],
         G: [55, 59, 62, 67],
         Em: [52, 55, 59, 64],
@@ -1362,7 +1375,7 @@ export const DEMO_SONGS = [
         A: [57, 61, 64, 69]
       };
 
-      const chordIntervals = {
+      const chordIntervals: Record<string, { root: number; third: number; fifth: number; seventh: number }> = {
         Bm: { root: 47, third: 50, fifth: 54, seventh: 57 },
         G: { root: 43, third: 47, fifth: 50, seventh: 54 },
         Em: { root: 40, third: 43, fifth: 47, seventh: 50 },
@@ -1373,20 +1386,20 @@ export const DEMO_SONGS = [
         A: { root: 45, third: 49, fifth: 52, seventh: 55 }
       };
 
-      const writePads = (pat, progression, style = 'sustained', vol = 0.4) => {
-        progression.forEach((chordName, barIdx) => {
+      const writePads = (pat: Pattern, progression: string[], style = 'sustained', vol = 0.4) => {
+        progression.forEach((chordName: string, barIdx: number) => {
           const start = barIdx * 16;
           const voicing = voicings[chordName];
           if (style === 'sustained') {
-            voicing.forEach((note, ni) => {
+            voicing.forEach((note: number, ni: number) => {
               const ch = [0, 3, 4][ni % 3];
               pat.set(start, ch, note + 12, I_pad, vol);
               pat.set(start + 15, ch, OFF, I_pad);
             });
           } else {
-            voicing.forEach((note, ni) => {
+            voicing.forEach((note: number, ni: number) => {
               const ch = [0, 3, 4][ni % 3];
-              [0, 3, 6, 8, 11, 14].forEach(step => {
+              [0, 3, 6, 8, 11, 14].forEach((step: number) => {
                 pat.set(start + step, ch, note + 12, I_pad, vol);
                 pat.set(start + step + 2, ch, OFF, I_pad);
               });
@@ -1395,8 +1408,8 @@ export const DEMO_SONGS = [
         });
       };
 
-      const writeBass = (pat, progression, style = 'driving', vol = 0.7) => {
-        progression.forEach((chordName, barIdx) => {
+      const writeBass = (pat: Pattern, progression: string[], style = 'driving', vol = 0.7) => {
+        progression.forEach((chordName: string, barIdx: number) => {
           const start = barIdx * 16;
           const chords = chordIntervals[chordName];
           if (style === 'driving') {
@@ -1410,7 +1423,7 @@ export const DEMO_SONGS = [
               [12, chords.root],
               [14, chords.seventh]
             ];
-            verseBassPattern.forEach(([step, note]) => {
+            verseBassPattern.forEach(([step, note]: number[]) => {
               pat.set(start + step, 5, note, I_bass, vol);
               pat.set(start + step + 1, 5, OFF, I_bass);
             });
@@ -1425,7 +1438,7 @@ export const DEMO_SONGS = [
               [12, chords.root + 12],
               [14, chords.seventh]
             ];
-            funkyBassPattern.forEach(([step, note]) => {
+            funkyBassPattern.forEach(([step, note]: number[]) => {
               pat.set(start + step, 5, note, I_bass, vol);
               pat.set(start + step + 1, 5, OFF, I_bass);
             });
@@ -1436,8 +1449,8 @@ export const DEMO_SONGS = [
         });
       };
 
-      const writeErasureArp = (pat, progression, vol = 0.58) => {
-        progression.forEach((chordName, barIdx) => {
+      const writeErasureArp = (pat: Pattern, progression: string[], vol = 0.58) => {
+        progression.forEach((chordName: string, barIdx: number) => {
           const start = barIdx * 16;
           const voicing = voicings[chordName];
           for (let step = 0; step < 16; step++) {
@@ -1452,7 +1465,7 @@ export const DEMO_SONGS = [
         });
       };
 
-      const writeDrums = (pat, style = 'synthpop') => {
+      const writeDrums = (pat: Pattern, style = 'synthpop') => {
         for (let r = 0; r < 128; r++) {
           const step = r % 16;
           if (style === 'basic') {
@@ -1480,8 +1493,8 @@ export const DEMO_SONGS = [
         }
       };
 
-      const writeLead = (pat, melody, vol = 0.7) => {
-        melody.forEach(([row, note, dur]) => {
+      const writeLead = (pat: Pattern, melody: number[][], vol = 0.7) => {
+        melody.forEach(([row, note, dur]: number[]) => {
           if (row < pat.rows) {
             pat.set(row, 6, note, I_lead, vol);
             if (dur && row + dur < pat.rows) {
@@ -1619,7 +1632,7 @@ export const DEMO_SONGS = [
       'moog': Object.assign(defaultFxParams(), { distOn: true, dist: 6.0, tone: 0.5, chorusMix: 0.35, delayMix: 0.3, reverbMix: 0.35 }),
     },
     data: () => {
-      const p = [];
+      const p: Pattern[] = [];
       for (let i = 0; i < 15; i++) p.push(new Pattern(128, 8));
 
       const BD = 36, SD = 38, HH = 42, OH = 46, CLAP = 39, RIM = 37;
@@ -1627,27 +1640,27 @@ export const DEMO_SONGS = [
 
       const folkProg = ['Dm', 'C', 'Bb', 'A'];
 
-      const cleanVoicings = {
+      const cleanVoicings: Record<string, number[]> = {
         Dm: [50, 57, 62, 65],
         C: [48, 55, 60, 64],
         Bb: [46, 53, 58, 62],
         A: [45, 52, 57, 61]
       };
 
-      const chordIntervals = {
+      const chordIntervals: Record<string, { root: number; third: number; fifth: number; seventh: number }> = {
         Dm: { root: 50, third: 53, fifth: 57, seventh: 60 },
         C: { root: 48, third: 52, fifth: 55, seventh: 58 },
         Bb: { root: 46, third: 50, fifth: 53, seventh: 56 },
         A: { root: 45, third: 49, fifth: 52, seventh: 55 }
       };
 
-      const writeAcousticClean = (pat, progression, vol = 0.45) => {
-        progression.forEach((chordName, barIdx) => {
+      const writeAcousticClean = (pat: Pattern, progression: string[], vol = 0.45) => {
+        progression.forEach((chordName: string, barIdx: number) => {
           const start = barIdx * 16;
           const voicing = cleanVoicings[chordName];
           const pickSteps = [0, 2, 4, 6, 8, 10, 12, 14];
           const pickNotes = [0, 1, 2, 3, 2, 1, 2, 3];
-          pickSteps.forEach((step, idx) => {
+          pickSteps.forEach((step: number, idx: number) => {
             const noteIdx = pickNotes[idx];
             const note = voicing[noteIdx];
             const ch = [0, 3, 4][idx % 3];
@@ -1657,7 +1670,7 @@ export const DEMO_SONGS = [
         });
       };
 
-      const writeHeavyHelmetRiff = (pat, vol = 0.72) => {
+      const writeHeavyHelmetRiff = (pat: Pattern, vol = 0.72) => {
         const riffChords = [
           [0, 38, 2], [2, 38, 1], [4, 41, 2], [8, 43, 2], [12, 44, 3],
           [16, 38, 2], [18, 38, 1], [20, 41, 1], [22, 43, 1], [24, 41, 1], [26, 38, 3],
@@ -1667,7 +1680,7 @@ export const DEMO_SONGS = [
 
         for (let i = 0; i < 2; i++) {
           const offset = i * 64;
-          riffChords.forEach(([step, rootNote, dur]) => {
+          riffChords.forEach(([step, rootNote, dur]: number[]) => {
             pat.set(offset + step, 0, rootNote, I_303, vol);
             pat.set(offset + step, 3, rootNote + 7, I_303, vol * 0.95);
             pat.set(offset + step + dur, 0, OFF, I_303);
@@ -1676,22 +1689,22 @@ export const DEMO_SONGS = [
         }
       };
 
-      const writeHeavyBass = (pat, vol = 0.72) => {
+      const writeHeavyBass = (pat: Pattern, vol = 0.72) => {
         const riffBass = [
           [0, 26], [2, 26], [4, 29], [8, 31], [12, 32],
           [16, 26], [18, 26], [20, 29], [22, 31], [24, 29], [26, 26]
         ];
         for (let i = 0; i < 4; i++) {
           const offset = i * 32;
-          riffBass.forEach(([step, note]) => {
+          riffBass.forEach(([step, note]: number[]) => {
             pat.set(offset + step, 5, note, I_bass, vol);
             pat.set(offset + step + 1, 5, OFF, I_bass);
           });
         }
       };
 
-      const writeCleanBass = (pat, progression, vol = 0.55) => {
-        progression.forEach((chordName, barIdx) => {
+      const writeCleanBass = (pat: Pattern, progression: string[], vol = 0.55) => {
+        progression.forEach((chordName: string, barIdx: number) => {
           const start = barIdx * 16;
           const chords = chordIntervals[chordName];
           pat.set(start, 5, chords.root - 12, I_bass, vol);
@@ -1699,7 +1712,7 @@ export const DEMO_SONGS = [
         });
       };
 
-      const writeRockDrums = (pat, style = 'bonham') => {
+      const writeRockDrums = (pat: Pattern, style = 'bonham') => {
         for (let r = 0; r < 128; r++) {
           const step = r % 16;
           const bar = Math.floor(r / 16);
@@ -1741,8 +1754,8 @@ export const DEMO_SONGS = [
         }
       };
 
-      const writeLead = (pat, melody, vol = 0.72) => {
-        melody.forEach(([row, note, dur]) => {
+      const writeLead = (pat: Pattern, melody: number[][], vol = 0.72) => {
+        melody.forEach(([row, note, dur]: number[]) => {
           if (row < pat.rows) {
             pat.set(row, 6, note, I_lead, vol);
             if (dur && row + dur < pat.rows) {
@@ -1881,7 +1894,7 @@ export const DEMO_SONGS = [
       'moog': Object.assign(defaultFxParams(), { distOn: false, bitcrushOn: false, chorusMix: 0.3, delayMix: 0.25 }),
     },
     data: () => {
-      const p = [];
+      const p: Pattern[] = [];
       for (let i = 0; i < 15; i++) p.push(new Pattern(128, 8));
 
       const BD = 36, SD = 38, HH = 42, OH = 46, CLAP = 39, RIM = 37;
@@ -1890,7 +1903,7 @@ export const DEMO_SONGS = [
       const rpgProg = ['Am', 'Dm', 'G', 'C', 'F', 'Bdim', 'E7', 'Am'];
       const shmupProg = ['Am', 'F', 'G', 'Em', 'Am', 'F', 'G', 'E7'];
 
-      const voicings = {
+      const voicings: Record<string, number[]> = {
         Am: [57, 60, 64],
         Dm: [50, 53, 57],
         G: [55, 59, 62],
@@ -1901,16 +1914,16 @@ export const DEMO_SONGS = [
         Em: [52, 55, 59]
       };
 
-      const bassNotes = {
+      const bassNotes: Record<string, number> = {
         Am: 45, Dm: 38, G: 47, C: 40, F: 41, Bdim: 43, E7: 40, Em: 40
       };
 
-      const writeBells = (pat, progression, style = 'mystical', vol = 0.45) => {
-        progression.forEach((chordName, barIdx) => {
+      const writeBells = (pat: Pattern, progression: string[], style = 'mystical', vol = 0.45) => {
+        progression.forEach((chordName: string, barIdx: number) => {
           const start = barIdx * 16;
           const voicing = voicings[chordName];
           if (style === 'mystical') {
-            voicing.forEach((note, ni) => {
+            voicing.forEach((note: number, ni: number) => {
               const ch = [0, 3, 4][ni % 3];
               pat.set(start, ch, note + 12, I_pad, vol);
               pat.set(start + 15, ch, OFF, I_pad);
@@ -1926,8 +1939,8 @@ export const DEMO_SONGS = [
         });
       };
 
-      const writeBass = (pat, progression, style = 'slow', vol = 0.65) => {
-        progression.forEach((chordName, barIdx) => {
+      const writeBass = (pat: Pattern, progression: string[], style = 'slow', vol = 0.65) => {
+        progression.forEach((chordName: string, barIdx: number) => {
           const start = barIdx * 16;
           const root = bassNotes[chordName];
           if (style === 'slow') {
@@ -1943,8 +1956,8 @@ export const DEMO_SONGS = [
         });
       };
 
-      const writePulseArp = (pat, progression, vol = 0.58) => {
-        progression.forEach((chordName, barIdx) => {
+      const writePulseArp = (pat: Pattern, progression: string[], vol = 0.58) => {
+        progression.forEach((chordName: string, barIdx: number) => {
           const start = barIdx * 16;
           const voicing = voicings[chordName];
           for (let step = 0; step < 16; step += 2) {
@@ -1958,7 +1971,7 @@ export const DEMO_SONGS = [
         });
       };
 
-      const writeDrums = (pat, style = 'slow') => {
+      const writeDrums = (pat: Pattern, style = 'slow') => {
         for (let r = 0; r < 128; r++) {
           const step = r % 16;
           if (style === 'slow') {
@@ -1974,8 +1987,8 @@ export const DEMO_SONGS = [
         }
       };
 
-      const writeLead = (pat, melody, vol = 0.72) => {
-        melody.forEach(([row, note, dur]) => {
+      const writeLead = (pat: Pattern, melody: number[][], vol = 0.72) => {
+        melody.forEach(([row, note, dur]: number[]) => {
           if (row < pat.rows) {
             pat.set(row, 7, note, I_lead, vol);
             if (dur && row + dur < pat.rows) {
@@ -2146,7 +2159,7 @@ export const DEMO_SONGS = [
       const OH = 46;
       const CLAP = 39;
 
-      const chordVoicings = {
+      const chordVoicings: Record<string, number[]> = {
         Gmaj7: [59, 62, 66],
         Dmaj7: [54, 57, 61],
         Em7:   [55, 59, 62],
@@ -2159,24 +2172,24 @@ export const DEMO_SONGS = [
         "Gmaj7", "Dmaj7", "Em7",   "A7sus4", "A7"
       ];
 
-      const writeChords = (pat, vol = 0.5) => {
+      const writeChords = (pat: Pattern, vol = 0.5) => {
         const barRows = [4, 20, 36, 52, 68, 84, 100, 116];
-        barRows.forEach((rStart, barIdx) => {
+        barRows.forEach((rStart: number, barIdx: number) => {
           let chordName = progression[barIdx];
           if (barIdx === 7) {
             const v1 = chordVoicings["A7sus4"];
-            v1.forEach((note, ni) => {
+            v1.forEach((note: number, ni: number) => {
               pat.set(116, ni, note, I_dx7, vol);
               pat.set(119, ni, OFF, I_dx7);
             });
             const v2 = chordVoicings["A7"];
-            v2.forEach((note, ni) => {
+            v2.forEach((note: number, ni: number) => {
               pat.set(120, ni, note, I_dx7, vol * 0.95);
               pat.set(127, ni, OFF, I_dx7);
             });
           } else {
             const voicing = chordVoicings[chordName];
-            voicing.forEach((note, ni) => {
+            voicing.forEach((note: number, ni: number) => {
               pat.set(rStart, ni, note, I_dx7, vol);
               pat.set(rStart + 11, ni, OFF, I_dx7);
             });
@@ -2184,9 +2197,9 @@ export const DEMO_SONGS = [
         });
       };
 
-      const writeBass = (pat, vol = 0.6) => {
+      const writeBass = (pat: Pattern, vol = 0.6) => {
         const roots = [43, 38, 43, 38, 43, 38, 40, 45];
-        roots.forEach((rootNote, barIdx) => {
+        roots.forEach((rootNote: number, barIdx: number) => {
           const start = barIdx * 16;
           pat.set(start, 4, rootNote, I_moog, vol);
           pat.set(start + 11, 4, OFF, I_moog);
@@ -2197,7 +2210,7 @@ export const DEMO_SONGS = [
         });
       };
 
-      const writeDrums = (pat, vol = 0.8) => {
+      const writeDrums = (pat: Pattern, vol = 0.8) => {
         for (let bar = 0; bar < 8; bar++) {
           const start = bar * 16;
           if (bar % 2 === 0) {
@@ -2235,7 +2248,7 @@ export const DEMO_SONGS = [
         }
       };
 
-      const writeLowKeyDrums = (pat, vol = 0.6) => {
+      const writeLowKeyDrums = (pat: Pattern, vol = 0.6) => {
         for (let bar = 0; bar < 8; bar++) {
           const start = bar * 16;
           pat.set(start, 5, BD, I_808, vol);
@@ -2255,7 +2268,7 @@ export const DEMO_SONGS = [
         }
       };
 
-      const writeVinylNoise = (pat, vol = 0.22) => {
+      const writeVinylNoise = (pat: Pattern, vol = 0.22) => {
         pat.set(0, 7, 36, I_vinyl, vol);
       };
 
@@ -2272,8 +2285,8 @@ export const DEMO_SONGS = [
         [72, 66, 12], [88, 62, 12], [104, 59, 24]
       ];
 
-      const writeMelody = (pat, melody, vol = 0.75) => {
-        melody.forEach(([row, note, dur]) => {
+      const writeMelody = (pat: Pattern, melody: number[][], vol = 0.75) => {
+        melody.forEach(([row, note, dur]: number[]) => {
           pat.set(row, 3, note, I_303, vol);
           pat.set(row + dur, 3, OFF, I_303);
         });
@@ -2366,7 +2379,7 @@ export const DEMO_SONGS = [
       const CH = 42;
       const OH = 46;
 
-      const chordVoicings = {
+      const chordVoicings: Record<string, number[]> = {
         Dm:  [50, 57, 62],
         F:   [53, 60, 65],
         G:   [55, 62, 67],
@@ -2379,20 +2392,20 @@ export const DEMO_SONGS = [
         "Dm", "F", "A", "G"
       ];
 
-      const writeChords = (pat, vol = 0.45) => {
-        progression.forEach((chordName, barIdx) => {
+      const writeChords = (pat: Pattern, vol = 0.45) => {
+        progression.forEach((chordName: string, barIdx: number) => {
           const start = barIdx * 16;
           const voicing = chordVoicings[chordName];
-          voicing.forEach((note, ni) => {
+          voicing.forEach((note: number, ni: number) => {
             pat.set(start, ni, note, I_dx7, vol);
             pat.set(start + 11, ni, OFF, I_dx7);
           });
         });
       };
 
-      const writeBass = (pat, vol = 0.7) => {
+      const writeBass = (pat: Pattern, vol = 0.7) => {
         const roots = [38, 41, 43, 34, 38, 41, 45, 43];
-        roots.forEach((rootNote, barIdx) => {
+        roots.forEach((rootNote: number, barIdx: number) => {
           const start = barIdx * 16;
           for (let step = 0; step < 16; step += 2) {
             pat.set(start + step, 4, rootNote, I_moog, vol);
@@ -2401,9 +2414,9 @@ export const DEMO_SONGS = [
         });
       };
 
-      const writeBassSparse = (pat, vol = 0.6) => {
+      const writeBassSparse = (pat: Pattern, vol = 0.6) => {
         const roots = [38, 41, 43, 34, 38, 41, 45, 43];
-        roots.forEach((rootNote, barIdx) => {
+        roots.forEach((rootNote: number, barIdx: number) => {
           const start = barIdx * 16;
           pat.set(start, 4, rootNote, I_moog, vol);
           pat.set(start + 8, 4, rootNote, I_moog, vol * 0.9);
@@ -2412,7 +2425,7 @@ export const DEMO_SONGS = [
         });
       };
 
-      const writeDrums = (pat, vol = 0.85) => {
+      const writeDrums = (pat: Pattern, vol = 0.85) => {
         for (let bar = 0; bar < 8; bar++) {
           const start = bar * 16;
           pat.set(start, 5, BD, I_808, vol);
@@ -2429,7 +2442,7 @@ export const DEMO_SONGS = [
         }
       };
 
-      const writeLowKeyDrums = (pat, vol = 0.65) => {
+      const writeLowKeyDrums = (pat: Pattern, vol = 0.65) => {
         for (let bar = 0; bar < 8; bar++) {
           const start = bar * 16;
           pat.set(start, 5, BD, I_808, vol);
@@ -2454,8 +2467,8 @@ export const DEMO_SONGS = [
         [88, 77, 4], [92, 76, 4], [96, 74, 8], [112, 72, 8], [120, 69, 8]
       ];
 
-      const writeMelody = (pat, melody, vol = 0.72) => {
-        melody.forEach(([row, note, dur]) => {
+      const writeMelody = (pat: Pattern, melody: number[][], vol = 0.72) => {
+        melody.forEach(([row, note, dur]: number[]) => {
           pat.set(row, 3, note, I_303, vol);
           pat.set(row + dur, 3, OFF, I_303);
         });
@@ -2565,11 +2578,11 @@ export const DEMO_SONGS = [
 
       const BASE = 33;                  // A1
       const prog = [0, 0, -4, -2];      // Am · Am · F · G (one root per bar)
-      const root = (r) => BASE + prog[Math.floor(r / 16) % 4];
+      const root = (r: number) => BASE + prog[Math.floor(r / 16) % 4];
 
       // Four-on-the-floor kit: kick on the beat, claps on 2 & 4, ticking closed
       // hats on the 16ths, the signature open hat on every offbeat.
-      const drums = (pat, { kick = true, clap = true, hats = true, opens = true, build = false } = {}) => {
+      const drums = (pat: Pattern, { kick = true, clap = true, hats = true, opens = true, build = false }: { kick?: boolean; clap?: boolean; hats?: boolean; opens?: boolean; build?: boolean } = {}) => {
         for (let r = 0; r < ROWS; r++) {
           const s = r % 16;
           if (kick && s % 4 === 0) pat.set(r, 0, BD, I_808, s === 0 ? 0.98 : 0.9);
@@ -2588,7 +2601,7 @@ export const DEMO_SONGS = [
       // Relentless 16th-note acid line with octave pops; accents drive the filter.
       const ACID = [0, 0, 12, 0, 0, 12, 0, 3, 0, 0, 12, 0, 7, 12, 10, 5];
       const ACCENT = new Set([0, 5, 10, 13]);
-      const bass = (pat, ch, inst, oct = 0, vol = 0.85) => {
+      const bass = (pat: Pattern, ch: number, inst: number, oct = 0, vol = 0.85) => {
         for (let r = 0; r < ROWS; r++) {
           const s = r % 16;
           const n = root(r) + 12 * oct + ACID[s];
@@ -2598,7 +2611,7 @@ export const DEMO_SONGS = [
 
       // Higher, syncopated squelch lead (staccato — note-off after each hit).
       const LEAD = [0, null, 7, 12, null, 10, 7, null, 0, 3, null, 7, 12, null, 10, null];
-      const lead = (pat, ch, inst, oct = 2, vol = 0.8) => {
+      const lead = (pat: Pattern, ch: number, inst: number, oct = 2, vol = 0.8) => {
         for (let r = 0; r < ROWS; r++) {
           const off = LEAD[r % 16];
           if (off === null) continue;
@@ -2608,7 +2621,7 @@ export const DEMO_SONGS = [
       };
 
       // Sub-bass root thump on the downbeats.
-      const sub = (pat, ch, inst, vol = 0.8) => {
+      const sub = (pat: Pattern, ch: number, inst: number, vol = 0.8) => {
         for (let r = 0; r < ROWS; r += 4) {
           pat.set(r, ch, root(r), inst, vol);
           pat.set(r + 3, ch, OFF, inst);
@@ -2616,7 +2629,7 @@ export const DEMO_SONGS = [
       };
 
       // Stabby organ chord hits on the offbeats.
-      const stabs = (pat, ch, inst, oct = 2, vol = 0.7) => {
+      const stabs = (pat: Pattern, ch: number, inst: number, oct = 2, vol = 0.7) => {
         for (let r = 0; r < ROWS; r++) {
           if (r % 4 === 2) {
             pat.set(r, ch, root(r) + 12 * oct, inst, vol);
@@ -2629,8 +2642,8 @@ export const DEMO_SONGS = [
       // over `cycles` open-close passes per pattern. Endpoints come from the CUT
       // target's own log mapping so they're exact. Written on every row so it
       // overrides each note's cutoff snapshot — the whole line breathes.
-      const CUT = targetByCode('303', 'CUT');
-      const sweep = (pat, ch, loHz, hiHz, cycles) => {
+      const CUT = tgt('303', 'CUT');
+      const sweep = (pat: Pattern, ch: number, loHz: number, hiHz: number, cycles: number) => {
         const lo = normByte(CUT, loHz), hi = normByte(CUT, hiHz);
         for (let r = 0; r < ROWS; r++) {
           const phase = ((r / ROWS) * cycles) % 1;
@@ -2640,8 +2653,8 @@ export const DEMO_SONGS = [
       };
       // Acid Bass (ch 4) sweeps 55–452 Hz, one wah per bar; Screamer (ch 5)
       // sweeps 94–544 Hz, a slower pass every two bars.
-      const bassSweep = (pat) => sweep(pat, 4, 55, 452, 4);
-      const leadSweep = (pat) => sweep(pat, 5, 94, 544, 2);
+      const bassSweep = (pat: Pattern) => sweep(pat, 4, 55, 452, 4);
+      const leadSweep = (pat: Pattern) => sweep(pat, 5, 94, 544, 2);
 
       drums(P[0], { kick: true, clap: false, hats: true, opens: false });            // intro
 
@@ -2746,12 +2759,12 @@ export const DEMO_SONGS = [
       ];
       const roots = [33, 29, 35, 31];
 
-      const writeProgression = (pat, options) => {
+      const writeProgression = (pat: Pattern, options: { padVol: number; bassVol: number; harpVol: number; drums: boolean; harpOctave: number }) => {
         // Pad (Moog) on channels 0..3
         if (options.padVol > 0) {
-          chords.forEach((chord, bar) => {
+          chords.forEach((chord: number[], bar: number) => {
             const startRow = bar * 16;
-            chord.forEach((note, idx) => {
+            chord.forEach((note: number, idx: number) => {
               pat.set(startRow, idx, note, I_moog, options.padVol);
               pat.set(startRow + 15, idx, OFF, I_moog);
             });
@@ -2760,7 +2773,7 @@ export const DEMO_SONGS = [
 
         // Bass (Moog) on channel 5
         if (options.bassVol > 0) {
-          roots.forEach((rootNote, bar) => {
+          roots.forEach((rootNote: number, bar: number) => {
             const startRow = bar * 16;
             pat.set(startRow, 5, rootNote, I_moog, options.bassVol);
             pat.set(startRow + 14, 5, OFF, I_moog);
@@ -2769,7 +2782,7 @@ export const DEMO_SONGS = [
 
         // Harp (DX7) on channel 4 (8th note staccato arpeggio)
         if (options.harpVol > 0) {
-          chords.forEach((chord, bar) => {
+          chords.forEach((chord: number[], bar: number) => {
             const startRow = bar * 16;
             const arpPattern = [0, 1, 2, 3, 2, 1, 0, 1];
             for (let step = 0; step < 8; step++) {
@@ -2801,9 +2814,9 @@ export const DEMO_SONGS = [
       // A slow pad "filter breath" (moog cutoff) and an evolving FM brightness on
       // the harp (dx7 mod index). Both are inst-scope, so they ride the live voice
       // and reset cleanly at each note — the pad sweep rides its sustained chords.
-      const CUT = targetByCode('moog', 'CUT');   // log 30..6000 Hz
-      const MOD = targetByCode('dx7', 'MOD');     // FM mod index 0..12
-      const padBreath = (pat, loHz, hiHz) => {
+      const CUT = tgt('moog', 'CUT');   // log 30..6000 Hz
+      const MOD = tgt('dx7', 'MOD');     // FM mod index 0..12
+      const padBreath = (pat: Pattern, loHz: number, hiHz: number) => {
         const lo = normByte(CUT, loHz), hi = normByte(CUT, hiHz);
         for (let r = 0; r < 64; r++) {
           const s = 0.5 - 0.5 * Math.cos((r / 64) * Math.PI * 2);   // one open/close per pattern
@@ -2811,7 +2824,7 @@ export const DEMO_SONGS = [
           for (let ch = 0; ch < 4; ch++) pat.setFx(r, ch, CUT.id, byte);
         }
       };
-      const harpBrighten = (pat, loIdx, hiIdx) => {
+      const harpBrighten = (pat: Pattern, loIdx: number, hiIdx: number) => {
         const lo = normByte(MOD, loIdx), hi = normByte(MOD, hiIdx);
         for (let r = 0; r < 64; r++) pat.setFx(r, 4, MOD.id, Math.round(lo + (hi - lo) * (r / 63)));
       };
@@ -2896,7 +2909,7 @@ export const DEMO_SONGS = [
       // 16-step squelchy acid riff: semitone offsets from the bar's acid root.
       const acidRiff = [0, 12, 0, 7, null, 0, 12, 3, 0, 7, null, 12, 0, 7, 0, 10];
 
-      const writeDrums = (pat, opt) => {
+      const writeDrums = (pat: Pattern, opt: { kick?: boolean; kickRoll?: boolean; clap?: boolean; hats?: boolean; openHat?: boolean; fill?: boolean }) => {
         for (let bar = 0; bar < 8; bar++) {
           const s = bar * 16;
           if (opt.kick) {
@@ -2923,15 +2936,15 @@ export const DEMO_SONGS = [
         }
       };
 
-      const writeChords = (pat, vol, octave = 0) => {
-        const stab = (n, ch, row, end, v) => { pat.set(row, ch, n + 12 * octave, I_dx7, v); pat.set(end, ch, OFF, I_dx7); };
+      const writeChords = (pat: Pattern, vol: number, octave = 0) => {
+        const stab = (n: number, ch: number, row: number, end: number, v: number) => { pat.set(row, ch, n + 12 * octave, I_dx7, v); pat.set(end, ch, OFF, I_dx7); };
         for (let bar = 0; bar < 8; bar++) {
           const s = bar * 16;
           if (bar === 6) {                   // bar 7: Dm7 then G7 (the quick two-step)
-            chords[6].forEach((n, i) => stab(n, 5 + i, s, s + 7, vol));
-            bar7b.forEach((n, i) => stab(n, 5 + i, s + 8, s + 15, vol));
+            chords[6].forEach((n: number, i: number) => stab(n, 5 + i, s, s + 7, vol));
+            bar7b.forEach((n: number, i: number) => stab(n, 5 + i, s + 8, s + 15, vol));
           } else {                           // off-the-floor house stabs on beats 1 & 3
-            chords[bar].forEach((n, i) => {
+            chords[bar].forEach((n: number, i: number) => {
               stab(n, 5 + i, s, s + 7, vol);
               stab(n, 5 + i, s + 8, s + 15, vol * 0.85);
             });
@@ -2939,7 +2952,7 @@ export const DEMO_SONGS = [
         }
       };
 
-      const writeBass = (pat, vol, octave = 0) => {
+      const writeBass = (pat: Pattern, vol: number, octave = 0) => {
         for (let bar = 0; bar < 8; bar++) {
           const s = bar * 16;
           for (let step = 0; step < 8; step++) {            // driving 8th notes
@@ -2953,7 +2966,7 @@ export const DEMO_SONGS = [
         }
       };
 
-      const writeAcid = (pat, vol, octave = 0) => {
+      const writeAcid = (pat: Pattern, vol: number, octave = 0) => {
         for (let bar = 0; bar < 8; bar++) {
           const s = bar * 16;
           const root = acidRoots[bar] + 12 * octave;
@@ -2972,10 +2985,10 @@ export const DEMO_SONGS = [
       // log-curve mapping so the endpoints are exact. Because the command shares
       // the row with each note, it overrides the note-on cutoff snapshot — so the
       // whole acid line breathes regardless of the per-note retriggers.
-      const CUT = targetByCode('303', 'CUT');
+      const CUT = tgt('303', 'CUT');
       const SWEEP_LO = normByte(CUT, 129);
       const SWEEP_HI = normByte(CUT, 844);
-      const writeAcidSweep = (pat, cycles) => {
+      const writeAcidSweep = (pat: Pattern, cycles: number) => {
         for (let r = 0; r < 128; r++) {
           const phase = ((r / 128) * cycles) % 1;           // 0..1 ramp per cycle
           const tri = phase < 0.5 ? phase * 2 : 2 - phase * 2;  // 0→1→0 triangle
@@ -3059,7 +3072,7 @@ export const DEMO_SONGS = [
       const acidRoots = [45, 45, 41, 43, 45, 45, 50, 40];
       const acidRiff  = [0, 12, 0, 7, null, 0, 12, 3, 0, 7, null, 12, 0, 7, 0, 10];
 
-      const drums = (pat, o) => {
+      const drums = (pat: Pattern, o: { kick?: boolean; clap?: boolean; hats?: boolean; openHat?: boolean; fill?: boolean }) => {
         for (let bar = 0; bar < 8; bar++) {
           const s = bar * 16;
           if (o.kick) for (let b = 0; b < 16; b += 4) pat.set(s + b, 0, BD, I_808, b === 0 ? 0.96 : 0.88);
@@ -3071,7 +3084,7 @@ export const DEMO_SONGS = [
           if (o.fill && bar === 7) for (let b = 8; b < 16; b += 2) pat.set(s + b, 1, SD, I_808, 0.5 + (b - 8) / 16);
         }
       };
-      const bass = (pat, vol, oct = 0) => {
+      const bass = (pat: Pattern, vol: number, oct = 0) => {
         for (let bar = 0; bar < 8; bar++) {
           const s = bar * 16, root = bassRoots[bar] + 12 * oct;
           for (let step = 0; step < 8; step++) {
@@ -3082,13 +3095,13 @@ export const DEMO_SONGS = [
           }
         }
       };
-      const pad = (pat, vol) => {
+      const pad = (pat: Pattern, vol: number) => {
         for (let bar = 0; bar < 8; bar++) {
           const s = bar * 16;
-          padDyads[bar].forEach((n, i) => { pat.set(s, 6 + i, n, I_pad, vol); pat.set(s + 15, 6 + i, OFF, I_pad); });
+          padDyads[bar].forEach((n: number, i: number) => { pat.set(s, 6 + i, n, I_pad, vol); pat.set(s + 15, 6 + i, OFF, I_pad); });
         }
       };
-      const bell = (pat, vol, oct = 0) => {
+      const bell = (pat: Pattern, vol: number, oct = 0) => {
         const arp = [0, 1, 2, 1, 0, 2, 1, 2];
         for (let bar = 0; bar < 8; bar++) {
           const s = bar * 16, tri = bellTri[bar];
@@ -3099,7 +3112,7 @@ export const DEMO_SONGS = [
           }
         }
       };
-      const acid = (pat, vol, oct = 0) => {
+      const acid = (pat: Pattern, vol: number, oct = 0) => {
         for (let bar = 0; bar < 8; bar++) {
           const s = bar * 16, root = acidRoots[bar] + 12 * oct;
           for (let step = 0; step < 16; step++) {
@@ -3112,21 +3125,21 @@ export const DEMO_SONGS = [
       };
 
       // ---- automation ----
-      const CUT3 = targetByCode('303', 'CUT'), RES3 = targetByCode('303', 'RES');
-      const CUTm = targetByCode('moog', 'CUT'), MOD = targetByCode('dx7', 'MOD'), MRV = targetByCode('moog', 'RVM');
-      const acidSweep = (pat, loHz, hiHz, cycles) => {
+      const CUT3 = tgt('303', 'CUT'), RES3 = tgt('303', 'RES');
+      const CUTm = tgt('moog', 'CUT'), MOD = tgt('dx7', 'MOD'), MRV = tgt('moog', 'RVM');
+      const acidSweep = (pat: Pattern, loHz: number, hiHz: number, cycles: number) => {
         const lo = normByte(CUT3, loHz), hi = normByte(CUT3, hiHz);
         for (let r = 0; r < 128; r++) { const ph = ((r / 128) * cycles) % 1; const t = ph < 0.5 ? ph * 2 : 2 - ph * 2; pat.setFx(r, 4, CUT3.id, Math.round(lo + (hi - lo) * t)); }
       };
-      const acidScream = (pat, lo, hi) => {     // resonance climb on the drop
+      const acidScream = (pat: Pattern, lo: number, hi: number) => {     // resonance climb on the drop
         const loB = normByte(RES3, lo), hiB = normByte(RES3, hi);
         for (let r = 0; r < 128; r++) pat.setFx(r, 4, RES3.id, Math.round(loB + (hiB - loB) * (r / 127)));
       };
-      const bellBright = (pat, lo, hi) => {     // FM mod-index ramp
+      const bellBright = (pat: Pattern, lo: number, hi: number) => {     // FM mod-index ramp
         const loB = normByte(MOD, lo), hiB = normByte(MOD, hi);
         for (let r = 0; r < 128; r++) pat.setFx(r, 5, MOD.id, Math.round(loB + (hiB - loB) * (r / 127)));
       };
-      const padBreath = (pat, loHz, hiHz, chans) => {   // sine filter swell on the pad voices
+      const padBreath = (pat: Pattern, loHz: number, hiHz: number, chans: number[]) => {   // sine filter swell on the pad voices
         const lo = normByte(CUTm, loHz), hi = normByte(CUTm, hiHz);
         for (let r = 0; r < 128; r++) {
           const sn = 0.5 - 0.5 * Math.cos((r / 128) * Math.PI * 2);
@@ -3134,7 +3147,7 @@ export const DEMO_SONGS = [
           for (const ch of chans) pat.setFx(r, ch, CUTm.id, b);
         }
       };
-      const revWash = (pat, ch, lo, hi) => {    // fx-scope reverb swell (self-resetting triangle)
+      const revWash = (pat: Pattern, ch: number, lo: number, hi: number) => {    // fx-scope reverb swell (self-resetting triangle)
         const loB = normByte(MRV, lo), hiB = normByte(MRV, hi);
         for (let r = 0; r < 128; r++) { const sn = 0.5 - 0.5 * Math.cos((r / 128) * Math.PI * 2); pat.setFx(r, ch, MRV.id, Math.round(loB + (hiB - loB) * sn)); }
       };
@@ -3203,7 +3216,7 @@ export const DEMO_SONGS = [
       const padDyads  = [[62,69],[62,69],[58,65],[60,67],[62,69],[62,69],[55,62],[57,64]];
       const acidRiff  = [0, 12, 0, 7, null, 10, 0, 3, 0, 7, null, 12, 0, 5, 0, 7];
 
-      const drums = (pat, o) => {
+      const drums = (pat: Pattern, o: { kick?: boolean; clap?: boolean; hats?: boolean; openHat?: boolean }) => {
         for (let bar = 0; bar < 8; bar++) {
           const s = bar * 16;
           if (o.kick) for (let b = 0; b < 16; b += 4) pat.set(s + b, 0, BD, I_808, b === 0 ? 0.96 : 0.9);
@@ -3211,13 +3224,13 @@ export const DEMO_SONGS = [
           if (o.hats) { for (let b = 2; b < 16; b += 4) pat.set(s + b, 2, CH, I_808, 0.38); if (o.openHat) pat.set(s + 14, 2, OH, I_808, 0.42); }
         }
       };
-      const sub = (pat, vol) => {
+      const sub = (pat: Pattern, vol: number) => {
         for (let bar = 0; bar < 8; bar++) {
           const s = bar * 16, root = subRoots[bar];
           for (let b = 0; b < 16; b += 4) { pat.set(s + b, 3, root, I_sub, vol); pat.set(s + b + 3, 3, OFF, I_sub); }
         }
       };
-      const acid = (pat, vol, oct = 0) => {
+      const acid = (pat: Pattern, vol: number, oct = 0) => {
         for (let bar = 0; bar < 8; bar++) {
           const s = bar * 16, root = acidRoots[bar] + 12 * oct;
           for (let step = 0; step < 16; step++) {
@@ -3228,39 +3241,39 @@ export const DEMO_SONGS = [
           }
         }
       };
-      const pad = (pat, vol) => {
+      const pad = (pat: Pattern, vol: number) => {
         for (let bar = 0; bar < 8; bar++) {
           const s = bar * 16;
-          padDyads[bar].forEach((n, i) => { pat.set(s, 6 + i, n, I_pad, vol); pat.set(s + 15, 6 + i, OFF, I_pad); });
+          padDyads[bar].forEach((n: number, i: number) => { pat.set(s, 6 + i, n, I_pad, vol); pat.set(s + 15, 6 + i, OFF, I_pad); });
         }
       };
       // The noise 303 is unpitched, so one sustained voice per pattern is enough —
       // the motion comes entirely from sweeping its cutoff (the resonant peak).
-      const wind = (pat, vol) => { pat.set(0, 5, 36, I_noise, vol); };
+      const wind = (pat: Pattern, vol: number) => { pat.set(0, 5, 36, I_noise, vol); };
 
       // ---- automation ----
-      const CUT3 = targetByCode('303', 'CUT'), RES3 = targetByCode('303', 'RES');
-      const CUTm = targetByCode('moog', 'CUT'), MRV = targetByCode('moog', 'RVM');
-      const ramp = (pat, ch, tgt, loB, hiB, shape) => {
+      const CUT3 = tgt('303', 'CUT'), RES3 = tgt('303', 'RES');
+      const CUTm = tgt('moog', 'CUT'), MRV = tgt('moog', 'RVM');
+      const ramp = (pat: Pattern, ch: number, tgt: ParamTarget, loB: number, hiB: number, shape: string) => {
         for (let r = 0; r < 128; r++) {
-          let f;
+          let f: number;
           if (shape === 'up') f = r / 127;
           else if (shape === 'down') f = 1 - r / 127;
           else f = 0.5 - 0.5 * Math.cos((r / 128) * Math.PI * 2);   // sine breath
           pat.setFx(r, ch, tgt.id, Math.round(loB + (hiB - loB) * f));
         }
       };
-      const acidSweep = (pat, loHz, hiHz, cyc) => {
+      const acidSweep = (pat: Pattern, loHz: number, hiHz: number, cyc: number) => {
         const lo = normByte(CUT3, loHz), hi = normByte(CUT3, hiHz);
         for (let r = 0; r < 128; r++) { const ph = ((r / 128) * cyc) % 1; const t = ph < 0.5 ? ph * 2 : 2 - ph * 2; pat.setFx(r, 4, CUT3.id, Math.round(lo + (hi - lo) * t)); }
       };
-      const acidScream = (pat, lo, hi) => ramp(pat, 4, RES3, normByte(RES3, lo), normByte(RES3, hi), 'up');
-      const windRiser  = (pat, loHz, hiHz) => ramp(pat, 5, CUT3, normByte(CUT3, loHz), normByte(CUT3, hiHz), 'up');
-      const windBreath = (pat, loHz, hiHz) => ramp(pat, 5, CUT3, normByte(CUT3, loHz), normByte(CUT3, hiHz), 'breath');
-      const windFall   = (pat, loHz, hiHz) => ramp(pat, 5, CUT3, normByte(CUT3, loHz), normByte(CUT3, hiHz), 'down');
-      const windHold   = (pat, hz) => { const b = normByte(CUT3, hz); for (let r = 0; r < 128; r++) pat.setFx(r, 5, CUT3.id, b); };
-      const padBreath  = (pat, loHz, hiHz, chans) => { const lo = normByte(CUTm, loHz), hi = normByte(CUTm, hiHz); for (let r = 0; r < 128; r++) { const sn = 0.5 - 0.5 * Math.cos((r / 128) * Math.PI * 2); const v = Math.round(lo + (hi - lo) * sn); for (const ch of chans) pat.setFx(r, ch, CUTm.id, v); } };
-      const revWash    = (pat, ch, lo, hi) => ramp(pat, ch, MRV, normByte(MRV, lo), normByte(MRV, hi), 'breath');
+      const acidScream = (pat: Pattern, lo: number, hi: number) => ramp(pat, 4, RES3, normByte(RES3, lo), normByte(RES3, hi), 'up');
+      const windRiser  = (pat: Pattern, loHz: number, hiHz: number) => ramp(pat, 5, CUT3, normByte(CUT3, loHz), normByte(CUT3, hiHz), 'up');
+      const windBreath = (pat: Pattern, loHz: number, hiHz: number) => ramp(pat, 5, CUT3, normByte(CUT3, loHz), normByte(CUT3, hiHz), 'breath');
+      const windFall   = (pat: Pattern, loHz: number, hiHz: number) => ramp(pat, 5, CUT3, normByte(CUT3, loHz), normByte(CUT3, hiHz), 'down');
+      const windHold   = (pat: Pattern, hz: number) => { const b = normByte(CUT3, hz); for (let r = 0; r < 128; r++) pat.setFx(r, 5, CUT3.id, b); };
+      const padBreath  = (pat: Pattern, loHz: number, hiHz: number, chans: number[]) => { const lo = normByte(CUTm, loHz), hi = normByte(CUTm, hiHz); for (let r = 0; r < 128; r++) { const sn = 0.5 - 0.5 * Math.cos((r / 128) * Math.PI * 2); const v = Math.round(lo + (hi - lo) * sn); for (const ch of chans) pat.setFx(r, ch, CUTm.id, v); } };
+      const revWash    = (pat: Pattern, ch: number, lo: number, hi: number) => ramp(pat, ch, MRV, normByte(MRV, lo), normByte(MRV, hi), 'breath');
 
       const p = Array.from({ length: 7 }, () => new Pattern(128, 8));
 
@@ -3334,7 +3347,7 @@ export const DEMO_SONGS = [
       'moog': Object.assign(defaultFxParams(), { dist: 3.0, tone: 0.5, level: 1.0, master: 0.82, delayMix: 0.15, reverbMix: 0.28, reverbDecay: 0.85 }),
     },
     data: () => {
-      const p = [];
+      const p: Pattern[] = [];
       for (let i = 0; i < 9; i++) p.push(new Pattern(128, 8));
 
       const BD = 36, SD = 38, HH = 42, OH = 46, CLAP = 39;
@@ -3355,25 +3368,25 @@ export const DEMO_SONGS = [
       ];
 
       // --- pan automation (chan-scope PAN, engine-agnostic) ---
-      const PAN = targetByCode('303', 'PAN');
-      const pan = (pat, row, ch, v) => pat.setFx(row, ch, PAN.id, normByte(PAN, Math.max(0, Math.min(1, v))));
+      const PAN = tgt('303', 'PAN');
+      const pan = (pat: Pattern, row: number, ch: number, v: number) => pat.setFx(row, ch, PAN.id, normByte(PAN, Math.max(0, Math.min(1, v))));
       const HOME = [0.5, 0.5, 0.5, 0.5, 0.15, 0.85, 0.5, 0.5];
-      const setHome = (pat, pans) => { const a = pans || HOME; for (let c = 0; c < 8; c++) pan(pat, 0, c, a[c]); };
-      const pingPong = (pat, ch, step, lo, hi, startRight) => {
+      const setHome = (pat: Pattern, pans?: number[]) => { const a = pans || HOME; for (let c = 0; c < 8; c++) pan(pat, 0, c, a[c]); };
+      const pingPong = (pat: Pattern, ch: number, step: number, lo?: number, hi?: number, startRight?: boolean) => {
         const L = (lo == null ? 0.08 : lo), H = (hi == null ? 0.92 : hi), s = step || 1;
         for (let r = 0; r < pat.rows; r += s) {
           const even = (Math.floor(r / s) % 2 === 0);
           pan(pat, r, ch, (even === !!startRight) ? H : L);
         }
       };
-      const swirl = (pat, ch, cycles, lo, hi) => {
+      const swirl = (pat: Pattern, ch: number, cycles?: number, lo?: number, hi?: number) => {
         const L = (lo == null ? 0.05 : lo), H = (hi == null ? 0.95 : hi), c = cycles || 1;
         for (let r = 0; r < pat.rows; r += 2) {
           const ph = (r / pat.rows) * c, tri = 1 - Math.abs(((ph % 1) * 2) - 1);
           pan(pat, r, ch, L + (H - L) * tri);
         }
       };
-      const sweep = (pat, ch, cycles, lo, hi, phase) => {
+      const sweep = (pat: Pattern, ch: number, cycles?: number, lo?: number, hi?: number, phase?: number) => {
         const c = cycles || 1, L = (lo == null ? 0.1 : lo), H = (hi == null ? 0.9 : hi), ph = phase || 0;
         for (let r = 0; r < pat.rows; r += 2) {
           const s = 0.5 + 0.5 * Math.sin(2 * Math.PI * (c * r / pat.rows) + ph);
@@ -3382,7 +3395,7 @@ export const DEMO_SONGS = [
       };
 
       // --- voices ---
-      const drums = (pat, opt) => {
+      const drums = (pat: Pattern, opt?: { kick?: boolean; snare?: boolean; hats?: boolean; four?: boolean; busy?: boolean }) => {
         const o = opt || {};
         const kick = o.kick !== false, snare = o.snare !== false, hats = o.hats !== false;
         const four = !!o.four, busy = !!o.busy;
@@ -3399,38 +3412,38 @@ export const DEMO_SONGS = [
           }
         }
       };
-      const bass = (pat, vol) => {
+      const bass = (pat: Pattern, vol?: number) => {
         const v = (vol == null ? 0.9 : vol);
         for (let bar = 0; bar < 8; bar++) {
           const r = bar * 16, R = BASS[bar];
           const hits = [[0, R], [3, R], [6, R + 12], [8, R], [11, R + 12], [14, R + 7]];
-          hits.forEach(function (h) { pat.set(r + h[0], 6, h[1], I_sub, v); pat.set(r + h[0] + 1, 6, OFF, I_sub); });
+          hits.forEach(function (h: number[]) { pat.set(r + h[0], 6, h[1], I_sub, v); pat.set(r + h[0] + 1, 6, OFF, I_sub); });
         }
       };
       // One bar's chord, arpeggiated as a 303 acid lick on channel `ch`.
-      const acidBar = (pat, ch, inst, bar, vol) => {
-        const v = (vol == null ? 0.72 : vol), lo = TRIAD[bar].map(function (n) { return n - 24; });
+      const acidBar = (pat: Pattern, ch: number, inst: number, bar: number, vol?: number) => {
+        const v = (vol == null ? 0.72 : vol), lo = TRIAD[bar].map(function (n: number) { return n - 24; });
         const seq = [[0, 0], [2, 2], [3, 1], [6, 0], [7, 2], [8, 0], [10, 1], [11, 2], [13, 0], [14, 1]];
         const r = bar * 16;
-        seq.forEach(function (s) {
+        seq.forEach(function (s: number[]) {
           const oct = (s[0] === 8 || s[0] === 13) ? 12 : 0;
           pat.set(r + s[0], ch, lo[s[1]] + oct, inst, v);
           pat.set(r + s[0] + 1, ch, OFF, inst);
         });
       };
       // The acid conversation: L answers R bar by bar (or both, when `both`).
-      const acidCall = (pat, vol, both) => {
+      const acidCall = (pat: Pattern, vol?: number, both?: boolean) => {
         for (let bar = 0; bar < 8; bar++) {
           if (both || bar % 2 === 0) acidBar(pat, 4, I_acidL, bar, vol);
           if (both || bar % 2 === 1) acidBar(pat, 5, I_acidR, bar, vol);
         }
       };
       // Bell arpeggio on the offbeats — chord tones rising, rings out.
-      const bell = (pat, vol) => {
+      const bell = (pat: Pattern, vol?: number) => {
         const v = (vol == null ? 0.6 : vol);
         for (let bar = 0; bar < 8; bar++) {
           const r = bar * 16, t = TRIAD[bar];
-          [2, 6, 10, 14].forEach(function (st, i) { pat.set(r + st, 3, t[i % 3] + (i >= 3 ? 12 : 0), I_bell, v); });
+          [2, 6, 10, 14].forEach(function (st: number, i: number) { pat.set(r + st, 3, t[i % 3] + (i >= 3 ? 12 : 0), I_bell, v); });
         }
       };
       // The hook: a hand-written lead melody [absStep, note, durRows].
@@ -3444,9 +3457,9 @@ export const DEMO_SONGS = [
         [96, 77, 4], [100, 74, 4], [104, 81, 6], [110, 79, 2],
         [112, 76, 6], [118, 80, 4], [122, 76, 6],
       ];
-      const lead = (pat, vol) => {
+      const lead = (pat: Pattern, vol?: number) => {
         const v = (vol == null ? 0.7 : vol);
-        LEAD.forEach(function (n) { pat.set(n[0], 7, n[1], I_lead, v); pat.set(n[0] + n[2], 7, OFF, I_lead); });
+        LEAD.forEach(function (n: number[]) { pat.set(n[0], 7, n[1], I_lead, v); pat.set(n[0] + n[2], 7, OFF, I_lead); });
       };
 
       // ===== arrangement =====

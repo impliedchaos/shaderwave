@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Help / shortcuts overlay. Content mirrors the README (keyboard controls,
 // instruments, effects chain) plus a few things only the code knows (channel
 // mute, select-all, right-click remove). Built lazily on first open and toggled
@@ -71,14 +70,14 @@ const STYLE = `
     font-size: 12px; color: var(--dim); }
 `;
 
-const $ = (id) => document.getElementById(id);
+import { el } from './dom.js';
 
-let overlay = null;
+let overlay: HTMLElement | null = null;
 let open = false;
 
 // Split a shortcut label like "Ctrl / ⌘ + C" into <kbd> chips, leaving the
 // separators (/ +) as plain text between them.
-function keyChips(label) {
+function keyChips(label: string) {
   const span = document.createElement('span');
   const parts = label.split(/(\s*[/+]\s*)/);
   for (const part of parts) {
@@ -93,7 +92,7 @@ function keyChips(label) {
   return span;
 }
 
-function rowList(pairs, keyFmt) {
+function rowList(pairs: string[][], keyFmt: string) {
   const frag = document.createDocumentFragment();
   for (const [left, right] of pairs) {
     const row = document.createElement('div');
@@ -111,10 +110,10 @@ function rowList(pairs, keyFmt) {
   return frag;
 }
 
-function section(title, pairs, keyFmt) {
+function section(title: string, pairs: string[][], keyFmt: string) {
   const h = document.createElement('h3');
   h.textContent = title;
-  const body = $('help-body');
+  const body = el('help-body');
   body.appendChild(h);
   body.appendChild(rowList(pairs, keyFmt));
 }
@@ -144,12 +143,12 @@ function build() {
 
   // Backdrop click (outside the panel) and the Close button both dismiss.
   overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) closeHelp(); });
-  $('help-close').onclick = closeHelp;
+  el('help-close').onclick = closeHelp;
 }
 
 export function openHelp() {
   if (!overlay) build();
-  overlay.style.display = 'flex';
+  overlay!.style.display = 'flex';
   open = true;
 }
 
@@ -175,7 +174,7 @@ export function initHelp() {
       e.preventDefault();
       return;
     }
-    const tag = e.target.tagName;
+    const tag = (e.target as HTMLElement | null)?.tagName;
     if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
     if (e.key === '?') { e.preventDefault(); openHelp(); }
   }, true);

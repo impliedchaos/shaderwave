@@ -13,9 +13,10 @@
     "isolatedModules": true,
     "noEmit": true,
 
-    /* Linting */
-    "strict": false,
-    "noImplicitAny": false,
+    /* Linting — strict is on; files still carrying @ts-nocheck are skipped
+       wholesale, so we tighten the codebase one converted file at a time.
+       noUnusedLocals/Parameters stay off until the conversion is complete. */
+    "strict": true,
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "noFallthroughCasesInSwitch": false,

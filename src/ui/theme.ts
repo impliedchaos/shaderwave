@@ -1,9 +1,8 @@
-// @ts-nocheck
 // Cached reads of CSS custom properties (theme vars). getComputedStyle +
 // getPropertyValue were being called dozens of times per animation frame from
 // the tracker grid and visualizer; the values only change when the accent is
 // re-themed on instrument select, so cache them and invalidate explicitly.
-let cache = new Map();
+let cache = new Map<string, string>();
 
 // Call whenever a CSS custom property on :root changes (e.g. --accent on select).
 export function invalidateTheme() {
@@ -11,7 +10,7 @@ export function invalidateTheme() {
 }
 
 // Read a CSS custom property off :root, memoised until invalidateTheme().
-export function themeVar(name, fallback = '') {
+export function themeVar(name: string, fallback = ''): string {
   let v = cache.get(name);
   if (v === undefined) {
     v = getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;

@@ -1,4 +1,3 @@
-// @ts-nocheck
 // App entry: builds the GL renderer + audio pipeline + tracker engine + UI and
 // wires keyboard/transport. Audio is created lazily on the first user gesture
 // (browser autoplay policy), so the grid is interactive before any sound.
@@ -18,6 +17,7 @@ import { renderArranger } from './ui/arranger.js';
 import { invalidateTheme, themeVar } from './ui/theme.js';
 import { initHelp } from './ui/help.js';
 import pkg from '../package.json';
+import type { FxParams, FxParamsByType, InstrumentType, ParamTarget, SongData } from './types.js';
 
 // Display version from package.json
 const versionSpan = document.getElementById('app-version');
@@ -25,20 +25,23 @@ if (versionSpan) {
   versionSpan.textContent = `v${pkg.version}`;
 }
 
-const $ = (id) => document.getElementById(id);
+// Lookup an element by id, narrowed to T. Returns the cast node; callers that
+// guard with `if (x)` still get correct runtime behaviour (getElementById can
+// return null) — the cast just spares every call site a null check.
+const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 
 const PLAY_ICON = `<svg class="icon" viewBox="0 0 16 16" width="14" height="14"><path d="M4 2.5v11l9-5.5-9-5.5z" fill="currentColor"/></svg>`;
 const PAUSE_ICON = `<svg class="icon" viewBox="0 0 16 16" width="14" height="14"><path d="M3 2.5h3.5v11H3zm6.5 0h3.5v11H9.5z" fill="currentColor"/></svg>`;
 
 // Deep-clone song params so slider mutations never corrupt the DEMO_SONGS defs.
-function cloneFx(src) {
-  const dst = {};
+function cloneFx(src: Record<string, FxParams>): FxParamsByType {
+  const dst: Record<string, FxParams> = {};
   for (const k in src) dst[k] = { ...src[k] };
-  return dst;
+  return dst as FxParamsByType;
 }
 
 // Lower keyboard row → semitone offset within the current octave.
-const KEY_SEMI = {
+const KEY_SEMI: Record<string, number> = {
   KeyZ: 0, KeyS: 1, KeyX: 2, KeyD: 3, KeyC: 4, KeyV: 5, KeyG: 6,
   KeyB: 7, KeyH: 8, KeyN: 9, KeyJ: 10, KeyM: 11, Comma: 12, KeyL: 13, Period: 14,
 };
@@ -48,7 +51,17 @@ const DRUM_KEYS = [36, 38, 42, 46, 39, 41, 45, 48, 56];
 // FX panel layout: category headers (with bypass toggle) interleaved with knob
 // rows. Ordered to follow the signal-flow chain (see DEFAULT_FX_ORDER in
 // effects.js). Static, so it lives at module scope rather than rebuilt per call.
-const FX_DEFS = [
+interface FxDef {
+  category?: string;
+  enableKey?: string;
+  label?: string;
+  key?: string;
+  min?: number;
+  max?: number;
+  step?: number;
+}
+
+const FX_DEFS: FxDef[] = [
   { category: 'Distortion', enableKey: 'distOn' },
   { label: 'Tone', key: 'tone', min: 0, max: 1, step: 0.01 },
   { label: 'Level', key: 'level', min: 0, max: 2, step: 0.01 },
@@ -82,7 +95,36 @@ const FX_DEFS = [
   { label: 'Master', key: 'master', min: 0, max: 1.5, step: 0.01 },
 ];
 
+// A knob <div> the UI loop drives externally (see bindKnob in controls.ts).
+type KnobEl = HTMLElement & { _extSet?: (v: number) => void };
+// One copied tracker cell.
+type ClipCell = { note: number; inst: number; vol: number; fxCmd: number; fxVal: number };
+
 export class App {
+  gl: WebGL2RenderingContext;
+  engine: Engine;
+  currentSongIdx: number;
+  fxParams: FxParamsByType;
+  pipeline: AudioPipeline;
+  renderer: SynthRenderer | null;
+  audioReady: boolean;
+  underruns: number;
+  view: TrackerView;
+  controls: Controls;
+  held: Map<string, number>;
+  customSongName: string | null = null;
+  _playbackVolume?: number;
+  _fxKnobs: { el: KnobEl; key: string }[] = [];
+  _fxPanelType?: string;
+  _digitEntry: { idx: number; col: number; first: number } | null = null;
+  _hexEntry: { idx: number; first: number } | null = null;
+  _clipboard: { rows: number; chans: number; cells: ClipCell[][] } | null = null;
+  _fxPicker: HTMLElement | null = null;
+  _vuL = 0;
+  _vuR = 0;
+  _freqData?: Uint8Array<ArrayBuffer>;
+  _waveData?: Uint8Array<ArrayBuffer>;
+
   constructor() {
     // GL renders audio entirely into FBOs (read back via readPixels), so its
     // canvas is never displayed — and it MUST be separate from the 2D grid
@@ -92,7 +134,7 @@ export class App {
     this.gl = createGL(glCanvas);
     $('gl-status').innerHTML = 'gl: <span class="ok">ready</span>';
 
-    const canvas = $('grid');
+    const canvas = $<HTMLCanvasElement>('grid');
 
     this.engine = new Engine(48000); // sample rate reconciled when audio starts
     // Sort indices alphabetically to determine the default song index
@@ -108,9 +150,9 @@ export class App {
     this.fxParams = cloneFx(initialSong.fxParams);
     this.engine.fxParams = this.fxParams;   // let the engine apply fx-scope automation
 
-    const bpmInput = $('bpm');
+    const bpmInput = $<HTMLInputElement>('bpm');
     if (bpmInput) {
-      bpmInput.value = initialSong.bpm;
+      bpmInput.value = String(initialSong.bpm);
     }
 
     this.pipeline = new AudioPipeline();
@@ -143,7 +185,7 @@ export class App {
       },
       onPresetChange: (instName, fxParams) => {
         if (instName !== 'dx7' && fxParams) {
-          Object.assign(this.fxParams[instName], fxParams);
+          Object.assign((this.fxParams as Record<string, FxParams>)[instName], fxParams);
           this._buildFxPanel(instName);
         }
       }
@@ -171,15 +213,15 @@ export class App {
     this.engine.sampleRate = sr;
     this._updateLatencyDisplay();   // now reflects the real sample rate
     this.renderer = new SynthRenderer(this.gl, sr, this.fxParams);
-    const produce = (blockStart) => this.renderer.renderBlock(this.engine.advance(blockStart), blockStart);
+    const produce = (blockStart: number) => this.renderer!.renderBlock(this.engine.advance(blockStart), blockStart);
     await this.pipeline.start(produce);
     this.pipeline.setVolume(this._playbackVolume ?? 1.0); // apply the slider's monitor gain
     this.audioReady = true;
     $('audio-status').innerHTML = `audio: <span class="ok">running</span> @ ${sr | 0}Hz`;
   }
 
-  _buildFxPanel(itName) {
-    const params = this.fxParams[itName];
+  _buildFxPanel(itName: string) {
+    const params = (this.fxParams as Record<string, FxParams>)[itName];
     const host = $('fx');
     host.innerHTML = '';
     // Knobs the UI loop re-reads from fxParams so fx-scope automation shows live.
@@ -190,33 +232,35 @@ export class App {
         const cat = document.createElement('h3');
         cat.textContent = d.category;
         if (d.enableKey) {
-          if (params[d.enableKey] === undefined) {
-            params[d.enableKey] = (d.enableKey === 'bitcrushOn') ? false : true;
+          const ek = d.enableKey;
+          if (params[ek] === undefined) {
+            params[ek] = (ek === 'bitcrushOn') ? false : true;
           }
           const btn = document.createElement('button');
           btn.className = 'fx-cat-toggle';
           const sync = () => {
-            const isOn = params[d.enableKey] !== false;
+            const isOn = params[ek] !== false;
             btn.className = 'fx-cat-toggle' + (isOn ? ' on' : '');
             btn.textContent = isOn ? 'on' : 'off';
           };
           sync();
-          btn.onclick = () => { params[d.enableKey] = (params[d.enableKey] === false); sync(); };
+          btn.onclick = () => { params[ek] = (params[ek] === false); sync(); };
           cat.appendChild(btn);
         }
         host.appendChild(cat);
         continue;
       }
-      if (params[d.key] === undefined) {
-        if (d.key === 'bitcrushBits') params[d.key] = 8.0;
-        else if (d.key === 'bitcrushRate') params[d.key] = 4000.0;
-        else params[d.key] = d.min;
+      const key = d.key!, min = d.min!, max = d.max!, step = d.step!;
+      if (params[key] === undefined) {
+        if (key === 'bitcrushBits') params[key] = 8.0;
+        else if (key === 'bitcrushRate') params[key] = 4000.0;
+        else params[key] = min;
       }
       const block = document.createElement('div');
       block.className = 'param-control-block';
 
       const label = document.createElement('label');
-      label.textContent = d.label;
+      label.textContent = d.label ?? '';
       block.appendChild(label);
 
       const wrapper = document.createElement('div');
@@ -233,12 +277,12 @@ export class App {
       block.appendChild(wrapper);
       host.appendChild(block);
 
-      const isPercent = d.min === 0 && d.max === 1 && d.step < 1;
+      const isPercent = min === 0 && max === 1 && step < 1;
 
-      bindKnob(knob, valSpan, d.min, d.max, d.step, params[d.key], isPercent, (v) => {
-        params[d.key] = v;
+      bindKnob(knob, valSpan, min, max, step, params[key] as number, isPercent, (v) => {
+        params[key] = v;
       });
-      this._fxKnobs.push({ el: knob, key: d.key });
+      this._fxKnobs.push({ el: knob, key });
     }
     const toggle = $('fx-toggle');
     toggle.className = params.enabled ? 'on' : '';
@@ -259,20 +303,21 @@ export class App {
       else e.play('song');
     };
     $('stop').onclick = () => this.engine.stop();
-    $('bpm').oninput = (e) => {
-      const val = Math.max(40, Math.min(300, +e.target.value || 125));
+    $<HTMLInputElement>('bpm').oninput = (e) => {
+      const val = Math.max(40, Math.min(300, +(e.target as HTMLInputElement).value || 125));
       this.engine.bpm = val;
       const songDef = DEMO_SONGS[this.currentSongIdx];
       if (songDef) {
         songDef.bpm = val;
       }
     };
-    const lenInput = $('pattern-len');
+    const lenInput = $<HTMLInputElement>('pattern-len');
     if (lenInput) {
-      lenInput.value = this.view.pattern.rows;
+      lenInput.value = String(this.view.pattern.rows);
       lenInput.onchange = (e) => {
-        const val = Math.max(1, Math.min(256, +e.target.value || this.view.pattern.rows));
-        e.target.value = val;
+        const t = e.target as HTMLInputElement;
+        const val = Math.max(1, Math.min(256, +t.value || this.view.pattern.rows));
+        t.value = String(val);
         this.view.pattern.resize(val);
         if (this.view.cursor.row >= val) this.view.cursor.row = val - 1;
         this.view.draw();
@@ -284,19 +329,19 @@ export class App {
       fxColBtn.onclick = () => { this.view.toggleFx(); this._updateFxColBtn(); };
       this._updateFxColBtn();
     }
-    const volInput = $('volume');
+    const volInput = $<HTMLInputElement>('volume');
     const volVal = $('volume-val');
     if (volInput && volVal) {
       this._playbackVolume = (+volInput.value || 100) / 100; // monitor gain, not the render level
       volInput.oninput = (e) => {
-        let val = +e.target.value;
-        if (Math.abs(val - 100) <= 5) { val = 100; e.target.value = '100'; } // detent at unity
+        let val = +(e.target as HTMLInputElement).value;
+        if (Math.abs(val - 100) <= 5) { val = 100; (e.target as HTMLInputElement).value = '100'; } // detent at unity
         volVal.textContent = `${val}%`;
         this._playbackVolume = val / 100;
         this.pipeline.setVolume(this._playbackVolume);
       };
     }
-    const songSelect = $('song-select');
+    const songSelect = $<HTMLSelectElement>('song-select');
     if (songSelect) {
       // Populate from DEMO_SONGS so the list never drifts out of sync.
       songSelect.innerHTML = '';
@@ -304,12 +349,12 @@ export class App {
         .sort((a, b) => a.s.name.localeCompare(b.s.name));
       sortedSongs.forEach(({ s, i }) => {
         const o = document.createElement('option');
-        o.value = i; o.textContent = s.name;
+        o.value = String(i); o.textContent = s.name;
         songSelect.appendChild(o);
       });
       songSelect.value = String(this.currentSongIdx);
       songSelect.onchange = (e) => {
-        const idx = parseInt(e.target.value);
+        const idx = parseInt((e.target as HTMLSelectElement).value);
         if (idx === -1) return;
         const untitledOpt = songSelect.querySelector('option[value="-1"]');
         if (untitledOpt) {
@@ -319,9 +364,9 @@ export class App {
         const songDef = DEMO_SONGS[idx];
         if (songDef) {
           this.currentSongIdx = idx;
-          const bpmInput = $('bpm');
+          const bpmInput = $<HTMLInputElement>('bpm');
           if (bpmInput) {
-            bpmInput.value = songDef.bpm;
+            bpmInput.value = String(songDef.bpm);
           }
           this.engine.bpm = songDef.bpm;
           // Build the instrument table for this song, pruned to the engines it
@@ -350,8 +395,8 @@ export class App {
           this.view.cursor.ch = 0;
           this.view.selection = null;
           this.view.scroll = 0;
-          const lenInput = $('pattern-len');
-          if (lenInput) lenInput.value = this.view.pattern.rows;
+          const lenInput = $<HTMLInputElement>('pattern-len');
+          if (lenInput) lenInput.value = String(this.view.pattern.rows);
           this.view.draw();
           this._renderSongEditor();
           this._updatePatternSelector();
@@ -401,10 +446,12 @@ export class App {
     const addPatBtn = $('add-pattern-btn');
     if (addPatBtn) {
       addPatBtn.onclick = () => {
+        const song = this.engine.song;
+        if (!song) return;
         const p = this.view.pattern;
         const newPat = new Pattern(p ? p.rows : 64, p ? p.channels : 8);
-        this.engine.song.patterns.push(newPat);
-        this.engine.currentPatternIdx = this.engine.song.patterns.length - 1;
+        song.patterns.push(newPat);
+        this.engine.currentPatternIdx = song.patterns.length - 1;
         this._renderSongEditor();
         this._updatePatternSelector();
         this.view.draw();
@@ -414,6 +461,7 @@ export class App {
     const addOrdBtn = $('add-order-btn');
     if (addOrdBtn) {
       addOrdBtn.onclick = () => {
+        if (!this.engine.song) return;
         this.engine.song.order.push(this.engine.currentPatternIdx);
         this._renderSongEditor();
       };
@@ -453,9 +501,9 @@ export class App {
       newSongBtn.onclick = () => {
         this.engine.stop();
         this.customSongName = 'Untitled';
-        const songSelect = $('song-select');
+        const songSelect = $<HTMLSelectElement>('song-select');
         if (songSelect) {
-          let untitledOpt = songSelect.querySelector('option[value="-1"]');
+          let untitledOpt = songSelect.querySelector<HTMLOptionElement>('option[value="-1"]');
           if (!untitledOpt) {
             untitledOpt = document.createElement('option');
             untitledOpt.value = "-1";
@@ -511,7 +559,8 @@ export class App {
 
   _bindKeys() {
     document.addEventListener('keydown', (e) => {
-      if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') return;
+      const tag = (e.target as HTMLElement | null)?.tagName;
+      if (tag === 'INPUT' || tag === 'SELECT') return;
       // Copy / cut / paste of a selected block (intercept before note entry,
       // since C/X/V are also piano keys).
       if ((e.ctrlKey || e.metaKey) && !e.altKey) {
@@ -535,14 +584,14 @@ export class App {
       if (e.code === 'Space') { e.preventDefault(); return this._togglePlay(); }
       if (e.code === 'BracketLeft') {
         e.preventDefault();
-        const input = $('octave');
-        input.value = Math.max(+input.min || 0, Math.min(+input.max || 8, (+input.value || 4) - 1));
+        const input = $<HTMLInputElement>('octave');
+        input.value = String(Math.max(+input.min || 0, Math.min(+input.max || 8, (+input.value || 4) - 1)));
         return;
       }
       if (e.code === 'BracketRight') {
         e.preventDefault();
-        const input = $('octave');
-        input.value = Math.max(+input.min || 0, Math.min(+input.max || 8, (+input.value || 4) + 1));
+        const input = $<HTMLInputElement>('octave');
+        input.value = String(Math.max(+input.min || 0, Math.min(+input.max || 8, (+input.value || 4) + 1)));
         return;
       }
       // Toggle the automation column (F), except while editing an fx field.
@@ -572,11 +621,11 @@ export class App {
     });
 
     document.addEventListener('keyup', (e) => {
-      if (this.held.has(e.code)) { this.engine.previewOff(this.held.get(e.code)); this.held.delete(e.code); }
+      if (this.held.has(e.code)) { this.engine.previewOff(this.held.get(e.code)!); this.held.delete(e.code); }
     });
   }
 
-  _keyToNote(code) {
+  _keyToNote(code: string): number | null {
     // No instrument selected (e.g. a freshly created blank song) → nothing to play.
     const sel = this.engine.instruments[this.controls.selected];
     if (!sel) return null;
@@ -586,11 +635,11 @@ export class App {
     }
     const semi = KEY_SEMI[code];
     if (semi == null) return null;
-    const oct = Math.max(0, Math.min(8, +$('octave').value || 4));
+    const oct = Math.max(0, Math.min(8, +$<HTMLInputElement>('octave').value || 4));
     return (oct + 1) * 12 + semi;
   }
 
-  _handleCursor(e) {
+  _handleCursor(e: KeyboardEvent) {
     const c = this.view.cursor, p = this.view.pattern;
     // Shift+Up/Down: fine nudge. In the fx-value column it steps the value byte;
     // elsewhere it nudges the note's volume.
@@ -645,7 +694,7 @@ export class App {
 
   // Digit keys edit the instrument (col 1) or volume (col 2) of the note under
   // the cursor, two-digit accumulation per field (e.g. "2" then "5" → 25).
-  _handleEdit(e) {
+  _handleEdit(e: KeyboardEvent) {
     const m = /^(?:Digit|Numpad)([0-9])$/.exec(e.code);
     if (!m) return false;
     const c = this.view.cursor;
@@ -656,7 +705,7 @@ export class App {
     if (p.notes[idx] < 0) return true;             // no real note here — nothing to edit
     const d = +m[1];
     const same = this._digitEntry && this._digitEntry.idx === idx && this._digitEntry.col === c.col;
-    const val = same ? this._digitEntry.first * 10 + d : d;
+    const val = same ? this._digitEntry!.first * 10 + d : d;
     this._digitEntry = same ? null : { idx, col: c.col, first: d };
     if (c.col === 1) p.inst[idx] = Math.min(val, this.engine.instruments.length - 1);
     else p.vol[idx] = Math.min(99, val) / 99;
@@ -665,7 +714,7 @@ export class App {
 
   // FX columns: col 3 = command target (opens picker), col 4 = value byte (hex).
   // Consumes all letter/number keys so they never leak to note entry.
-  _handleFxEdit(e) {
+  _handleFxEdit(e: KeyboardEvent) {
     const c = this.view.cursor;
     if (!this.view.showFx || c.col < 3) return false;
     const isLetter = /^Key([A-Z])$/.exec(e.code);
@@ -686,14 +735,14 @@ export class App {
     else if (isLetter && isLetter[1] <= 'F') nyb = parseInt(isLetter[1], 16);
     if (nyb === null) return true;             // non-hex letter: swallow, no-op
     const same = this._hexEntry && this._hexEntry.idx === idx;
-    p.fxVal[idx] = (same ? ((this._hexEntry.first << 4) | nyb) : nyb) & 0xff;
+    p.fxVal[idx] = (same ? ((this._hexEntry!.first << 4) | nyb) : nyb) & 0xff;
     this._hexEntry = same ? null : { idx, first: nyb };
     return true;
   }
 
   // Best engine type for a cell: its own note's instrument, else the nearest
   // note above it on the channel, else the selected instrument.
-  _channelInstType(p, row, ch) {
+  _channelInstType(p: Pattern, row: number, ch: number): InstrumentType {
     if (p.notes[p.idx(row, ch)] >= 0) return this.engine.instruments[p.inst[p.idx(row, ch)]]?.type || '303';
     for (let r = row - 1; r >= 0; r--) {
       const j = p.idx(r, ch);
@@ -721,12 +770,12 @@ export class App {
       <div class="fx-picker-hint">↑↓ select · Enter set · Esc cancel · then type 2 hex digits for the value</div>
     </div>`;
     document.body.appendChild(overlay);
-    const input = overlay.querySelector('.fx-picker-input');
-    const list = overlay.querySelector('.fx-picker-list');
+    const input = overlay.querySelector('.fx-picker-input') as HTMLInputElement;
+    const list = overlay.querySelector('.fx-picker-list') as HTMLElement;
     input.value = prefill;
 
     let sel = 0, filtered = targets;
-    const commit = (t) => {
+    const commit = (t: ParamTarget | undefined) => {
       if (!t) return;
       const keep = p.fxCmd[idx] !== NO_FX ? p.fxVal[idx] : 0x80; // default mid-value
       p.setFx(c.row, c.ch, t.id, keep);
@@ -742,8 +791,8 @@ export class App {
         `<li class="fx-picker-item${i === sel ? ' sel' : ''}${t.scope === 'fx' ? ' fx' : ''}" data-i="${i}">
           <span class="fx-code">${t.code}</span><span class="fx-label">${t.label}</span>
           ${t.scope === 'fx' ? '<span class="fx-tag">track</span>' : ''}</li>`).join('');
-      list.querySelectorAll('.fx-picker-item').forEach((li) => {
-        li.onclick = () => commit(filtered[+li.dataset.i]);
+      list.querySelectorAll<HTMLElement>('.fx-picker-item').forEach((li) => {
+        li.onclick = () => commit(filtered[+li.dataset.i!]);
       });
     };
     input.addEventListener('keydown', (ev) => {
@@ -774,12 +823,12 @@ export class App {
   // Status-bar buffer control: sets the pipeline's prebuffer depth live and shows
   // the resulting latency. Deeper buffer = fewer underruns, more latency.
   _bindBufferControl() {
-    const input = $('prebuffer');
+    const input = $<HTMLInputElement>('prebuffer');
     if (!input) return;
-    input.value = this.pipeline.prebufferBlocks;
+    input.value = String(this.pipeline.prebufferBlocks);
     input.onchange = () => {
       const v = Math.max(2, Math.min(64, Math.round(+input.value) || this.pipeline.prebufferBlocks));
-      input.value = v;
+      input.value = String(v);
       this.pipeline.prebufferBlocks = v;
       this._updateLatencyDisplay();
     };
@@ -804,11 +853,11 @@ export class App {
     if (instr) {
       for (const k of this.controls.paramKnobs || []) {
         const live = playing ? this.engine.autoLive.inst.get(`${instIdx}:${k.bank}:${k.i}`) : undefined;
-        k.el._extSet(live !== undefined ? live : instr[k.bank][k.i]);
+        k.el._extSet?.(live !== undefined ? live : (instr as any)[k.bank!][k.i!]);
       }
-      const fp = this.fxParams[this._fxPanelType];
+      const fp = this._fxPanelType ? (this.fxParams as Record<string, FxParams>)[this._fxPanelType] : undefined;
       if (fp && this._fxPanelType === instr.type) {
-        for (const k of this._fxKnobs || []) k.el._extSet(fp[k.key]);
+        for (const k of this._fxKnobs || []) k.el._extSet?.(fp[k.key] as number);
       }
     }
   }
@@ -822,13 +871,13 @@ export class App {
 
   // Copy the selected block (or the single cursor cell) into the clipboard.
   // `cut` also clears the source cells.
-  _copyBlock(cut) {
+  _copyBlock(cut: boolean) {
     const p = this.view.pattern, s = this.view.selection, c = this.view.cursor;
     const r0 = s ? s.r0 : c.row, r1 = s ? s.r1 : c.row;
     const c0 = s ? s.c0 : c.ch,  c1 = s ? s.c1 : c.ch;
-    const cells = [];
+    const cells: ClipCell[][] = [];
     for (let r = r0; r <= r1; r++) {
-      const rowCells = [];
+      const rowCells: ClipCell[] = [];
       for (let ch = c0; ch <= c1; ch++) {
         const i = p.idx(r, ch);
         rowCells.push({ note: p.notes[i], inst: p.inst[i], vol: p.vol[i], fxCmd: p.fxCmd[i], fxVal: p.fxVal[i] });
@@ -865,12 +914,12 @@ export class App {
   // Drive the L/R VU bars from the post-volume peak. Width maps 0..125% of full
   // scale (so the bar's 100% point lines up with the slider's), green up to
   // unity and red once it clips. Instant attack, smooth release.
-  _drawVuMeters(lEl, rEl) {
+  _drawVuMeters(lEl: HTMLElement | null, rEl: HTMLElement | null) {
     if (!lEl || !rEl) return;
     const [pl, pr] = (this.pipeline && this.pipeline.peaks) ? this.pipeline.peaks() : [0, 0];
     this._vuL = Math.max(pl, (this._vuL || 0) * 0.82);
     this._vuR = Math.max(pr, (this._vuR || 0) * 0.82);
-    const apply = (el, v) => {
+    const apply = (el: HTMLElement, v: number) => {
       // Linear mapping matching the volume slider thumb's center offset at 100% volume (77.375% width)
       el.style.width = Math.min(100, v * 77.375) + '%';
       el.classList.toggle('clip', v > 1.0);
@@ -880,7 +929,7 @@ export class App {
   }
 
   _drawVisualizer() {
-    const canvas = $('visualizer');
+    const canvas = $<HTMLCanvasElement>('visualizer');
     if (!canvas) return;
 
     // Dynamically adjust drawing buffer width/height to match container client bounds
@@ -895,6 +944,7 @@ export class App {
     }
 
     const ctx = canvas.getContext('2d');
+    if (!ctx) return;
     const W = canvas.width;
     const H = canvas.height;
 
@@ -957,7 +1007,7 @@ export class App {
     }
 
     // Draw spectrum as translucent glow fill using accent color
-    const freqData = this._freqData;
+    const freqData = this._freqData!;
     analyser.getByteFrequencyData(freqData);
 
     ctx.fillStyle = accentGlow;
@@ -974,7 +1024,7 @@ export class App {
     ctx.fill();
 
     // Draw wave/oscilloscope using accent color
-    const waveData = this._waveData;
+    const waveData = this._waveData!;
     analyser.getByteTimeDomainData(waveData);
 
     ctx.strokeStyle = accentColor;
@@ -1057,9 +1107,9 @@ export class App {
         if (patNum && patNum.textContent !== String(activePatIdx)) {
           patNum.textContent = String(activePatIdx);
           const activePat = this.engine.song.patterns[activePatIdx];
-          const lenInput = $('pattern-len');
+          const lenInput = $<HTMLInputElement>('pattern-len');
           if (lenInput && activePat) {
-            lenInput.value = activePat.rows;
+            lenInput.value = String(activePat.rows);
           }
         }
       }
@@ -1067,7 +1117,7 @@ export class App {
       if (orderListEl) {
         const orderCards = orderListEl.querySelectorAll('.arranger-card');
         for (const card of orderCards) {
-          const idx = parseInt(card.getAttribute('data-order-idx'), 10);
+          const idx = parseInt(card.getAttribute('data-order-idx') ?? '-1', 10);
           if (idx === activeOrderIdx) {
             if (!card.classList.contains('active-order')) card.classList.add('active-order');
           } else {
@@ -1090,13 +1140,13 @@ export class App {
     requestAnimationFrame(tick);
   }
 
-  _deletePattern(idx) {
+  _deletePattern(idx: number) {
     const song = this.engine.song;
-    if (song.patterns.length <= 1) return;
-    
+    if (!song || song.patterns.length <= 1) return;
+
     song.patterns.splice(idx, 1);
-    
-    const newOrder = [];
+
+    const newOrder: number[] = [];
     for (let i = 0; i < song.order.length; i++) {
       const patIdx = song.order[i];
       if (patIdx === idx) {
@@ -1130,9 +1180,9 @@ export class App {
     if (patNum) {
       patNum.textContent = String(this.engine.currentPatternIdx);
     }
-    const lenInput = $('pattern-len');
+    const lenInput = $<HTMLInputElement>('pattern-len');
     if (lenInput && this.view.pattern) {
-      lenInput.value = this.view.pattern.rows;
+      lenInput.value = String(this.view.pattern.rows);
     }
   }
 
@@ -1166,7 +1216,7 @@ export class App {
   }
 
   // Seconds → "m:ss".
-  _fmtTime(sec) {
+  _fmtTime(sec: number) {
     sec = Math.max(0, sec);
     const m = Math.floor(sec / 60);
     const s = Math.floor(sec % 60);
@@ -1179,7 +1229,7 @@ if (document.getElementById('grid')) {
   try {
     new App();
   } catch (err) {
-    $('gl-status').innerHTML = `gl: <span class="err">${err.message}</span>`;
+    $('gl-status').innerHTML = `gl: <span class="err">${err instanceof Error ? err.message : String(err)}</span>`;
     console.error(err);
   }
 }

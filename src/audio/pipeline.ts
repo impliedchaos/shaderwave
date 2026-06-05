@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Owns the AudioContext + worklet node + the render-ahead producer loop.
 //
 // Bridges two clocks: the audio thread pulls 128-frame quanta at the hardware
@@ -11,7 +10,27 @@
 // on any static host with no COOP/COEP headers.
 import { BLOCK, PREBUFFER_BLOCKS } from '../constants.js';
 
+// Producer: given the absolute start frame of a block, return a freshly filled
+// interleaved-stereo buffer of BLOCK*2 samples.
+type Producer = (blockStartFrame: number) => Float32Array;
+
 export class AudioPipeline {
+  ctx: AudioContext | null;
+  node: AudioWorkletNode | null;
+  produce: Producer | null;
+  writtenFrames: number;
+  consumedFrames: number;
+  underruns: number;
+  _timer: ReturnType<typeof setInterval> | null;
+  onStats: ((s: { underruns: number; depth: number }) => void) | null;
+  prebufferBlocks: number;
+  // Created during init(); undefined until then (callers guard or init-first).
+  analyser?: AnalyserNode;
+  volume?: GainNode;
+  meterL?: AnalyserNode;
+  meterR?: AnalyserNode;
+  _meterBuf?: Float32Array<ArrayBuffer>;
+
   constructor() {
     this.ctx = null;
     this.node = null;
@@ -67,9 +86,9 @@ export class AudioPipeline {
 
   get sampleRate() { return this.ctx ? this.ctx.sampleRate : 48000; }
 
-  async start(produce) {
+  async start(produce: Producer) {
     this.produce = produce;
-    await this.ctx.resume();
+    if (this.ctx) await this.ctx.resume();
     if (this._timer) clearInterval(this._timer);   // never run two fill timers
     this._fill();                                  // prime before the first callback
     this._timer = setInterval(() => this._fill(), 4);
@@ -91,7 +110,7 @@ export class AudioPipeline {
 
   // Top the worklet's queue back up to the target depth.
   _fill() {
-    if (!this.produce) return;
+    if (!this.produce || !this.node) return;
     const targetFrames = this.prebufferBlocks * BLOCK;
     let pushed = 0;
     while (this.writtenFrames - this.consumedFrames < targetFrames) {
@@ -105,11 +124,11 @@ export class AudioPipeline {
   requestStats() { if (this.node) this.node.port.postMessage({ cmd: 'stats' }); }
 
   // Set the playback (monitor) gain. 1.0 = unity; >1 can clip the output device.
-  setVolume(g) { if (this.volume) this.volume.gain.value = g; }
+  setVolume(g: number) { if (this.volume) this.volume.gain.value = g; }
 
   // Current post-volume peak amplitude per channel, [left, right]. Full scale = 1.
   peaks() {
-    if (!this.meterL) return [0, 0];
+    if (!this.meterL || !this.meterR || !this._meterBuf) return [0, 0];
     const buf = this._meterBuf;
     let l = 0, r = 0;
     this.meterL.getFloatTimeDomainData(buf);

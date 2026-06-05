@@ -1,12 +1,13 @@
 {
   "name": "shaderwave",
-  "version": "0.1.4",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "description": "WebGL2 synthesizer & tracker — instruments synthesized entirely on the GPU.",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "deploy": "npm run build && ssh dmaez@dataphile \"/usr/bin/rm -rf /home/tug/fun/shaderwave/*\" && scp -r dist/* dmaez@dataphile:/home/tug/fun/shaderwave/"
   },

@@ -1,4 +1,3 @@
-// @ts-nocheck
 // GPU effects chain. Each effect is its own shader pass; the signal flows through
 // an ORDERED list of stages, ping-ponging between two BLOCK×1 scratch buffers. A
 // terminal master pass applies master gain and additively blends each instrument's
@@ -10,7 +9,9 @@
 // updated every block regardless of their position or wet level, so toggling them
 // on never pops.
 import { createProgram, drawQuad, makeTex } from './program.js';
+import type { GLProgram } from './program.js';
 import { BLOCK } from '../constants.js';
+import type { FxParams } from '../types.js';
 import FX_DISTORTION from './shaders/fx-distortion.glsl?raw';
 import FX_CHORUS_UPDATE from './shaders/fx-chorus-update.glsl?raw';
 import FX_CHORUS_TAP from './shaders/fx-chorus-tap.glsl?raw';
@@ -35,7 +36,7 @@ const CHORUS_LEN = 2048;
 // rearrange the chain; the master accumulate always runs after it.
 export const DEFAULT_FX_ORDER = ['distortion', 'chorus', 'tremolo', 'delay', 'reverb', 'bitcrush', 'width'];
 
-export function defaultFxParams() {
+export function defaultFxParams(): FxParams {
   return {
     enabled: true,
     // Per-effect bypass switches (the whole chain is also gated by `enabled`).
@@ -72,8 +73,42 @@ export function defaultFxParams() {
   };
 }
 
+type StageRunner = (inTex: WebGLTexture, outFbo: WebGLFramebuffer | null) => void;
+
 export class EffectsChain {
-  constructor(gl, sampleRate, params) {
+  gl: WebGL2RenderingContext;
+  sampleRate: number;
+  params: FxParams;
+  order: string[];
+  progDist: GLProgram;
+  progChoUp: GLProgram;
+  progChoTap: GLProgram;
+  progTrem: GLProgram;
+  progDelayUp: GLProgram;
+  progDelayTap: GLProgram;
+  progFdnUp: GLProgram;
+  progFdnTap: GLProgram;
+  progCrush: GLProgram;
+  progWidth: GLProgram;
+  progMaster: GLProgram;
+  scratchTex: WebGLTexture[];
+  scratchFbo: (WebGLFramebuffer | null)[];
+  delayRead: WebGLTexture;
+  delayWrite: WebGLTexture;
+  fdnRead: WebGLTexture;
+  fdnWrite: WebGLTexture;
+  chorusRead: WebGLTexture;
+  chorusWrite: WebGLTexture;
+  ringFbo: WebGLFramebuffer | null;
+  _stage: Record<string, StageRunner>;
+  // Per-block scratch set in process().
+  _bs = 0;
+  _wposD = 0;
+  _wposF = 0;
+  _wposC = 0;
+  _D = 0;
+
+  constructor(gl: WebGL2RenderingContext, sampleRate: number, params: FxParams | null) {
     this.gl = gl;
     this.sampleRate = sampleRate;
     this.params = params || defaultFxParams();
@@ -145,7 +180,7 @@ export class EffectsChain {
     this._clear(this.chorusRead); this._clear(this.chorusWrite);
   }
 
-  _clear(tex) {
+  _clear(tex: WebGLTexture) {
     const gl = this.gl;
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.ringFbo);
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0);
@@ -153,7 +188,7 @@ export class EffectsChain {
     gl.clear(gl.COLOR_BUFFER_BIT);
   }
 
-  _bind(unit, tex) {
+  _bind(unit: number, tex: WebGLTexture) {
     const gl = this.gl;
     gl.activeTexture(gl.TEXTURE0 + unit);
     gl.bindTexture(gl.TEXTURE_2D, tex);
@@ -161,14 +196,14 @@ export class EffectsChain {
 
   // An effect is live only if the whole chain is enabled AND its own switch is on.
   // A missing per-effect flag (older songs) counts as on, except bitcrush.
-  _on(flag) {
+  _on(flag: string): boolean {
     const p = this.params;
     return p.enabled && (flag === 'bitcrushOn' ? !!p[flag] : p[flag] !== false);
   }
 
   // Run the chain: dry stereo from mixTex flows through `this.order`, then the
   // master pass accumulates (additive) into targetFbo.
-  process(mixTex, targetFbo, blockStart, masterScale = 1.0) {
+  process(mixTex: WebGLTexture, targetFbo: WebGLFramebuffer | null, blockStart: number, masterScale = 1.0) {
     const gl = this.gl, p = this.params;
     this._bs = blockStart;
     this._wposD = ((blockStart % DELAY_LEN) + DELAY_LEN) % DELAY_LEN;
@@ -194,7 +229,7 @@ export class EffectsChain {
 
   // --- individual stages: read inTex (BLOCK×1), write a BLOCK×1 buffer ---
 
-  _stereoPass(prog, inTex, outFbo) {
+  _stereoPass(prog: GLProgram, inTex: WebGLTexture, outFbo: WebGLFramebuffer | null): GLProgram {
     const gl = this.gl;
     gl.useProgram(prog);
     gl.bindFramebuffer(gl.FRAMEBUFFER, outFbo);
@@ -205,7 +240,7 @@ export class EffectsChain {
     return prog;
   }
 
-  _distortion(inTex, outFbo) {
+  _distortion(inTex: WebGLTexture, outFbo: WebGLFramebuffer | null) {
     const gl = this.gl, p = this.params, on = this._on('distOn');
     const prog = this._stereoPass(this.progDist, inTex, outFbo);
     gl.uniform1f(prog.u('uDist'), on ? p.dist : 0.001);
@@ -214,7 +249,7 @@ export class EffectsChain {
     drawQuad(gl);
   }
 
-  _tremolo(inTex, outFbo) {
+  _tremolo(inTex: WebGLTexture, outFbo: WebGLFramebuffer | null) {
     const gl = this.gl, p = this.params, on = this._on('tremoloOn');
     const prog = this._stereoPass(this.progTrem, inTex, outFbo);
     gl.uniform1i(prog.u('uBlockStart'), this._bs);
@@ -224,14 +259,14 @@ export class EffectsChain {
     drawQuad(gl);
   }
 
-  _width(inTex, outFbo) {
+  _width(inTex: WebGLTexture, outFbo: WebGLFramebuffer | null) {
     const gl = this.gl, p = this.params, on = this._on('widthOn');
     const prog = this._stereoPass(this.progWidth, inTex, outFbo);
     gl.uniform1f(prog.u('uWidth'), on ? p.width : 1.0);
     drawQuad(gl);
   }
 
-  _bitcrush(inTex, outFbo) {
+  _bitcrush(inTex: WebGLTexture, outFbo: WebGLFramebuffer | null) {
     const gl = this.gl, p = this.params, on = this._on('bitcrushOn');
     const prog = this._stereoPass(this.progCrush, inTex, outFbo);
     gl.uniform1i(prog.u('uBitcrushOn'), on ? 1 : 0);
@@ -243,7 +278,7 @@ export class EffectsChain {
     drawQuad(gl);
   }
 
-  _chorus(inTex, outFbo) {
+  _chorus(inTex: WebGLTexture, outFbo: WebGLFramebuffer | null) {
     const gl = this.gl, p = this.params, on = this._on('chorusOn');
 
     // 1. Update the chorus ring with the incoming signal.
@@ -274,7 +309,7 @@ export class EffectsChain {
     gl.viewport(0, 0, BLOCK, 1); drawQuad(gl);
   }
 
-  _delay(inTex, outFbo) {
+  _delay(inTex: WebGLTexture, outFbo: WebGLFramebuffer | null) {
     const gl = this.gl, p = this.params, on = this._on('delayOn');
 
     // 1. Update the delay ring (feedback always runs to keep history warm).
@@ -302,7 +337,7 @@ export class EffectsChain {
     gl.viewport(0, 0, BLOCK, 1); drawQuad(gl);
   }
 
-  _reverb(inTex, outFbo) {
+  _reverb(inTex: WebGLTexture, outFbo: WebGLFramebuffer | null) {
     const gl = this.gl, p = this.params, on = this._on('reverbOn');
 
     // 1. Update the FDN ring (decay/damp/send always run to keep the tail warm).
@@ -330,7 +365,7 @@ export class EffectsChain {
   }
 
   // Terminal accumulate: master gain + additive blend into the shared mix.
-  _master(inTex, targetFbo, masterGain) {
+  _master(inTex: WebGLTexture, targetFbo: WebGLFramebuffer | null, masterGain: number) {
     const gl = this.gl;
     gl.useProgram(this.progMaster);
     gl.bindFramebuffer(gl.FRAMEBUFFER, targetFbo);

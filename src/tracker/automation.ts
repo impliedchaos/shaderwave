@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Automation / effect-command registry.
 //
 // Every automatable parameter is a "ParamTarget". A pattern cell can carry one
@@ -18,9 +17,14 @@
 //
 // Target ids are the flat index into TARGETS and must stay append-only (they are
 // persisted in patterns and will key MIDI-CC maps).
+import type { InstrumentType, ParamTarget } from '../types.js';
+
+// A target as authored in the tables below — the scope/type/id are stamped on
+// when flattening into TARGETS.
+type RawTarget = Omit<ParamTarget, 'id' | 'scope' | 'type'>;
 
 // inst-scope targets, grouped by engine type. bank/index point into p0/p1.
-const INST = {
+const INST: Record<InstrumentType, RawTarget[]> = {
   '303': [
     { code: 'CUT', label: 'Cutoff',       bank: 'p0', index: 0, min: 30, max: 4000, curve: 'log', unit: 'Hz' },
     { code: 'RES', label: 'Resonance',    bank: 'p0', index: 1, min: 0,  max: 0.98, curve: 'lin' },
@@ -54,7 +58,7 @@ const INST = {
 
 // fx-scope targets. `key` is a fxParams field; these apply to whichever engine
 // type the channel's instrument is, and are shared across that type's channels.
-const FX = [
+const FX: RawTarget[] = [
   { code: 'MST', label: 'FX Master',     key: 'master',        min: 0,     max: 1.5,   curve: 'lin' },
   { code: 'DRV', label: 'Distortion',    key: 'dist',          min: 0.001, max: 20,    curve: 'log' },
   { code: 'DLM', label: 'Delay Mix',     key: 'delayMix',      min: 0,     max: 1,     curve: 'lin' },
@@ -68,35 +72,35 @@ const FX = [
 // chan-scope targets. Per-channel mix params, engine-agnostic (offered on every
 // channel). Pan is 0 = hard left, 0.5 = centre, 1 = hard right (equal-power in
 // the mix shader).
-const CHAN = [
+const CHAN: RawTarget[] = [
   { code: 'PAN', label: 'Pan', key: 'pan', min: 0, max: 1, curve: 'lin', unit: 'pan' },
 ];
 
 // Flatten into a stable, id-indexed table. Order = append-only.
-export const TARGETS = [];
-for (const type of ['303', 'moog', 'dx7', '808']) {
+export const TARGETS: ParamTarget[] = [];
+for (const type of ['303', 'moog', 'dx7', '808'] as InstrumentType[]) {
   for (const t of INST[type]) TARGETS.push({ ...t, scope: 'inst', type, id: TARGETS.length });
 }
 for (const t of FX) TARGETS.push({ ...t, scope: 'fx', type: '*', id: TARGETS.length });
 for (const t of CHAN) TARGETS.push({ ...t, scope: 'chan', type: '*', id: TARGETS.length });
 
-export function targetById(id) {
+export function targetById(id: number): ParamTarget | null {
   return (id >= 0 && id < TARGETS.length) ? TARGETS[id] : null;
 }
 
 // Targets selectable for a given engine type: its own inst targets + all fx +
 // all per-channel (chan) targets.
-export function targetsForType(type) {
+export function targetsForType(type: InstrumentType): ParamTarget[] {
   return TARGETS.filter((t) => t.scope === 'fx' || t.scope === 'chan' || t.type === type);
 }
 
-export function targetByCode(type, code) {
+export function targetByCode(type: InstrumentType, code: string): ParamTarget | null {
   const up = code.toUpperCase();
   return targetsForType(type).find((t) => t.code === up) || null;
 }
 
 // Normalized byte (0..255) → real engine value.
-export function denorm(t, byte) {
+export function denorm(t: ParamTarget, byte: number): number {
   const x = Math.max(0, Math.min(255, byte)) / 255;
   if (t.curve === 'log') {
     const lo = Math.max(1e-4, t.min);
@@ -107,7 +111,7 @@ export function denorm(t, byte) {
 }
 
 // Real engine value → normalized byte (for song authoring / future MIDI learn).
-export function normByte(t, value) {
+export function normByte(t: ParamTarget, value: number): number {
   let x;
   if (t.curve === 'log') {
     const lo = Math.max(1e-4, t.min);
@@ -121,7 +125,7 @@ export function normByte(t, value) {
 }
 
 // Human-readable value, for tooltips/picker (e.g. "2.1kHz", "0.62").
-export function fmtValue(t, byte) {
+export function fmtValue(t: ParamTarget, byte: number): string {
   const v = denorm(t, byte);
   if (t.curve === 'enum') return String(v);
   if (t.unit === 'pan') {

@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Offline rendering / capture: WAV (offline GPU render → PCM) and WebM video
 // (live MediaRecorder capture, optionally with the 720p GL visualizer). Pulled
 // out of main.js — every entry point takes the App instance so it can reach the
@@ -7,8 +6,10 @@ import { BLOCK } from '../constants.js';
 import { HELD } from '../tracker/engine.js';
 import { DEMO_SONGS } from '../tracker/song.js';
 import { GLVisualizer } from '../ui/visualizer.js';
+import { el as $ } from '../ui/dom.js';
 
-const $ = (id) => document.getElementById(id);
+// `app` is the main.ts App instance; typed loosely until main.ts is converted.
+type App = any;
 
 // Seconds of extra rendering past the last row so the delay/reverb tail rings
 // out instead of being clipped at the final note.
@@ -17,7 +18,7 @@ const FX_TAIL_SECONDS = 2.0;
 // Return the app to a clean live-playback state after an export. Clears the
 // synth + FX state (so the export's reverb/delay/chorus tail doesn't bleed into
 // live audio), flushes the worklet's stale queue, and restarts the producer.
-async function restorePlayback(app, resumePlaying) {
+async function restorePlayback(app: App, resumePlaying: boolean) {
   app.engine.stop();
   if (app.renderer) app.renderer.resetState();
   app.pipeline.flush();
@@ -25,16 +26,16 @@ async function restorePlayback(app, resumePlaying) {
   if (app.pipeline.produce) await app.pipeline.start(app.pipeline.produce);
 }
 
-function sanitizeFilename(songName) {
+function sanitizeFilename(songName: string): string {
   if (!songName) return 'untitled_song';
   return songName.toLowerCase().trim().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'untitled_song';
 }
 
-function writeWav(samples, sampleRate) {
+function writeWav(samples: Float32Array, sampleRate: number): Blob {
   const buffer = new ArrayBuffer(44 + samples.length * 2);
   const view = new DataView(buffer);
 
-  const writeString = (offset, string) => {
+  const writeString = (offset: number, string: string) => {
     for (let i = 0; i < string.length; i++) {
       view.setUint8(offset + i, string.charCodeAt(i));
     }
@@ -63,16 +64,16 @@ function writeWav(samples, sampleRate) {
   return new Blob([buffer], { type: 'audio/wav' });
 }
 
-export function showExportDialog(app) {
+export function showExportDialog(app: App) {
   const song = DEMO_SONGS[app.currentSongIdx];
   const defaultTitle = app.customSongName || (song ? song.name : 'Untitled');
   const defaultFilename = sanitizeFilename(defaultTitle);
 
-  $('export-song-title').value = defaultTitle;
-  $('export-song-author').value = 'AI Slop';
-  $('export-filename').value = defaultFilename;
+  $<HTMLInputElement>('export-song-title').value = defaultTitle;
+  $<HTMLInputElement>('export-song-author').value = 'AI Slop';
+  $<HTMLInputElement>('export-filename').value = defaultFilename;
 
-  document.getElementsByName('export-format')[1].checked = true;
+  (document.getElementsByName('export-format')[1] as HTMLInputElement).checked = true;
   $('export-visualizer-row').style.display = 'flex';
 
   $('export-config-panel').style.display = 'flex';
@@ -82,7 +83,7 @@ export function showExportDialog(app) {
   const radios = document.getElementsByName('export-format');
   radios.forEach(radio => {
     radio.onchange = (e) => {
-      $('export-visualizer-row').style.display = e.target.value === 'webm' ? 'flex' : 'none';
+      $('export-visualizer-row').style.display = (e.target as HTMLInputElement).value === 'webm' ? 'flex' : 'none';
     };
   });
 
@@ -91,11 +92,12 @@ export function showExportDialog(app) {
   };
 
   $('export-start-btn').onclick = () => {
-    const title = $('export-song-title').value.trim() || 'Untitled Song';
-    const author = $('export-song-author').value.trim() || 'AI Slop';
-    const filename = $('export-filename').value.trim() || 'untitled_song';
-    const format = document.querySelector('input[name="export-format"]:checked').value;
-    const includeVisualizer = $('export-include-visualizer').checked;
+    const title = $<HTMLInputElement>('export-song-title').value.trim() || 'Untitled Song';
+    const author = $<HTMLInputElement>('export-song-author').value.trim() || 'AI Slop';
+    const filename = $<HTMLInputElement>('export-filename').value.trim() || 'untitled_song';
+    const fmtEl = document.querySelector('input[name="export-format"]:checked') as HTMLInputElement | null;
+    const format = fmtEl?.value ?? 'wav';
+    const includeVisualizer = $<HTMLInputElement>('export-include-visualizer').checked;
 
     $('export-config-panel').style.display = 'none';
     $('export-progress-panel').style.display = 'flex';
@@ -108,7 +110,7 @@ export function showExportDialog(app) {
   };
 }
 
-async function exportWav(app, filename, title, author) {
+async function exportWav(app: App, filename: string, title: string, author: string) {
   await app.ensureAudio();
 
   const wasPlaying = app.engine.playing;
@@ -197,7 +199,7 @@ async function exportWav(app, filename, title, author) {
             restoreAudio();
           }, 500);
         } catch (e) {
-          statusText.textContent = `Error: ${e.message}`;
+          statusText.textContent = `Error: ${e instanceof Error ? e.message : String(e)}`;
           cancelBtn.textContent = 'Close';
           cancelBtn.onclick = () => {
             overlay.style.display = 'none';
@@ -211,7 +213,7 @@ async function exportWav(app, filename, title, author) {
   requestAnimationFrame(renderBatch);
 }
 
-async function exportVideo(app, filename, title, author, includeVisualizer) {
+async function exportVideo(app: App, filename: string, title: string, author: string, includeVisualizer: boolean) {
   await app.ensureAudio();
 
   const wasPlaying = app.engine.playing;
@@ -244,9 +246,9 @@ async function exportVideo(app, filename, title, author, includeVisualizer) {
   muteGain.connect(ctx.destination);
 
   const audioTrack = dest.stream.getAudioTracks()[0];
-  let recordStream;
-  let recordCanvas = null;
-  let recordVisualizer = null;
+  let recordStream: MediaStream;
+  let recordCanvas: HTMLCanvasElement | null = null;
+  let recordVisualizer: GLVisualizer | null = null;
 
   if (includeVisualizer) {
     recordCanvas = document.createElement('canvas');
@@ -287,7 +289,7 @@ async function exportVideo(app, filename, title, author, includeVisualizer) {
   }
 
   const recorder = new MediaRecorder(recordStream, options);
-  const chunks = [];
+  const chunks: Blob[] = [];
   recorder.ondataavailable = (e) => {
     if (e.data && e.data.size > 0) chunks.push(e.data);
   };

@@ -1,10 +1,20 @@
-// @ts-nocheck
 // Built-in instrument presets, keyed by engine type. Each entry sets the synth
 // param banks (p0/p1, plus p2/p3 for the Moog's osc/glide/noise) and optionally
 // a recommended effects snapshot (`fx`). The sidebar preset dropdown loads these
 // via Controls.loadPreset; preset matching compares p0/p1 only. (DX7 patches are
 // not here — they come from the SysEx ROM banks parsed at runtime.)
-export const PRESETS = {
+import type { FxParams } from '../types.js';
+
+export interface Preset {
+  name: string;
+  p0: number[];
+  p1: number[];
+  p2?: number[];
+  p3?: number[];
+  fx?: Partial<FxParams>;
+}
+
+export const PRESETS: Record<string, Preset[]> = {
   '303': [
     { name: 'Classic Acid Bassline', p0: [400, 0.72, 0.6, 0.4], p1: [0, 0.3, 0.4, 0], fx: { dist: 0.001, tone: 0.5, level: 1.0, width: 1.0, master: 0.32, chorusMix: 0.0, delayMix: 0.0, reverbMix: 0.0 } },
     { name: 'Aggressive Industrial Distortion', p0: [1200, 0.85, 0.8, 0.5], p1: [1, 0.2, 0.35, 0], fx: { dist: 12.0, tone: 0.65, level: 1.0, width: 1.2, master: 0.9, chorusMix: 0.35, chorusRate: 2.0, chorusDepth: 3.0, tremoloMix: 0.2, tremoloRate: 4.0, delayTime: 0.375, delayFeedback: 0.45, delayMix: 0.3, reverbDecay: 0.8, reverbDamp: 0.3, reverbSend: 0.5, reverbMix: 0.2 } },

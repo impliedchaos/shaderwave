@@ -1,11 +1,33 @@
-// @ts-nocheck
 // Sidebar: instrument selector + parameter sliders. The selector lists the
 // engine's instrument table (instances); editing a slider writes straight into
 // the selected instance, which the engine snapshots onto each new note.
 import { INSTRUMENTS, instGlow } from '../constants.js';
-import { DEMO_SONGS } from '../tracker/song.js';
 import { defaultFxParams } from '../gl/effects.js';
 import { PRESETS } from './presets.js';
+import type { DX7Op } from '../types.js';
+
+// A knob <div> the UI loop can drive externally (live automation tracking).
+type KnobEl = HTMLElement & { _extSet?: (v: number) => void };
+
+// One DX7 voice parsed from a SysEx ROM.
+interface SysexPatch {
+  name: string;
+  algo: number;
+  feedback: number;
+  ops: DX7Op[];
+}
+
+// A parameter-slider definition. p0/p1/p2/p3 knobs use bank+i; dx7 uses type+key.
+interface ParamDef {
+  label: string;
+  min: number;
+  max: number;
+  step: number;
+  type?: 'global' | 'op';
+  bank?: 'p0' | 'p1' | 'p2' | 'p3';
+  i?: number;
+  key?: string;
+}
 
 const DX7_ROMS = [
   { name: 'ROM 1A - Keyboard / Pluck', file: 'rom1a.syx' },
@@ -21,7 +43,7 @@ const DX7_ROMS = [
 ];
 
 // Slider metadata. `bank`/`i` index into params[inst].p0 / p1.
-const PARAM_DEFS = {
+const PARAM_DEFS: Record<string, ParamDef[]> = {
   '303': [
     { label: 'Cutoff', bank: 'p0', i: 0, min: 30, max: 4000, step: 1 },
     { label: 'Reso', bank: 'p0', i: 1, min: 0, max: 0.98, step: 0.01 },
@@ -57,12 +79,12 @@ const PARAM_DEFS = {
 };
 
 // Display labels for the Moog stepped osc knobs.
-const MOOG_WAVES = { 0: 'Tri', 1: 'Saw', 2: 'Square', 3: 'WidePul', 4: 'NarPul' };
-const MOOG_OCTS = { 0: "32'", 1: "16'", 2: "8'", 3: "4'", 4: "2'" };
+const MOOG_WAVES: Record<number, string> = { 0: 'Tri', 1: 'Saw', 2: 'Square', 3: 'WidePul', 4: 'NarPul' };
+const MOOG_OCTS: Record<number, string> = { 0: "32'", 1: "16'", 2: "8'", 3: "4'", 4: "2'" };
 
 // DX7 slider set (global algorithm/feedback + per-operator params). Static, so
 // it lives at module scope rather than being rebuilt on every _buildParams call.
-const DX7_PARAM_DEFS = [
+const DX7_PARAM_DEFS: ParamDef[] = [
   { label: 'Algo', type: 'global', bank: 'p1', i: 0, min: 1, max: 32, step: 1 },
   { label: 'Feedback', type: 'global', bank: 'p0', i: 3, min: 0, max: 1.5, step: 0.01 },
   { label: 'Op Mode', type: 'op', key: 'mode', min: 0, max: 1, step: 1 },
@@ -75,8 +97,29 @@ const DX7_PARAM_DEFS = [
   { label: 'Op Release', type: 'op', key: 'release', min: 0.05, max: 4, step: 0.01 },
 ];
 
+interface ControlsOpts {
+  instEl: HTMLElement;
+  paramEl: HTMLElement;
+  onSelect?: (i: number) => void;
+  onPresetChange?: (type: string, fx: any) => void;
+  app?: any;
+}
+
 export class Controls {
-  constructor(engine, { instEl, paramEl, onSelect, onPresetChange, app }) {
+  engine: any;
+  instEl: HTMLElement;
+  paramEl: HTMLElement;
+  onSelect?: (i: number) => void;
+  onPresetChange?: (type: string, fx: any) => void;
+  app: any;
+  selected: number;
+  activeOp: number;
+  dx7Patches: SysexPatch[] | null;
+  activeRomFile: string;
+  romCache: Record<string, SysexPatch[]>;
+  paramKnobs: { el: KnobEl; bank?: string; i?: number }[] = [];
+
+  constructor(engine: any, { instEl, paramEl, onSelect, onPresetChange, app }: ControlsOpts) {
     this.engine = engine;
     this.instEl = instEl;
     this.paramEl = paramEl;
@@ -90,17 +133,17 @@ export class Controls {
     this.romCache = {};
 
     // Initialize Operator select dropdown if it exists
-    const opSelect = document.getElementById('operator-select');
+    const opSelect = document.getElementById('operator-select') as HTMLSelectElement | null;
     if (opSelect) {
       this.activeOp = parseInt(opSelect.value) || 0;
       opSelect.onchange = (e) => {
-        this.activeOp = parseInt(e.target.value);
+        this.activeOp = parseInt((e.target as HTMLSelectElement).value);
         this._buildParams();
       };
     }
 
     // Initialize ROM select dropdown if it exists
-    const romSelect = document.getElementById('sysex-rom');
+    const romSelect = document.getElementById('sysex-rom') as HTMLSelectElement | null;
     if (romSelect) {
       romSelect.innerHTML = '';
       DX7_ROMS.forEach((rom) => {
@@ -110,15 +153,15 @@ export class Controls {
         romSelect.appendChild(opt);
       });
       romSelect.onchange = (e) => {
-        this.loadRom(e.target.value, true);
+        this.loadRom((e.target as HTMLSelectElement).value, true);
       };
     }
 
     // Initialize Preset select dropdown if it exists
-    const presetSelect = document.getElementById('instrument-preset');
+    const presetSelect = document.getElementById('instrument-preset') as HTMLSelectElement | null;
     if (presetSelect) {
       presetSelect.onchange = (e) => {
-        const presetIdx = parseInt(e.target.value);
+        const presetIdx = parseInt((e.target as HTMLSelectElement).value);
         this.loadPreset(presetIdx);
       };
     }
@@ -156,14 +199,15 @@ export class Controls {
 
   // The "+ Add" dropdown (above the list) — pick an engine type to append.
   _buildAddMenu() {
-    const sel = document.getElementById('inst-add');
+    const sel = document.getElementById('inst-add') as HTMLSelectElement | null;
     if (!sel) return;
     sel.innerHTML = '<option value="">+ Add</option>'
       + INSTRUMENTS.map((t) => `<option value="${t}">${t.toUpperCase()}</option>`).join('');
     sel.value = '';
     sel.onchange = (e) => {
-      const type = e.target.value;
-      e.target.value = '';
+      const target = e.target as HTMLSelectElement;
+      const type = target.value;
+      target.value = '';
       if (!type) return;
 
       if (this.app && this.app.fxParams) {
@@ -196,7 +240,7 @@ export class Controls {
 
   _buildInstruments() {
     this.instEl.innerHTML = '';
-    this.engine.instruments.forEach((instr, i) => {
+    this.engine.instruments.forEach((instr: any, i: number) => {
       const b = document.createElement('button');
       const num = document.createElement('span');
       num.className = 'inst-num';
@@ -230,7 +274,7 @@ export class Controls {
     });
   }
 
-  select(i) {
+  select(i: number) {
     this.selected = i;
     // Rebuild the list so per-instance colours/glow recompute for the new
     // selection (a plain class toggle would leave the old button's inline glow).
@@ -238,8 +282,8 @@ export class Controls {
 
     // Toggle UI visibility for ROM and Operator selectors
     const isDX7 = this._type === 'dx7';
-    const sysexRow = document.getElementById('sysex-select-row');
-    const opRow = document.getElementById('op-select-row');
+    const sysexRow = document.getElementById('sysex-select-row') as HTMLElement | null;
+    const opRow = document.getElementById('op-select-row') as HTMLElement | null;
     if (sysexRow) sysexRow.style.display = isDX7 ? 'flex' : 'none';
     if (opRow) opRow.style.display = isDX7 ? 'flex' : 'none';
 
@@ -305,7 +349,7 @@ export class Controls {
         }
       }
     } else {
-      const plist = PRESETS[instName];
+      const plist = (PRESETS as Record<string, any[]>)[instName];
       if (!plist) return { rom: null, index: -1 };
       for (let idx = 0; idx < plist.length; idx++) {
         const preset = plist[idx];
@@ -333,30 +377,30 @@ export class Controls {
   }
 
   _populatePresets() {
-    const presetSelect = document.getElementById('instrument-preset');
+    const presetSelect = document.getElementById('instrument-preset') as HTMLSelectElement | null;
     if (!presetSelect) return;
-    
+
     presetSelect.innerHTML = '';
     const instName = this._type;
     if (!instName) return;
 
     // Add a blank option at the top
     const blankOpt = document.createElement('option');
-    blankOpt.value = -1;
+    blankOpt.value = '-1';
     blankOpt.textContent = '';
     presetSelect.appendChild(blankOpt);
 
     if (instName === 'dx7' && this.dx7Patches) {
       this.dx7Patches.forEach((p, idx) => {
         const opt = document.createElement('option');
-        opt.value = idx;
+        opt.value = String(idx);
         opt.textContent = `${idx + 1}: ${p.name}`;
         presetSelect.appendChild(opt);
       });
-    } else if (PRESETS[instName]) {
-      PRESETS[instName].forEach((p, idx) => {
+    } else if ((PRESETS as Record<string, any[]>)[instName]) {
+      (PRESETS as Record<string, any[]>)[instName].forEach((p: any, idx: number) => {
         const opt = document.createElement('option');
-        opt.value = idx;
+        opt.value = String(idx);
         opt.textContent = p.name;
         presetSelect.appendChild(opt);
       });
@@ -367,10 +411,10 @@ export class Controls {
       this.loadRom(match.rom, false);
       return;
     }
-    presetSelect.value = match.index;
+    presetSelect.value = String(match.index);
   }
 
-  loadPreset(presetIdx) {
+  loadPreset(presetIdx: number) {
     if (presetIdx === -1) return;
     const instName = this._type;
     if (!instName) return;
@@ -392,7 +436,7 @@ export class Controls {
         }
       }
     } else {
-      const plist = PRESETS[instName];
+      const plist = (PRESETS as Record<string, any[]>)[instName];
       if (plist && plist[presetIdx]) {
         const preset = plist[presetIdx];
         const prDst = this._instr;
@@ -410,17 +454,17 @@ export class Controls {
       }
     }
     this._buildParams();
-    const presetSelect = document.getElementById('instrument-preset');
+    const presetSelect = document.getElementById('instrument-preset') as HTMLSelectElement | null;
     if (presetSelect) {
-      presetSelect.value = presetIdx;
+      presetSelect.value = String(presetIdx);
     }
   }
 
-  async loadRom(filename, autoLoadFirstPreset = false) {
+  async loadRom(filename: string, autoLoadFirstPreset = false) {
     if (this.romCache[filename]) {
       this.activeRomFile = filename;
       this.dx7Patches = this.romCache[filename];
-      const romSelect = document.getElementById('sysex-rom');
+      const romSelect = document.getElementById('sysex-rom') as HTMLSelectElement | null;
       if (romSelect) {
         romSelect.value = filename;
       }
@@ -440,7 +484,7 @@ export class Controls {
         this.romCache[filename] = patches;
         this.activeRomFile = filename;
         this.dx7Patches = patches;
-        const romSelect = document.getElementById('sysex-rom');
+        const romSelect = document.getElementById('sysex-rom') as HTMLSelectElement | null;
         if (romSelect) {
           romSelect.value = filename;
         }
@@ -456,12 +500,12 @@ export class Controls {
     }
   }
 
-  parseSysex(data) {
+  parseSysex(data: Uint8Array): SysexPatch[] {
     if (data[0] !== 0xF0 || data[1] !== 0x43) {
       console.warn("Invalid SysEx header, attempting to parse anyway...");
     }
-    
-    const patches = [];
+
+    const patches: SysexPatch[] = [];
     // 32 voices, each voice is 128 bytes, starting at offset 6
     for (let i = 0; i < 32; i++) {
       const offset = 6 + i * 128;
@@ -486,7 +530,7 @@ export class Controls {
       const feedback = (voiceData[111] & 7) * (1.5 / 7.0); // scale 0-7 to 0-1.5
       
       // Extract operator parameters
-      const ops = [];
+      const ops: DX7Op[] = [];
       for (let k = 0; k < 6; k++) {
         // Operators are stored in reverse order: Op 6 is offset 0, Op 1 is offset 85
         const opOffset = (5 - k) * 17;
@@ -558,19 +602,19 @@ export class Controls {
       this.paramEl.appendChild(block);
 
       const isPercent = d.min === 0 && d.max === 1 && d.step < 1;
-      const formatFn = (d.label === 'Wave' && name === '303') ? (v) => {
-        const map = { 0: 'Saw', 1: 'Square', 2: 'Triangle', 3: 'Sine', 4: 'Noise' };
+      const formatFn: ((v: number) => string) | null = (d.label === 'Wave' && name === '303') ? (v: number) => {
+        const map: Record<number, string> = { 0: 'Saw', 1: 'Square', 2: 'Triangle', 3: 'Sine', 4: 'Noise' };
         return map[Math.round(v)] || v.toString();
-      } : (name === 'moog' && /Wave$/.test(d.label)) ? (v) => MOOG_WAVES[Math.round(v)] || v.toString()
-        : (name === 'moog' && /Oct$/.test(d.label)) ? (v) => MOOG_OCTS[Math.round(v)] || v.toString()
-        : (d.label === 'Op Mode' && name === 'dx7') ? (v) => {
+      } : (name === 'moog' && /Wave$/.test(d.label)) ? (v: number) => MOOG_WAVES[Math.round(v)] || v.toString()
+        : (name === 'moog' && /Oct$/.test(d.label)) ? (v: number) => MOOG_OCTS[Math.round(v)] || v.toString()
+        : (d.label === 'Op Mode' && name === 'dx7') ? (v: number) => {
         return Math.round(v) === 0 ? 'Ratio' : 'Fixed';
-      } : (d.label === 'Op Coarse' && name === 'dx7' && pr.ops[this.activeOp].mode === 1) ? (v) => {
-        const valMap = { 0: '1 Hz', 1: '10 Hz', 2: '100 Hz', 3: '1000 Hz' };
+      } : (d.label === 'Op Coarse' && name === 'dx7' && pr.ops[this.activeOp].mode === 1) ? (v: number) => {
+        const valMap: Record<number, string> = { 0: '1 Hz', 1: '10 Hz', 2: '100 Hz', 3: '1000 Hz' };
         return valMap[Math.round(v)] || (Math.round(v).toString() + ' Hz');
       } : null;
 
-      const initialVal = d.type === 'op' ? pr.ops[this.activeOp][d.key] : pr[d.bank][d.i];
+      const initialVal = d.type === 'op' ? pr.ops[this.activeOp][d.key!] : pr[d.bank!][d.i!];
 
       let minVal = d.min;
       let maxVal = d.max;
@@ -584,13 +628,13 @@ export class Controls {
 
       bindKnob(knob, valSpan, minVal, maxVal, stepVal, initialVal, isPercent, (v) => {
         if (d.type === 'op') {
-          pr.ops[this.activeOp][d.key] = v;
+          pr.ops[this.activeOp][d.key!] = v;
           if (d.key === 'mode') {
             // Rebuild params to dynamically update ranges (such as Op Coarse)
             this._buildParams();
           }
         } else {
-          pr[d.bank][d.i] = v;
+          pr[d.bank!][d.i!] = v;
         }
       }, formatFn,
       // Preset matching scans every cached ROM bank, so run it once on drag-end
@@ -604,21 +648,32 @@ export class Controls {
 
   // Sync the preset dropdown to whatever preset (if any) the current params match.
   _refreshPresetSelection() {
-    const pSel = document.getElementById('instrument-preset');
+    const pSel = document.getElementById('instrument-preset') as HTMLSelectElement | null;
     if (!pSel) return;
     const match = this._findMatchingPreset();
     if (this._type === 'dx7') {
-      pSel.value = (match.rom === this.activeRomFile) ? match.index : -1;
+      pSel.value = String((match.rom === this.activeRomFile) ? match.index : -1);
     } else {
-      pSel.value = match.index;
+      pSel.value = String(match.index);
     }
   }
 }
 
-export function bindKnob(knobEl, valEl, min, max, step, initialVal, isPercent, onChange, formatFn, onCommit) {
+export function bindKnob(
+  knobEl: KnobEl,
+  valEl: HTMLElement,
+  min: number,
+  max: number,
+  step: number,
+  initialVal: number,
+  isPercent: boolean,
+  onChange: (v: number) => void,
+  formatFn?: ((v: number) => string) | null,
+  onCommit?: (v: number) => void,
+) {
   let val = initialVal;
 
-  const updateUI = (v) => {
+  const updateUI = (v: number) => {
     const ratio = (v - min) / (max - min);
     const deg = -135 + ratio * 270;
     knobEl.style.transform = `rotate(${deg}deg)`;
@@ -635,21 +690,24 @@ export function bindKnob(knobEl, valEl, min, max, step, initialVal, isPercent, o
 
   // Lets the UI loop drive the knob from outside (e.g. live automation tracking).
   // No-ops when the value is unchanged so per-frame calls are cheap.
-  knobEl._extSet = (v) => {
+  knobEl._extSet = (v: number) => {
     if (v === val || v == null || Number.isNaN(v)) return;
     val = v;
     updateUI(v);
   };
 
-  const onStart = (e) => {
+  const eventY = (ev: MouseEvent | TouchEvent): number =>
+    'touches' in ev ? (ev.touches[0]?.clientY ?? 0) : ev.clientY;
+
+  const onStart = (e: MouseEvent | TouchEvent) => {
     e.preventDefault();
-    const startY = e.clientY || (e.touches && e.touches[0].clientY);
+    const startY = eventY(e);
     const startVal = val;
     const range = max - min;
     const pixelsPerRange = 150;
 
-    const onMove = (moveEv) => {
-      const currentY = moveEv.clientY || (moveEv.touches && moveEv.touches[0].clientY);
+    const onMove = (moveEv: MouseEvent | TouchEvent) => {
+      const currentY = eventY(moveEv);
       const deltaY = startY - currentY;
       let newVal = startVal + (deltaY / pixelsPerRange) * range;
       newVal = Math.max(min, Math.min(max, newVal));

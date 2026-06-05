@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Orchestrates the GPU audio graph for one render block:
 //
 //   for each instrument:  synth pass → audioTex[i] (BLOCK×VOICES) + state carry (MRT)
@@ -9,8 +8,10 @@
 // blocks. A voice belongs to exactly one instrument (uInst[v]); each program
 // renders only its own rows and writes silence elsewhere.
 import { createProgram, drawQuad, makeTex } from './program.js';
+import type { GLProgram } from './program.js';
 import { EffectsChain } from './effects.js';
 import { BLOCK, VOICES, INSTRUMENTS } from '../constants.js';
+import type { FxParamsByType, InstrumentType, VoiceData } from '../types.js';
 import COMMON from './shaders/common.glsl?raw';
 import SYNTH_303 from './shaders/synth-303.glsl?raw';
 import SYNTH_DX7 from './shaders/synth-dx7.glsl?raw';
@@ -19,10 +20,35 @@ import SYNTH_MOOG from './shaders/synth-moog.glsl?raw';
 import MIX_FS from './shaders/mix.glsl?raw';
 
 // Order MUST match INSTRUMENTS in constants.js — the index is the instrument id.
-const SYNTH_SRC = { '303': SYNTH_303, 'dx7': SYNTH_DX7, '808': SYNTH_808, 'moog': SYNTH_MOOG };
+const SYNTH_SRC: Record<InstrumentType, string> = { '303': SYNTH_303, 'dx7': SYNTH_DX7, '808': SYNTH_808, 'moog': SYNTH_MOOG };
+
+// One instrument's GPU resources: its synth program + audio/state textures, its
+// own dry-mix target, and its effects chain.
+interface InstRender {
+  name: InstrumentType;
+  id: number;
+  prog: GLProgram;
+  audio: WebGLTexture;
+  stateRead: WebGLTexture;
+  stateWrite: WebGLTexture;
+  fbo: WebGLFramebuffer | null;
+  mixTex: WebGLTexture;
+  mixFbo: WebGLFramebuffer | null;
+  fx: EffectsChain;
+}
 
 export class SynthRenderer {
-  constructor(gl, sampleRate, fxParams) {
+  gl: WebGL2RenderingContext;
+  sampleRate: number;
+  subBlock: number;
+  inst: InstRender[];
+  mixProg: GLProgram;
+  mixTex: WebGLTexture;
+  mixFbo: WebGLFramebuffer | null;
+  readBuf: Float32Array;
+  outBuf: Float32Array;
+
+  constructor(gl: WebGL2RenderingContext, sampleRate: number, fxParams: FxParamsByType | null) {
     this.gl = gl;
     this.sampleRate = sampleRate;
     // Strip width for the recursive ladder (303/Moog). Smaller = fewer filter
@@ -91,7 +117,7 @@ export class SynthRenderer {
 
   // vd: voice data with typed arrays (see tracker engine). blockStart: absolute frame.
   // Returns the shared interleaved-stereo output buffer (BLOCK*2 floats).
-  renderBlock(vd, blockStart) {
+  renderBlock(vd: VoiceData, blockStart: number): Float32Array {
     const gl = this.gl;
     gl.disable(gl.BLEND);
 

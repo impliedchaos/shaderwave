@@ -1,5 +1,5 @@
-// @ts-nocheck
 // Shared constants across audio + GL + tracker.
+import type { InstrumentType } from './types.js';
 
 export const BLOCK = 512;        // samples rendered per GPU pass (per channel)
 export const VOICES = 8;         // simultaneous voices per instrument
@@ -12,7 +12,7 @@ export const CHANNELS = 2;       // stereo, interleaved per frame
 export const PREBUFFER_BLOCKS = 16;
 
 // Instrument identifiers — also used as the synth shader program keys.
-export const INSTRUMENTS = ['303', 'dx7', '808', 'moog'];
+export const INSTRUMENTS: InstrumentType[] = ['303', 'dx7', '808', 'moog'];
 
 // Per-instance accent colours. The first four match the engine-type accents
 // (303/dx7/808/moog order); later entries distinguish additional instances
@@ -24,13 +24,13 @@ export const INSTRUMENT_COLORS = [
 ];
 
 // Hex colour → rgba() string for glow/shadow tints.
-export function instGlow(hex, a = 0.2) {
+export function instGlow(hex: string, a = 0.2): string {
   const n = parseInt(hex.slice(1), 16);
   return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
 }
 
 // MIDI note 69 = A4 = 440Hz.
 export const A4 = 440;
-export function noteToFreq(midi) {
+export function noteToFreq(midi: number): number {
   return A4 * Math.pow(2, (midi - 69) / 12);
 }

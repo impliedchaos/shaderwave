@@ -1,5 +1,5 @@
-// @ts-nocheck
-import { createProgram, drawQuad } from '../gl/program.js';
+import { createProgram } from '../gl/program.js';
+import type { GLProgram } from '../gl/program.js';
 
 const FRAG_SRC = `#version 300 es
 precision highp float;
@@ -111,7 +111,15 @@ void main() {
 `;
 
 export class GLVisualizer {
-  constructor(canvas) {
+  canvas: HTMLCanvasElement;
+  gl: WebGL2RenderingContext | null;
+  // Set together with a non-null gl; every use site guards on `this.gl` first.
+  prog!: GLProgram;
+  freqTex!: WebGLTexture;
+  waveTex!: WebGLTexture;
+  startTime = 0;
+
+  constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
     this.gl = canvas.getContext('webgl2', {
       alpha: false,
@@ -141,9 +149,10 @@ export class GLVisualizer {
     this.startTime = Date.now();
   }
 
-  _createDataTex(size) {
-    const gl = this.gl;
+  _createDataTex(size: number): WebGLTexture {
+    const gl = this.gl!;
     const tex = gl.createTexture();
+    if (!tex) throw new Error('gl.createTexture returned null');
     gl.bindTexture(gl.TEXTURE_2D, tex);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.R8, size, 1, 0, gl.RED, gl.UNSIGNED_BYTE, null);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
@@ -153,7 +162,13 @@ export class GLVisualizer {
     return tex;
   }
 
-  draw(freqData, waveData, bpm, playing, hexAccent) {
+  draw(
+    freqData: Uint8Array | null,
+    waveData: Uint8Array | null,
+    bpm: number,
+    playing: boolean,
+    hexAccent: string,
+  ) {
     if (!this.gl) return;
 
     const gl = this.gl;

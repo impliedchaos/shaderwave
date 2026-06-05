@@ -1,4 +1,3 @@
-// @ts-nocheck
 // Canvas-rendered pattern grid: row numbers down the left, one column per
 // channel showing note + instrument, with a cursor cell and a moving playhead
 // row. Pure rendering + cursor/hit-testing; key handling lives in main.js.
@@ -8,7 +7,7 @@ import { themeVar } from './theme.js';
 
 const NOTE_NAMES = ['C-', 'C#', 'D-', 'D#', 'E-', 'F-', 'F#', 'G-', 'G#', 'A-', 'A#', 'B-'];
 
-export function noteName(midi) {
+export function noteName(midi: number): string {
   if (midi === EMPTY) return '···';
   if (midi === OFF) return 'OFF';
   const n = NOTE_NAMES[((midi % 12) + 12) % 12];
@@ -36,11 +35,24 @@ const FX_COL_X = [CH_W + 2, CH_W + 32];
 const FX_COL_W = [30, 22];
 const FX_TEXT_PAD = [4, 2];
 
+type Selection = { r0: number; c0: number; r1: number; c1: number };
+type PanSlider = { trackX: number; trackW: number; trackY: number };
+
 export class TrackerView {
-  constructor(canvas, engine) {
+  canvas: HTMLCanvasElement;
+  engine: any;
+  ctx: CanvasRenderingContext2D;
+  cursor: { row: number; ch: number; col: number };
+  showFx: boolean;
+  selection: Selection | null;
+  _dragAnchor: { row: number; ch: number } | null;
+  scroll: number;
+  dpr: number;
+
+  constructor(canvas: HTMLCanvasElement, engine: any) {
     this.canvas = canvas;
     this.engine = engine;
-    this.ctx = canvas.getContext('2d');
+    this.ctx = canvas.getContext('2d')!;
     this.cursor = { row: 0, ch: 0, col: 0 };   // col: 0 note · 1 inst · 2 vol · 3 fx-cmd · 4 fx-val
     this.showFx = true;                         // automation column shown by default
     this.selection = null;                      // { r0, c0, r1, c1 } (normalized) or null
@@ -84,7 +96,7 @@ export class TrackerView {
   }
 
   // Map a mouse event to a {row, ch, col} cell, with row/ch clamped into range.
-  _cellAt(e) {
+  _cellAt(e: MouseEvent) {
     const r = this.canvas.getBoundingClientRect();
     const x = e.clientX - r.left, y = e.clientY - r.top;
     const p = this.pattern, cw = this.chW;
@@ -99,7 +111,7 @@ export class TrackerView {
     return { row, ch, col };
   }
 
-  _onMouseDown(e) {
+  _onMouseDown(e: MouseEvent) {
     const r = this.canvas.getBoundingClientRect();
     const x = e.clientX - r.left, y = e.clientY - r.top;
     const p = this.pattern;
@@ -124,7 +136,7 @@ export class TrackerView {
     this._dragAnchor = { row: hit.row, ch: hit.ch };
     this.selection = null;                          // a real selection appears once the drag moves
 
-    const move = (ev) => this._onMouseDrag(ev);
+    const move = (ev: MouseEvent) => this._onMouseDrag(ev);
     const up = () => {
       window.removeEventListener('mousemove', move);
       window.removeEventListener('mouseup', up);
@@ -134,7 +146,7 @@ export class TrackerView {
     window.addEventListener('mouseup', up);
   }
 
-  _onMouseDrag(e) {
+  _onMouseDrag(e: MouseEvent) {
     const a = this._dragAnchor;
     if (!a) return;
     const hit = this._cellAt(e);
@@ -148,7 +160,7 @@ export class TrackerView {
 
   // [x, width] of a cursor sub-field within a channel column whose left edge is x.
   // cols 0-2 = note/inst/vol; 3 = fx command; 4 = fx value.
-  _colRect(x, col) {
+  _colRect(x: number, col: number): [number, number] {
     if (col === 3) return [x + FX_COL_X[0], FX_COL_W[0]];
     if (col === 4) return [x + FX_COL_X[1], FX_COL_W[1]];
     return [x + COL_X[col], COL_W[col]];
@@ -158,7 +170,7 @@ export class TrackerView {
 
   // Geometry of channel `ch`'s header pan slider (CSS px): the track sits between
   // the "CH n" label and the mute badge, centred vertically in the header.
-  _panSlider(ch) {
+  _panSlider(ch: number): PanSlider {
     const x = NUM_W + ch * this.chW;
     const trackX = x + 40;
     const trackW = Math.max(12, this.chW - 82);
@@ -168,7 +180,7 @@ export class TrackerView {
 
   // Map a header x (CSS px) to a 0..1 pan and write it as channel `ch`'s base,
   // dropping any automation override. A small detent snaps to dead centre.
-  _setPanFromX(ch, s, x) {
+  _setPanFromX(ch: number, s: PanSlider, x: number) {
     let pn = Math.max(0, Math.min(1, (x - s.trackX) / s.trackW));
     if (Math.abs(pn - 0.5) < 0.05) pn = 0.5;
     this.engine.channelPan[ch] = pn;
@@ -176,8 +188,8 @@ export class TrackerView {
     this.engine.vd.pan[ch] = pn; // reflect immediately even if no block renders
   }
 
-  _beginPanDrag(ch, s) {
-    const move = (ev) => {
+  _beginPanDrag(ch: number, s: PanSlider) {
+    const move = (ev: MouseEvent) => {
       const r = this.canvas.getBoundingClientRect();
       this._setPanFromX(ch, s, ev.clientX - r.left);
     };
@@ -206,7 +218,7 @@ export class TrackerView {
   }
 
   // Scroll by N rows (mouse wheel / paging).
-  scrollBy(rows) {
+  scrollBy(rows: number) {
     this.scroll = Math.max(0, Math.min(this._maxScroll(), this.scroll + rows));
   }
 
@@ -225,7 +237,7 @@ export class TrackerView {
     const W = this.canvas.width / dpr, H = this.canvas.height / dpr;
     // Theme vars are cached and invalidated on instrument select (see theme.js),
     // so this no longer forces a style recalc every frame.
-    const C = (k) => themeVar(k);
+    const C = (k: string) => themeVar(k);
 
     // 1. Draw overall background
     ctx.fillStyle = C('--bg');
@@ -340,7 +352,7 @@ export class TrackerView {
     }
     ctx.stroke();
 
-    const drawBadge = (bx, by, bw, bh, text, isMuted) => {
+    const drawBadge = (bx: number, by: number, bw: number, bh: number, text: string, isMuted: boolean) => {
       ctx.save();
       const radius = 3;
       ctx.beginPath();
@@ -502,7 +514,7 @@ export class TrackerView {
               ctx.fillStyle = (instr && instr.color) || C('--accent');
             }
             // Display-only label overrides (keeps the underlying instrument id).
-            const INST_LABELS = { 'moog': 'MŌG' };
+            const INST_LABELS: Record<string, string> = { 'moog': 'MŌG' };
             const instLabel = INST_LABELS[instName] || instName.toUpperCase();
             ctx.fillText(instLabel, instX, y + ROW_H / 2);
 

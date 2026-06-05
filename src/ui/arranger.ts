@@ -1,19 +1,19 @@
-// @ts-nocheck
 // Song-arranger panel DOM: the pattern list (clone/delete) and the order list
 // (per-slot pattern picker + reorder/remove). Pulled out of main.js; takes the
 // App instance and calls back into it to re-render and redraw after edits.
 import { Pattern } from '../tracker/pattern.js';
 
-const $ = (id) => document.getElementById(id);
+const $ = (id: string) => document.getElementById(id);
 
-export function renderArranger(app) {
+// `app` is the main.ts App instance; typed loosely until main.ts is converted.
+export function renderArranger(app: any) {
   const song = app.engine.song;
   if (!song) return;
 
   const patList = $('arranger-pattern-list');
   if (patList) {
     patList.innerHTML = '';
-    song.patterns.forEach((pat, i) => {
+    song.patterns.forEach((pat: Pattern, i: number) => {
       const card = document.createElement('div');
       card.className = 'arranger-card';
       if (i === app.engine.currentPatternIdx) {
@@ -80,10 +80,10 @@ export function renderArranger(app) {
   const orderList = $('arranger-order-list');
   if (orderList) {
     orderList.innerHTML = '';
-    song.order.forEach((patIdx, i) => {
+    song.order.forEach((patIdx: number, i: number) => {
       const card = document.createElement('div');
       card.className = 'arranger-card';
-      card.setAttribute('data-order-idx', i);
+      card.setAttribute('data-order-idx', String(i));
 
       const info = document.createElement('div');
       info.className = 'arranger-card-info';
@@ -94,15 +94,15 @@ export function renderArranger(app) {
 
       const select = document.createElement('select');
       select.className = 'arranger-select';
-      song.patterns.forEach((p, pIdx) => {
+      song.patterns.forEach((p: Pattern, pIdx: number) => {
         const opt = document.createElement('option');
-        opt.value = pIdx;
+        opt.value = String(pIdx);
         opt.textContent = `Pattern ${pIdx}`;
         if (pIdx === patIdx) opt.selected = true;
         select.appendChild(opt);
       });
       select.onchange = (e) => {
-        song.order[i] = parseInt(e.target.value, 10);
+        song.order[i] = parseInt((e.target as HTMLSelectElement).value, 10);
         app._renderSongEditor();
       };
 
