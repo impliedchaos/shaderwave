@@ -254,7 +254,7 @@ src/gl/                    context, program helpers, SynthRenderer, shaders/
   shaders/mix.glsl             voice mixdown
   shaders/common.glsl          shared ADSR, noise, filter utilities (the prelude)
 src/gl/effects.ts          per-effect pass pipeline (data-driven chain order)
-src/audio/                 worklet.ts (classic script), pipeline.ts
+src/audio/                 worklet.js (classic script — plain JS so Vite emits a real .js asset), pipeline.ts
 src/tracker/               pattern, song (+ demo songs), engine (BPM clock), automation (param-target registry)
 src/ui/                    tracker-view (canvas grid), controls (sidebar + SysEx loader), presets (instrument preset bank)
 public/sysex/DX7/          .syx patch banks (ROM 1A–4B, Bass)
@@ -281,8 +281,6 @@ google-chrome --headless=new --enable-unsafe-swiftshader --dump-dom \
 
 - Oscillator phase is derived from time-since-note-on; very long notes (>tens of
   minutes) will drift. Fix: carry phase in the state texture like the filter.
-- Song is a single looping pattern; multi-pattern song order is modelled but has no
-  editor UI.
 - DX7 envelope is simplified ADSR; full rate/level 4-stage envelope not yet
   implemented.
 - MIDI input, with CC messages mapped onto automation targets (the stored value
