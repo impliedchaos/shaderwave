@@ -2631,7 +2631,7 @@ export const DEMO_SONGS = [
       return {
         patterns: P,
         // 24 slots × 64 rows at 128 BPM ≈ 3:00.
-        order: [0, 0, 1, 1, 2, 2, 3, 2, 4, 4, 5, 5, 3, 2, 6, 5, 5, 4, 5, 5, 3, 2, 7, 7],
+        order: [0, 1, 1, 2, 2, 3, 2, 4, 4, 5, 5, 3, 2, 6, 5, 5, 4, 5, 5, 3, 2, 7, 7],
         rowsPerBeat: 4
       };
     }
@@ -3104,11 +3104,11 @@ export const DEMO_SONGS = [
       padBreath(p[4], 350, 1300, [6, 7]); bellBright(p[4], 3.0, 6.0); acidScream(p[4], 0.6, 0.95);
       // p5 breakdown — no drums; pad + bell drenched in a reverb wash (fx-scope on ch7)
       pad(p[5], 0.5); bell(p[5], 0.45);
-      p[5].set(0, 5, OFF, I_bell);   // cut any bell tail ringing in from the drop
+      p[5].set(0, 4, OFF, I_acid);   // cut any acid tail ringing in from the drop
       padBreath(p[5], 250, 850, [6]); bellBright(p[5], 2.0, 4.0); revWash(p[5], 7, 0.35, 0.85);
       // p6 outro — pad + soft bell fade
       pad(p[6], 0.4); bell(p[6], 0.3); padBreath(p[6], 200, 480, [6, 7]);
-      p[6].set(0, 5, OFF, I_bell);   // clean bell entrance into the outro
+      p[6].set(0, 4, OFF, I_acid);   // clean bell entrance into the outro
 
       return {
         patterns: p,
