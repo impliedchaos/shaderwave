@@ -20,7 +20,12 @@ void main() {
   float s1 = texelFetch(uFdn, ivec2(pf, 1), 0).r;
   float s2 = texelFetch(uFdn, ivec2(pf, 2), 0).r;
   float s3 = texelFetch(uFdn, ivec2(pf, 3), 0).r;
-  vec2 rev = vec2(s0 - s1 + s2 - s3, s0 + s1 - s2 + s3) * 0.5;
+  // Decode two stereo channels from the four lines. Both coefficient vectors must
+  // be zero-sum so the mono input (injected equally into every line) cancels in
+  // BOTH channels — otherwise the dry-mono component leaks into one side (the old
+  // R = s0+s1-s2+s3 summed to +2, making the right channel ~+4.6 dB hot). The two
+  // vectors are also mutually orthogonal, for decorrelated L/R.
+  vec2 rev = vec2(s0 - s1 + s2 - s3, s0 + s1 - s2 - s3) * 0.5;
 
   outColor = vec4(dry + uReverbMix * rev, 0.0, 1.0);
 }
