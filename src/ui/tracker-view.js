@@ -386,27 +386,72 @@ export class TrackerView {
 
       drawBadge(x + cw - 38, pad / 2 - 6, 30, 12, isMuted ? 'MUT' : 'ON', isMuted);
 
-      // Pan slider: track + centre tick + thumb at the live pan (base, or the
-      // automation override while it's driving the channel during playback).
+      // Pan slider: tight 1px box with grey background that fades to green (port/left) or red (starboard/right).
       const s = this._panSlider(ch);
       const pa = this.engine.panAuto[ch];
       const pan = Number.isNaN(pa) ? this.engine.channelPan[ch] : pa;
-      ctx.strokeStyle = isMuted ? 'rgba(45, 58, 82, 0.4)' : 'rgba(98, 114, 164, 0.45)';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(s.trackX, s.trackY);
-      ctx.lineTo(s.trackX + s.trackW, s.trackY);
-      ctx.stroke();
-      ctx.strokeStyle = 'rgba(98, 114, 164, 0.55)';
+
+      // Darkened colors: base (dark slate grey), left (dark port green), right (dark starboard red)
+      const baseColor = { r: 51, g: 65, b: 85 };    // #334155
+      const greenColor = { r: 16, g: 122, b: 87 };   // #107a57
+      const redColor = { r: 153, g: 27, b: 27 };     // #991b1b
+
+      let r, g, b;
+      if (pan < 0.5) {
+        const t = (0.5 - pan) / 0.5; // 0.0 at center, 1.0 at full left
+        r = Math.round(baseColor.r + (greenColor.r - baseColor.r) * t);
+        g = Math.round(baseColor.g + (greenColor.g - baseColor.g) * t);
+        b = Math.round(baseColor.b + (greenColor.b - baseColor.b) * t);
+      } else {
+        const t = (pan - 0.5) / 0.5; // 0.0 at center, 1.0 at full right
+        r = Math.round(baseColor.r + (redColor.r - baseColor.r) * t);
+        g = Math.round(baseColor.g + (redColor.g - baseColor.g) * t);
+        b = Math.round(baseColor.b + (redColor.b - baseColor.b) * t);
+      }
+
+      const alpha = isMuted ? 0.35 : 1.0;
+      const bgStyle = `rgba(${r}, ${g}, ${b}, ${alpha})`;
+      const borderStyle = isMuted ? 'rgba(71, 85, 105, 0.4)' : '#475569';
+
+      const h = 10; // height of the box (fits nicely in the 26px header)
+      const bx = s.trackX;
+      const by = s.trackY - h / 2;
+      const bw = s.trackW;
+      const bh = h;
+
+      // Draw background
+      ctx.fillStyle = bgStyle;
+      ctx.fillRect(bx, by, bw, bh);
+
+      // Draw single-pixel border tightly
+      ctx.strokeStyle = borderStyle;
       ctx.lineWidth = 1;
+      ctx.strokeRect(bx + 0.5, by + 0.5, bw - 1, bh - 1);
+
+      // Center tick mark indicating default pan setting
+      ctx.strokeStyle = isMuted ? 'rgba(0, 0, 0, 0.15)' : 'rgba(0, 0, 0, 0.3)';
       ctx.beginPath();
-      ctx.moveTo(s.trackX + s.trackW / 2, s.trackY - 3);
-      ctx.lineTo(s.trackX + s.trackW / 2, s.trackY + 3);
+      ctx.moveTo(bx + bw / 2, by + 1);
+      ctx.lineTo(bx + bw / 2, by + bh - 1);
       ctx.stroke();
+
+      // Draw a substantial 5px wide pointed thumb (house shape pointing up) with a dark border
+      const thumbW = 5;
+      const thumbX = Math.round(bx + pan * (bw - thumbW));
+      ctx.fillStyle = isMuted ? 'rgba(200, 200, 200, 0.4)' : '#ffffff';
+      ctx.strokeStyle = isMuted ? 'rgba(0, 0, 0, 0.2)' : 'rgba(0, 0, 0, 0.55)';
+      ctx.lineWidth = 1;
+
       ctx.beginPath();
-      ctx.arc(s.trackX + pan * s.trackW, s.trackY, 4, 0, Math.PI * 2);
-      ctx.fillStyle = isMuted ? C('--dim') : C('--accent');
+      ctx.moveTo(thumbX, by + bh - 1);
+      ctx.lineTo(thumbX, by + 4);
+      ctx.lineTo(thumbX + thumbW / 2, by + 1);
+      ctx.lineTo(thumbX + thumbW, by + 4);
+      ctx.lineTo(thumbX + thumbW, by + bh - 1);
+      ctx.closePath();
+
       ctx.fill();
+      ctx.stroke();
     }
 
     ctx.font = '14px "JetBrains Mono", "Fira Code", monospace';
