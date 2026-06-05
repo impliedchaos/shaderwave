@@ -539,8 +539,35 @@ export class Controls {
         // Operators are stored in reverse order: Op 6 is offset 0, Op 1 is offset 85
         const opOffset = (5 - k) * 17;
         
+        // 4-stage envelope: rates (0-99) and levels (0-99)
+        const rate1 = voiceData[opOffset + 0];
         const rate2 = voiceData[opOffset + 1];
-        const decay = Math.max(0.05, 4.0 * (1.0 - rate2 / 99.0));
+        const rate3 = voiceData[opOffset + 2];
+        const rate4 = voiceData[opOffset + 3];
+        const level1 = voiceData[opOffset + 4];
+        const level2 = voiceData[opOffset + 5];
+        const level3 = voiceData[opOffset + 6];
+        const level4 = voiceData[opOffset + 7];
+        
+        // Crude but better DX7 rate mapping: rate 99 ~ 2ms, rate 0 ~ 30s.
+        // Math.pow(2.0, (99 - R) * 0.14) * 0.002 gives a decent spread.
+        const rToS = (r: number) => r === 99 ? 0.002 : Math.max(0.002, Math.pow(2.0, (99 - r) * 0.14) * 0.002);
+        const lToF = (l: number) => l / 99.0;
+        
+        const r1 = rToS(rate1);
+        const r2 = rToS(rate2);
+        const r3 = rToS(rate3);
+        const r4 = rToS(rate4);
+        
+        const l1 = lToF(level1);
+        const l2 = lToF(level2);
+        const l3 = lToF(level3);
+        const l4 = lToF(level4);
+        
+        // Legacy fields mapping for compatibility if needed (decay, sustain, release)
+        const decay = r2;
+        const sustain = l3;
+        const release = r4;
         
         const level = voiceData[opOffset + 14];
         
@@ -549,22 +576,18 @@ export class Controls {
         let coarse = (mode_coarse >> 1) & 31;
         if (mode === 0) {
           coarse = coarse === 0 ? 0.5 : coarse;
-        } else {
-          // Fixed frequency mode: coarse is 0, 1, 2, or 3, corresponding to 1, 10, 100, 1000 Hz
         }
         
         const fine = voiceData[opOffset + 16];
         
         const krs_detune = voiceData[opOffset + 12];
         const detune = ((krs_detune >> 3) & 15) - 7; // -7 to +7
-
-        const l3 = voiceData[opOffset + 6]; // sustain level (0-99)
-        const sustain = l3 / 99.0;
-
-        const rate4 = voiceData[opOffset + 3]; // release rate (0-99)
-        const release = Math.max(0.05, 4.0 * (1.0 - rate4 / 99.0));
         
-        ops.push({ coarse, fine, level, detune, decay, mode, sustain, release });
+        ops.push({ 
+          coarse, fine, level, detune, mode, 
+          decay, sustain, release,
+          r1, r2, r3, r4, l1, l2, l3, l4 
+        });
       }
       
       patches.push({ name, algo, feedback, ops });

@@ -119,12 +119,15 @@ export class Engine {
       gain: new Float32Array(VOICES).fill(1),
       pan: new Float32Array(VOICES).fill(0.5),
       master: 0.32,
-      // Per-voice DX7 operator config, packed into two vec4 arrays (keeps the
+      // Per-voice DX7 operator config, packed into vec4 arrays (keeps the
       // fragment-uniform count low vs 8 scalar arrays). Indexed [v*6 + op]:
       //   A = (coarse, fine, level, detune)   B = (mode, sustain, release, decay)
+      //   C = (r1, r2, r3, r4)                D = (l1, l2, l3, l4)
       dx7Ops: {
         A: new Float32Array(VOICES * 6 * 4),
         B: new Float32Array(VOICES * 6 * 4),
+        C: new Float32Array(VOICES * 6 * 4),
+        D: new Float32Array(VOICES * 6 * 4),
       }
     };
 
@@ -368,7 +371,7 @@ export class Engine {
     // Refresh each active DX7 voice's operator config from ITS instrument, packed
     // into the per-voice vec4 arrays. Refreshing every block (not just at trigger)
     // keeps knob edits live; per-voice means two DX7 instances can differ.
-    const { A, B } = this.vd.dx7Ops;
+    const { A, B, C, D } = this.vd.dx7Ops;
     for (let v = 0; v < VOICES; v++) {
       const vc = this.voices[v];
       if (!vc.active) continue;
@@ -378,7 +381,18 @@ export class Engine {
         const op = instr.ops[i];
         const o = (v * 6 + i) * 4;
         A[o] = op.coarse; A[o + 1] = op.fine; A[o + 2] = op.level; A[o + 3] = op.detune;
-        B[o] = op.mode ?? 0; B[o + 1] = op.sustain ?? 0.7; B[o + 2] = op.release ?? 0.25; B[o + 3] = op.decay;
+        B[o] = op.mode ?? 0; B[o + 1] = op.sustain ?? 0.7; B[o + 2] = op.release ?? 0.25; B[o + 3] = op.decay ?? 0.5;
+        
+        // 4-stage envelope: fallback to legacy ADSR parameters if r1 is missing
+        C[o] = op.r1 ?? 0.002;
+        C[o + 1] = op.r2 ?? (op.decay ?? 0.5);
+        C[o + 2] = op.r3 ?? 0.0;
+        C[o + 3] = op.r4 ?? (op.release ?? 0.25);
+        
+        D[o] = op.l1 ?? 1.0;
+        D[o + 1] = op.l2 ?? (op.sustain ?? 0.7);
+        D[o + 2] = op.l3 ?? (op.sustain ?? 0.7);
+        D[o + 3] = op.l4 ?? 0.0;
       }
     }
     return this.vd;

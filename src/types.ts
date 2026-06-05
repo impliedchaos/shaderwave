@@ -16,10 +16,18 @@ export interface DX7Op {
   fine: number;
   level: number;
   detune: number;
-  decay: number;
+  decay?: number;
   mode: number;
-  sustain: number;
-  release: number;
+  sustain?: number;
+  release?: number;
+  r1?: number;
+  r2?: number;
+  r3?: number;
+  r4?: number;
+  l1?: number;
+  l2?: number;
+  l3?: number;
+  l4?: number;
 }
 
 // A per-engine-type param bank as authored in songs (defaultParams / makeParams).
@@ -131,8 +139,8 @@ export interface VoiceData {
   gain: Float32Array;
   pan: Float32Array;
   master: number;
-  // Per-voice DX7 operator config, packed [v*6 + op] into two vec4 arrays.
-  dx7Ops: { A: Float32Array; B: Float32Array };
+  // Per-voice DX7 operator config, packed [v*6 + op] into vec4 arrays.
+  dx7Ops: { A: Float32Array; B: Float32Array; C: Float32Array; D: Float32Array };
 }
 
 // ── Songs ─────────────────────────────────────────────────────────────────

@@ -12,6 +12,8 @@
 //   uOpA = (coarse, fine, level, detune)   uOpB = (mode, sustain, release, decay)
 uniform vec4 uOpA[VOICES * 6];
 uniform vec4 uOpB[VOICES * 6];
+uniform vec4 uOpC[VOICES * 6];
+uniform vec4 uOpD[VOICES * 6];
 
 void main(){
   int x = int(gl_FragCoord.x);
@@ -30,18 +32,18 @@ void main(){
   int algo = int(p1.x + 0.5);
   float mDecay = p1.y, aDecay = p1.z, cR2 = p1.w;
 
-  float env1 = adsr(t, tRel, 0.002, uOpB[b+0].w, uOpB[b+0].y, uOpB[b+0].z);
-  float env2 = adsr(t, tRel, 0.002, uOpB[b+1].w, uOpB[b+1].y, uOpB[b+1].z);
-  float env3 = adsr(t, tRel, 0.002, uOpB[b+2].w, uOpB[b+2].y, uOpB[b+2].z);
-  float env4 = adsr(t, tRel, 0.002, uOpB[b+3].w, uOpB[b+3].y, uOpB[b+3].z);
-  float env5 = adsr(t, tRel, 0.002, uOpB[b+4].w, uOpB[b+4].y, uOpB[b+4].z);
-  float env6 = adsr(t, tRel, 0.002, uOpB[b+5].w, uOpB[b+5].y, uOpB[b+5].z);
+  float env1 = env4(t, tRel, uOpC[b+0], uOpD[b+0]);
+  float env2 = env4(t, tRel, uOpC[b+1], uOpD[b+1]);
+  float env3 = env4(t, tRel, uOpC[b+2], uOpD[b+2]);
+  float env4_ = env4(t, tRel, uOpC[b+3], uOpD[b+3]);
+  float env5 = env4(t, tRel, uOpC[b+4], uOpD[b+4]);
+  float env6 = env4(t, tRel, uOpC[b+5], uOpD[b+5]);
 
   // DX7 Level to Gain formula: gain = 2^((Level + 99*env - 198) / 8)
   float lvl1 = uOpA[b+0].z <= 0.0 ? 0.0 : exp2((uOpA[b+0].z + 99.0 * env1 - 198.0) / 8.0);
   float lvl2 = uOpA[b+1].z <= 0.0 ? 0.0 : exp2((uOpA[b+1].z + 99.0 * env2 - 198.0) / 8.0);
   float lvl3 = uOpA[b+2].z <= 0.0 ? 0.0 : exp2((uOpA[b+2].z + 99.0 * env3 - 198.0) / 8.0);
-  float lvl4 = uOpA[b+3].z <= 0.0 ? 0.0 : exp2((uOpA[b+3].z + 99.0 * env4 - 198.0) / 8.0);
+  float lvl4 = uOpA[b+3].z <= 0.0 ? 0.0 : exp2((uOpA[b+3].z + 99.0 * env4_ - 198.0) / 8.0);
   float lvl5 = uOpA[b+4].z <= 0.0 ? 0.0 : exp2((uOpA[b+4].z + 99.0 * env5 - 198.0) / 8.0);
   float lvl6 = uOpA[b+5].z <= 0.0 ? 0.0 : exp2((uOpA[b+5].z + 99.0 * env6 - 198.0) / 8.0);
 

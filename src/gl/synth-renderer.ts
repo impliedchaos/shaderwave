@@ -151,6 +151,8 @@ export class SynthRenderer {
       if (it.name === 'dx7' && vd.dx7Ops) {
         gl.uniform4fv(p.u('uOpA[0]'), vd.dx7Ops.A);   // per-voice (coarse,fine,level,detune)
         gl.uniform4fv(p.u('uOpB[0]'), vd.dx7Ops.B);   // per-voice (mode,sustain,release,decay)
+        gl.uniform4fv(p.u('uOpC[0]'), vd.dx7Ops.C);   // per-voice (r1,r2,r3,r4)
+        gl.uniform4fv(p.u('uOpD[0]'), vd.dx7Ops.D);   // per-voice (l1,l2,l3,l4)
       }
       if (it.name === 'moog' && vd.p2) {
         gl.uniform4fv(p.u('uP2[0]'), vd.p2);          // osc waveforms/octaves, glide, noise

@@ -78,6 +78,23 @@ float adsr(float t, float tRel, float a, float d, float s, float r){
   return max(0.0, lvlAtRelease * (1.0 - tRel / max(r, 1e-5)));
 }
 
+// 4-stage envelope (DX7 style)
+float envPre4(float t, vec4 times, vec4 levels) {
+  if (t < times.x) return mix(0.0, levels.x, t / max(times.x, 1e-5));
+  t -= times.x;
+  if (t < times.y) return mix(levels.x, levels.y, t / max(times.y, 1e-5));
+  t -= times.y;
+  if (t < times.z) return mix(levels.y, levels.z, t / max(times.z, 1e-5));
+  return levels.z;
+}
+
+float env4(float t, float tRel, vec4 times, vec4 levels) {
+  if (tRel < 0.0) return envPre4(t, times, levels);
+  float lvlAtRelease = envPre4(t - tRel, times, levels);
+  float rt = clamp(tRel / max(times.w, 1e-5), 0.0, 1.0);
+  return mix(lvlAtRelease, levels.w, rt);
+}
+
 // --- transistor ladder filter (4-pole, nonlinear feedback) -----------------
 // state.xyzw = the four one-pole stage outputs. g = per-sample coefficient
 // (≈ 1 - exp(-2π·fc/SR)), res in 0..1 (→ feedback up to self-oscillation).
