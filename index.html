@@ -132,7 +132,31 @@
     text-align: right;
     transition: color 0.5s ease;
   }
-  
+
+  /* Volume + VU meter: L channel above the slider, R below; both the slider's
+     width. The fill maps 0..125% of full scale to the bar width (so its 100%
+     point lines up with the slider's), accent colour up to unity, the hot
+     colour once it clips. */
+  .vol-meter { display: flex; flex-direction: column; gap: 2px; width: 160px; }
+  .vol-meter input[type="range"] { width: 160px; margin: 0; }
+  .vol-meter .vu {
+    height: 4px;
+    background: rgba(0, 0, 0, 0.45);
+    border: 1px solid rgba(45, 60, 85, 0.5);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .vol-meter .vu-fill {
+    height: 100%; width: 0%;
+    background: var(--accent);
+    box-shadow: 0 0 6px var(--accent-glow);
+    transition: width 0.05s linear;
+  }
+  .vol-meter .vu-fill.clip {
+    background: var(--hot);
+    box-shadow: 0 0 6px var(--hot-glow);
+  }
+
   /* Futuristic LCD screen styling for settings */
   .lcd-display {
     background: #030508;
@@ -1145,6 +1169,13 @@
     <div class="control-group">
       <button id="play" class="primary">▶︎ Play</button>
       <button id="stop">■ Stop</button>
+      <span class="vol-label">VOL</span>
+      <div class="vol-meter">
+        <div class="vu"><div class="vu-fill" id="vu-l"></div></div>
+        <input id="volume" type="range" min="0" max="125" value="100" />
+        <div class="vu"><div class="vu-fill" id="vu-r"></div></div>
+      </div>
+      <span id="volume-val" class="vol-val">100%</span>
     </div>
     <div class="control-group header-right">
       <button id="new-song-btn" title="Create a new blank song">📄 New</button>
@@ -1164,11 +1195,6 @@
       <label>OCT <input id="octave" type="number" value="4" min="0" max="8" /></label>
       <div class="lcd-divider"></div>
       <label>TIME <span id="track-time" class="lcd-time">0:00 / 0:00</span></label>
-    </div>
-    <div class="control-group">
-      <span class="vol-label">VOL</span>
-      <input id="volume" type="range" min="0" max="100" value="32" style="width: 80px;" />
-      <span id="volume-val" class="vol-val">32%</span>
     </div>
     <div class="spacer"></div>
   </header>

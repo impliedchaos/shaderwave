@@ -162,6 +162,7 @@ export class App {
     this.renderer = new SynthRenderer(this.gl, sr, this.fxParams);
     const produce = (blockStart) => this.renderer.renderBlock(this.engine.advance(blockStart), blockStart);
     await this.pipeline.start(produce);
+    this.pipeline.setVolume(this._playbackVolume ?? 1.0); // apply the slider's monitor gain
     this.audioReady = true;
     $('audio-status').innerHTML = `audio: <span class="ok">running</span> @ ${sr | 0}Hz`;
   }
@@ -275,10 +276,13 @@ export class App {
     const volInput = $('volume');
     const volVal = $('volume-val');
     if (volInput && volVal) {
+      this._playbackVolume = (+volInput.value || 100) / 100; // monitor gain, not the render level
       volInput.oninput = (e) => {
-        const val = +e.target.value;
+        let val = +e.target.value;
+        if (Math.abs(val - 100) <= 5) { val = 100; e.target.value = '100'; } // detent at unity
         volVal.textContent = `${val}%`;
-        this.engine.vd.master = val / 100;
+        this._playbackVolume = val / 100;
+        this.pipeline.setVolume(this._playbackVolume);
       };
     }
     const songSelect = $('song-select');
@@ -847,6 +851,22 @@ export class App {
     if (this.engine.playing) this.engine.stop(); else this.engine.play();
   }
 
+  // Drive the L/R VU bars from the post-volume peak. Width maps 0..125% of full
+  // scale (so the bar's 100% point lines up with the slider's), green up to
+  // unity and red once it clips. Instant attack, smooth release.
+  _drawVuMeters(lEl, rEl) {
+    if (!lEl || !rEl) return;
+    const [pl, pr] = (this.pipeline && this.pipeline.peaks) ? this.pipeline.peaks() : [0, 0];
+    this._vuL = Math.max(pl, (this._vuL || 0) * 0.82);
+    this._vuR = Math.max(pr, (this._vuR || 0) * 0.82);
+    const apply = (el, v) => {
+      el.style.width = Math.min(100, (v / 1.25) * 100) + '%';
+      el.classList.toggle('clip', v > 1.0);
+    };
+    apply(lEl, this._vuL);
+    apply(rEl, this._vuR);
+  }
+
   _drawVisualizer() {
     const canvas = $('visualizer');
     if (!canvas) return;
@@ -974,11 +994,14 @@ export class App {
     const perfStatus = $('perf-status');
     const orderListEl = $('arranger-order-list');
     const trackTimeEl = $('track-time');
+    const vuLEl = $('vu-l');
+    const vuREl = $('vu-r');
 
     const tick = () => {
       this.view.draw();
       this._drawVisualizer();
       this._syncKnobs();
+      this._drawVuMeters(vuLEl, vuREl);
 
       // Reflect play/pause state in button class/text
       if (playBtn) {

@@ -39,8 +39,22 @@ export class AudioPipeline {
     });
     this.analyser = this.ctx.createAnalyser();
     this.analyser.fftSize = 512;
+    // Playback (monitor) volume — applied AFTER the visualizer tap and only on
+    // the live output, so it never touches the rendered/exported signal.
+    this.volume = this.ctx.createGain();
+    this.volume.gain.value = 1.0;
     this.node.connect(this.analyser);
-    this.analyser.connect(this.ctx.destination);
+    this.analyser.connect(this.volume);
+    this.volume.connect(this.ctx.destination);
+    // Post-volume L/R metering taps for the VU meter (peak per channel). These
+    // are analysis sinks — they don't need to reach the destination to work.
+    const splitter = this.ctx.createChannelSplitter(2);
+    this.meterL = this.ctx.createAnalyser(); this.meterL.fftSize = 256;
+    this.meterR = this.ctx.createAnalyser(); this.meterR.fftSize = 256;
+    this.volume.connect(splitter);
+    splitter.connect(this.meterL, 0);
+    splitter.connect(this.meterR, 1);
+    this._meterBuf = new Float32Array(256);
     this.node.port.onmessage = (e) => {
       const d = e.data;
       if (typeof d.consumed === 'number') this.consumedFrames = d.consumed;
@@ -88,4 +102,19 @@ export class AudioPipeline {
   }
 
   requestStats() { if (this.node) this.node.port.postMessage({ cmd: 'stats' }); }
+
+  // Set the playback (monitor) gain. 1.0 = unity; >1 can clip the output device.
+  setVolume(g) { if (this.volume) this.volume.gain.value = g; }
+
+  // Current post-volume peak amplitude per channel, [left, right]. Full scale = 1.
+  peaks() {
+    if (!this.meterL) return [0, 0];
+    const buf = this._meterBuf;
+    let l = 0, r = 0;
+    this.meterL.getFloatTimeDomainData(buf);
+    for (let i = 0; i < buf.length; i++) { const a = Math.abs(buf[i]); if (a > l) l = a; }
+    this.meterR.getFloatTimeDomainData(buf);
+    for (let i = 0; i < buf.length; i++) { const a = Math.abs(buf[i]); if (a > r) r = a; }
+    return [l, r];
+  }
 }
