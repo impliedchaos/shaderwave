@@ -381,31 +381,43 @@
 
   .inst-list {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 8px;
+    grid-template-columns: 1fr;
+    gap: 4px;
     background: rgba(16, 22, 34, 0.4);
     border: 1px solid rgba(45, 60, 85, 0.2);
     border-radius: 10px;
-    padding: 10px;
+    padding: 8px;
   }
-  
+
   .inst-list button {
     background: rgba(22, 30, 46, 0.6);
     color: var(--dim);
     border: 1px solid var(--panel-border);
-    padding: 12px 8px;
+    padding: 6px 10px;
     border-radius: 6px;
     cursor: pointer;
     font-family: var(--font-heading);
     font-size: 13px; font-weight: 800;
     letter-spacing: 1.5px;
-    text-align: center;
+    text-align: left;
     transition: all 0.3s ease;
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start;
+    gap: 9px;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+  }
+
+  /* Instrument index prefix (0-based, matches the tracker's inst column). */
+  .inst-list button .inst-num {
+    opacity: 0.5;
+    font-family: "JetBrains Mono", "Fira Code", monospace;
+    font-weight: 700;
+    letter-spacing: 0;
+    min-width: 22px;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
   }
   
   .inst-list button:hover {

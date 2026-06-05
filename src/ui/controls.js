@@ -197,7 +197,13 @@ export class Controls {
     this.instEl.innerHTML = '';
     this.engine.instruments.forEach((instr, i) => {
       const b = document.createElement('button');
-      b.textContent = instr.name || instr.type.toUpperCase();
+      const num = document.createElement('span');
+      num.className = 'inst-num';
+      num.textContent = String(i).padStart(2, '0') + ':';
+      const label = document.createElement('span');
+      label.className = 'inst-name';
+      label.textContent = instr.name || instr.type.toUpperCase();
+      b.append(num, label);
       const sel = i === this.selected;
       b.className = sel ? 'sel' : '';
       // Each instance carries its own colour so duplicate engines are
