@@ -5,26 +5,13 @@
 //
 // NOTE: audioWorklet.addModule() loads this as a *classic* script, so no ES
 // `import`. Everything it needs arrives over the port.
-
-// The AudioWorklet global scope isn't in TypeScript's standard DOM lib; declare
-// the minimal surface this processor uses.
-declare abstract class AudioWorkletProcessor {
-  readonly port: MessagePort;
-  constructor();
-}
-declare function registerProcessor(
-  name: string,
-  processorCtor: new () => AudioWorkletProcessor,
-): void;
-
+//
+// Authored in plain JS (NOT TypeScript) on purpose: `new URL('./worklet.js',
+// import.meta.url)` makes Vite emit this file as a static asset verbatim — it is
+// NOT transpiled. A .ts source would ship raw TypeScript with a `.ts` name, which
+// a static host serves as video/mp2t and addModule() rejects in production (works
+// in dev only because the dev server transpiles on the fly). Keep this as .js.
 class SynthSink extends AudioWorkletProcessor {
-  queue: Float32Array[];   // pending blocks (interleaved stereo)
-  head: number;            // read cursor (frames) into queue[0]
-  consumed: number;        // total frames played (monotonic)
-  underruns: number;
-  started: boolean;
-  sinceReport: number;
-
   constructor() {
     super();
     this.queue = [];        // pending Float32Array blocks (interleaved stereo)
@@ -34,7 +21,7 @@ class SynthSink extends AudioWorkletProcessor {
     this.started = false;
     this.sinceReport = 0;
 
-    this.port.onmessage = (e: MessageEvent) => {
+    this.port.onmessage = (e) => {
       const d = e.data;
       if (d.block) this.queue.push(d.block);
       else if (d.cmd === 'reset') {
@@ -56,7 +43,7 @@ class SynthSink extends AudioWorkletProcessor {
     this.port.postMessage({ consumed: this.consumed, underruns: this.underruns, depth });
   }
 
-  process(_inputs: Float32Array[][], outputs: Float32Array[][]) {
+  process(_inputs, outputs) {
     const out = outputs[0];
     const left = out[0];
     const right = out[1] || out[0];
