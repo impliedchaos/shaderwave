@@ -113,6 +113,7 @@ export class App {
   controls: Controls;
   held: Map<string, number>;
   customSongName: string | null = null;
+  lastRecordedRow = 0;        // video-export progress cursor
   _playbackVolume?: number;
   _fxKnobs: { el: KnobEl; key: string }[] = [];
   _fxPanelType?: string;

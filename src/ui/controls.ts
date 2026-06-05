@@ -4,7 +4,10 @@
 import { INSTRUMENTS, instGlow } from '../constants.js';
 import { defaultFxParams } from '../gl/effects.js';
 import { PRESETS } from './presets.js';
-import type { DX7Op } from '../types.js';
+import type { Preset } from './presets.js';
+import type { DX7Op, FxParams, InstrumentInstance, InstrumentType } from '../types.js';
+import type { Engine } from '../tracker/engine.js';
+import type { App } from '../main.js';
 
 // A knob <div> the UI loop can drive externally (live automation tracking).
 type KnobEl = HTMLElement & { _extSet?: (v: number) => void };
@@ -101,17 +104,17 @@ interface ControlsOpts {
   instEl: HTMLElement;
   paramEl: HTMLElement;
   onSelect?: (i: number) => void;
-  onPresetChange?: (type: string, fx: any) => void;
-  app?: any;
+  onPresetChange?: (type: string, fx: Partial<FxParams>) => void;
+  app?: App;
 }
 
 export class Controls {
-  engine: any;
+  engine: Engine;
   instEl: HTMLElement;
   paramEl: HTMLElement;
   onSelect?: (i: number) => void;
-  onPresetChange?: (type: string, fx: any) => void;
-  app: any;
+  onPresetChange?: (type: string, fx: Partial<FxParams>) => void;
+  app?: App;
   selected: number;
   activeOp: number;
   dx7Patches: SysexPatch[] | null;
@@ -119,7 +122,7 @@ export class Controls {
   romCache: Record<string, SysexPatch[]>;
   paramKnobs: { el: KnobEl; bank?: string; i?: number }[] = [];
 
-  constructor(engine: any, { instEl, paramEl, onSelect, onPresetChange, app }: ControlsOpts) {
+  constructor(engine: Engine, { instEl, paramEl, onSelect, onPresetChange, app }: ControlsOpts) {
     this.engine = engine;
     this.instEl = instEl;
     this.paramEl = paramEl;
@@ -194,8 +197,8 @@ export class Controls {
   }
 
   // The currently selected instrument-table instance and its engine type.
-  get _instr() { return this.engine.instruments[this.selected]; }
-  get _type() { return this._instr ? this._instr.type : null; }
+  get _instr(): InstrumentInstance { return this.engine.instruments[this.selected]; }
+  get _type(): InstrumentType | null { return this._instr ? this._instr.type : null; }
 
   // The "+ Add" dropdown (above the list) — pick an engine type to append.
   _buildAddMenu() {
@@ -206,7 +209,7 @@ export class Controls {
     sel.value = '';
     sel.onchange = (e) => {
       const target = e.target as HTMLSelectElement;
-      const type = target.value;
+      const type = target.value as InstrumentType;
       target.value = '';
       if (!type) return;
 
@@ -240,7 +243,7 @@ export class Controls {
 
   _buildInstruments() {
     this.instEl.innerHTML = '';
-    this.engine.instruments.forEach((instr: any, i: number) => {
+    this.engine.instruments.forEach((instr: InstrumentInstance, i: number) => {
       const b = document.createElement('button');
       const num = document.createElement('span');
       num.className = 'inst-num';
@@ -310,7 +313,7 @@ export class Controls {
           if (Math.abs(pr.p0[3] - patch.feedback) > 0.12) continue;
           let match = true;
           for (let k = 0; k < 6; k++) {
-            const op = pr.ops[k];
+            const op = pr.ops![k];
             const pop = patch.ops[k];
             if (!op || !pop) {
               match = false;
@@ -349,7 +352,7 @@ export class Controls {
         }
       }
     } else {
-      const plist = (PRESETS as Record<string, any[]>)[instName];
+      const plist = PRESETS[instName];
       if (!plist) return { rom: null, index: -1 };
       for (let idx = 0; idx < plist.length; idx++) {
         const preset = plist[idx];
@@ -397,8 +400,8 @@ export class Controls {
         opt.textContent = `${idx + 1}: ${p.name}`;
         presetSelect.appendChild(opt);
       });
-    } else if ((PRESETS as Record<string, any[]>)[instName]) {
-      (PRESETS as Record<string, any[]>)[instName].forEach((p: any, idx: number) => {
+    } else if (PRESETS[instName]) {
+      PRESETS[instName].forEach((p: Preset, idx: number) => {
         const opt = document.createElement('option');
         opt.value = String(idx);
         opt.textContent = p.name;
@@ -422,21 +425,22 @@ export class Controls {
       if (this.dx7Patches && this.dx7Patches[presetIdx]) {
         const patch = this.dx7Patches[presetIdx];
         const pr = this._instr;
+        const ops = pr.ops!;   // dx7 instances always carry operator config
         pr.p1[0] = patch.algo;
         pr.p0[3] = patch.feedback;
         for (let k = 0; k < 6; k++) {
-          pr.ops[k].coarse = patch.ops[k].coarse;
-          pr.ops[k].fine = patch.ops[k].fine;
-          pr.ops[k].level = patch.ops[k].level;
-          pr.ops[k].detune = patch.ops[k].detune;
-          pr.ops[k].decay = patch.ops[k].decay;
-          pr.ops[k].mode = patch.ops[k].mode !== undefined ? patch.ops[k].mode : 0;
-          pr.ops[k].sustain = patch.ops[k].sustain !== undefined ? patch.ops[k].sustain : 0.7;
-          pr.ops[k].release = patch.ops[k].release !== undefined ? patch.ops[k].release : 0.25;
+          ops[k].coarse = patch.ops[k].coarse;
+          ops[k].fine = patch.ops[k].fine;
+          ops[k].level = patch.ops[k].level;
+          ops[k].detune = patch.ops[k].detune;
+          ops[k].decay = patch.ops[k].decay;
+          ops[k].mode = patch.ops[k].mode !== undefined ? patch.ops[k].mode : 0;
+          ops[k].sustain = patch.ops[k].sustain !== undefined ? patch.ops[k].sustain : 0.7;
+          ops[k].release = patch.ops[k].release !== undefined ? patch.ops[k].release : 0.25;
         }
       }
     } else {
-      const plist = (PRESETS as Record<string, any[]>)[instName];
+      const plist = PRESETS[instName];
       if (plist && plist[presetIdx]) {
         const preset = plist[presetIdx];
         const prDst = this._instr;
@@ -609,18 +613,22 @@ export class Controls {
         : (name === 'moog' && /Oct$/.test(d.label)) ? (v: number) => MOOG_OCTS[Math.round(v)] || v.toString()
         : (d.label === 'Op Mode' && name === 'dx7') ? (v: number) => {
         return Math.round(v) === 0 ? 'Ratio' : 'Fixed';
-      } : (d.label === 'Op Coarse' && name === 'dx7' && pr.ops[this.activeOp].mode === 1) ? (v: number) => {
+      } : (d.label === 'Op Coarse' && name === 'dx7' && pr.ops![this.activeOp].mode === 1) ? (v: number) => {
         const valMap: Record<number, string> = { 0: '1 Hz', 1: '10 Hz', 2: '100 Hz', 3: '1000 Hz' };
         return valMap[Math.round(v)] || (Math.round(v).toString() + ' Hz');
       } : null;
 
-      const initialVal = d.type === 'op' ? pr.ops[this.activeOp][d.key!] : pr[d.bank!][d.i!];
+      // bank/op-key come from the data-driven ParamDef table, so these accesses
+      // are dynamic; op-scope defs always target a dx7 instance (ops present).
+      const initialVal = d.type === 'op'
+        ? (pr.ops![this.activeOp] as any)[d.key!]
+        : (pr as any)[d.bank!][d.i!];
 
       let minVal = d.min;
       let maxVal = d.max;
       let stepVal = d.step;
       if (d.key === 'coarse' && name === 'dx7') {
-        const isFixed = pr.ops[this.activeOp].mode === 1;
+        const isFixed = pr.ops![this.activeOp].mode === 1;
         minVal = isFixed ? 0 : 0.5;
         maxVal = isFixed ? 3 : 31;
         stepVal = isFixed ? 1 : 0.5;
@@ -628,13 +636,13 @@ export class Controls {
 
       bindKnob(knob, valSpan, minVal, maxVal, stepVal, initialVal, isPercent, (v) => {
         if (d.type === 'op') {
-          pr.ops[this.activeOp][d.key!] = v;
+          (pr.ops![this.activeOp] as any)[d.key!] = v;
           if (d.key === 'mode') {
             // Rebuild params to dynamically update ranges (such as Op Coarse)
             this._buildParams();
           }
         } else {
-          pr[d.bank!][d.i!] = v;
+          (pr as any)[d.bank!][d.i!] = v;
         }
       }, formatFn,
       // Preset matching scans every cached ROM bank, so run it once on drag-end

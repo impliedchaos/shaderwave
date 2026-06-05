@@ -7,9 +7,7 @@ import { HELD } from '../tracker/engine.js';
 import { DEMO_SONGS } from '../tracker/song.js';
 import { GLVisualizer } from '../ui/visualizer.js';
 import { el as $ } from '../ui/dom.js';
-
-// `app` is the main.ts App instance; typed loosely until main.ts is converted.
-type App = any;
+import type { App } from '../main.js';
 
 // Seconds of extra rendering past the last row so the delay/reverb tail rings
 // out instead of being clipped at the final note.
@@ -139,7 +137,7 @@ async function exportWav(app: App, filename: string, title: string, author: stri
     restoreAudio();
   };
 
-  app.renderer.resetState();
+  app.renderer!.resetState();
   app.engine.playMode = 'song';
   app.engine.playing = true;
   app.engine.startFrame = 0;
@@ -165,7 +163,7 @@ async function exportWav(app: App, filename: string, title: string, author: stri
 
     for (let b = 0; b < blocksPerBatch && blockStart < totalFrames; b++) {
       const vd = app.engine.advance(blockStart);
-      const out = app.renderer.renderBlock(vd, blockStart);
+      const out = app.renderer!.renderBlock(vd, blockStart);
 
       const framesToCopy = Math.min(BLOCK, totalFrames - blockStart);
       for (let i = 0; i < framesToCopy; i++) {
@@ -230,19 +228,22 @@ async function exportVideo(app: App, filename: string, title: string, author: st
   statusText.textContent = 'Preparing 720p recording stream...';
   cancelBtn.textContent = 'Cancel';
 
-  const ctx = app.pipeline.ctx;
+  // Audio is initialised by the await ensureAudio() above, so the pipeline's
+  // context and analyser are live here.
+  const ctx = app.pipeline.ctx!;
+  const analyser = app.pipeline.analyser!;
   const dest = ctx.createMediaStreamDestination();
 
-  app.pipeline.analyser.connect(dest);
+  analyser.connect(dest);
 
   const muteGain = ctx.createGain();
   muteGain.gain.value = 0.0;
   try {
-    app.pipeline.analyser.disconnect(ctx.destination);
+    analyser.disconnect(ctx.destination);
   } catch (e) {
     console.warn('Failed to disconnect analyser from destination:', e);
   }
-  app.pipeline.analyser.connect(muteGain);
+  analyser.connect(muteGain);
   muteGain.connect(ctx.destination);
 
   const audioTrack = dest.stream.getAudioTracks()[0];
@@ -299,16 +300,16 @@ async function exportVideo(app: App, filename: string, title: string, author: st
   const cleanUp = () => {
     // Tear down the recording audio graph and restore normal monitoring.
     try {
-      app.pipeline.analyser.disconnect(dest);
+      analyser.disconnect(dest);
     } catch (e) {}
     try {
-      app.pipeline.analyser.disconnect(muteGain);
+      analyser.disconnect(muteGain);
     } catch (e) {}
     try {
       muteGain.disconnect(ctx.destination);
     } catch (e) {}
     try {
-      app.pipeline.analyser.connect(ctx.destination);
+      analyser.connect(ctx.destination);
     } catch (e) {
       console.warn('Failed to reconnect analyser:', e);
     }
@@ -344,7 +345,7 @@ async function exportVideo(app: App, filename: string, title: string, author: st
     }, 500);
   };
 
-  app.renderer.resetState();
+  app.renderer!.resetState();
   app.engine.playMode = 'song';
   app.engine.play('song');
   recorder.start();
@@ -356,9 +357,10 @@ async function exportVideo(app: App, filename: string, title: string, author: st
     if (cancelled || recorder.state !== 'recording') return;
 
     let currentRow = 0;
-    for (let i = 0; i < app.engine.displayOrder; i++) {
-      const patIdx = app.engine.song.order[i];
-      const pat = app.engine.song.patterns[patIdx];
+    const song = app.engine.song;
+    for (let i = 0; song && i < app.engine.displayOrder; i++) {
+      const patIdx = song.order[i];
+      const pat = song.patterns[patIdx];
       if (pat) currentRow += pat.rows;
     }
     currentRow += app.engine.displayRow;

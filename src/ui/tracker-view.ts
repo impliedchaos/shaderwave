@@ -2,6 +2,8 @@
 // channel showing note + instrument, with a cursor cell and a moving playhead
 // row. Pure rendering + cursor/hit-testing; key handling lives in main.js.
 import { EMPTY, OFF, NO_FX } from '../tracker/pattern.js';
+import type { Pattern } from '../tracker/pattern.js';
+import type { Engine } from '../tracker/engine.js';
 import { targetById } from '../tracker/automation.js';
 import { themeVar } from './theme.js';
 
@@ -40,7 +42,7 @@ type PanSlider = { trackX: number; trackW: number; trackY: number };
 
 export class TrackerView {
   canvas: HTMLCanvasElement;
-  engine: any;
+  engine: Engine;
   ctx: CanvasRenderingContext2D;
   cursor: { row: number; ch: number; col: number };
   showFx: boolean;
@@ -49,7 +51,7 @@ export class TrackerView {
   scroll: number;
   dpr: number;
 
-  constructor(canvas: HTMLCanvasElement, engine: any) {
+  constructor(canvas: HTMLCanvasElement, engine: Engine) {
     this.canvas = canvas;
     this.engine = engine;
     this.ctx = canvas.getContext('2d')!;
@@ -70,12 +72,15 @@ export class TrackerView {
   // view keeps showing the playhead's pattern/row instead of snapping back.
   get _atPlayhead() { return this.engine.playing || this.engine.paused; }
 
-  get pattern() {
+  // A song is always loaded before the view draws (App seeds one in its ctor),
+  // so song is non-null here in practice.
+  get pattern(): Pattern {
+    const song = this.engine.song!;
     if (this._atPlayhead && this.engine.playMode === 'song') {
-      const idx = this.engine.song.order[this.engine.displayOrder];
-      return this.engine.song.patterns[idx] || this.engine.song.patterns[0];
+      const idx = song.order[this.engine.displayOrder];
+      return song.patterns[idx] || song.patterns[0];
     }
-    return this.engine.song.patterns[this.engine.currentPatternIdx] || this.engine.song.patterns[0];
+    return song.patterns[this.engine.currentPatternIdx] || song.patterns[0];
   }
 
   // Full per-channel column stride (note/inst/vol + the optional fx column).

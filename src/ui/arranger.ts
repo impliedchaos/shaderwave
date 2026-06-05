@@ -2,11 +2,11 @@
 // (per-slot pattern picker + reorder/remove). Pulled out of main.js; takes the
 // App instance and calls back into it to re-render and redraw after edits.
 import { Pattern } from '../tracker/pattern.js';
+import type { App } from '../main.js';
 
 const $ = (id: string) => document.getElementById(id);
 
-// `app` is the main.ts App instance; typed loosely until main.ts is converted.
-export function renderArranger(app: any) {
+export function renderArranger(app: App) {
   const song = app.engine.song;
   if (!song) return;
 
