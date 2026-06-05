@@ -111,6 +111,9 @@
     flex-shrink: 0;
   }
 
+  /* Float a header group (New/Export/Help) to the far right of its row. */
+  .control-group.header-right { margin-left: auto; }
+
   .vol-label {
     font-family: 'JetBrains Mono', monospace;
     font-size: 13px;
@@ -1128,13 +1131,13 @@
   <header>
     <h1>ShaderWave</h1>
     <div class="control-group">
+      <button id="play" class="primary">▶︎ Play</button>
+      <button id="stop">■ Stop</button>
+    </div>
+    <div class="control-group header-right">
       <button id="new-song-btn" title="Create a new blank song">📄 New</button>
       <button id="export" title="Export Song">📤 Export</button>
       <button id="help" title="Help & keyboard shortcuts (?)">❔ Help</button>
-    </div>
-    <div class="control-group">
-      <button id="play" class="primary">▶︎ Play</button>
-      <button id="stop">■ Stop</button>
     </div>
     <div class="header-break"></div>
     <div class="lcd-display">
