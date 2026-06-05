@@ -52,6 +52,14 @@ export class Engine {
 
     this.muted = new Array(VOICES).fill(false);
 
+    // Per-channel stereo pan (0 = hard left, 0.5 = centre, 1 = hard right). The
+    // header slider writes `channelPan` (the persistent base, saved with the
+    // song); `panAuto` holds a live automation override (NaN = follow the base).
+    // Both feed vd.pan each block, with the override winning. Like autoLive, the
+    // override is transient — cleared on play/stop so the slider value returns.
+    this.channelPan = new Float32Array(VOICES).fill(0.5);
+    this.panAuto = new Float32Array(VOICES).fill(NaN);
+
     // GPU-facing buffers, updated in place every block.
     this.vd = {
       active: new Int32Array(VOICES),
@@ -85,6 +93,13 @@ export class Engine {
   loadSong(song) {
     this.song = song;
     this.rowsPerBeat = song.rowsPerBeat || 4;
+    // Per-channel pan saved with the song; absent → centre. Clears any live
+    // automation override so the loaded base shows immediately.
+    const pan = song.pan;
+    for (let v = 0; v < VOICES; v++) {
+      this.channelPan[v] = (pan && pan[v] != null) ? pan[v] : 0.5;
+      this.panAuto[v] = NaN;
+    }
   }
 
   get samplesPerRow() {
@@ -120,10 +135,15 @@ export class Engine {
     return sum;
   }
 
-  play(mode = 'song') { this.playMode = mode; this.playing = true; this.startFrame = null; this.autoLive.inst.clear(); }
+  play(mode = 'song') {
+    this.playMode = mode; this.playing = true; this.startFrame = null;
+    this.autoLive.inst.clear();
+    this.panAuto.fill(NaN);
+  }
   stop() {
     this.playing = false;
     for (const v of this.voices) v.active = false;
+    this.panAuto.fill(NaN); // drop automation overrides; slider base returns
   }
 
   // --- note triggering ----------------------------------------------------
@@ -351,6 +371,9 @@ export class Engine {
         const v = this.voices[ch];
         const instrIdx = (v && v.active) ? v.instrument : pat.inst[i];
         this.autoLive.inst.set(`${instrIdx}:${t.bank}:${t.index}`, value);
+      } else if (t.scope === 'chan') {
+        // Per-channel pan: override the slider base until cleared (play/stop).
+        this.panAuto[ch] = value;
       } else if (this.fxParams) {
         const fp = this.fxParams[this._channelType(ch, pat, i)];
         if (fp) fp[t.key] = value;
@@ -382,6 +405,8 @@ export class Engine {
       vd.onRel[v] = vc.onFrame - blockStart;
       vd.offRel[v] = vc.offFrame === HELD ? HELD : vc.offFrame - blockStart;
       vd.gain[v] = this.muted[v] ? 0.0 : 1.0;
+      // Live pan = automation override if set this run, else the channel base.
+      vd.pan[v] = Number.isNaN(this.panAuto[v]) ? this.channelPan[v] : this.panAuto[v];
     }
   }
 }

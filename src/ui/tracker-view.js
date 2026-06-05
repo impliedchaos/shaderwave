@@ -99,10 +99,18 @@ export class TrackerView {
     const x = e.clientX - r.left, y = e.clientY - r.top;
     const p = this.pattern;
 
-    // Click on channel header toggles mute state.
+    // Header: the pan-slider strip drags pan; elsewhere toggles mute.
     if (y >= 0 && y < this._topPad()) {
       const ch = Math.floor((x - NUM_W) / this.chW);
-      if (ch >= 0 && ch < p.channels) this.engine.muted[ch] = !this.engine.muted[ch];
+      if (ch >= 0 && ch < p.channels) {
+        const s = this._panSlider(ch);
+        if (x >= s.trackX - 5 && x <= s.trackX + s.trackW + 5) {
+          this._setPanFromX(ch, s, x);   // jump to the clicked position…
+          this._beginPanDrag(ch, s);     // …then track the drag
+        } else {
+          this.engine.muted[ch] = !this.engine.muted[ch];
+        }
+      }
       return;
     }
 
@@ -142,6 +150,39 @@ export class TrackerView {
   }
 
   _topPad() { return 26; } // header height in CSS px
+
+  // Geometry of channel `ch`'s header pan slider (CSS px): the track sits between
+  // the "CH n" label and the mute badge, centred vertically in the header.
+  _panSlider(ch) {
+    const x = NUM_W + ch * this.chW;
+    const trackX = x + 40;
+    const trackW = Math.max(12, this.chW - 82);
+    const trackY = this._topPad() / 2;
+    return { trackX, trackW, trackY };
+  }
+
+  // Map a header x (CSS px) to a 0..1 pan and write it as channel `ch`'s base,
+  // dropping any automation override. A small detent snaps to dead centre.
+  _setPanFromX(ch, s, x) {
+    let pn = Math.max(0, Math.min(1, (x - s.trackX) / s.trackW));
+    if (Math.abs(pn - 0.5) < 0.04) pn = 0.5;
+    this.engine.channelPan[ch] = pn;
+    this.engine.panAuto[ch] = NaN;
+    this.engine.vd.pan[ch] = pn; // reflect immediately even if no block renders
+  }
+
+  _beginPanDrag(ch, s) {
+    const move = (ev) => {
+      const r = this.canvas.getBoundingClientRect();
+      this._setPanFromX(ch, s, ev.clientX - r.left);
+    };
+    const up = () => {
+      window.removeEventListener('mousemove', move);
+      window.removeEventListener('mouseup', up);
+    };
+    window.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', up);
+  }
 
   _viewRows() {
     return Math.max(1, Math.floor((this.canvas.height / this.dpr - this._topPad()) / ROW_H));
@@ -344,6 +385,28 @@ export class TrackerView {
       ctx.fillText(`CH ${ch + 1}`, x + 8, pad / 2);
 
       drawBadge(x + cw - 38, pad / 2 - 6, 30, 12, isMuted ? 'MUT' : 'ON', isMuted);
+
+      // Pan slider: track + centre tick + thumb at the live pan (base, or the
+      // automation override while it's driving the channel during playback).
+      const s = this._panSlider(ch);
+      const pa = this.engine.panAuto[ch];
+      const pan = Number.isNaN(pa) ? this.engine.channelPan[ch] : pa;
+      ctx.strokeStyle = isMuted ? 'rgba(45, 58, 82, 0.4)' : 'rgba(98, 114, 164, 0.45)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(s.trackX, s.trackY);
+      ctx.lineTo(s.trackX + s.trackW, s.trackY);
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(98, 114, 164, 0.55)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(s.trackX + s.trackW / 2, s.trackY - 3);
+      ctx.lineTo(s.trackX + s.trackW / 2, s.trackY + 3);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(s.trackX + pan * s.trackW, s.trackY, 4, 0, Math.PI * 2);
+      ctx.fillStyle = isMuted ? C('--dim') : C('--accent');
+      ctx.fill();
     }
 
     ctx.font = '14px "JetBrains Mono", "Fira Code", monospace';

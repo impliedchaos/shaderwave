@@ -6,12 +6,14 @@
 // and what an incoming MIDI CC (0..127, scaled <<1) will map to. denorm() turns
 // it into the real engine value at playback time.
 //
-// Two scopes:
+// Three scopes:
 //   'inst' — a per-voice instrument param bank (p0/p1, index 0..3). Applied to
 //            the live voice slot, so it automates only the channel it's on.
 //   'fx'   — a key in that instrument-type's fxParams. The fx chain is shared by
 //            ALL channels of an engine type, so an 'fx' command is track-wide for
 //            that engine. The UI tints these differently to make that obvious.
+//   'chan' — a per-channel mix parameter (pan). Not tied to an engine type, so it
+//            shows up for every channel; applied channel-local like 'inst'.
 //
 // Target ids are the flat index into TARGETS and must stay append-only (they are
 // persisted in patterns and will key MIDI-CC maps).
@@ -62,20 +64,29 @@ const FX = [
   { code: 'WID', label: 'Width',         key: 'width',         min: 0,     max: 2,     curve: 'lin' },
 ];
 
+// chan-scope targets. Per-channel mix params, engine-agnostic (offered on every
+// channel). Pan is 0 = hard left, 0.5 = centre, 1 = hard right (equal-power in
+// the mix shader).
+const CHAN = [
+  { code: 'PAN', label: 'Pan', key: 'pan', min: 0, max: 1, curve: 'lin', unit: 'pan' },
+];
+
 // Flatten into a stable, id-indexed table. Order = append-only.
 export const TARGETS = [];
 for (const type of ['303', 'moog', 'dx7', '808']) {
   for (const t of INST[type]) TARGETS.push({ ...t, scope: 'inst', type, id: TARGETS.length });
 }
 for (const t of FX) TARGETS.push({ ...t, scope: 'fx', type: '*', id: TARGETS.length });
+for (const t of CHAN) TARGETS.push({ ...t, scope: 'chan', type: '*', id: TARGETS.length });
 
 export function targetById(id) {
   return (id >= 0 && id < TARGETS.length) ? TARGETS[id] : null;
 }
 
-// Targets selectable for a given engine type: its own inst targets + all fx.
+// Targets selectable for a given engine type: its own inst targets + all fx +
+// all per-channel (chan) targets.
 export function targetsForType(type) {
-  return TARGETS.filter((t) => t.scope === 'fx' || t.type === type);
+  return TARGETS.filter((t) => t.scope === 'fx' || t.scope === 'chan' || t.type === type);
 }
 
 export function targetByCode(type, code) {
@@ -112,6 +123,10 @@ export function normByte(t, value) {
 export function fmtValue(t, byte) {
   const v = denorm(t, byte);
   if (t.curve === 'enum') return String(v);
+  if (t.unit === 'pan') {
+    const d = Math.round((v - 0.5) * 200); // -100 (L) .. +100 (R)
+    return d === 0 ? 'C' : (d < 0 ? 'L' + -d : 'R' + d);
+  }
   if (t.unit === 'Hz') return v >= 1000 ? (v / 1000).toFixed(1) + 'kHz' : Math.round(v) + 'Hz';
   if (t.unit) return v.toFixed(2) + t.unit;
   return v.toFixed(2);

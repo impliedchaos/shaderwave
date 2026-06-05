@@ -1303,7 +1303,10 @@ export const DEMO_SONGS = [
       return {
         patterns: p,
         order: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
-        rowsPerBeat: 4
+        rowsPerBeat: 4,
+        // Per-channel pan (0=L, 0.5=C, 1=R): pads spread wide (ch0/3/4/7),
+        // pluck & lead nudged off-axis, drums + bass anchored centre.
+        pan: [0.38, 0.35, 0.5, 0.62, 0.3, 0.5, 0.55, 0.7],
       };
     }
   },
