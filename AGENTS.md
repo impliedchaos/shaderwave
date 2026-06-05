@@ -9,6 +9,16 @@ For the deep architecture, instrument/effect descriptions, and the file-by-file
 layout, read **`README.md`** (kept current) and **`design.md`**. This file is the
 quick operational guide + the non-obvious gotchas.
 
+## Memory
+
+**`MEMORY.md`** (repo root) is the canonical, version-controlled agent memory. **Read it
+at the start of every session** and keep it updated as you learn non-obvious facts —
+gotchas, the *why* behind decisions, user feedback on how to work, ongoing-work status.
+Prefer it over any per-user "scratch" memory (e.g. files under
+`~/.claude/projects/*/memory/`): those are not shared with the team and are now retired
+in favour of `MEMORY.md`. Don't record what the code or git history already makes
+obvious.
+
 ## Commands
 
 ```bash

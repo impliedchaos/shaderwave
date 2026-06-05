@@ -10,14 +10,14 @@ import { TrackerView } from './ui/tracker-view.js';
 import { Controls, bindKnob } from './ui/controls.js';
 import { DEMO_SONGS, loadSongInstruments } from './tracker/song.js';
 import { instGlow } from './constants.js';
-import { OFF, NO_FX, Pattern } from './tracker/pattern.js';
+import { OFF, Pattern } from './tracker/pattern.js';
 import { targetsForType, TARGETS } from './tracker/automation.js';
 import { showExportDialog } from './audio/export.js';
 import { renderArranger } from './ui/arranger.js';
 import { invalidateTheme, themeVar } from './ui/theme.js';
 import { initHelp } from './ui/help.js';
 import pkg from '../package.json';
-import type { FxParams, FxParamsByType, InstrumentType, ParamTarget } from './types.js';
+import type { FxParams, FxParamsByType, ParamTarget } from './types.js';
 
 // Display version from package.json
 const versionSpan = document.getElementById('app-version');
@@ -98,7 +98,7 @@ const FX_DEFS: FxDef[] = [
 // A knob <div> the UI loop drives externally (see bindKnob in controls.ts).
 type KnobEl = HTMLElement & { _extSet?: (v: number) => void };
 // One copied tracker cell.
-type ClipCell = { note: number; inst: number; vol: number; fxCmd: number; fxVal: number };
+type ClipCell = { note: number; inst: number; vol: number };
 
 export class App {
   gl: WebGL2RenderingContext;
@@ -259,6 +259,9 @@ export class App {
       const instr = this.engine.instruments[instIdx];
       if (!instr) return;
       
+      // CC→target map: knobs at CC70+ and CC1+ both index into the engine's
+      // target list (CC70 or CC1 → target 0, …), so either common controller
+      // layout works. CC0 (bank select) falls through to a negative index → ignored.
       const targets = targetsForType(instr.type);
       const targetIdx = cc >= 70 ? cc - 70 : cc - 1;
       const target = targets[targetIdx];
@@ -276,25 +279,17 @@ export class App {
         const patIdx = this.engine.currentPatternIdx;
         const p = this.engine.song?.patterns[patIdx];
         if (p) {
-          // If the cursor is on an AutoTrack that matches this target, record there.
-          // Otherwise, if there is ANY AutoTrack matching this target, record there.
-          // Otherwise, record to the legacy FX column of the current channel (if not an AutoTrack).
-          let recorded = false;
-          for (let i = 0; i < p.autoTracks.length; i++) {
-            const track = p.autoTracks[i];
-            // Match target and instrument index
-            if (track.targetParamId === target.id && (track.targetScope === 'global' || track.targetScope === 'chan' || track.targetInstIdx === instIdx)) {
-              if (curCh - p.channels === i || !recorded) {
-                track.data[row] = val255;
-                recorded = true;
-                if (curCh - p.channels === i) break; // Prefer the focused track
-              }
-            }
-          }
-          
-          if (!recorded && curCh < p.channels) {
-            p.setFx(row, curCh, target.id, val255);
-          }
+          // Record into the AutoTrack for this target, creating it if absent (so a
+          // CC tweak always lands somewhere). The track's targetInstIdx depends on
+          // scope: global → null, chan → the cursor channel it pans, inst/fx → the
+          // selected instrument instance.
+          const trackInst = target.scope === 'global' ? null
+                          : target.scope === 'chan'   ? curCh
+                          : instIdx;
+          const before = p.autoTracks.length;
+          const data = p.getOrCreateAutoTrack(trackInst, target.id);
+          if (row >= 0 && row < data.length) data[row] = val255;
+          if (p.autoTracks.length !== before) this.view._resize();  // new track widens the grid
           this.view.draw();
         }
       }
@@ -450,11 +445,6 @@ export class App {
         this.view.draw();
         this._renderSongEditor();
       };
-    }
-    const fxColBtn = $('fx-col-btn');
-    if (fxColBtn) {
-      fxColBtn.onclick = () => { this.view.toggleFx(); this._updateFxColBtn(); };
-      this._updateFxColBtn();
     }
     const addAutoTrackBtn = $('add-auto-track-btn');
     if (addAutoTrackBtn) {
@@ -719,11 +709,11 @@ export class App {
 
     const overlay = document.createElement('div');
     overlay.className = 'fx-picker-overlay';
-    overlay.innerHTML = `<div class="fx-picker">
+    overlay.innerHTML = `<div class="fx-picker" style="width: 400px; max-width: 90vw;">
       <div class="fx-picker-title">Add Auto Track</div>
       <input class="fx-picker-input" placeholder="type code or name…" />
       <ul class="fx-picker-list"></ul>
-      <div class="fx-picker-hint">↑↓ select · Enter add track · Esc cancel</div>
+      <div class="fx-picker-hint">↑↓ select · Enter add track · Esc cancel<br/><span style="opacity: 0.7">(Right-click an AutoTrack header to remove it)</span></div>
     </div>`;
     document.body.appendChild(overlay);
     const input = overlay.querySelector('.fx-picker-input') as HTMLInputElement;
@@ -751,22 +741,36 @@ export class App {
         e.instName.toLowerCase().includes(q)
       );
       if (sel >= filtered.length) sel = Math.max(0, filtered.length - 1);
-      list.innerHTML = filtered.map((e, i) =>
-        `<li class="fx-picker-item${i === sel ? ' sel' : ''}${e.target.scope === 'fx' ? ' fx' : ''}" data-i="${i}">
-          <span class="fx-code">${e.instName}</span><span class="fx-code" style="margin-left: 10px">${e.target.code}</span><span class="fx-label">${e.target.label}</span>
-          ${e.target.scope === 'global' ? '<span class="fx-tag" style="background: #ff5f5f; color: #000;">global</span>' : ''}</li>`).join('');
+      list.innerHTML = filtered.map((e, i) => {
+        let tagHtml = '';
+        let rowStyle = '';
+        if (e.target.scope === 'global') {
+          tagHtml = '<span class="fx-tag" style="background: #ff5f5f; color: #000;">global</span>';
+        } else if (e.target.scope === 'chan') {
+          tagHtml = '<span class="fx-tag" style="background: #00f0ff; color: #000;">channel</span>';
+        } else if (e.instIdx !== null) {
+          const color = instruments[e.instIdx].color;
+          rowStyle = `border-left: 3px solid ${color}; ${i === sel ? '' : `background: ${instGlow(color, 0.05)};`}`;
+          tagHtml = `<span class="fx-tag" style="background: ${color}; color: #000;">inst ${e.instIdx}</span>`;
+        }
+        return `<li class="fx-picker-item${i === sel ? ' sel' : ''}${e.target.scope === 'fx' ? ' fx' : ''}" data-i="${i}" style="${rowStyle}">
+          <span class="fx-code" style="min-width: 80px;">${e.instName}</span><span class="fx-code" style="margin-left: 10px">${e.target.code}</span><span class="fx-label">${e.target.label}</span>
+          ${tagHtml}</li>`;
+      }).join('');
+      list.querySelectorAll<HTMLElement>('.fx-picker-item').forEach((li, i) => {
+        if (i === sel) li.scrollIntoView({ block: 'nearest' });
+        li.onclick = () => commit(filtered[+li.dataset.i!]);
+      });
     };
-    input.onkeydown = (e) => {
-      if (e.key === 'Escape') this._closeFxPicker();
-      else if (e.key === 'ArrowDown') { sel = (sel + 1) % filtered.length; render(); e.preventDefault(); }
-      else if (e.key === 'ArrowUp') { sel = (sel - 1 + filtered.length) % filtered.length; render(); e.preventDefault(); }
-      else if (e.key === 'Enter') commit(filtered[sel]);
-    };
-    input.oninput = () => { sel = 0; render(); };
-    list.onclick = (e) => {
-      const li = (e.target as HTMLElement).closest('.fx-picker-item');
-      if (li) commit(filtered[parseInt(li.getAttribute('data-i')!, 10)]);
-    };
+    input.addEventListener('keydown', (ev) => {
+      if (ev.code === 'Escape') { ev.preventDefault(); this._closeFxPicker(); }
+      else if (ev.code === 'ArrowDown') { ev.preventDefault(); sel = Math.min(filtered.length - 1, sel + 1); render(); }
+      else if (ev.code === 'ArrowUp') { ev.preventDefault(); sel = Math.max(0, sel - 1); render(); }
+      else if (ev.code === 'Enter') { ev.preventDefault(); commit(filtered[sel]); }
+    });
+    input.addEventListener('input', () => { sel = 0; render(); });
+    overlay.addEventListener('mousedown', (ev) => { if (ev.target === overlay) this._closeFxPicker(); });
+    this._fxPicker = overlay;
     render();
     input.focus();
   }
@@ -808,13 +812,8 @@ export class App {
         input.value = String(Math.max(+input.min || 0, Math.min(+input.max || 8, (+input.value || 4) + 1)));
         return;
       }
-      // Toggle the automation column (F), except while editing an fx field.
-      if (e.code === 'KeyF' && !e.ctrlKey && !e.metaKey && !e.altKey && this.view.cursor.col < 3) {
-        e.preventDefault(); this.view.toggleFx(); this._updateFxColBtn(); return;
-      }
       if (this._handleCursor(e)) { e.preventDefault(); return; }
       if (this._handleAutoTrackEdit(e)) return;
-      if (this._handleFxEdit(e)) return;
       if (this._handleEdit(e)) return;
 
       if (e.repeat) return;
@@ -862,10 +861,7 @@ export class App {
     // elsewhere it nudges the note's volume.
     if (e.shiftKey && (e.code === 'ArrowUp' || e.code === 'ArrowDown')) {
       const idx = p.idx(c.row, c.ch);
-      if (c.col === 4 && p.fxCmd[idx] !== NO_FX) {
-        const d = e.code === 'ArrowUp' ? 1 : -1;
-        p.fxVal[idx] = Math.min(255, Math.max(0, p.fxVal[idx] + d));
-      } else if (p.notes[idx] >= 0) {
+      if (p.notes[idx] >= 0) {
         const d = e.code === 'ArrowUp' ? 0.05 : -0.05;
         p.vol[idx] = Math.min(1.0, Math.max(0.0, p.vol[idx] + d));
       }
@@ -911,7 +907,7 @@ export class App {
                 const tIdx = ch - p.channels;
                 if (tIdx < p.autoTracks.length) p.autoTracks[tIdx].data[r] = -1;
               } else {
-                p.clear(r, ch); p.clearFx(r, ch);
+                p.clear(r, ch);
               }
             }
           }
@@ -919,9 +915,6 @@ export class App {
         } else if (c.ch >= p.channels) {
           const tIdx = c.ch - p.channels;
           if (tIdx < p.autoTracks.length) p.autoTracks[tIdx].data[c.row] = -1;
-          this._advanceCursorRow();
-        } else if (c.col >= 3) {
-          p.clearFx(c.row, c.ch);          // fx columns: clear the automation command
           this._advanceCursorRow();
         } else {
           p.clear(c.row, c.ch);
@@ -981,113 +974,11 @@ export class App {
     return true;
   }
 
-  // FX columns: col 3 = command target (opens picker), col 4 = value byte (hex).
-  // Consumes all letter/number keys so they never leak to note entry.
-  _handleFxEdit(e: KeyboardEvent) {
-    const c = this.view.cursor;
-    if (!this.view.showFx || c.col < 3) return false;
-    const isLetter = /^Key([A-Z])$/.exec(e.code);
-    const isDigit = /^(?:Digit|Numpad)([0-9])$/.exec(e.code);
-    if (!isLetter && !isDigit && e.code !== 'Enter') return false;
-    e.preventDefault();
-    const p = this.view.pattern, idx = p.idx(c.row, c.ch);
-
-    if (c.col === 3) {                         // command → target picker
-      if (e.code === 'Enter' || isLetter) this._openFxPicker(isLetter ? isLetter[1] : '');
-      return true;                             // consume digits too
-    }
-
-    // col 4 — value byte, two-hex accumulation (0-9, A-F). A command must exist.
-    if (p.fxCmd[idx] === NO_FX) return true;
-    let nyb = null;
-    if (isDigit) nyb = parseInt(isDigit[1], 10);
-    else if (isLetter && isLetter[1] <= 'F') nyb = parseInt(isLetter[1], 16);
-    if (nyb === null) return true;             // non-hex letter: swallow, no-op
-    const same = this._hexEntry && this._hexEntry.idx === idx;
-    p.fxVal[idx] = (same ? ((this._hexEntry!.first << 4) | nyb) : nyb) & 0xff;
-    this._hexEntry = same ? null : { idx, first: nyb };
-    return true;
-  }
-
-  // Best engine type for a cell: its own note's instrument, else the nearest
-  // note above it on the channel, else the selected instrument.
-  _channelInstType(p: Pattern, row: number, ch: number): InstrumentType {
-    if (p.notes[p.idx(row, ch)] >= 0) return this.engine.instruments[p.inst[p.idx(row, ch)]]?.type || '303';
-    for (let r = row - 1; r >= 0; r--) {
-      const j = p.idx(r, ch);
-      if (p.notes[j] >= 0) return this.engine.instruments[p.inst[j]]?.type || '303';
-    }
-    const sel = this.engine.instruments[this.controls.selected];
-    return sel ? sel.type : '303';
-  }
-
-  // Modal target picker for the cell under the cursor. `prefill` seeds the filter
-  // (so typing a code letter in the command column jumps straight to filtering).
-  _openFxPicker(prefill = '') {
-    this._closeFxPicker();
-    const p = this.view.pattern, c = this.view.cursor;
-    const type = this._channelInstType(p, c.row, c.ch);
-    const targets = targetsForType(type);
-    const idx = p.idx(c.row, c.ch);
-
-    const overlay = document.createElement('div');
-    overlay.className = 'fx-picker-overlay';
-    overlay.innerHTML = `<div class="fx-picker">
-      <div class="fx-picker-title">Automate ${type.toUpperCase()} · Ch ${c.ch}</div>
-      <input class="fx-picker-input" placeholder="type code or name…" />
-      <ul class="fx-picker-list"></ul>
-      <div class="fx-picker-hint">↑↓ select · Enter set · Esc cancel · then type 2 hex digits for the value</div>
-    </div>`;
-    document.body.appendChild(overlay);
-    const input = overlay.querySelector('.fx-picker-input') as HTMLInputElement;
-    const list = overlay.querySelector('.fx-picker-list') as HTMLElement;
-    input.value = prefill;
-
-    let sel = 0, filtered = targets;
-    const commit = (t: ParamTarget | undefined) => {
-      if (!t) return;
-      const keep = p.fxCmd[idx] !== NO_FX ? p.fxVal[idx] : 0x80; // default mid-value
-      p.setFx(c.row, c.ch, t.id, keep);
-      this._closeFxPicker();
-      this.view.cursor.col = 4;     // hop to the value field
-      this.view.draw();
-    };
-    const render = () => {
-      const q = input.value.trim().toLowerCase();
-      filtered = targets.filter((t) => !q || t.code.toLowerCase().startsWith(q) || t.label.toLowerCase().includes(q));
-      if (sel >= filtered.length) sel = Math.max(0, filtered.length - 1);
-      list.innerHTML = filtered.map((t, i) =>
-        `<li class="fx-picker-item${i === sel ? ' sel' : ''}${t.scope === 'fx' ? ' fx' : ''}" data-i="${i}">
-          <span class="fx-code">${t.code}</span><span class="fx-label">${t.label}</span>
-          ${t.scope === 'fx' ? '<span class="fx-tag">track</span>' : ''}</li>`).join('');
-      list.querySelectorAll<HTMLElement>('.fx-picker-item').forEach((li) => {
-        li.onclick = () => commit(filtered[+li.dataset.i!]);
-      });
-    };
-    input.addEventListener('keydown', (ev) => {
-      if (ev.code === 'Escape') { ev.preventDefault(); this._closeFxPicker(); }
-      else if (ev.code === 'ArrowDown') { ev.preventDefault(); sel = Math.min(filtered.length - 1, sel + 1); render(); }
-      else if (ev.code === 'ArrowUp') { ev.preventDefault(); sel = Math.max(0, sel - 1); render(); }
-      else if (ev.code === 'Enter') { ev.preventDefault(); commit(filtered[sel]); }
-    });
-    input.addEventListener('input', () => { sel = 0; render(); });
-    overlay.addEventListener('mousedown', (ev) => { if (ev.target === overlay) this._closeFxPicker(); });
-    this._fxPicker = overlay;
-    render();
-    input.focus();
-    input.setSelectionRange(input.value.length, input.value.length);
-  }
-
   _closeFxPicker() {
     if (this._fxPicker) { this._fxPicker.remove(); this._fxPicker = null; }
   }
 
-  _updateFxColBtn() {
-    const btn = $('fx-col-btn') as HTMLInputElement;
-    if (!btn) return;
-    btn.checked = this.view.showFx;
-    this.view.draw();
-  }
+
 
   // Status-bar buffer control: sets the pipeline's prebuffer depth live and shows
   // the resulting latency. Deeper buffer = fewer underruns, more latency.
@@ -1158,8 +1049,8 @@ export class App {
       const rowCells: ClipCell[] = [];
       for (let ch = c0; ch <= c1; ch++) {
         const i = p.idx(r, ch);
-        rowCells.push({ note: p.notes[i], inst: p.inst[i], vol: p.vol[i], fxCmd: p.fxCmd[i], fxVal: p.fxVal[i] });
-        if (cut) { p.clear(r, ch); p.clearFx(r, ch); }
+        rowCells.push({ note: p.notes[i], inst: p.inst[i], vol: p.vol[i] });
+        if (cut) p.clear(r, ch);
       }
       cells.push(rowCells);
     }
@@ -1179,7 +1070,6 @@ export class App {
         if (ch >= p.channels) break;
         const cell = cb.cells[dr][dc], i = p.idx(r, ch);
         p.notes[i] = cell.note; p.inst[i] = cell.inst; p.vol[i] = cell.vol;
-        p.fxCmd[i] = cell.fxCmd ?? NO_FX; p.fxVal[i] = cell.fxVal ?? 0;
       }
     }
   }

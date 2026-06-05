@@ -179,16 +179,18 @@ export const DEMO_SONGS: SongDef[] = [
       // Resonance climb (303, inst-scope): rides the acid lead from smooth to
       // screaming self-oscillation across the pattern.
       const RES = tgt('303', 'RES');     // 0..0.98
-      const resClimb = (pat: Pattern, ch: number, lo: number, hi: number) => {
+      const resClimb = (pat: Pattern, inst: number, lo: number, hi: number) => {
         const loB = normByte(RES, lo), hiB = normByte(RES, hi);
-        for (let r = 0; r < 128; r++) pat.setFx(r, ch, RES.id, Math.round(loB + (hiB - loB) * (r / 127)));
+        const resTrack = pat.getOrCreateAutoTrack(inst, RES.id);
+        for (let r = 0; r < 128; r++) resTrack[r] = Math.round(loB + (hiB - loB) * (r / 127));
       };
       // Reverb swell (moog, fx-scope → track-wide for the engine): drenches the
-      // breakdown. Written on a live moog channel so it resolves to the moog chain.
+      // breakdown. Target any moog instance so it resolves to the moog chain.
       const MRV = tgt('moog', 'RVM');    // reverbMix 0..1
-      const revSwell = (pat: Pattern, ch: number, lo: number, hi: number) => {
+      const revSwell = (pat: Pattern, inst: number, lo: number, hi: number) => {
         const loB = normByte(MRV, lo), hiB = normByte(MRV, hi);
-        for (let r = 0; r < 128; r++) pat.setFx(r, ch, MRV.id, Math.round(loB + (hiB - loB) * (r / 127)));
+        const mrvTrack = pat.getOrCreateAutoTrack(inst, MRV.id);
+        for (let r = 0; r < 128; r++) mrvTrack[r] = Math.round(loB + (hiB - loB) * (r / 127));
       };
 
       // Playback map details
@@ -263,15 +265,16 @@ export const DEMO_SONGS: SongDef[] = [
       setGoonMoogBass(p13, 3, I_moogBass1, 0.75);
 
       // ---- automation ----
-      // Acid leads scream upward in resonance through the lead sections (303 lead
-      // is on ch5, with a second lead on ch6 in p9).
-      resClimb(p8, 5, 0.60, 0.95);
-      resClimb(p9, 5, 0.65, 0.97); resClimb(p9, 6, 0.60, 0.95);
-      resClimb(p12, 5, 0.70, 0.97);
+      // Acid leads scream upward in resonance through the lead sections. The 303
+      // lead voice is I_303_3 (ch5), with a second lead I_303_4 (ch6) in p9.
+      resClimb(p8, I_303_3, 0.60, 0.95);
+      resClimb(p9, I_303_3, 0.65, 0.97); resClimb(p9, I_303_4, 0.60, 0.95);
+      resClimb(p12, I_303_3, 0.70, 0.97);
       // The breakdown (p10) drowns the moog in reverb; the riser (p11) snaps it
-      // dry again on its first row so the drop hits clean.
-      revSwell(p10, 3, 0.40, 0.85);
-      p11.setFx(0, 3, MRV.id, normByte(MRV, 0.40));
+      // dry again on its first row so the drop hits clean. fx-scope on a moog
+      // instance → the shared moog reverb.
+      revSwell(p10, I_moogBass1, 0.40, 0.85);
+      p11.getOrCreateAutoTrack(I_moogBass1, MRV.id)[0] = normByte(MRV, 0.40);
 
       return {
         patterns: [p0, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13],
@@ -2597,23 +2600,23 @@ export const DEMO_SONGS: SongDef[] = [
         }
       };
 
-      // Cutoff filter sweep on a 303 channel: a triangle LFO between loHz/hiHz
+      // Cutoff filter sweep on a 303 instance: a triangle LFO between loHz/hiHz
       // over `cycles` open-close passes per pattern. Endpoints come from the CUT
-      // target's own log mapping so they're exact. Written on every row so it
-      // overrides each note's cutoff snapshot — the whole line breathes.
+      // target's own log mapping so they're exact. inst-scope automation holds
+      // across each note's cutoff snapshot — the whole line breathes.
       const CUT = tgt('303', 'CUT');
-      const sweep = (pat: Pattern, ch: number, loHz: number, hiHz: number, cycles: number) => {
+      const sweep = (pat: Pattern, inst: number, loHz: number, hiHz: number, cycles: number) => {
         const lo = normByte(CUT, loHz), hi = normByte(CUT, hiHz);
         for (let r = 0; r < ROWS; r++) {
           const phase = ((r / ROWS) * cycles) % 1;
           const tri = phase < 0.5 ? phase * 2 : 2 - phase * 2;
-          pat.setFx(r, ch, CUT.id, Math.round(lo + (hi - lo) * tri));
+          pat.getOrCreateAutoTrack(inst, CUT.id)[r] = Math.round(lo + (hi - lo) * tri);
         }
       };
-      // Acid Bass (ch 4) sweeps 55–452 Hz, one wah per bar; Screamer (ch 5)
-      // sweeps 94–544 Hz, a slower pass every two bars.
-      const bassSweep = (pat: Pattern) => sweep(pat, 4, 55, 452, 4);
-      const leadSweep = (pat: Pattern) => sweep(pat, 5, 94, 544, 2);
+      // Acid Bass (I_BASS, ch 4) sweeps 55–452 Hz, one wah per bar; Screamer
+      // (I_LEAD, ch 5) sweeps 94–544 Hz, a slower pass every two bars.
+      const bassSweep = (pat: Pattern) => sweep(pat, I_BASS, 55, 452, 4);
+      const leadSweep = (pat: Pattern) => sweep(pat, I_LEAD, 94, 544, 2);
 
       drums(P[0], { kick: true, clap: false, hats: true, opens: false });            // intro
 
@@ -2770,21 +2773,23 @@ export const DEMO_SONGS: SongDef[] = [
 
       // ---- automation ----
       // A slow pad "filter breath" (moog cutoff) and an evolving FM brightness on
-      // the harp (dx7 mod index). Both are inst-scope, so they ride the live voice
-      // and reset cleanly at each note — the pad sweep rides its sustained chords.
+      // the harp (dx7 mod index). Both are inst-scope: one track per instance, and
+      // since the pad's four chord voices all share the moog instance, a single
+      // moog-cutoff track sweeps the whole sustained chord together.
       const CUT = tgt('moog', 'CUT');   // log 30..6000 Hz
       const MOD = tgt('dx7', 'MOD');     // FM mod index 0..12
       const padBreath = (pat: Pattern, loHz: number, hiHz: number) => {
         const lo = normByte(CUT, loHz), hi = normByte(CUT, hiHz);
+        const track = pat.getOrCreateAutoTrack(I_moog, CUT.id);
         for (let r = 0; r < 64; r++) {
           const s = 0.5 - 0.5 * Math.cos((r / 64) * Math.PI * 2);   // one open/close per pattern
-          const byte = Math.round(lo + (hi - lo) * s);
-          for (let ch = 0; ch < 4; ch++) pat.setFx(r, ch, CUT.id, byte);
+          track[r] = Math.round(lo + (hi - lo) * s);
         }
       };
       const harpBrighten = (pat: Pattern, loIdx: number, hiIdx: number) => {
         const lo = normByte(MOD, loIdx), hi = normByte(MOD, hiIdx);
-        for (let r = 0; r < 64; r++) pat.setFx(r, 4, MOD.id, Math.round(lo + (hi - lo) * (r / 63)));
+        const modTrack = pat.getOrCreateAutoTrack(I_dx7, MOD.id);
+        for (let r = 0; r < 64; r++) modTrack[r] = Math.round(lo + (hi - lo) * (r / 63));
       };
 
       writeProgression(p[0], { padVol: 0.55, bassVol: 0, harpVol: 0, drums: false, harpOctave: 1 });
@@ -2937,12 +2942,11 @@ export const DEMO_SONGS: SongDef[] = [
         }
       };
 
-      // Acid filter sweep: write a CUT automation command on every row of the 303
-      // channel (4), a triangle LFO between 129 Hz and 844 Hz over `cycles` full
-      // open/close passes per 128-row pattern. Bytes come from the registry's own
-      // log-curve mapping so the endpoints are exact. Because the command shares
-      // the row with each note, it overrides the note-on cutoff snapshot — so the
-      // whole acid line breathes regardless of the per-note retriggers.
+      // Acid filter sweep: write a CUT automation command on every row for the 303
+      // instance (I_303), a triangle LFO between 129 Hz and 844 Hz over `cycles`
+      // full open/close passes per 128-row pattern. Bytes come from the registry's
+      // own log-curve mapping so the endpoints are exact. inst-scope automation
+      // holds across the per-note retriggers — so the whole acid line breathes.
       const CUT = tgt('303', 'CUT');
       const SWEEP_LO = normByte(CUT, 129);
       const SWEEP_HI = normByte(CUT, 844);
@@ -2950,7 +2954,7 @@ export const DEMO_SONGS: SongDef[] = [
         for (let r = 0; r < 128; r++) {
           const phase = ((r / 128) * cycles) % 1;           // 0..1 ramp per cycle
           const tri = phase < 0.5 ? phase * 2 : 2 - phase * 2;  // 0→1→0 triangle
-          pat.setFx(r, 4, CUT.id, Math.round(SWEEP_LO + (SWEEP_HI - SWEEP_LO) * tri));
+          pat.getOrCreateAutoTrack(I_303, CUT.id)[r] = Math.round(SWEEP_LO + (SWEEP_HI - SWEEP_LO) * tri);
         }
       };
 
@@ -3087,53 +3091,61 @@ export const DEMO_SONGS: SongDef[] = [
       const CUTm = tgt('moog', 'CUT'), MOD = tgt('dx7', 'MOD'), MRV = tgt('moog', 'RVM');
       const acidSweep = (pat: Pattern, loHz: number, hiHz: number, cycles: number) => {
         const lo = normByte(CUT3, loHz), hi = normByte(CUT3, hiHz);
-        for (let r = 0; r < 128; r++) { const ph = ((r / 128) * cycles) % 1; const t = ph < 0.5 ? ph * 2 : 2 - ph * 2; pat.setFx(r, 4, CUT3.id, Math.round(lo + (hi - lo) * t)); }
+        const cutTrack = pat.getOrCreateAutoTrack(I_acid, CUT3.id);
+        for (let r = 0; r < 128; r++) { const ph = ((r / 128) * cycles) % 1; const t = ph < 0.5 ? ph * 2 : 2 - ph * 2; cutTrack[r] = Math.round(lo + (hi - lo) * t); }
       };
       const acidScream = (pat: Pattern, lo: number, hi: number) => {     // resonance climb on the drop
         const loB = normByte(RES3, lo), hiB = normByte(RES3, hi);
-        for (let r = 0; r < 128; r++) pat.setFx(r, 4, RES3.id, Math.round(loB + (hiB - loB) * (r / 127)));
+        const resTrack = pat.getOrCreateAutoTrack(I_acid, RES3.id);
+        for (let r = 0; r < 128; r++) resTrack[r] = Math.round(loB + (hiB - loB) * (r / 127));
       };
       const bellBright = (pat: Pattern, lo: number, hi: number) => {     // FM mod-index ramp
         const loB = normByte(MOD, lo), hiB = normByte(MOD, hi);
-        for (let r = 0; r < 128; r++) pat.setFx(r, 5, MOD.id, Math.round(loB + (hiB - loB) * (r / 127)));
+        const modTrack = pat.getOrCreateAutoTrack(I_bell, MOD.id);
+        for (let r = 0; r < 128; r++) modTrack[r] = Math.round(loB + (hiB - loB) * (r / 127));
       };
-      const padBreath = (pat: Pattern, loHz: number, hiHz: number, chans: number[]) => {   // sine filter swell on the pad voices
+      // Sine filter swell on the pad. inst-scope on the one moog pad instance, so
+      // both pad chord voices breathe together.
+      const padBreath = (pat: Pattern, loHz: number, hiHz: number) => {
         const lo = normByte(CUTm, loHz), hi = normByte(CUTm, hiHz);
+        const track = pat.getOrCreateAutoTrack(I_pad, CUTm.id);
         for (let r = 0; r < 128; r++) {
           const sn = 0.5 - 0.5 * Math.cos((r / 128) * Math.PI * 2);
-          const b = Math.round(lo + (hi - lo) * sn);
-          for (const ch of chans) pat.setFx(r, ch, CUTm.id, b);
+          track[r] = Math.round(lo + (hi - lo) * sn);
         }
       };
-      const revWash = (pat: Pattern, ch: number, lo: number, hi: number) => {    // fx-scope reverb swell (self-resetting triangle)
+      // fx-scope reverb swell for the moog chain (self-resetting), keyed off the
+      // moog pad instance so it resolves to the moog reverb.
+      const revWash = (pat: Pattern, lo: number, hi: number) => {
         const loB = normByte(MRV, lo), hiB = normByte(MRV, hi);
-        for (let r = 0; r < 128; r++) { const sn = 0.5 - 0.5 * Math.cos((r / 128) * Math.PI * 2); pat.setFx(r, ch, MRV.id, Math.round(loB + (hiB - loB) * sn)); }
+        const mrvTrack = pat.getOrCreateAutoTrack(I_pad, MRV.id);
+        for (let r = 0; r < 128; r++) { const sn = 0.5 - 0.5 * Math.cos((r / 128) * Math.PI * 2); mrvTrack[r] = Math.round(loB + (hiB - loB) * sn); }
       };
 
       const p = Array.from({ length: 7 }, () => new Pattern(128, 8));
 
       // p0 intro — pad + ghostly bell, no rhythm
-      pad(p[0], 0.45); bell(p[0], 0.32); padBreath(p[0], 200, 600, [6, 7]);
+      pad(p[0], 0.45); bell(p[0], 0.32); padBreath(p[0], 200, 600);
       // p1 beat-in — kick, hats, bass join
       pad(p[1], 0.5); bass(p[1], 0.7); bell(p[1], 0.36); drums(p[1], { kick: true, hats: true });
-      padBreath(p[1], 250, 750, [6, 7]);
+      padBreath(p[1], 250, 750);
       // p2 groove — full kit
       pad(p[2], 0.5); bass(p[2], 0.78); bell(p[2], 0.5); drums(p[2], { kick: true, clap: true, hats: true, openHat: true });
-      padBreath(p[2], 280, 900, [6, 7]); bellBright(p[2], 2.0, 3.5);
+      padBreath(p[2], 280, 900); bellBright(p[2], 2.0, 3.5);
       // p3 build — acid enters with a cutoff sweep
       pad(p[3], 0.52); bass(p[3], 0.8); bell(p[3], 0.55); acid(p[3], 0.6);
       drums(p[3], { kick: true, clap: true, hats: true, openHat: true });
-      padBreath(p[3], 300, 1000, [6, 7]); bellBright(p[3], 2.5, 4.5); acidSweep(p[3], 150, 800, 2);
+      padBreath(p[3], 300, 1000); bellBright(p[3], 2.5, 4.5); acidSweep(p[3], 150, 800, 2);
       // p4 drop — acid screams (resonance), bell at its brightest, octave bass
       pad(p[4], 0.55); bass(p[4], 0.85); bell(p[4], 0.6, 1); acid(p[4], 0.72);
       drums(p[4], { kick: true, clap: true, hats: true, openHat: true, fill: true });
-      padBreath(p[4], 350, 1300, [6, 7]); bellBright(p[4], 3.0, 6.0); acidScream(p[4], 0.6, 0.95);
-      // p5 breakdown — no drums; pad + bell drenched in a reverb wash (fx-scope on ch7)
+      padBreath(p[4], 350, 1300); bellBright(p[4], 3.0, 6.0); acidScream(p[4], 0.6, 0.95);
+      // p5 breakdown — no drums; pad + bell drenched in a reverb wash (moog fx-scope)
       pad(p[5], 0.5); bell(p[5], 0.45);
       p[5].set(0, 4, OFF, I_acid);   // cut any acid tail ringing in from the drop
-      padBreath(p[5], 250, 850, [6]); bellBright(p[5], 2.0, 4.0); revWash(p[5], 7, 0.35, 0.85);
+      padBreath(p[5], 250, 850); bellBright(p[5], 2.0, 4.0); revWash(p[5], 0.35, 0.85);
       // p6 outro — pad + soft bell fade
-      pad(p[6], 0.4); bell(p[6], 0.3); padBreath(p[6], 200, 480, [6, 7]);
+      pad(p[6], 0.4); bell(p[6], 0.3); padBreath(p[6], 200, 480);
       p[6].set(0, 4, OFF, I_acid);   // clean bell entrance into the outro
 
       return {
@@ -3212,54 +3224,57 @@ export const DEMO_SONGS: SongDef[] = [
       // ---- automation ----
       const CUT3 = tgt('303', 'CUT'), RES3 = tgt('303', 'RES');
       const CUTm = tgt('moog', 'CUT'), MRV = tgt('moog', 'RVM');
-      const ramp = (pat: Pattern, ch: number, tgt: ParamTarget, loB: number, hiB: number, shape: string) => {
+      const ramp = (pat: Pattern, inst: number, tgt: ParamTarget, loB: number, hiB: number, shape: string) => {
         for (let r = 0; r < 128; r++) {
           let f: number;
           if (shape === 'up') f = r / 127;
           else if (shape === 'down') f = 1 - r / 127;
           else f = 0.5 - 0.5 * Math.cos((r / 128) * Math.PI * 2);   // sine breath
-          pat.setFx(r, ch, tgt.id, Math.round(loB + (hiB - loB) * f));
+          pat.getOrCreateAutoTrack(inst, tgt.id)[r] = Math.round(loB + (hiB - loB) * f);
         }
       };
       const acidSweep = (pat: Pattern, loHz: number, hiHz: number, cyc: number) => {
         const lo = normByte(CUT3, loHz), hi = normByte(CUT3, hiHz);
-        for (let r = 0; r < 128; r++) { const ph = ((r / 128) * cyc) % 1; const t = ph < 0.5 ? ph * 2 : 2 - ph * 2; pat.setFx(r, 4, CUT3.id, Math.round(lo + (hi - lo) * t)); }
+        const cutTrack = pat.getOrCreateAutoTrack(I_acid, CUT3.id);
+        for (let r = 0; r < 128; r++) { const ph = ((r / 128) * cyc) % 1; const t = ph < 0.5 ? ph * 2 : 2 - ph * 2; cutTrack[r] = Math.round(lo + (hi - lo) * t); }
       };
-      const acidScream = (pat: Pattern, lo: number, hi: number) => ramp(pat, 4, RES3, normByte(RES3, lo), normByte(RES3, hi), 'up');
-      const windRiser  = (pat: Pattern, loHz: number, hiHz: number) => ramp(pat, 5, CUT3, normByte(CUT3, loHz), normByte(CUT3, hiHz), 'up');
-      const windBreath = (pat: Pattern, loHz: number, hiHz: number) => ramp(pat, 5, CUT3, normByte(CUT3, loHz), normByte(CUT3, hiHz), 'breath');
-      const windFall   = (pat: Pattern, loHz: number, hiHz: number) => ramp(pat, 5, CUT3, normByte(CUT3, loHz), normByte(CUT3, hiHz), 'down');
-      const windHold   = (pat: Pattern, hz: number) => { const b = normByte(CUT3, hz); for (let r = 0; r < 128; r++) pat.setFx(r, 5, CUT3.id, b); };
-      const padBreath  = (pat: Pattern, loHz: number, hiHz: number, chans: number[]) => { const lo = normByte(CUTm, loHz), hi = normByte(CUTm, hiHz); for (let r = 0; r < 128; r++) { const sn = 0.5 - 0.5 * Math.cos((r / 128) * Math.PI * 2); const v = Math.round(lo + (hi - lo) * sn); for (const ch of chans) pat.setFx(r, ch, CUTm.id, v); } };
-      const revWash    = (pat: Pattern, ch: number, lo: number, hi: number) => ramp(pat, ch, MRV, normByte(MRV, lo), normByte(MRV, hi), 'breath');
+      const acidScream = (pat: Pattern, lo: number, hi: number) => ramp(pat, I_acid, RES3, normByte(RES3, lo), normByte(RES3, hi), 'up');
+      const windRiser  = (pat: Pattern, loHz: number, hiHz: number) => ramp(pat, I_noise, CUT3, normByte(CUT3, loHz), normByte(CUT3, hiHz), 'up');
+      const windBreath = (pat: Pattern, loHz: number, hiHz: number) => ramp(pat, I_noise, CUT3, normByte(CUT3, loHz), normByte(CUT3, hiHz), 'breath');
+      const windFall   = (pat: Pattern, loHz: number, hiHz: number) => ramp(pat, I_noise, CUT3, normByte(CUT3, loHz), normByte(CUT3, hiHz), 'down');
+      const windHold   = (pat: Pattern, hz: number) => { const b = normByte(CUT3, hz); const track = pat.getOrCreateAutoTrack(I_noise, CUT3.id); for (let r = 0; r < 128; r++) track[r] = b; };
+      // Pad cutoff swell — inst-scope on the one moog pad instance (both chord voices breathe together).
+      const padBreath  = (pat: Pattern, loHz: number, hiHz: number) => { const lo = normByte(CUTm, loHz), hi = normByte(CUTm, hiHz); const track = pat.getOrCreateAutoTrack(I_pad, CUTm.id); for (let r = 0; r < 128; r++) { const sn = 0.5 - 0.5 * Math.cos((r / 128) * Math.PI * 2); track[r] = Math.round(lo + (hi - lo) * sn); } };
+      // fx-scope moog reverb swell, keyed off the moog pad instance.
+      const revWash    = (pat: Pattern, lo: number, hi: number) => ramp(pat, I_pad, MRV, normByte(MRV, lo), normByte(MRV, hi), 'breath');
 
       const p = Array.from({ length: 7 }, () => new Pattern(128, 8));
 
       // p0 intro — pad + sub + drifting resonant wind
       pad(p[0], 0.45); sub(p[0], 0.5); wind(p[0], 0.3);
-      padBreath(p[0], 200, 600, [6, 7]); windBreath(p[0], 200, 1000);
+      padBreath(p[0], 200, 600); windBreath(p[0], 200, 1000);
       // p1 beat-in — kick, hats, acid (filtered low), wind rising slowly
       pad(p[1], 0.5); sub(p[1], 0.6); acid(p[1], 0.45); wind(p[1], 0.25);
       drums(p[1], { kick: true, hats: true });
-      padBreath(p[1], 250, 750, [6, 7]); acidSweep(p[1], 150, 600, 2); windBreath(p[1], 250, 1100);
+      padBreath(p[1], 250, 750); acidSweep(p[1], 150, 600, 2); windBreath(p[1], 250, 1100);
       // p2 groove — full kit
       pad(p[2], 0.5); sub(p[2], 0.62); acid(p[2], 0.55); wind(p[2], 0.22);
       drums(p[2], { kick: true, clap: true, hats: true, openHat: true });
-      padBreath(p[2], 280, 900, [6, 7]); acidSweep(p[2], 200, 900, 2); windBreath(p[2], 300, 1300);
+      padBreath(p[2], 280, 900); acidSweep(p[2], 200, 900, 2); windBreath(p[2], 300, 1300);
       // p3 build — the noise wave whooshes upward into the drop (the showcase riser)
       pad(p[3], 0.52); sub(p[3], 0.7); acid(p[3], 0.6); wind(p[3], 0.32);
       drums(p[3], { kick: true, clap: true, hats: true, openHat: true });
-      padBreath(p[3], 300, 1000, [6, 7]); acidSweep(p[3], 300, 1100, 4); windRiser(p[3], 150, 4000);
+      padBreath(p[3], 300, 1000); acidSweep(p[3], 300, 1100, 4); windRiser(p[3], 150, 4000);
       // p4 drop — acid screams, sub solid, wind sits as a bright resonant sizzle
       pad(p[4], 0.55); sub(p[4], 0.72); acid(p[4], 0.72); wind(p[4], 0.26);
       drums(p[4], { kick: true, clap: true, hats: true, openHat: true });
-      padBreath(p[4], 350, 1300, [6, 7]); acidScream(p[4], 0.6, 0.95); windHold(p[4], 1800);
+      padBreath(p[4], 350, 1300); acidScream(p[4], 0.6, 0.95); windHold(p[4], 1800);
       // p5 breakdown — no drums; pad + sub + a vast wind sweep, moog drowned in reverb
       pad(p[5], 0.5); sub(p[5], 0.5); wind(p[5], 0.36);
-      padBreath(p[5], 250, 850, [6]); windBreath(p[5], 200, 3000); revWash(p[5], 7, 0.4, 0.85);
+      padBreath(p[5], 250, 850); windBreath(p[5], 200, 3000); revWash(p[5], 0.4, 0.85);
       // p6 outro — pad + sub fade, wind falling away
       pad(p[6], 0.4); sub(p[6], 0.45); wind(p[6], 0.25);
-      padBreath(p[6], 200, 450, [6, 7]); windFall(p[6], 1200, 200);
+      padBreath(p[6], 200, 450); windFall(p[6], 1200, 200);
 
       return {
         patterns: p,
@@ -3327,7 +3342,7 @@ export const DEMO_SONGS: SongDef[] = [
 
       // --- pan automation (chan-scope PAN, engine-agnostic) ---
       const PAN = tgt('303', 'PAN');
-      const pan = (pat: Pattern, row: number, ch: number, v: number) => pat.setFx(row, ch, PAN.id, normByte(PAN, Math.max(0, Math.min(1, v))));
+      const pan = (pat: Pattern, row: number, ch: number, v: number) => pat.getOrCreateAutoTrack(ch, PAN.id)[row] = normByte(PAN, Math.max(0, Math.min(1, v)));
       const HOME = [0.5, 0.5, 0.5, 0.5, 0.15, 0.85, 0.5, 0.5];
       const setHome = (pat: Pattern, pans?: number[]) => { const a = pans || HOME; for (let c = 0; c < 8; c++) pan(pat, 0, c, a[c]); };
       const pingPong = (pat: Pattern, ch: number, step: number, lo?: number, hi?: number, startRight?: boolean) => {

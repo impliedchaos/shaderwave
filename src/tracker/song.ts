@@ -63,7 +63,14 @@ export function loadSongInstruments(songDef: SongDef): { instruments: Instrument
       if (pat.notes[i] !== EMPTY) used.add(pat.inst[i]);
     }
     for (const track of pat.autoTracks) {
-      if (track.targetInstIdx !== null) used.add(track.targetInstIdx);
+      // Only count in-range instance targets; an out-of-range index (e.g. a song
+      // authored with a stale channel/instance number) must not enlarge `keep`
+      // into a hole — it falls through to instance 0 in the remap below.
+      if ((track.targetScope === 'inst' || track.targetScope === 'fx')
+          && track.targetInstIdx !== null
+          && track.targetInstIdx >= 0 && track.targetInstIdx < full.length) {
+        used.add(track.targetInstIdx);
+      }
     }
   }
   if (used.size === 0) used.add(0);                      // always keep ≥1
@@ -78,7 +85,7 @@ export function loadSongInstruments(songDef: SongDef): { instruments: Instrument
       pat.inst[i] = m === undefined ? 0 : m;             // unused cells → instance 0
     }
     for (const track of pat.autoTracks) {
-      if (track.targetInstIdx !== null) {
+      if ((track.targetScope === 'inst' || track.targetScope === 'fx') && track.targetInstIdx !== null) {
         const m = remap.get(track.targetInstIdx);
         track.targetInstIdx = m === undefined ? 0 : m;
       }

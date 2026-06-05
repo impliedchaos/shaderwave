@@ -38,6 +38,8 @@ void main(){
   int x = int(gl_FragCoord.x);
   int v = int(gl_FragCoord.y);
   outState = vec4(0.0);
+  outPhase = vec4(0.0);
+  outPhase2 = vec4(0.0);
   if (!voiceLive(v)) { outAudio = vec4(0.0); return; }
 
   float t = (float(x) - uOnRel[v]) / uSampleRate;

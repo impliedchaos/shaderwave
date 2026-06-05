@@ -1,7 +1,7 @@
 // Canvas-rendered pattern grid: row numbers down the left, one column per
 // channel showing note + instrument, with a cursor cell and a moving playhead
 // row. Pure rendering + cursor/hit-testing; key handling lives in main.js.
-import { EMPTY, OFF, NO_FX } from '../tracker/pattern.js';
+import { EMPTY, OFF } from '../tracker/pattern.js';
 import type { Pattern } from '../tracker/pattern.js';
 import type { Engine } from '../tracker/engine.js';
 import { targetById } from '../tracker/automation.js';
@@ -29,14 +29,6 @@ const COL_W = [36, 32, CH_W - 72];
 // Text inset within each field (note is padded slightly more than inst/vol).
 const COL_TEXT_PAD = [6, 4, 4];
 
-// Optional automation column, appended after volume when `showFx` is on. It has
-// two cursor sub-fields: the command (target code) and the value (2 hex digits).
-// cols 3 = command, 4 = value. Offsets are relative to the channel's start-x.
-const FX_W = 56;
-const FX_COL_X = [CH_W + 2, CH_W + 32];
-const FX_COL_W = [30, 22];
-const FX_TEXT_PAD = [4, 2];
-
 const AUTO_W = 40;
 
 type Selection = { r0: number; c0: number; r1: number; c1: number };
@@ -47,7 +39,6 @@ export class TrackerView {
   engine: Engine;
   ctx: CanvasRenderingContext2D;
   cursor: { row: number; ch: number; col: number };
-  showFx: boolean;
   selection: Selection | null;
   _dragAnchor: { row: number; ch: number } | null;
   scroll: number;
@@ -57,14 +48,14 @@ export class TrackerView {
     this.canvas = canvas;
     this.engine = engine;
     this.ctx = canvas.getContext('2d')!;
-    this.cursor = { row: 0, ch: 0, col: 0 };   // col: 0 note · 1 inst · 2 vol · 3 fx-cmd · 4 fx-val
-    this.showFx = true;                         // automation column shown by default
+    this.cursor = { row: 0, ch: 0, col: 0 };   // col: 0 note · 1 inst · 2 vol
     this.selection = null;                      // { r0, c0, r1, c1 } (normalized) or null
     this._dragAnchor = null;
     this.scroll = 0;                            // top visible row (when stopped)
     this.dpr = Math.min(window.devicePixelRatio || 1, 2);
 
     canvas.addEventListener('mousedown', (e) => this._onMouseDown(e));
+    canvas.addEventListener('contextmenu', (e) => e.preventDefault());
     canvas.addEventListener('wheel', (e) => { e.preventDefault(); this.scrollBy(Math.sign(e.deltaY) * 3); }, { passive: false });
     this._resize();
     window.addEventListener('resize', () => this._resize());
@@ -85,10 +76,10 @@ export class TrackerView {
     return song.patterns[this.engine.currentPatternIdx] || song.patterns[0];
   }
 
-  // Full per-channel column stride (note/inst/vol + the optional fx column).
-  get chW() { return CH_W + (this.showFx ? FX_W : 0); }
-  // Highest valid cursor sub-column (4 when the fx column is shown, else 2).
-  get maxCol() { return this.showFx ? 4 : 2; }
+  // Full per-channel column stride (note/inst/vol)
+  get chW() { return CH_W; }
+  // Highest valid cursor sub-column (2).
+  get maxCol() { return 2; }
 
   _trackX(ch: number): number {
     const p = this.pattern;
@@ -98,12 +89,6 @@ export class TrackerView {
   
   _trackW(ch: number): number {
     return ch < this.pattern.channels ? this.chW : AUTO_W;
-  }
-
-  // Toggle the automation column; clamp the cursor back into range when hiding.
-  toggleFx() {
-    this.showFx = !this.showFx;
-    if (!this.showFx && this.cursor.col > 2) this.cursor.col = 2;
   }
 
   _resize() {
@@ -133,9 +118,7 @@ export class TrackerView {
     if (ch >= p.channels) {
       col = 0; // AutoTrack only has one column
     } else {
-      if (this.showFx && local >= FX_COL_X[1]) col = 4;
-      else if (this.showFx && local >= FX_COL_X[0]) col = 3;
-      else col = local >= COL_X[2] ? 2 : local >= COL_X[1] ? 1 : 0;
+      col = local >= COL_X[2] ? 2 : local >= COL_X[1] ? 1 : 0;
     }
     return { row, ch, col };
   }
@@ -158,11 +141,20 @@ export class TrackerView {
       
       if (ch >= 0 && ch < p.channels) {
         const s = this._panSlider(ch);
-        if (x >= s.trackX - 5 && x <= s.trackX + s.trackW + 5) {
+        if (y > 26 && x >= s.trackX - 5 && x <= s.trackX + s.trackW + 5) {
           this._setPanFromX(ch, s, x);   // jump to the clicked position…
           this._beginPanDrag(ch, s);     // …then track the drag
-        } else {
+        } else if (y <= 26 && e.button === 0) {
           this.engine.muted[ch] = !this.engine.muted[ch];
+        }
+      } else if (ch >= p.channels && e.button === 2) {
+        // Right click on AutoTrack header removes it
+        if (confirm('Remove this automation track?')) {
+          const tIdx = ch - p.channels;
+          p.autoTracks.splice(tIdx, 1);
+          if (this.cursor.ch >= p.channels + p.autoTracks.length) {
+            this.cursor.ch = Math.max(0, p.channels + p.autoTracks.length - 1);
+          }
         }
       }
       return;
@@ -196,23 +188,21 @@ export class TrackerView {
   }
 
   // [x, width] of a cursor sub-field within a channel column whose left edge is x.
-  // cols 0-2 = note/inst/vol; 3 = fx command; 4 = fx value.
+  // cols 0-2 = note/inst/vol.
   _colRect(x: number, col: number, isAutoTrack = false): [number, number] {
     if (isAutoTrack) return [x + 2, AUTO_W - 4];
-    if (col === 3) return [x + FX_COL_X[0], FX_COL_W[0]];
-    if (col === 4) return [x + FX_COL_X[1], FX_COL_W[1]];
     return [x + COL_X[col], COL_W[col]];
   }
 
-  _topPad() { return 26; } // header height in CSS px
+  _topPad() { return 52; } // header height in CSS px
 
-  // Geometry of channel `ch`'s header pan slider (CSS px): the track sits between
-  // the "CH n" label and the mute badge, centred vertically in the header.
+  // Geometry of channel `ch`'s header pan slider (CSS px): the track sits on the
+  // second line of the double-height header.
   _panSlider(ch: number): PanSlider {
     const x = NUM_W + ch * this.chW;
-    const trackX = x + 40;
-    const trackW = Math.max(12, this.chW - 82);
-    const trackY = this._topPad() / 2;
+    const trackX = x + 10;
+    const trackW = this.chW - 20;
+    const trackY = 39; // 26 + 13
     return { trackX, trackW, trackY };
   }
 
@@ -386,8 +376,8 @@ export class TrackerView {
     ctx.beginPath();
     ctx.moveTo(0, pad);
     ctx.lineTo(W, pad);
-    for (let ch = 0; ch <= p.channels; ch++) {
-      const dividerX = NUM_W + ch * cw;
+    for (let i = 0; i <= p.channels + p.autoTracks.length; i++) {
+      const dividerX = this._trackX(i);
       ctx.moveTo(dividerX, 0);
       ctx.lineTo(dividerX, pad);
     }
@@ -440,9 +430,9 @@ export class TrackerView {
 
       ctx.fillStyle = isMuted ? 'rgba(106, 124, 150, 0.4)' : C('--dim');
       ctx.font = 'bold 13px "Rajdhani", sans-serif';
-      ctx.fillText(`CH ${ch}`, x + 8, pad / 2);
+      ctx.fillText(`CH ${ch}`, x + 8, 13);
 
-      drawBadge(x + cw - 38, pad / 2 - 6, 30, 12, isMuted ? 'MUT' : 'ON', isMuted);
+      drawBadge(x + cw - 38, 13 - 6, 30, 12, isMuted ? 'MUT' : 'ON', isMuted);
 
       // Pan slider: tight 1px box with grey background that fades to green (port/left) or red (starboard/right).
       const s = this._panSlider(ch);
@@ -516,11 +506,30 @@ export class TrackerView {
       const x = this._trackX(p.channels + tIdx);
       const track = p.autoTracks[tIdx];
       const t = targetById(track.targetParamId);
-      ctx.fillStyle = C('--dim');
-      ctx.font = 'bold 10px "Rajdhani", sans-serif';
+      
+      let scopeLabel = '';
+      let scopeColor = C('--dim');
+      if (track.targetScope === 'global') {
+        scopeLabel = 'GLB';
+      } else if (track.targetScope === 'chan') {
+        scopeLabel = `CH${track.targetInstIdx}`;
+      } else {
+        const inst = this.engine.instruments[track.targetInstIdx!];
+        if (inst) {
+          scopeColor = inst.color;
+          const INST_LABELS: Record<string, string> = { 'moog': 'MŌG' };
+          scopeLabel = INST_LABELS[inst.type] || inst.type.toUpperCase();
+        } else {
+          scopeLabel = '---';
+        }
+      }
+
+      ctx.fillStyle = scopeColor;
+      ctx.font = 'bold 12px "JetBrains Mono", monospace';
       ctx.textAlign = 'center';
-      // Center the code in the 40px column
-      ctx.fillText(t ? t.code : '---', x + AUTO_W / 2, pad / 2);
+      ctx.fillText(scopeLabel, x + AUTO_W / 2, 16);
+      ctx.fillStyle = '#ffffff';
+      ctx.fillText(t ? t.code : '---', x + AUTO_W / 2, 36);
       ctx.textAlign = 'left';
     }
 
@@ -588,27 +597,6 @@ export class TrackerView {
           }
         }
 
-        // Automation column (independent of the note in this cell).
-        if (this.showFx) {
-          const fi = p.idx(row, ch);
-          const cmdX = x + FX_COL_X[0] + FX_TEXT_PAD[0];
-          const valX = x + FX_COL_X[1] + FX_TEXT_PAD[1];
-          const fxId = p.fxCmd[fi];
-          if (fxId === NO_FX) {
-            ctx.fillStyle = isMuted ? 'rgba(45, 58, 82, 0.15)' : C('--grid');
-            ctx.fillText('···', cmdX, y + ROW_H / 2);
-            ctx.fillText('··', valX, y + ROW_H / 2);
-          } else {
-            const t = targetById(fxId);
-            const hex = p.fxVal[fi].toString(16).toUpperCase().padStart(2, '0');
-            // fx-scope commands are track-wide for the engine → amber to flag it;
-            // inst-scope (per-channel) → cyan.
-            ctx.fillStyle = isMuted ? 'rgba(106, 124, 150, 0.3)'
-              : (t && t.scope === 'fx') ? '#ffb700' : '#5fd3ff';
-            ctx.fillText(t ? t.code : '???', cmdX, y + ROW_H / 2);
-            ctx.fillText(hex, valX, y + ROW_H / 2);
-          }
-        }
       }
 
       for (let tIdx = 0; tIdx < p.autoTracks.length; tIdx++) {

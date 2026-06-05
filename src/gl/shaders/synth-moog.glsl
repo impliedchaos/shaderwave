@@ -62,7 +62,7 @@ float ladderMoog(inout vec4 st, float x, float g, float res){
 void main(){
   int x = int(gl_FragCoord.x);
   int v = int(gl_FragCoord.y);
-  if (!voiceLive(v)) { outAudio = vec4(0.0); outState = vec4(0.0); return; }
+  if (!voiceLive(v)) { outAudio = vec4(0.0); outState = vec4(0.0); outPhase = vec4(0.0); outPhase2 = vec4(0.0); return; }
 
   int readCol = uSubOffset == 0 ? (uBlock - 1) : (uSubOffset - 1);   // strip checkpoint
   vec4 st = texelFetch(uPrevState, ivec2(readCol, v), 0);

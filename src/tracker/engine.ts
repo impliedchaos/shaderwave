@@ -5,7 +5,7 @@
 // Mapping: tracker channel index == voice index (8 channels → 8 voices, mono per
 // channel). When a new note hits a channel, it overwrites that voice.
 import { VOICES, INSTRUMENTS, INSTRUMENT_COLORS, noteToFreq, BLOCK } from '../constants.js';
-import { EMPTY, OFF, NO_FX } from './pattern.js';
+import { EMPTY, OFF } from './pattern.js';
 import type { Pattern } from './pattern.js';
 import { defaultParams, instrumentsFromParams, DRUM_MAP } from './song.js';
 import { targetById, denorm } from './automation.js';
@@ -205,7 +205,8 @@ export class Engine {
     this.playing = false;
     this.paused = false; this._resumeOffset = 0;
     for (const v of this.voices) v.active = false;
-    this.panAuto.fill(NaN); // drop automation overrides; slider base returns
+    this.panAuto.fill(NaN);     // drop pan automation overrides; slider base returns
+    this.autoLive.inst.clear(); // drop inst automation overrides; base params return
   }
 
   // --- note triggering ----------------------------------------------------
@@ -225,24 +226,34 @@ export class Engine {
     v.offFrame = HELD;
     if (instr.type === '808') {
       v.freq = 220; // unused by 808, but keep sane
-      this._writeParams(ch, instr, DRUM_MAP[note] ?? 0);
+      this._writeParams(ch, instr, idx, DRUM_MAP[note] ?? 0);
     } else {
       v.freq = noteToFreq(note);
       // Glide starts from the voice's previous pitch (Moog reads uFreqFrom);
       // a fresh voice glides from its own target = no glide.
       this.vd.freqFrom[ch] = wasActive ? prevFreq : v.freq;
-      this._writeParams(ch, instr, null);
+      this._writeParams(ch, instr, idx, null);
     }
   }
 
-  // Copy an instrument instance's param banks into the voice's slots. For 808,
-  // override the drum-slot field (p0.x) from the note's drum index. p2/p3 are
-  // Moog-only and copied when the instance has them.
-  _writeParams(ch: number, instr: InstrumentInstance, drumSlot: number | null) {
+  // Copy an instrument instance's param banks into the voice's slots, then layer
+  // any active inst-automation overrides for that instance on top (so a note
+  // triggered mid-automation snapshots the current automated value, not the
+  // pristine base). For 808, override the drum-slot field (p0.x) from the note's
+  // drum index. p2/p3 are Moog-only and copied when the instance has them.
+  _writeParams(ch: number, instr: InstrumentInstance, instrIdx: number, drumSlot: number | null) {
     const o = ch * 4;
     for (let k = 0; k < 4; k++) { this.vd.p0[o + k] = instr.p0[k]; this.vd.p1[o + k] = instr.p1[k]; }
     if (instr.p2) for (let k = 0; k < 4; k++) this.vd.p2[o + k] = instr.p2[k];
     if (instr.p3) for (let k = 0; k < 4; k++) this.vd.p3[o + k] = instr.p3[k];
+    if (this.autoLive.inst.size) {
+      for (let k = 0; k < 4; k++) {
+        const a0 = this.autoLive.inst.get(`${instrIdx}:p0:${k}`);
+        if (a0 !== undefined) this.vd.p0[o + k] = a0;
+        const a1 = this.autoLive.inst.get(`${instrIdx}:p1:${k}`);
+        if (a1 !== undefined) this.vd.p1[o + k] = a1;
+      }
+    }
     if (drumSlot !== null) this.vd.p0[o] = drumSlot;
   }
 
@@ -435,30 +446,6 @@ export class Engine {
   // targets write the live per-voice slot (channel-local, holds until the next
   // note re-snapshots); 'fx' targets write the engine-type's shared fxParams.
   _applyAutomation(pat: Pattern, row: number) {
-    for (let ch = 0; ch < pat.channels; ch++) {
-      const i = pat.idx(row, ch);
-      const id = pat.fxCmd[i];
-      if (id === NO_FX) continue;
-      const t = targetById(id);
-      if (!t) continue;
-      const value = denorm(t, pat.fxVal[i]);
-      if (t.scope === 'inst') {
-        const arr = t.bank === 'p1' ? this.vd.p1 : this.vd.p0;
-        arr[ch * 4 + t.index!] = value;
-        const v = this.voices[ch];
-        const instrIdx = (v && v.active) ? v.instrument : pat.inst[i];
-        this.autoLive.inst.set(`${instrIdx}:${t.bank}:${t.index}`, value);
-      } else if (t.scope === 'chan') {
-        this.panAuto[ch] = value;
-      } else if (t.scope === 'global') {
-        if (t.code === 'BPM') this.bpm = value;
-        else if (t.code === 'MST') this.vd.master = value;
-      } else if (this.fxParams) {
-        const fp = this.fxParams[this._channelType(ch, pat, i)];
-        if (fp) fp[t.key!] = value;
-      }
-    }
-
     for (const track of pat.autoTracks) {
       const val255 = track.data[row];
       if (val255 < 0) continue;
@@ -470,23 +457,19 @@ export class Engine {
         if (t.code === 'BPM') this.bpm = value;
         else if (t.code === 'MST') this.vd.master = value;
       } else if (t.scope === 'chan' && track.targetInstIdx !== null) {
-        // chan scope targeted to a specific channel index? No, wait, AutoTracks don't have a channel index!
-        // chan scope is tricky for AutoTracks unless targetInstIdx is interpreted as channel index.
-        // Let's assume targetInstIdx for chan scope means channel index.
+        // chan-scope tracks have no engine; targetInstIdx is reused as the channel
+        // index the command pans (channel index == voice index). Cleared on play/stop.
         this.panAuto[track.targetInstIdx] = value;
       } else if (track.targetInstIdx !== null) {
         const instr = this.instruments[track.targetInstIdx];
         if (!instr) continue;
         if (t.scope === 'inst') {
-          // For inst scope, we need to find ALL active voices playing this instrument, OR just write to the autoLive map?
-          // If we write to autoLive, how does the next note get it? It snapshots from the sidebar params. 
-          // Wait, 'inst' automation in legacy FX columns writes directly to the channel's live voice slot (p0/p1).
-          // An AutoTrack targets an *instrument*, not a channel!
-          // So it should probably update the instrument's base params AND all active voices playing it!
-          const arrBase = t.bank === 'p1' ? instr.p1 : instr.p0;
-          arrBase[t.index!] = value;
+          // inst-scope automation targets an instrument *instance*. Push the value
+          // into every live voice playing it (so a held note hears it mid-note), and
+          // record it in autoLive so the next note of that instance snapshots it too
+          // (_writeParams merges these). NEVER write instr.p0/p1 — those are the
+          // pristine base params; mutating them would persist past stop().
           this.autoLive.inst.set(`${track.targetInstIdx}:${t.bank}:${t.index}`, value);
-          // And update live voices playing this instrument:
           for (let v = 0; v < VOICES; v++) {
             if (this.voices[v].active && this.voices[v].instrument === track.targetInstIdx) {
               const vdArr = t.bank === 'p1' ? this.vd.p1 : this.vd.p0;
@@ -519,15 +502,6 @@ export class Engine {
         if (fp) fp[target.key!] = value;
       }
     }
-  }
-
-  // Engine type driving a channel right now: the sounding voice's instrument if
-  // active, else the cell's own instrument, else the first instance.
-  _channelType(ch: number, pat: Pattern, i: number): InstrumentType {
-    const v = this.voices[ch];
-    let instr = (v && v.active) ? this.instruments[v.instrument] : null;
-    if (!instr) instr = this.instruments[pat.inst[i]] || this.instruments[0];
-    return instr ? instr.type : '303';
   }
 
   _refreshVoiceData(blockStart: number) {

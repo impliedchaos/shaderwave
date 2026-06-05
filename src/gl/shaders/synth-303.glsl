@@ -9,7 +9,7 @@
 void main(){
   int x = int(gl_FragCoord.x);
   int v = int(gl_FragCoord.y);
-  if (!voiceLive(v)) { outAudio = vec4(0.0); outState = vec4(0.0); return; }
+  if (!voiceLive(v)) { outAudio = vec4(0.0); outState = vec4(0.0); outPhase = vec4(0.0); outPhase2 = vec4(0.0); return; }
 
   // Checkpoint at the strip's left edge: the state after the previous sample.
   // For the first strip that's the previous block's last column; otherwise the
