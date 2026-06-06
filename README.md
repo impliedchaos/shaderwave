@@ -372,7 +372,17 @@ against the reference targets baked into the harness header.
 
 (✓ *888State* shipped — see the **888State / E8E** instrument above.)
 
+## Song files (save / load)
+
+The **💾 Save** / **📂 Load** toolbar buttons export and import the whole song as
+a versioned JSON document (`*.shaderwave.json`): patterns (notes/inst/vol/effect
+column + automation tracks), the instrument table (params + DX7 ops), per-engine
+fx chains, order, bpm, pan and master. The file carries `format` + `version`
+headers; `src/tracker/song-io.ts` validates them, refuses files from a newer
+format, and routes older files through a `migrate()` step so the schema can keep
+evolving without breaking saved songs. Automation stores the **frozen** target
+ids, so a saved track still resolves after new engines are appended.
+
 ## Known Limitations / Next Steps
 
-- Save/load functionality to export and import song data as JSON.
 - Instrument editor for creating and editing instrument patches from scratch.

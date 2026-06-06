@@ -8,7 +8,9 @@ import { AudioPipeline } from './audio/pipeline.js';
 import { Engine } from './tracker/engine.js';
 import { TrackerView } from './ui/tracker-view.js';
 import { Controls, bindKnob } from './ui/controls.js';
-import { DEMO_SONGS, loadSongInstruments } from './tracker/song.js';
+import { DEMO_SONGS, loadSongInstruments, instrumentsFromParams } from './tracker/song.js';
+import { serializeSong, deserializeSong, patternFromSerialized, instrumentSpecs } from './tracker/song-io.js';
+import type { SerializedSong } from './tracker/song-io.js';
 import { instGlow, DEFAULT_MASTER } from './constants.js';
 import { REGISTRY, byType } from './instruments/index.js';
 import { EMPTY, OFF, Pattern } from './tracker/pattern.js';
@@ -122,6 +124,8 @@ export class App {
   controls: Controls;
   held: Map<string, number>;
   customSongName: string | null = null;
+  songAuthor = '';
+  songNote = '';
   lastRecordedRow = 0;        // video-export progress cursor
   _playbackVolume?: number;
   _fxKnobs: { el: KnobEl; key: string }[] = [];
@@ -504,6 +508,8 @@ export class App {
           untitledOpt.remove();
         }
         this.customSongName = null;
+        this.songAuthor = '';
+        this.songNote = '';
         const songDef = DEMO_SONGS[idx];
         if (songDef) {
           this.currentSongIdx = idx;
@@ -585,21 +591,37 @@ export class App {
       };
     }
 
-    // Bind Song Arranger Tab controls
-    const addPatBtn = $('add-pattern-btn');
-    if (addPatBtn) {
-      addPatBtn.onclick = () => {
-        const song = this.engine.song;
-        if (!song) return;
-        const p = this.view.pattern;
-        const newPat = new Pattern(p ? p.rows : 64, p ? p.channels : 8);
-        song.patterns.push(newPat);
-        this.engine.currentPatternIdx = song.patterns.length - 1;
-        this._renderSongEditor();
-        this._updatePatternSelector();
-        this.view.draw();
-      };
-    }
+    // Pattern-editor toolbar: add / duplicate / delete the current pattern.
+    const patAddBtn = $('pat-add-btn');
+    if (patAddBtn) patAddBtn.onclick = () => this._addPattern();
+    const patDupBtn = $('pat-dup-btn');
+    if (patDupBtn) patDupBtn.onclick = () => this._duplicatePattern();
+    const patDelBtn = $('pat-del-btn');
+    if (patDelBtn) patDelBtn.onclick = () => {
+      const song = this.engine.song;
+      if (!song || song.patterns.length <= 1) return;   // never delete the last pattern
+      if (confirm(`Delete pattern ${this.engine.currentPatternIdx}? This can't be undone.`)) {
+        this._deletePattern(this.engine.currentPatternIdx);
+      }
+    };
+
+    // Song-info metadata fields (saved with the song).
+    const titleInput = $<HTMLInputElement>('song-title');
+    if (titleInput) titleInput.oninput = () => {
+      this.customSongName = titleInput.value || 'Untitled';
+      // Editing the title makes this a custom song → reflect in the song selector.
+      const sel = $<HTMLSelectElement>('song-select');
+      if (sel) {
+        let opt = sel.querySelector<HTMLOptionElement>('option[value="-1"]');
+        if (!opt) { opt = document.createElement('option'); opt.value = '-1'; sel.appendChild(opt); }
+        opt.textContent = this.customSongName;
+        sel.value = '-1';
+      }
+    };
+    const authorInput = $<HTMLInputElement>('song-author');
+    if (authorInput) authorInput.oninput = () => { this.songAuthor = authorInput.value; };
+    const noteInput = $<HTMLTextAreaElement>('song-note');
+    if (noteInput) noteInput.oninput = () => { this.songNote = noteInput.value; };
 
     const addOrdBtn = $('add-order-btn');
     if (addOrdBtn) {
@@ -644,6 +666,8 @@ export class App {
       newSongBtn.onclick = () => {
         this.engine.stop();
         this.customSongName = 'Untitled';
+        this.songAuthor = '';
+        this.songNote = '';
         const songSelect = $<HTMLSelectElement>('song-select');
         if (songSelect) {
           let untitledOpt = songSelect.querySelector<HTMLOptionElement>('option[value="-1"]');
@@ -691,10 +715,126 @@ export class App {
       };
     }
 
+    const saveSongBtn = $('save-song-btn');
+    if (saveSongBtn) saveSongBtn.onclick = () => this._saveSong();
+
+    const loadSongBtn = $('load-song-btn');
+    const loadSongInput = $<HTMLInputElement>('load-song-input');
+    if (loadSongBtn && loadSongInput) {
+      loadSongBtn.onclick = () => loadSongInput.click();
+      loadSongInput.onchange = () => {
+        const file = loadSongInput.files?.[0];
+        if (file) this._loadSongFile(file);
+        loadSongInput.value = '';   // allow re-loading the same file
+      };
+    }
+
     const exportBtn = $('export');
     if (exportBtn) {
       exportBtn.onclick = () => showExportDialog(this);
     }
+  }
+
+  // Serialize the current song to a versioned JSON file and download it.
+  _saveSong() {
+    const eng = this.engine;
+    if (!eng.song) return;
+    const name = this.customSongName ?? DEMO_SONGS[this.currentSongIdx]?.name ?? 'Untitled';
+    const doc = serializeSong({
+      name,
+      author: this.songAuthor,
+      note: this.songNote,
+      bpm: eng.bpm,
+      rowsPerBeat: eng.rowsPerBeat,
+      master: eng.songMaster,
+      pan: Array.from(eng.channelPan),
+      instruments: eng.instruments,
+      fxParams: this.fxParams as Record<string, FxParams>,
+      order: eng.song.order,
+      patterns: eng.song.patterns,
+    });
+    const blob = new Blob([JSON.stringify(doc, null, 1)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const safe = name.replace(/[^\w.-]+/g, '_').slice(0, 64) || 'song';
+    a.href = url;
+    a.download = `${safe}.shaderwave.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  // Read a .json song file, validate/parse it, and load it into the app.
+  _loadSongFile(file: File) {
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const doc = deserializeSong(JSON.parse(String(reader.result)));
+        this._applySerializedSong(doc);
+      } catch (err) {
+        alert(`Couldn't load song: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    };
+    reader.onerror = () => alert("Couldn't read the file.");
+    reader.readAsText(file);
+  }
+
+  // Apply a deserialized song to the engine + UI (mirrors the demo-song switch).
+  _applySerializedSong(doc: SerializedSong) {
+    this.customSongName = doc.name || 'Untitled';
+    this.songAuthor = doc.author ?? '';
+    this.songNote = doc.note ?? '';
+    // Mark the song selector as a custom (non-demo) entry.
+    const songSelect = $<HTMLSelectElement>('song-select');
+    if (songSelect) {
+      let opt = songSelect.querySelector<HTMLOptionElement>('option[value="-1"]');
+      if (!opt) {
+        opt = document.createElement('option');
+        opt.value = '-1';
+        songSelect.appendChild(opt);
+      }
+      opt.textContent = this.customSongName;
+      songSelect.value = '-1';
+    }
+
+    this.engine.stop();
+    this.engine.bpm = doc.bpm;
+    const bpmInput = $<HTMLInputElement>('bpm');
+    if (bpmInput) bpmInput.value = String(doc.bpm);
+
+    this.engine.instruments = instrumentsFromParams(instrumentSpecs(doc));
+    this.fxParams = cloneFx(doc.fxParams);
+    this.engine.fxParams = this.fxParams;
+    if (this.renderer) {
+      for (const it of this.renderer.inst) {
+        it.fx.params = this.fxParams[it.name] || defaultFxParams();
+      }
+    }
+
+    let patterns = doc.patterns.map(patternFromSerialized);
+    if (!patterns.length) patterns = [new Pattern(32, 8)];
+    this.engine.loadSong({
+      patterns,
+      order: doc.order.length ? [...doc.order] : [0],
+      rowsPerBeat: doc.rowsPerBeat,
+      bpm: doc.bpm,
+      pan: doc.pan,
+      master: doc.master,
+    });
+    this.engine.currentPatternIdx = 0;
+
+    // Empty instrument table (a saved blank song) → no selection, like New.
+    this.controls.selected = this.engine.instruments.length ? 0 : -1;
+    this.controls.select(this.controls.selected);
+
+    this.view.cursor.row = 0;
+    this.view.cursor.ch = 0;
+    this.view.selection = null;
+    this.view.scroll = 0;
+    const lenInput = $<HTMLInputElement>('pattern-len');
+    if (lenInput) lenInput.value = String(this.view.pattern.rows);
+    this.view.draw();
+    this._renderSongEditor();
+    this._updatePatternSelector();
   }
 
   _openAutoTrackPicker() {
@@ -1434,7 +1574,57 @@ export class App {
 
   _renderSongEditor() {
     renderArranger(this);
+    this._populateSongMeta();
     this._songVolumeKnob?._extSet?.(this.engine.songMaster);   // reflect the loaded song's volume
+  }
+
+  // Reflect the current song's metadata into the Song Info fields (without
+  // clobbering a field the user is actively typing in).
+  _populateSongMeta() {
+    const title = $<HTMLInputElement>('song-title');
+    const author = $<HTMLInputElement>('song-author');
+    const note = $<HTMLTextAreaElement>('song-note');
+    const titleVal = this.customSongName ?? DEMO_SONGS[this.currentSongIdx]?.name ?? '';
+    if (title && document.activeElement !== title) title.value = titleVal;
+    if (author && document.activeElement !== author) author.value = this.songAuthor;
+    if (note && document.activeElement !== note) note.value = this.songNote;
+  }
+
+  // Add a new blank pattern, matching the current pattern's length, and select it.
+  _addPattern() {
+    const song = this.engine.song;
+    if (!song) return;
+    const cur = this.view.pattern;
+    song.patterns.push(new Pattern(cur ? cur.rows : 64, cur ? cur.channels : 8));
+    this.engine.currentPatternIdx = song.patterns.length - 1;
+    this._renderSongEditor();
+    this._updatePatternSelector();
+    this.view.draw();
+  }
+
+  // Duplicate the current pattern (cells + automation) as a new pattern, selected.
+  _duplicatePattern() {
+    const song = this.engine.song;
+    if (!song) return;
+    const src = song.patterns[this.engine.currentPatternIdx];
+    if (!src) return;
+    const dup = new Pattern(src.rows, src.channels);
+    dup.notes.set(src.notes);
+    dup.inst.set(src.inst);
+    dup.vol.set(src.vol);
+    dup.fxCmd.set(src.fxCmd);
+    dup.fxVal.set(src.fxVal);
+    dup.autoTracks = src.autoTracks.map((t) => ({
+      targetScope: t.targetScope,
+      targetInstIdx: t.targetInstIdx,
+      targetParamId: t.targetParamId,
+      data: new Int16Array(t.data),
+    }));
+    song.patterns.push(dup);
+    this.engine.currentPatternIdx = song.patterns.length - 1;
+    this._renderSongEditor();
+    this._updatePatternSelector();
+    this.view.draw();
   }
 
   _updatePatternSelector() {

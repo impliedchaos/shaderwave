@@ -1058,6 +1058,20 @@
     align-items: center;
     letter-spacing: 1px;
   }
+  .song-meta-fields { display: flex; flex-direction: column; gap: 12px; }
+  .song-meta-label {
+    display: flex; flex-direction: column; gap: 4px;
+    font-family: var(--font-heading); font-size: 11px; letter-spacing: 1px;
+    text-transform: uppercase; color: #8aa;
+  }
+  .song-meta-label input, .song-meta-label textarea {
+    background: #11111e; border: 1px solid #2d3a52; border-radius: 4px;
+    color: #e6e6f0; font-family: 'Rajdhani', sans-serif; font-size: 14px;
+    padding: 6px 8px; width: 100%; box-sizing: border-box; resize: vertical;
+  }
+  .song-meta-label input:focus, .song-meta-label textarea:focus {
+    outline: none; border-color: #46d6c4;
+  }
   
   .plus-btn {
     background: rgba(0, 240, 255, 0.1);
@@ -1243,7 +1257,10 @@
     </div>
     <div class="control-group header-right">
       <button id="new-song-btn" title="Create a new blank song">📄 New</button>
-      <button id="export" title="Export Song">📤 Export</button>
+      <button id="save-song-btn" title="Save song to a .json file">💾 Save</button>
+      <button id="load-song-btn" title="Load song from a .json file">📂 Load</button>
+      <input type="file" id="load-song-input" accept=".json,application/json" style="display:none">
+      <button id="export" title="Export audio (WAV)">📤 Export</button>
       <button id="help" title="Help & keyboard shortcuts (?)">❔ Help</button>
     </div>
     <div class="header-break"></div>
@@ -1275,6 +1292,11 @@
             <button id="pat-prev-btn" class="pat-nav-btn" title="Previous Pattern">◀</button>
             <span id="pat-num-display" class="pat-num-val">0</span>
             <button id="pat-next-btn" class="pat-nav-btn" title="Next Pattern">▶</button>
+            <button id="pat-add-btn" class="pat-nav-btn" title="Add a new pattern (same length as this one)">+</button>
+            <button id="pat-dup-btn" class="pat-nav-btn" title="Duplicate this pattern">
+              <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.4"/><rect x="2.5" y="2.5" width="8" height="8" rx="1.5" fill="#171727" stroke="currentColor" stroke-width="1.4"/></svg>
+            </button>
+            <button id="pat-del-btn" class="pat-nav-btn" title="Delete this pattern">−</button>
           </div>
           <div class="toolbar-divider"></div>
           <button id="play-pattern" class="play-pattern-btn">🔁 Play Pattern</button>
@@ -1291,8 +1313,18 @@
       <div id="song-arranger-content" class="tab-content" style="display: none;">
         <div class="song-editor-container">
           <div class="song-editor-section">
-            <h3>Patterns <button id="add-pattern-btn" class="plus-btn" title="Create a new blank pattern">+</button></h3>
-            <div id="arranger-pattern-list" class="arranger-list"></div>
+            <h3>Song Info</h3>
+            <div class="song-meta-fields">
+              <label class="song-meta-label">Title
+                <input id="song-title" type="text" maxlength="80" placeholder="Untitled" autocomplete="off" spellcheck="false">
+              </label>
+              <label class="song-meta-label">Author
+                <input id="song-author" type="text" maxlength="80" placeholder="—" autocomplete="off" spellcheck="false">
+              </label>
+              <label class="song-meta-label">Note
+                <textarea id="song-note" rows="5" maxlength="500" placeholder="Notes about this song…" spellcheck="false"></textarea>
+              </label>
+            </div>
           </div>
           <div class="song-editor-section timeline-section">
             <h3>Arrangement Timeline <button id="add-order-btn" class="plus-btn" title="Add pattern slot to song order">+</button></h3>

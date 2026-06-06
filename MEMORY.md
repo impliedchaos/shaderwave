@@ -266,3 +266,17 @@ byte-identical at two different trigger times.
   `noUnusedParameters` are ON — intentionally-unused params are `_`-prefixed. Remaining
   `any`/`as any` are narrow + justified: dynamic data-driven param-bank/op-key access
   keyed by runtime strings from a ParamDef table.
+
+### Song save/load — versioned JSON (`src/tracker/song-io.ts`) — `project`
+**💾 Save / 📂 Load** toolbar buttons serialize the whole song to `*.shaderwave.json`.
+`serializeSong`/`deserializeSong` carry `format: 'shaderwave-song'` + `version` (currently
+1). `deserializeSong` validates the header, THROWS on a newer format than it understands,
+and routes older files through a `migrate()` stub (add `if (d.version < N) {…; d.version=N}`
+as the schema evolves). Captures patterns (notes/inst/vol/fxCmd/fxVal + autoTracks), the
+instrument table (p0..p3 + dx7 ops), per-engine fxParams, order, bpm, rowsPerBeat, pan,
+master. On load: instruments rebuilt via `instrumentsFromParams` (back-fills colour + p2/p3
+from descriptors), fxParams re-completed via the App's `cloneFx` (fills engine types a file
+omits — e.g. engines added later), patterns via `patternFromSerialized` (length-clamped so a
+hand-edited file can't throw). `_applySerializedSong` mirrors the demo-switch load path.
+**Why versioned:** automation `paramId`s are the frozen target ids, and the data model keeps
+shifting (banks, new engines), so the header lets old files keep opening.
