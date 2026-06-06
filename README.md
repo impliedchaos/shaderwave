@@ -27,8 +27,9 @@ served from a domain root or a subpath.
 | Key                         | Action                                                        |
 | --------------------------- | ------------------------------------------------------------- |
 | **Z–M** / **S,D,G,H,J**    | Piano keys — write a note to the cursor cell & preview        |
-| **Arrows**                  | Move cursor; **←/→** step note → instrument → volume sub-columns, then across automation-track columns |
+| **Arrows**                  | Move cursor; **←/→** step note → instrument → volume → effect sub-columns, then across automation-track columns |
 | **0–9** / **A–F**          | Set the inst/volume field (2-digit); on an automation-track column, enter a hex byte (`00`–`FF`) |
+| **0–4 / A**                 | On the **effect** sub-column, pick a command (see below) then type its 2-hex value |
 | **Shift+↑/↓**              | Nudge the note's volume ±5%                                  |
 | **PageUp/Dn**, **Home/End** | Page / jump the cursor; **mouse wheel** scrolls the grid      |
 | **Click+drag**              | Select a block of cells (note channels and automation tracks) |
@@ -96,6 +97,38 @@ A ROM selector in the sidebar lets you browse 9 banks (ROM 1A–4B + Bass)
 containing 288 factory and community patches total. Selecting a patch
 automatically configures all 6 operators, algorithm, and feedback from the
 SysEx data.
+
+### Tanpura — Indian Drone
+
+Additive / modal synthesis (closed-form, like the 808/DX7): each sample is a sum
+of decaying partials. The character is the **jivari** — the buzzing overtone
+bloom of a string grazing a curved bridge — modelled as a gaussian spectral
+formant that sweeps upward over the decay and sustains bright, the way a real
+tanpura's spectral centroid *rises* instead of dimming. Parameters: **Decay**,
+**Jivari**, **Bright**, **Pluck**, **Partials**, **Inharm**, **Bloom**, **Attack**,
+and **Infinite** (a toggle that disables the decay so the drone rings until
+note-off). Play it as a plucked-string voice — the demo *Let That Raga Drop*
+programs the classic Pa–sa–sa–Sa· cycle across channels.
+
+## Effect column
+
+Each pattern cell has a fourth sub-column — a classic tracker **effect command**
+(`cmd` + a 2-hex value, e.g. `340`). These are per-note articulations, distinct
+from the automation tracks (which sequence instrument/effect *parameters*). Type
+the command key, then two hex digits.
+
+| Cmd | Effect | Value |
+| --- | ------ | ----- |
+| `0` | Arpeggio | x, y = semitone offsets, cycled |
+| `1` / `2` | Pitch slide up / down | `xx` = rate |
+| `3` | **Tone portamento** (meend) — slides to the cell's note without re-attacking | `xx` = rate |
+| `4` | **Vibrato** (gamak) | x = speed, y = depth |
+| `A` | Volume slide | x = up, y = down |
+
+The engine modulates pitch/volume once per render block (~93 Hz). Pitch effects
+are smooth on the phase-accumulating melodic engines (**303**, **Moog**); the
+closed-form engines (Tanpura/DX7/808) step on per-block pitch changes, so pitch
+effects are best on the leads — volume slide works on any instrument.
 
 ## Presets
 
@@ -256,6 +289,7 @@ src/gl/                    context, program helpers, SynthRenderer, shaders/
   shaders/synth-808.glsl       drum machine
   shaders/synth-moog.glsl      Minimoog Model D voice
   shaders/synth-dx7.glsl       6-op FM (all 32 algorithms)
+  shaders/synth-tanpura.glsl   additive/modal Indian drone (jivari)
   shaders/fx-distortion.glsl   DS-1 distortion stage
   shaders/fx-chorus-*.glsl     chorus ring update + tap
   shaders/fx-tremolo.glsl      auto-pan tremolo stage
@@ -268,7 +302,8 @@ src/gl/                    context, program helpers, SynthRenderer, shaders/
   shaders/common.glsl          shared ADSR, noise, filter utilities (the prelude)
 src/gl/effects.ts          per-effect pass pipeline (data-driven chain order)
 src/audio/                 worklet.js (classic script — plain JS so Vite emits a real .js asset), pipeline.ts
-src/tracker/               pattern, song (+ demo songs), engine (BPM clock), automation (param-target registry)
+src/instruments/           instrument registry — one descriptor per engine (shader, params, presets, automation, help); add a synth here + one .glsl
+src/tracker/               pattern, song (+ demo songs), engine (BPM clock), automation (param-target registry), fx (effect-column commands)
 src/ui/                    tracker-view (canvas grid), controls (sidebar + SysEx loader), presets (instrument preset bank)
 public/sysex/DX7/          .syx patch banks (ROM 1A–4B, Bass)
 test/                      headless GLSL / render / audio harnesses

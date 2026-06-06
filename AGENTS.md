@@ -72,16 +72,27 @@ and `git status` before committing** so they don't get swept into a commit.
   channel). `src/tracker/engine.ts` schedules sample-accurate note triggers; the
   producer feeds the worklet strictly contiguous blocks (`src/audio/pipeline.ts`),
   so under CPU load you get silent underruns, never skipped/dropped blocks.
-- **Instruments**: 4 engine types in `src/constants.ts` `INSTRUMENTS = ['303','dx7','808','moog']`.
-  A song's `params` is a table of *instances* (e.g. three separate 303s); a pattern
-  cell's `inst` indexes that table. Each engine: `303` & `moog` use a recursive ladder
-  (per-sample loop); `dx7` & `808` are closed-form.
-- **Param banks** (per voice, `vec4` each): `uP0`/`uP1` for all engines; **Moog adds
-  `uP2`/`uP3` + `uFreqFrom`**, declared in `common.glsl` / the moog shader and uploaded
-  **only for moog** in the renderer (guarded like the dx7 op uniforms). `p.u('name')`
-  returns null for absent uniforms → `gl.uniform*` is a silent no-op.
+- **Instruments**: a **registry** of engine descriptors in `src/instruments/` (one file
+  per engine — `i303`, `idx7`, `i808`, `imoog`, `itanpura` — listed in `index.ts`'s
+  `REGISTRY`). `constants.ts` re-exports `INSTRUMENTS` from it; every per-engine table
+  (param defs, presets, automation targets, defaults, help) derives from the descriptor.
+  **Adding an engine = one descriptor + one `.glsl` + one `REGISTRY` line** (append at the
+  end — automation target ids are persisted). A song's `params` is a table of *instances*
+  (e.g. three separate 303s); a pattern cell's `inst` indexes that table. Each engine:
+  `303` & `moog` use a recursive ladder (per-sample loop, `recursive: true`); `dx7`, `808`
+  & `tanpura` are closed-form. See MEMORY.md for the full plug-in notes.
+- **Param banks** (per voice, `vec4` each): `uP0`/`uP1`/`uP2`/`uP3` + `uFreqFrom` are
+  **universal** — declared in `common.glsl` and uploaded for *every* engine (shaders that
+  don't reference one strip the uniform → `p.u()` returns null → `gl.uniform*` is a silent
+  no-op). So a new engine gets 16 param floats with zero new plumbing. DX7's 6-operator
+  banks (`uOpA–D`) stay engine-specific, uploaded via the descriptor's `uploadVoiceUniforms`
+  hook.
 - **Effects** are per *engine type* (`fxParams['303']` etc.), shared by all instances/
   channels of that type — they operate on the summed instrument output.
+- **Effect column** (per-cell note articulations — slides/vibrato/arp/volume-slide, distinct
+  from automation tracks): `Pattern.fxCmd`/`fxVal`, command set in `src/tracker/fx.ts`,
+  modulated per render block in `engine._modulateVoices` (`3xx`+note is the no-retrigger
+  meend). Smooth pitch only on the phase-accumulating engines (303, moog). See MEMORY.md.
 - **Automation** (`src/tracker/automation.ts` + `Pattern.autoTracks`): dedicated
   per-pattern **tracks**, each sequencing one `ParamTarget` over the rows as an
   `Int16Array` (`-1` = hold, `0–255` = a normalized value byte — the universal

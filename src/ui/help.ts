@@ -7,8 +7,9 @@ const KEYBOARD = [
   ['Z – M', 'Piano keys (with S D G H J) — write a note at the cursor and preview it'],
   ['[  /  ]', 'Octave down / up'],
   ['Arrows', 'Move the cursor around the grid'],
-  ['← / →', 'Step through the note → instrument → volume sub-columns'],
+  ['← / →', 'Step through the note → instrument → volume → effect sub-columns'],
   ['0 – 9', 'On the instrument / volume sub-column, type the value (two digits)'],
+  ['0–4 · A', 'On the effect sub-column, pick a command, then type its 2-hex value'],
   ['Shift + ↑ / ↓', 'Nudge the current note’s volume by ±5%'],
   ['=', 'Write a note-off (release)'],
   ['Del / Backspace', 'Clear the cell — or the whole selection'],
@@ -31,6 +32,11 @@ const MOUSE = [
 // Instrument list comes straight from the registry (label + blurb per engine),
 // so a newly-crafted instrument documents itself here automatically.
 const INSTRUMENTS = REGISTRY.map((d) => [d.label, d.blurb]);
+
+// Per-cell effect-column commands (derived from the command registry). Pitch
+// effects are smooth on the melodic engines (303, Moog); volume slide works on
+// any. Slide into a note with 3 for a meend; 4 gives vibrato (gamak).
+const PATTERN_FX = FX_CMDS.map((c) => [c.code.toString(16).toUpperCase(), c.label]);
 
 const EFFECTS = [
   ['Distortion', 'Boss DS-1 style diode hard-clip — Dist, Tone, Level'],
@@ -69,6 +75,7 @@ const STYLE = `
 
 import { el } from './dom.js';
 import { REGISTRY } from '../instruments/index.js';
+import { FX_CMDS } from '../tracker/fx.js';
 
 let overlay: HTMLElement | null = null;
 let open = false;
@@ -137,6 +144,7 @@ function build() {
   section('Keyboard', KEYBOARD, 'kbd');
   section('Mouse', MOUSE, 'kbd');
   section('Instruments', INSTRUMENTS, 'name');
+  section('Effect column  ·  per-cell command + 2-hex value', PATTERN_FX, 'kbd');
   section('Effects chain  ·  Dist → Chorus → Tremolo → Delay → Reverb → Bitcrush → Width', EFFECTS, 'name');
 
   // Backdrop click (outside the panel) and the Close button both dismiss.
