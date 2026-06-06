@@ -28,6 +28,16 @@ burned the user ~10 times and they are (rightly) furious about it.
   port (e.g. `--port 5199`) and, to stop it, kill **only the exact PID you captured**
   (`SERVER_PID=$!`), never a `pkill` pattern. (3) When in doubt, leave it running and move on.
 
+### Don't run the headless harness for demo-song changes — `feedback`
+For demo-song edits (`src/tracker/demo-songs.ts`), verify with **`npm run build` only** (fast
+typecheck). Do NOT launch headless Chrome / `render-check` / `vinyl-analyze` etc. just to
+check a song — the SwiftShader GPU render is **brutal on the user's laptop**, and they prefer
+to audition songs themselves in their own browser.
+- **Why:** headless render harnesses peg the user's machine; they're happy to listen/test.
+- **How to apply:** song/content changes → `npm run build`, then hand off for the user to
+  audition. Reserve `render-check`/headless runs for actual engine/shader changes where
+  finite-output verification genuinely matters (and even then, keep it minimal).
+
 ---
 
 ## Current work

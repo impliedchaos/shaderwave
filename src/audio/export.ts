@@ -141,6 +141,8 @@ async function exportWav(app: App, filename: string, _title: string, _author: st
   app.engine.playMode = 'song';
   app.engine.playing = true;
   app.engine.startFrame = 0;
+  app.engine._rowCursor = 0;
+  app.engine._nextRowFrame = null;   // advance(0) anchors the row clock at frame 0
 
   for (const v of app.engine.voices) {
     v.active = false;
@@ -148,7 +150,7 @@ async function exportWav(app: App, filename: string, _title: string, _author: st
     v.offFrame = HELD;
   }
 
-  const songFrames = Math.ceil(app.engine.totalRows * app.engine.samplesPerRow);
+  const songFrames = app.engine.estimateSongFrames();   // accounts for BPM automation
   // Render past the last note so the FX tail rings out (the engine stops itself
   // at the final row; subsequent blocks just drain delay/reverb).
   const tailFrames = Math.ceil(app.engine.sampleRate * FX_TAIL_SECONDS);

@@ -53,6 +53,8 @@ export class Engine {
   paused: boolean;
   _resumeOffset: number;
   startFrame: number | null;
+  _rowCursor: number;            // next row index to fire (running; song-global or pattern-local)
+  _nextRowFrame: number | null;  // absolute frame that row fires at; null → (re)anchor at next block
   lastBlockStart: number;
   displayRow: number;
   displayOrder: number;
@@ -89,6 +91,8 @@ export class Engine {
     this.paused = false;       // stopped-but-holding-position (Pause vs Stop)
     this._resumeOffset = 0;     // frames into the song timeline to resume from
     this.startFrame = null;   // absolute frame mapped to song row 0
+    this._rowCursor = 0;
+    this._nextRowFrame = null;
     this.lastBlockStart = 0;
     this.displayRow = 0;
     this.displayOrder = 0;
@@ -198,6 +202,31 @@ export class Engine {
     }
     return sum;
   }
+
+  // Total render length in frames for the full song, accounting for per-row BPM
+  // automation (so an accelerando/ritardando exports at the correct length rather
+  // than a constant-tempo estimate). Walks every song row in order, tracking bpm as
+  // global BPM-automation rows change it, summing each row's duration.
+  estimateSongFrames() {
+    if (!this.song) return 0;
+    const total = this.songRowCount();
+    let bpm = this.bpm, frames = 0;
+    for (let k = 0; k < total; k++) {
+      const { patIdx, localRow } = this.resolveSongRow(k);
+      const pat = this.song.patterns[patIdx];
+      if (pat) {
+        for (const tr of pat.autoTracks) {
+          const t = targetById(tr.targetParamId);
+          if (t && t.scope === 'global' && t.code === 'BPM') {
+            const b = tr.data[localRow];
+            if (b >= 0) bpm = denorm(t, b);
+          }
+        }
+      }
+      frames += (this.sampleRate * 60) / (Math.max(1, bpm) * this.rowsPerBeat);
+    }
+    return Math.ceil(frames);
+  }
   get totalRows() {
     if (!this.song) return 0;
     if (this.playMode === 'pattern') {
@@ -215,6 +244,7 @@ export class Engine {
   play(mode: string = 'song') {
     this.playMode = mode; this.playing = true; this.startFrame = null;
     this.paused = false; this._resumeOffset = 0; // fresh start → row 0
+    this._rowCursor = 0; this._nextRowFrame = null;
     this.autoLive.inst.clear();
     this.panAuto.fill(NaN);
     this.vd.master = this.songMaster;   // drop any VOL automation override
@@ -224,20 +254,22 @@ export class Engine {
   // elapsed offset is re-anchored against the live block in advance() on resume.
   pause() {
     if (!this.playing) return;
-    this._resumeOffset = (this.startFrame === null) ? 0 : Math.max(0, this.lastBlockStart - this.startFrame);
     this.playing = false;
     this.paused = true;
+    this._nextRowFrame = null;   // resume re-anchors the row clock; _rowCursor holds the position
     for (const v of this.voices) v.active = false;
   }
   resume() {
     if (!this.paused) return;
     this.playing = true;
     this.paused = false;
-    this.startFrame = null; // advance() re-anchors using _resumeOffset
+    this.startFrame = null;
+    this._nextRowFrame = null;   // continue from _rowCursor, re-anchored at the resume block
   }
   stop() {
     this.playing = false;
     this.paused = false; this._resumeOffset = 0;
+    this._rowCursor = 0; this._nextRowFrame = null; this.startFrame = null;
     for (const v of this.voices) v.active = false;
     this.panAuto.fill(NaN);     // drop pan automation overrides; slider base returns
     this.autoLive.inst.clear(); // drop inst automation overrides; base params return
@@ -381,47 +413,43 @@ export class Engine {
     this.lastBlockStart = blockStart;
 
     if (this.playing && this.song) {
-      // Anchor row 0. On a fresh play _resumeOffset is 0 (start at the top); on
-      // resume it's the paused elapsed, so we back-date startFrame to continue.
-      if (this.startFrame === null) { this.startFrame = blockStart - this._resumeOffset; this._resumeOffset = 0; }
-      const spr = this.samplesPerRow;
       const blockEnd = blockStart + BLOCK;
-      let k = Math.ceil((blockStart - this.startFrame) / spr);
-      if (k < 0) k = 0;
-      
+      // (Re)anchor the row clock to the start of this block on a fresh play/resume.
+      // We track the NEXT row's absolute frame and step it forward row-by-row by the
+      // CURRENT samplesPerRow. A BPM change applied by one row therefore only widens/
+      // narrows the gap to the FOLLOWING row — it never retroactively rescales the
+      // elapsed timeline (which is what made the playhead skip when BPM automation
+      // fired against a fixed row-0 anchor).
+      if (this._nextRowFrame === null) { this._nextRowFrame = blockStart; this.startFrame = blockStart; }
+
       const total = this.totalRows;
       let ended = false;
-      
-      for (; ; k++) {
-        if (this.playMode === 'song' && k >= total) {
-          ended = true;
-          break;
-        }
-        const f = this.startFrame + k * spr;
-        if (f >= blockEnd) break;
-        this._triggerRow(k, f);
+      while (this._nextRowFrame < blockEnd) {
+        if (this.playMode === 'song' && this._rowCursor >= total) { ended = true; break; }
+        this._triggerRow(this._rowCursor, Math.round(this._nextRowFrame));
+        this._nextRowFrame += this.samplesPerRow;   // uses the bpm in effect AFTER this row's automation
+        this._rowCursor++;
       }
-      
+
       if (ended) {
         this.stop();
-      }
-      
-      // Row shown in the UI = the row covering the end of this block.
-      const cur = Math.floor((blockEnd - 1 - this.startFrame) / spr);
-      if (this.playMode === 'pattern') {
-        const pat = this.song!.patterns[this.currentPatternIdx];
-        if (pat) {
-          const totalPat = pat.rows;
-          const r = ((cur % totalPat) + totalPat) % totalPat;
-          this.displayOrder = 0;
-          this.displayRow = r;
-        }
       } else {
-        if (total > 0 && !ended) {
-          const songRow = ((cur % total) + total) % total;
-          const { orderIdx, localRow } = this.resolveSongRow(songRow);
-          this.displayOrder = orderIdx;
-          this.displayRow = localRow;
+        // Row shown in the UI = the last one fired (covers the end of this block).
+        const cur = this._rowCursor - 1;
+        if (cur >= 0) {
+          if (this.playMode === 'pattern') {
+            const pat = this.song!.patterns[this.currentPatternIdx];
+            if (pat) {
+              const totalPat = pat.rows;
+              this.displayOrder = 0;
+              this.displayRow = ((cur % totalPat) + totalPat) % totalPat;
+            }
+          } else if (total > 0) {
+            const songRow = ((cur % total) + total) % total;
+            const { orderIdx, localRow } = this.resolveSongRow(songRow);
+            this.displayOrder = orderIdx;
+            this.displayRow = localRow;
+          }
         }
       }
     }

@@ -3869,5 +3869,190 @@ export const DEMO_SONGS: SongDef[] = [
         pan: [0.5, 0.5, 0.5, 0.5, 0.44, 0.34, 0.62, 0.7]
       };
     }
+  },
+  {
+    // "RPG Maker Killed My Dog" — a frantic 140 BPM horror-chase in A harmonic/Phrygian
+    // minor. A relentless 16th-note sub gallop, four-on-the-floor + driving hats, a
+    // tense recurring lead motif (G# leading-tone menace) and syncopated detuned-saw
+    // "danger" stabs over a worn Locked Groove vinyl bed. Showcases the 888State (E8E)
+    // drum presets and the engine's low-bit grit; the Bb (Phrygian b2) and E(G#) chords
+    // supply the dread. You are being chased.
+    name: "RPG Maker Killed My Dog",
+    author: "AI Slop",
+    note: "Frantic horror-chase in A harmonic/Phrygian minor (Am–Bb–Am–E) that uses global BPM automation to wind up from 140 to 160 across the build and climax, then COLLAPSE from 160 down to 100 on the final pattern. A relentless 16th-note sub gallop, driving four-on-the-floor + hats, a tense recurring lead motif (the G# leading-tone menace) and syncopated detuned-saw stabs over a worn Locked Groove vinyl bed. Showcases the 888State (E8E) drum presets and its low-bit grit. You are being chased.\n\nPrompt: \"redo 'RPG Maker Killed My Dog' — make it more frantic (~140 BPM) and scary like we're being chased; then use automation to ramp up to 160 and slow the last pattern down to ~100.\"",
+    bpm: 140,
+    master: 0.5,
+    params: [
+      // E8E drum presets (pitched: kick/snare play fixed notes; hat is noise).
+      // banks: p0=ADSR, p1=[det2,det3,bits,drive], p2=[w1,w2,w3,oscs], p3=[lvl1,lvl2,lvl3,pulseW]
+      { name: "E8E Kick",   type: "e8e", p0: [0.0, 0.14, 0.0, 0.05], p1: [-12, 0, 8, 0.55], p2: [0, 0, 0, 2], p3: [1.0, 0.85, 0.0, 0.5] },
+      { name: "E8E Snare",  type: "e8e", p0: [0.0, 0.12, 0.0, 0.05], p1: [7, 0, 6, 0.3],   p2: [4, 2, 0, 2], p3: [1.0, 0.5, 0.0, 0.5] },
+      { name: "E8E Hat",    type: "e8e", p0: [0.0, 0.03, 0.0, 0.02], p1: [0, 0, 8, 0.0],   p2: [4, 0, 0, 1], p3: [1.0, 0.0, 0.0, 0.5] },
+      { name: "E8E Sub",    type: "e8e", p0: [0.001, 0.085, 0.0, 0.04], p1: [0.0, -12, 6, 0.35], p2: [2, 2, 0, 2], p3: [1.0, 0.6, 0.0, 0.5] },
+      { name: "E8E Lead",   type: "e8e", p0: [0.002, 0.16, 0.35, 0.08], p1: [0.06, 0, 6, 0.25], p2: [2, 2, 0, 2], p3: [1.0, 0.55, 0.0, 0.3] },
+      { name: "E8E Arp",    type: "e8e", p0: [0.001, 0.06, 0.0, 0.03], p1: [0.0, 0, 8, 0.0], p2: [2, 0, 0, 1], p3: [1.0, 0.0, 0.0, 0.2] },
+      { name: "Danger Stab", type: "e8e", p0: [0.002, 0.14, 0.0, 0.06], p1: [0.14, -12, 7, 0.3], p2: [1, 1, 0, 2], p3: [1.0, 0.6, 0.0, 0.5] },
+      // p0=(hiss,crackle,pop,wear) p1=(cycle,tone,rumble,drift) p2=(rpm,defects,color,fade) p3=(hissMod,modRate)
+      { name: "Vinyl Bed",  type: "groove", p0: [0.2, 0.5, 0.5, 0.6], p1: [0.4, 0.35, 0.4, 0.4], p2: [33.333, 7, 0.5, 0.03], p3: [0.3, 1.5, 0, 0] }
+    ],
+    fxParams: makeFx({
+      // Shared across all E8E channels — a bite of distortion + an eighth-note delay
+      // (≈0.214s at 140) make the chase aggressive; master pulled down for headroom.
+      e8e:    { distOn: true, dist: 1.6, tone: 0.5, level: 1.0,
+                reverbOn: true, reverbDecay: 0.5, reverbSend: 0.25, reverbMix: 0.14,
+                delayOn: true, delayTime: 0.214, delayFeedback: 0.3, delayMix: 0.13,
+                widthOn: true, width: 1.25, master: 0.45 },
+      groove: { reverbOn: true, reverbDecay: 0.55, reverbMix: 0.12, master: 0.8 }
+    }),
+    data: () => {
+      const p = Array.from({ length: 8 }, () => new Pattern(128, 8));
+      const [p0, p1, p2, p3, p4, p5, p6, p7] = p;
+
+      const I_KICK = 0, I_SNARE = 1, I_HAT = 2, I_SUB = 3, I_LEAD = 4, I_ARP = 5, I_STAB = 6, I_VINYL = 7;
+      const KICK = 33, SNARE = 50;   // drum trigger pitches (E8E drums are pitched)
+      // channels: 0 kick · 1 snare · 2 hat · 3 sub · 4 lead · 5 arp · 6 stab · 7 vinyl
+
+      // Menacing loop, two bars (32 rows) per chord: Am · Bb · Am · E. The Bb is the
+      // Phrygian b2 and E carries the harmonic-minor G# — both supply the dread.
+      const BASS = [45, 46, 45, 40];                   // A2 Bb2 A2 E2 — driving sub roots
+      const CHORDS = [
+        [57, 60, 64],   // Am: A C E
+        [58, 62, 65],   // Bb: Bb D F
+        [57, 60, 64],   // Am
+        [64, 68, 71],   // E:  E G# B
+      ];
+      const chordIdx = (row: number) => Math.floor(row / 32) % 4;
+
+      const setDrums = (pat: Pattern, kick: boolean, snare: boolean, hat: boolean) => {
+        for (let r = 0; r < 128; r++) {
+          const step = r % 16;
+          // Four-on-the-floor + an offbeat push for urgency.
+          if (kick && (step === 0 || step === 4 || step === 8 || step === 12 || step === 14)) pat.set(r, 0, KICK, I_KICK, step === 14 ? 0.85 : 1.0);
+          if (snare && (step === 4 || step === 12)) pat.set(r, 1, SNARE, I_SNARE, 0.85);
+          if (hat && step % 2 === 0) pat.set(r, 2, 72, I_HAT, step % 4 === 0 ? 0.55 : 0.8);
+        }
+      };
+
+      // Relentless 16th-note gallop on the root (every row), octave kick on the last
+      // 16th of each beat — the engine of the chase.
+      const setSub = (pat: Pattern, vol = 0.95) => {
+        for (let r = 0; r < 128; r++) {
+          const root = BASS[chordIdx(r)];
+          const note = (r % 4 === 3) ? root + 12 : root;
+          pat.set(r, 3, note, I_SUB, r % 4 === 0 ? vol : vol * 0.8);
+        }
+      };
+
+      // Tense recurring motif (A harmonic minor; 80/68 = G#), eighth notes, loops 4×.
+      const motif = [
+        76, 77, 80, 77, 76, 72, 71, 72, 76, 80, 76, 72, 71, 69, 68, 69,
+      ];
+      // Occasional "video game" flourish: a minor-triad arpeggio (the NES chord-lead)
+      // on the motif's two G# peaks, only when arp=true — used on the lift/climax so
+      // it never overstays. Arps read as stepped on E8E, which IS the chiptune sound.
+      const ARP_PEAKS = new Set([2, 9]);
+      const setLead = (pat: Pattern, vol = 0.72, oct = 0, arp = false) => {
+        for (let r = 0; r < 128; r += 2) {
+          const idx = (r / 2) % motif.length;
+          pat.set(r, 4, motif[idx] + oct, I_LEAD, vol);
+          pat.set(r + 1, 4, OFF, I_LEAD);
+          if (arp && ARP_PEAKS.has(idx)) pat.setFx(r, 4, 0x0, 0x37);   // arp: +0/+3/+7 semis
+        }
+      };
+
+      // Frantic narrow-pulse arp climbing the current chord, 16th notes.
+      const setArp = (pat: Pattern, vol = 0.4) => {
+        let i = 0;
+        for (let r = 0; r < 128; r++) {
+          const chord = CHORDS[chordIdx(r)];
+          pat.set(r, 5, chord[i % 3] + 12, I_ARP, vol);
+          i++;
+        }
+      };
+
+      // Arp with a distortion SWEEP: automate the arp instance's own Drive (DRV is
+      // per-instance tanh waveshaping, so it grits ONLY the arp — fx-chain dist would
+      // hit every E8E channel). Drive rides a triangle 0.08↔0.9 over 64 rows; since
+      // more drive reads louder/fuller, the note velocity is swept INVERSELY to hold
+      // the level roughly constant. Tune COMP if the swell still pumps in volume.
+      const DRV = tgt('e8e', 'DRV');     // inst-scope, p1.w (0..1)
+      const arpDistSweep = (pat: Pattern, baseVol = 0.45, comp = 0.45) => {
+        const track = pat.getOrCreateAutoTrack(I_ARP, DRV.id);
+        let i = 0;
+        for (let r = 0; r < 128; r++) {
+          const ph = (r % 64) / 64;
+          const tri = ph < 0.5 ? ph * 2 : (1 - ph) * 2;          // 0..1..0
+          track[r] = normByte(DRV, 0.08 + (0.9 - 0.08) * tri);   // drive sweep
+          const chord = CHORDS[chordIdx(r)];
+          pat.set(r, 5, chord[i % 3] + 12, I_ARP, baseVol * (1 - comp * tri));   // inverse level
+          i++;
+        }
+      };
+
+      // Syncopated detuned-saw "danger" stabs on the offbeats (unsettling).
+      const setStab = (pat: Pattern, vol = 0.55) => {
+        for (let r = 0; r < 128; r++) {
+          const step = r % 16;
+          if (step === 6 || step === 14) {
+            const chord = CHORDS[chordIdx(r)];
+            pat.set(r, 6, chord[2], I_STAB, vol);
+            pat.set(r + 2, 6, OFF, I_STAB);
+          }
+        }
+      };
+
+      const setVinyl = (pat: Pattern, vol = 0.3) => { pat.set(0, 7, 36, I_VINYL, vol); };
+
+      const snareRoll = (pat: Pattern, from: number) => {
+        for (let r = from; r < 128; r++) pat.set(r, 1, SNARE, I_SNARE, 0.3 + ((r - from) / (128 - from)) * 0.65);
+      };
+
+      // Tempo automation (global BPM). The chase winds up 140 -> 160 across the build
+      // and climax, then the final pattern collapses 160 -> 100. Ramps live ONLY on
+      // unique patterns; the repeated chase patterns carry no BPM track, so the value
+      // persists (holds) between them. (140 is the song base, so the p0 ramp's first
+      // row re-anchors there cleanly on loop.)
+      const BPM_T = tgt('e8e', 'BPM');     // global target (resolved via any type)
+      const bpmRamp = (pat: Pattern, fromBpm: number, toBpm: number) => {
+        const lo = normByte(BPM_T, fromBpm), hi = normByte(BPM_T, toBpm);
+        const track = pat.getOrCreateAutoTrack(null, BPM_T.id);
+        for (let r = 0; r < 128; r++) track[r] = Math.round(lo + (hi - lo) * (r / 127));
+      };
+
+      // p0 — dread intro: vinyl + slow stabs + a half-time sub pulse, no kit.
+      setStab(p0, 0.5); setVinyl(p0, 0.36);
+      for (let r = 0; r < 128; r += 8) p0.set(r, 3, BASS[chordIdx(r)], I_SUB, 0.7);
+      // p1 — the chase starts: 16th sub + kick + hats.
+      setSub(p1); setDrums(p1, true, false, true); setVinyl(p1);
+      // p2 — full chase: sub, full kit, lead, arp, stabs.
+      setSub(p2); setDrums(p2, true, true, true); setLead(p2, 0.72); setArp(p2, 0.4); setStab(p2, 0.5); setVinyl(p2);
+      // p3 — lead up an octave, more panic (arp flourish on the peaks).
+      setSub(p3); setDrums(p3, true, true, true); setLead(p3, 0.72, 12, true); setArp(p3, 0.42); setStab(p3, 0.55); setVinyl(p3);
+      // p4 — it's right behind you: drop the kit, just gallop + stabs + a
+      // distortion-swept arp (exposed here so the sweep reads clearly) + vinyl.
+      setSub(p4, 0.95); setStab(p4, 0.6); arpDistSweep(p4, 0.42); setVinyl(p4, 0.4);
+      // p5 — chase hardest, snare roll into it.
+      setSub(p5); setDrums(p5, true, true, true); setLead(p5, 0.75); setArp(p5, 0.45); setStab(p5, 0.55); setVinyl(p5);
+      snareRoll(p5, 116);
+      // p6 — climax: lead octave up + arp flourish + distortion-swept arp + stabs.
+      setSub(p6); setDrums(p6, true, true, true); setLead(p6, 0.78, 12, true); arpDistSweep(p6, 0.5); setStab(p6, 0.6); setVinyl(p6);
+      // p7 — outro: gallop thins to stabs + vinyl, ring out.
+      setStab(p7, 0.5); setVinyl(p7, 0.36);
+      for (let r = 0; r < 128; r += 4) p7.set(r, 3, BASS[chordIdx(r)], I_SUB, 0.7);
+
+      // Accelerando across the build + climax (p0/p1/p5), then the final decel (p7);
+      // every other pattern holds the last value.
+      bpmRamp(p0, 140, 148);
+      bpmRamp(p1, 148, 155);
+      bpmRamp(p5, 155, 160);
+      bpmRamp(p7, 160, 100);
+
+      return {
+        patterns: p,
+        order: [0, 1, 2, 3, 2, 3, 4, 5, 6, 2, 3, 6, 7],
+        rowsPerBeat: 4,
+        pan: [0.5, 0.5, 0.5, 0.5, 0.5, 0.36, 0.64, 0.5]
+      };
+    }
   }
 ];
