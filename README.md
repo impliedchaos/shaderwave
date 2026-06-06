@@ -153,6 +153,21 @@ linear chirp so its phase stays analytic (no per-block glitch) and every mode ri
 together. Parameters: **Decay**, **Damp**, **Strike**, **Bend**, **Modes**, **Inharm**,
 **BendTime**, **Tone**. Pairs naturally with the Tanpura for the raga demos.
 
+### Pipi — Piano (short name **PNO**)
+
+A physically-*informed* piano: modal synthesis (closed-form) that captures the piano
+physics that matter, rather than a true waveguide (which would need per-voice delay
+lines carried across blocks). Each note is a sum of decaying string partials with:
+**inharmonicity** (a stiff string's partials stretch sharp, `fn = n·f0·√(1+B·n²)` —
+the "stretch" that makes a piano sound like a piano), a **hammer-strike comb**
+spectrum (the hammer hits ~1/8 along the string, suppressing partials near multiples
+of 8) that **brightens with velocity** (ff is brighter than pp), a **two-rate
+frequency-dependent decay** (high partials die fast; the long "aftersound" tail is the
+piano double-decay), a **detuned string pair** that beats for shimmer, and a **hammer
+thunk** transient. Parameters: **Decay**, **Inharm**, **Hardness**, **Hammer**,
+**Partials**, **Detune**, **Damping**, **Release** (a long Release ≈ holding the
+sustain pedal). Presets: Grand, Mellow, Bright, Honky-Tonk, Upright, Bell Piano.
+
 ## Effect column
 
 Each pattern cell has a fourth sub-column — a classic tracker **effect command**
@@ -336,6 +351,7 @@ src/gl/                    context, program helpers, SynthRenderer, shaders/
   shaders/synth-e8e.glsl       888State — 3-osc additive, 8-bit crunch
   shaders/synth-groove.glsl    Locked Groove — vinyl noise (rotation-locked)
   shaders/synth-tabla.glsl     Tabla — modal Indian hand drums (dayan/bayan)
+  shaders/synth-pipi.glsl      Pipi — physically-informed modal piano
   shaders/fx-distortion.glsl   DS-1 distortion stage
   shaders/fx-chorus-*.glsl     chorus ring update + tap
   shaders/fx-tremolo.glsl      auto-pan tremolo stage
@@ -381,11 +397,8 @@ against the reference targets baked into the harness header.
 ## New Instrument Ideas
 
 - **SBPro91** — a recreation of the FM synthesis capabilities of the SoundBlaster Pro which used a pair of YM3812 (OPL2) chips.
-- **Pipi** - A physically modelled piano sythn.
 
-(✓ *888State*, *Locked Groove* and *Tabla* shipped — see the instrument sections above.)
-
-(✓ *888State* shipped — see the **888State / E8E** instrument above.)
+(✓ *888State*, *Locked Groove*, *Tabla* and *Pipi* shipped — see the instrument sections above. **SBPro91** is the last one on the wishlist.)
 
 ## Song files (save / load)
 

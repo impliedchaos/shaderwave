@@ -170,7 +170,7 @@ pitch slide, `3` tone-porta (meend, no re-attack), `4` vibrato (gamak), `A` volu
 Instruments are now data-driven descriptors, not scattered `if (type === …)` branches.
 **`src/instruments/REGISTRY`** (in `index.ts`) is the single source of truth; one
 `InstrumentDef` per engine (`i303.ts`, `idx7.ts`, `i808.ts`, `imoog.ts`, `itanpura.ts`,
-`ie8e.ts`, `igroove.ts`, `itabla.ts`) co-locates its
+`ie8e.ts`, `igroove.ts`, `itabla.ts`, `ipipi.ts`) co-locates its
 shader, defaults, `paramDefs` (sidebar knobs), `autoTargets` (automation), `presets`,
 help label/blurb, and flags (`recursive`, `drum`, `customControls`, `uploadVoiceUniforms`).
 Everything derives from it: `constants.INSTRUMENTS` re-exports `index.INSTRUMENTS`;
