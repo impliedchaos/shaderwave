@@ -174,6 +174,8 @@ export interface SongData {
 // type) or an explicit list of instances; instrumentsFromParams handles both.
 export interface SongDef {
   name: string;
+  author?: string;   // song metadata (shown in the Song Editor, saved with the song)
+  note?: string;
   bpm: number;
   master?: number;   // global output gain; absent → engine default
   params: Partial<Record<InstrumentType, InstrumentParams>> | InstrumentSpec[];

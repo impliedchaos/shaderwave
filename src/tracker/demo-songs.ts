@@ -64,6 +64,8 @@ export function makeFx(overrides: Partial<Record<InstrumentType, Partial<FxParam
 export const DEMO_SONGS: SongDef[] = [
   {
     name: "Gooner Prolapse",
+    author: "AI Slop",
+    note: "Relentless 135 BPM acid techno \u2014 dual 303 and Moog basses/leads trading off over an 808 kick. Maximalist and aggressive.",
     bpm: 135,
     master: DEFAULT_MASTER * 0.3,
     params: [
@@ -278,6 +280,8 @@ export const DEMO_SONGS: SongDef[] = [
   },
   {
     name: "Perky Wombat Tits",
+    author: "AI Slop",
+    note: "Hyperactive 160 BPM happy-hardcore/chiptune romp \u2014 bright square leads, a fat Moog lead and FM bell chords over a dance kit.",
     bpm: 160,
     master: DEFAULT_MASTER * 0.48,
     params: [
@@ -503,6 +507,8 @@ export const DEMO_SONGS: SongDef[] = [
   },
   {
     name: "Nonconsensual Assisted Suicide",
+    author: "AI Slop",
+    note: "Slow 78 BPM dark ambient \u2014 warm Moog bass, an ethereal sub and a shimmering 303 pad. Bleak and spacious.",
     bpm: 78,
     master: DEFAULT_MASTER * 0.48,
     params: [
@@ -733,6 +739,8 @@ export const DEMO_SONGS: SongDef[] = [
   },
   {
     name: "Antiseptik USA",
+    author: "AI Slop",
+    note: "The default demo. 120 BPM melodic synthwave \u2014 liquid 303 plucks and a soaring Moog lead over warm bass and a clean 808 kit.",
     bpm: 120,
     master: DEFAULT_MASTER * 0.9,
     params: [
@@ -989,6 +997,8 @@ export const DEMO_SONGS: SongDef[] = [
   },
   {
     name: "Lance's Left Nut",
+    author: "AI Slop",
+    note: "Bouncy 125 BPM synthpop \u2014 funky Moog bass and a Britpop-style lead over a synthpop 808 kit.",
     bpm: 125,
     master: DEFAULT_MASTER * 0.68,
     params: [
@@ -1268,6 +1278,8 @@ export const DEMO_SONGS: SongDef[] = [
   },
   {
     name: "Myfanwy Murder Party",
+    author: "AI Slop",
+    note: "96 BPM synth-rock stomp \u2014 heavy 303 chug, growling Moog bass and a rock lead over a big 'Bonham' 808 kit.",
     bpm: 96,
     master: DEFAULT_MASTER * 0.35,
     params: [
@@ -1531,6 +1543,8 @@ export const DEMO_SONGS: SongDef[] = [
   },
   {
     name: "Lipstick-Stained Tailpipe",
+    author: "AI Slop",
+    note: "120 BPM chiptune new-wave \u2014 square and pulse Moog leads over a triangle bass and a punchy kit.",
     bpm: 120,
     master: DEFAULT_MASTER * 0.86,
     params: [
@@ -1783,6 +1797,8 @@ export const DEMO_SONGS: SongDef[] = [
   },
   {
     name: "Affreusement Épouvantable",
+    author: "AI Slop",
+    note: "76 BPM lo-fi \u2014 a Satie-esque 303 lead over warm sub bass and a downtempo kit, dusted with the Locked Groove vinyl-noise engine.",
     bpm: 76,
     master: DEFAULT_MASTER * 0.65,
     params: [
@@ -2011,6 +2027,8 @@ export const DEMO_SONGS: SongDef[] = [
   },
   {
     name: "Two-Fingered Typing (FOB)",
+    author: "AI Slop",
+    note: "142 BPM synth-metal \u2014 a screaming 'VCO noise guitar' 303 and axe bass over a double-kick 'booty metal' kit.",
     bpm: 142,
     master: DEFAULT_MASTER * 0.3,
     params: [
@@ -2216,6 +2234,8 @@ export const DEMO_SONGS: SongDef[] = [
   },
   {
     name: "Where'd I Put My Keys?",
+    author: "AI Slop",
+    note: "128 BPM acid house \u2014 squelchy 303 acid bass and a screamer lead, Moog sub and an FM organ stab.",
     bpm: 128,
     master: DEFAULT_MASTER * 0.6,
     params: [
@@ -2379,6 +2399,8 @@ export const DEMO_SONGS: SongDef[] = [
   },
   {
     name: "Diabetic Foot Amputation",
+    author: "AI Slop",
+    note: "Minimal 75 BPM lo-fi sketch \u2014 a lone Satie-style 303 lead over a dusty vinyl kit.",
     bpm: 75,
     master: DEFAULT_MASTER * 0.5,
     params: [
@@ -2531,6 +2553,8 @@ export const DEMO_SONGS: SongDef[] = [
   },
   {
     name: "Dextroamphetamine Suppository",
+    author: "AI Slop",
+    note: "137 BPM acid-techno banger \u2014 a driving 303 acid line and sub bass over a hard 808 kit.",
     bpm: 137,
     master: DEFAULT_MASTER * 0.45,
     params: [
@@ -2703,6 +2727,8 @@ export const DEMO_SONGS: SongDef[] = [
   },
   {
     name: "Feral Roomba Sabbath",
+    author: "AI Slop",
+    note: "124 BPM dark/industrial \u2014 gnarly Moog 'feral' bass and 'vacuum' acid, a glassy FM bell and a ghostly pad.",
     bpm: 124,
     master: DEFAULT_MASTER * 0.42,
     params: [
@@ -2872,6 +2898,8 @@ export const DEMO_SONGS: SongDef[] = [
   },
   {
     name: "Tinnitus Cathedral",
+    author: "AI Slop",
+    note: "122 BPM cavernous drone-techno \u2014 resonant filtered-noise 'wind', cathedral acid and a vast Moog pad.",
     bpm: 122,
     master: DEFAULT_MASTER * 0.4,
     params: [
@@ -3001,6 +3029,8 @@ export const DEMO_SONGS: SongDef[] = [
   },
   {
     name: "Frying pans. Who knew?",
+    author: "AI Slop",
+    note: "128 BPM percussive acid \u2014 a metallic 'skillet' kit and FM 'pan' bells, stereo dual-303 acid and a greasy Moog lead.",
     bpm: 128,
     master: DEFAULT_MASTER * 0.47,
     // Kitchen-electro in A minor (i–VI–III–VII–i–VI–iv–V) that puts the new
@@ -3217,6 +3247,8 @@ export const DEMO_SONGS: SongDef[] = [
     // over 303 "sitar" taans, a breakdown, a second drop, and an outro back to the
     // drone. Channels: 0/1 tanpura · 2/3/4 tabla(808) · 5 bass · 6 lead · 7 sitar.
     name: "Let That Raga Drop",
+    author: "AI Slop",
+    note: "128 BPM Indian-classical-meets-EDM \u2014 twin Tanpura drones, an 808 'tabla', a singing Moog 'sarangi' (meend/glide) and 303 'sitar' taans in the double-harmonic (snake-charmer) scale. Free alap -> 808/sub drop -> breakdown -> second drop -> drone outro.",
     bpm: 128,
     master: DEFAULT_MASTER * 0.5,
     params: [
@@ -3366,6 +3398,8 @@ export const DEMO_SONGS: SongDef[] = [
   },
   {
     name: "Shamanic Colonic",
+    author: "AI Slop",
+    note: "100 BPM downtempo ambient/glitch \u2014 slow Tanpura and Moog drones, deep 'vacuum' bass heartbeats and inharmonic DX7/303 glitch over a sky pad.",
     bpm: 100,
     master: DEFAULT_MASTER * 0.5,
     params: [
@@ -3660,6 +3694,8 @@ export const DEMO_SONGS: SongDef[] = [
     // E8E's Bits down for a tape-degrade wash; the climax wobbles the lead's
     // Detune2 for a chorused widen — both p0/p1 banks, so they're automatable.
     name: "World 3-1 Infinite Lives",
+    author: "AI Slop",
+    note: "90 BPM lo-fi/chiptune showcase for the 888State (E8E) engine: 7-bit square sub, NES pulse lead, narrow-pulse arp, 5-bit triangle pad and sine-fifth bell over a lazy 808 backbeat. The breakdown bit-crushes the pad; the climax detune-wobbles the lead.\n\nPrompt: \"create a new chiptune/lofi demo song, 3-4 minutes long, called 'World 3-1 Infinite Lives'.\"",
     bpm: 90,
     master: 0.65,
     params: [

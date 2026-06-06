@@ -159,6 +159,8 @@ export class App {
     const defaultIdx = DEMO_SONGS.findIndex(s => s.name === "Antiseptik USA");
     this.currentSongIdx = defaultIdx !== -1 ? defaultIdx : sortedIndices[0].i;
     const initialSong = DEMO_SONGS[this.currentSongIdx];
+    this.songAuthor = initialSong.author ?? '';
+    this.songNote = initialSong.note ?? '';
     const init = loadSongInstruments(initialSong);
     this.engine.instruments = init.instruments;
     this.engine.loadSong(init.data);
@@ -508,11 +510,11 @@ export class App {
           untitledOpt.remove();
         }
         this.customSongName = null;
-        this.songAuthor = '';
-        this.songNote = '';
         const songDef = DEMO_SONGS[idx];
         if (songDef) {
           this.currentSongIdx = idx;
+          this.songAuthor = songDef.author ?? '';
+          this.songNote = songDef.note ?? '';
           const bpmInput = $<HTMLInputElement>('bpm');
           if (bpmInput) {
             bpmInput.value = String(songDef.bpm);
