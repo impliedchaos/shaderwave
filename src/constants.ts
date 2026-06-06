@@ -1,5 +1,4 @@
 // Shared constants across audio + GL + tracker.
-import type { InstrumentType } from './types.js';
 
 export const BLOCK = 512;        // samples rendered per GPU pass (per channel)
 export const VOICES = 8;         // simultaneous voices per instrument
@@ -12,8 +11,10 @@ export const DEFAULT_MASTER = 1.0;   // global output gain, baked into the rende
 // default; it's adjustable at runtime via the buffer control in the status bar.
 export const PREBUFFER_BLOCKS = 16;
 
-// Instrument identifiers — also used as the synth shader program keys.
-export const INSTRUMENTS: InstrumentType[] = ['303', 'dx7', '808', 'moog'];
+// Instrument identifiers — also the synth shader program keys. Derived from the
+// instrument registry (the single source of truth); re-exported here so the many
+// existing `import { INSTRUMENTS } from '../constants.js'` call sites keep working.
+export { INSTRUMENTS } from './instruments/index.js';
 
 // Per-instance accent colours. The first four match the engine-type accents
 // (303/dx7/808/moog order); later entries distinguish additional instances

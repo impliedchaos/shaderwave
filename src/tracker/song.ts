@@ -2,6 +2,7 @@
 // a built-in demo so the app makes sound on first load.
 import { EMPTY } from './pattern.js';
 import { INSTRUMENTS, INSTRUMENT_COLORS } from '../constants.js';
+import { byType } from '../instruments/index.js';
 import { DEMO_SONGS, defaultParams, makeParams, makeFx } from './demo-songs.js';
 import type { InstrumentInstance, InstrumentParams, InstrumentSpec, InstrumentType, SongData, SongDef } from '../types.js';
 
@@ -13,13 +14,15 @@ export const DRUM_MAP: Record<number, number> = { 36: 0, 38: 1, 42: 2, 46: 3, 39
 // one instance per engine in INSTRUMENTS order, so existing pattern `inst` values
 // (0=303, 1=dx7, 2=808, 3=moog) keep resolving to the right engine + params. The
 // UI can append more instances (e.g. a second 303) on top at runtime.
-// Moog instances carry two extra param banks (osc waveforms/octaves, glide,
-// noise). Songs predating them just get the classic-Model-D defaults: three
-// saws at 8', no glide/noise.
-function addMoogBanks(e: InstrumentInstance, pr: InstrumentParams): InstrumentInstance {
-  if (e.type !== 'moog') return e;
-  e.p2 = pr.p2 ? [...pr.p2] : [1, 1, 1, 0];
-  e.p3 = pr.p3 ? [...pr.p3] : [2, 2, 2, 0];
+// Some engines carry the extra universal banks (p2/p3) — e.g. the Moog's osc
+// waveforms/octaves, glide, noise. Copy them from the song's params, falling back
+// to the engine descriptor's defaults when a song predates them (old Moog songs
+// get the classic Model-D defaults: three saws at 8', no glide/noise). Engines
+// that don't declare p2/p3 defaults (303, 808, dx7) are left untouched.
+function addExtraBanks(e: InstrumentInstance, pr: InstrumentParams): InstrumentInstance {
+  const def = byType(e.type);
+  if (def?.defaults.p2) e.p2 = pr.p2 ? [...pr.p2] : [...def.defaults.p2];
+  if (def?.defaults.p3) e.p3 = pr.p3 ? [...pr.p3] : [...def.defaults.p3];
   return e;
 }
 
@@ -36,7 +39,7 @@ export function instrumentsFromParams(
         p1: [...pr.p1]
       };
       if (pr.ops) e.ops = pr.ops.map((o) => ({ ...o }));
-      return addMoogBanks(e, pr);
+      return addExtraBanks(e, pr);
     });
   }
   return INSTRUMENTS.map((type, i) => {
@@ -44,7 +47,7 @@ export function instrumentsFromParams(
     if (!pr) throw new Error(`Song params missing engine type "${type}"`);
     const e: InstrumentInstance = { name: type.toUpperCase(), type, color: INSTRUMENT_COLORS[i % INSTRUMENT_COLORS.length], p0: [...pr.p0], p1: [...pr.p1] };
     if (pr.ops) e.ops = pr.ops.map((o) => ({ ...o }));
-    return addMoogBanks(e, pr);
+    return addExtraBanks(e, pr);
   });
 }
 

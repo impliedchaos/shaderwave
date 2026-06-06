@@ -10,23 +10,19 @@
 import { createProgram, drawQuad, makeTex } from './program.js';
 import type { GLProgram } from './program.js';
 import { EffectsChain } from './effects.js';
-import { BLOCK, VOICES, INSTRUMENTS } from '../constants.js';
-import type { FxParamsByType, InstrumentType, VoiceData } from '../types.js';
+import { BLOCK, VOICES } from '../constants.js';
+import { REGISTRY } from '../instruments/index.js';
+import type { FxParamsByType, InstrumentDef, InstrumentType, VoiceData } from '../types.js';
 import COMMON from './shaders/common.glsl?raw';
-import SYNTH_303 from './shaders/synth-303.glsl?raw';
-import SYNTH_DX7 from './shaders/synth-dx7.glsl?raw';
-import SYNTH_808 from './shaders/synth-808.glsl?raw';
-import SYNTH_MOOG from './shaders/synth-moog.glsl?raw';
 import MIX_FS from './shaders/mix.glsl?raw';
 
-// Order MUST match INSTRUMENTS in constants.js — the index is the instrument id.
-const SYNTH_SRC: Record<InstrumentType, string> = { '303': SYNTH_303, 'dx7': SYNTH_DX7, '808': SYNTH_808, 'moog': SYNTH_MOOG };
-
 // One instrument's GPU resources: its synth program + audio/state textures, its
-// own dry-mix target, and its effects chain.
+// own dry-mix target, and its effects chain. `def` is the registry descriptor —
+// the source of its shader, recursion flag, and any engine-specific uniforms.
 interface InstRender {
   name: InstrumentType;
   id: number;
+  def: InstrumentDef;
   prog: GLProgram;
   audio: WebGLTexture;
   stateRead: WebGLTexture;
@@ -59,8 +55,9 @@ export class SynthRenderer {
     // recomputes but more draw calls; BLOCK = the old single-pass behaviour.
     this.subBlock = 64;
 
-    this.inst = INSTRUMENTS.map((name, id) => {
-      const prog = createProgram(gl, COMMON + SYNTH_SRC[name]);
+    this.inst = REGISTRY.map((def, id) => {
+      const name = def.type;
+      const prog = createProgram(gl, COMMON + def.shader);
       const mixTex = makeTex(gl, BLOCK, 1);
       const mixFbo = gl.createFramebuffer();
       gl.bindFramebuffer(gl.FRAMEBUFFER, mixFbo);
@@ -69,7 +66,7 @@ export class SynthRenderer {
       const itParams = (fxParams && fxParams[name]) ? fxParams[name] : null;
 
       return {
-        name, id, prog,
+        name, id, def, prog,
         audio: makeTex(gl, BLOCK, VOICES),
         stateRead: makeTex(gl, BLOCK, VOICES),
         stateWrite: makeTex(gl, BLOCK, VOICES),
@@ -166,23 +163,19 @@ export class SynthRenderer {
       gl.uniform1fv(p.u('uOffRel[0]'), vd.offRel);
       gl.uniform4fv(p.u('uP0[0]'), vd.p0);
       gl.uniform4fv(p.u('uP1[0]'), vd.p1);
-
-      if (it.name === 'dx7' && vd.dx7Ops) {
-        gl.uniform4fv(p.u('uOpA[0]'), vd.dx7Ops.A);   // per-voice (coarse,fine,level,detune)
-        gl.uniform4fv(p.u('uOpB[0]'), vd.dx7Ops.B);   // per-voice (mode,sustain,release,decay)
-        gl.uniform4fv(p.u('uOpC[0]'), vd.dx7Ops.C);   // per-voice (r1,r2,r3,r4)
-        gl.uniform4fv(p.u('uOpD[0]'), vd.dx7Ops.D);   // per-voice (l1,l2,l3,l4)
-      }
-      if (it.name === 'moog' && vd.p2) {
-        gl.uniform4fv(p.u('uP2[0]'), vd.p2);          // osc waveforms/octaves, glide, noise
-        gl.uniform4fv(p.u('uP3[0]'), vd.p3);
-        gl.uniform1fv(p.u('uFreqFrom[0]'), vd.freqFrom);
-      }
+      // Universal extra banks — uploaded for every engine. Shaders that don't
+      // reference them strip the uniform, so u() is null → these are no-ops there.
+      gl.uniform4fv(p.u('uP2[0]'), vd.p2);
+      gl.uniform4fv(p.u('uP3[0]'), vd.p3);
+      gl.uniform1fv(p.u('uFreqFrom[0]'), vd.freqFrom);
+      // Engine-specific per-voice uniforms (e.g. dx7 operator banks).
+      it.def.uploadVoiceUniforms?.(gl, p, vd);
 
       gl.activeTexture(gl.TEXTURE0);
 
-      // Recursive ladder engines render in strips; the rest in one pass.
-      const sub = (it.name === '303' || it.name === 'moog') ? this.subBlock : BLOCK;
+      // Per-sample-recursive engines (ladder filters) render in strips; the rest
+      // (closed-form in t) render in one full-width pass.
+      const sub = it.def.recursive ? this.subBlock : BLOCK;
       let readTex = it.stateRead, writeTex = it.stateWrite;
       let pRead = it.phaseRead, pWrite = it.phaseWrite;
       let p2Read = it.phase2Read, p2Write = it.phase2Write;

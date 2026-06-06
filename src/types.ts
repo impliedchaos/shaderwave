@@ -5,10 +5,13 @@
 // …) declare their own fields; this file is for the structural records those
 // classes pass around.
 import type { Pattern } from './tracker/pattern.js';
+import type { GLProgram } from './gl/program.js';
 
-// The four GPU synth engines. Doubles as the synth-shader program key and the
-// fxParams bucket key. See INSTRUMENTS in constants.ts (same order/values).
-export type InstrumentType = '303' | 'dx7' | '808' | 'moog';
+// A GPU synth engine identifier. Doubles as the synth-shader program key and the
+// fxParams bucket key. The set is open (plug-in instruments register at runtime
+// via the REGISTRY in src/instruments/); the canonical list is INSTRUMENTS in
+// constants.ts (derived from the registry, in registry order).
+export type InstrumentType = string;
 
 // One DX7 operator's envelope + ratio config (see the dx7 shader / demo songs).
 export interface DX7Op {
@@ -176,4 +179,55 @@ export interface SongDef {
   params: Partial<Record<InstrumentType, InstrumentParams>> | InstrumentSpec[];
   fxParams: FxParamsByType;
   data: () => SongData;
+}
+
+// ── Instrument registry (the plug-in system) ───────────────────────────────
+// One sidebar knob. p0/p1/p2/p3 knobs use bank+i; dx7 uses type+key (per-op or
+// global). Lives here (not in the UI) so instrument descriptors can declare it.
+export interface ParamDef {
+  label: string;
+  min: number;
+  max: number;
+  step: number;
+  type?: 'global' | 'op';
+  bank?: 'p0' | 'p1' | 'p2' | 'p3';
+  i?: number;
+  key?: string;
+}
+
+// An automation target as authored in a descriptor — scope/type/id are stamped
+// on when the automation table flattens it (see tracker/automation.ts).
+export type RawTarget = Omit<ParamTarget, 'id' | 'scope' | 'type'>;
+
+// A built-in preset for an engine: synth param banks + an optional fx snapshot.
+export interface Preset {
+  name: string;
+  p0: number[];
+  p1: number[];
+  p2?: number[];
+  p3?: number[];
+  fx?: Partial<FxParams>;
+}
+
+// A self-contained instrument engine — everything the app needs to register one
+// new GPU synth. The REGISTRY (src/instruments/) is the single list of these;
+// every per-engine table (params, presets, automation, defaults, help) derives
+// from it. Adding an engine that fits the universal banks (p0..p3 + freqFrom) is
+// a new descriptor + a .glsl shader + one registry entry; nothing else.
+export interface InstrumentDef {
+  type: string;            // unique id; shader program key; fxParams bucket key
+  label: string;           // help title, e.g. "303 — Acid Bass"
+  blurb: string;           // help description
+  color?: string;          // optional accent override (else from the palette)
+  shader: string;          // GLSL source (?raw), concatenated after common.glsl
+  recursive?: boolean;     // per-sample feedback → strip/subBlock rendering (303, moog)
+  drum?: boolean;          // keyboard selects drum slots, not pitch (808)
+  defaults: InstrumentParams;
+  paramDefs: ParamDef[];   // sidebar knobs ([] when customControls)
+  autoTargets: RawTarget[];// inst-scope automation targets
+  presets?: Preset[];
+  customControls?: boolean; // bespoke sidebar UI (dx7 operator/SysEx-ROM editor)
+  // Upload any engine-specific per-voice uniforms beyond the universal banks
+  // (dx7 operator banks). Called once per block with the synth program bound.
+  uploadVoiceUniforms?: (gl: WebGL2RenderingContext, prog: GLProgram, vd: VoiceData) => void;
 }

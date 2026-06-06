@@ -4,6 +4,7 @@
 import { INSTRUMENTS, instGlow } from '../constants.js';
 import { defaultFxParams } from '../gl/effects.js';
 import { PRESETS } from './presets.js';
+import { byType } from '../instruments/index.js';
 import type { Preset } from './presets.js';
 import type { DX7Op, FxParams, InstrumentInstance, InstrumentType } from '../types.js';
 import type { Engine } from '../tracker/engine.js';
@@ -20,17 +21,7 @@ interface SysexPatch {
   ops: DX7Op[];
 }
 
-// A parameter-slider definition. p0/p1/p2/p3 knobs use bank+i; dx7 uses type+key.
-interface ParamDef {
-  label: string;
-  min: number;
-  max: number;
-  step: number;
-  type?: 'global' | 'op';
-  bank?: 'p0' | 'p1' | 'p2' | 'p3';
-  i?: number;
-  key?: string;
-}
+// (ParamDef now lives in types.ts so instrument descriptors can declare knobs.)
 
 const DX7_ROMS = [
   { name: 'ROM 1A - Keyboard / Pluck', file: 'rom1a.syx' },
@@ -45,60 +36,12 @@ const DX7_ROMS = [
   { name: 'AI Slop', file: 'aislop.syx' }
 ];
 
-// Slider metadata. `bank`/`i` index into params[inst].p0 / p1.
-const PARAM_DEFS: Record<string, ParamDef[]> = {
-  '303': [
-    { label: 'Cutoff', bank: 'p0', i: 0, min: 30, max: 4000, step: 1 },
-    { label: 'Reso', bank: 'p0', i: 1, min: 0, max: 0.98, step: 0.01 },
-    { label: 'EnvMod', bank: 'p0', i: 2, min: 0, max: 1, step: 0.01 },
-    { label: 'Accent', bank: 'p0', i: 3, min: 0, max: 1, step: 0.01 },
-    { label: 'Wave', bank: 'p1', i: 0, min: 0, max: 4, step: 1 },
-    { label: 'FiltDecay', bank: 'p1', i: 1, min: 0.05, max: 1, step: 0.01 },
-    { label: 'AmpDecay', bank: 'p1', i: 2, min: 0.05, max: 1, step: 0.01 },
-  ],
-  '808': [
-    { label: 'Tone', bank: 'p0', i: 1, min: 0, max: 1, step: 0.01 },
-    { label: 'Decay', bank: 'p0', i: 2, min: 0, max: 1, step: 0.01 },
-    { label: 'Snappy', bank: 'p0', i: 3, min: 0, max: 1, step: 0.01 },
-  ],
-  'moog': [
-    { label: 'Cutoff', bank: 'p0', i: 0, min: 30, max: 6000, step: 1 },
-    { label: 'Reso', bank: 'p0', i: 1, min: 0, max: 0.98, step: 0.01 },
-    { label: 'EnvAmt', bank: 'p0', i: 2, min: 0, max: 1, step: 0.01 },
-    { label: 'KbdTrack', bank: 'p0', i: 3, min: 0, max: 1, step: 0.01 },
-    { label: 'Detune', bank: 'p1', i: 0, min: 0, max: 30, step: 0.5 },
-    { label: 'AmpSus', bank: 'p1', i: 1, min: 0, max: 1, step: 0.01 },
-    { label: 'FiltDecay', bank: 'p1', i: 2, min: 0.05, max: 2, step: 0.01 },
-    { label: 'AmpDecay', bank: 'p1', i: 3, min: 0.05, max: 2, step: 0.01 },
-    { label: 'Osc1 Wave', bank: 'p2', i: 0, min: 0, max: 4, step: 1 },
-    { label: 'Osc2 Wave', bank: 'p2', i: 1, min: 0, max: 4, step: 1 },
-    { label: 'Osc3 Wave', bank: 'p2', i: 2, min: 0, max: 4, step: 1 },
-    { label: 'Glide', bank: 'p2', i: 3, min: 0, max: 1.5, step: 0.01 },
-    { label: 'Osc1 Oct', bank: 'p3', i: 0, min: 0, max: 4, step: 1 },
-    { label: 'Osc2 Oct', bank: 'p3', i: 1, min: 0, max: 4, step: 1 },
-    { label: 'Osc3 Oct', bank: 'p3', i: 2, min: 0, max: 4, step: 1 },
-    { label: 'Noise', bank: 'p3', i: 3, min: 0, max: 1, step: 0.01 },
-  ],
-};
+// Per-engine slider metadata now lives in each instrument descriptor's
+// `paramDefs` (src/instruments/), fetched via byType(name).paramDefs.
 
 // Display labels for the Moog stepped osc knobs.
 const MOOG_WAVES: Record<number, string> = { 0: 'Tri', 1: 'Saw', 2: 'Square', 3: 'WidePul', 4: 'NarPul' };
 const MOOG_OCTS: Record<number, string> = { 0: "32'", 1: "16'", 2: "8'", 3: "4'", 4: "2'" };
-
-// DX7 slider set (global algorithm/feedback + per-operator params). Static, so
-// it lives at module scope rather than being rebuilt on every _buildParams call.
-const DX7_PARAM_DEFS: ParamDef[] = [
-  { label: 'Algo', type: 'global', bank: 'p1', i: 0, min: 1, max: 32, step: 1 },
-  { label: 'Feedback', type: 'global', bank: 'p0', i: 3, min: 0, max: 1.5, step: 0.01 },
-  { label: 'Op Mode', type: 'op', key: 'mode', min: 0, max: 1, step: 1 },
-  { label: 'Op Coarse', type: 'op', key: 'coarse', min: 0.5, max: 31, step: 0.5 },
-  { label: 'Op Fine', type: 'op', key: 'fine', min: 0, max: 99, step: 1 },
-  { label: 'Op Level', type: 'op', key: 'level', min: 0, max: 99, step: 1 },
-  { label: 'Op Detune', type: 'op', key: 'detune', min: -7, max: 7, step: 1 },
-  { label: 'Op Decay', type: 'op', key: 'decay', min: 0.05, max: 4, step: 0.01 },
-  { label: 'Op Sustain', type: 'op', key: 'sustain', min: 0, max: 1, step: 0.01 },
-  { label: 'Op Release', type: 'op', key: 'release', min: 0.05, max: 4, step: 0.01 },
-];
 
 interface ControlsOpts {
   instEl: HTMLElement;
@@ -601,7 +544,7 @@ export class Controls {
     this.paramEl.innerHTML = '';
     if (!name || !pr) return;
     
-    const defs = name === 'dx7' ? DX7_PARAM_DEFS : PARAM_DEFS[name];
+    const defs = byType(name)?.paramDefs ?? [];
     // Knobs that map to a p0/p1 param (not per-operator) — the UI loop drives
     // these from live automation while playing. Reset on every rebuild.
     this.paramKnobs = [];

@@ -2,7 +2,8 @@ import { Pattern, OFF } from './pattern.js';
 import { defaultFxParams } from '../gl/effects.js';
 import { targetByCode, normByte } from './automation.js';
 import { DEFAULT_MASTER } from '../constants.js';
-import type { FxParams, InstrumentParams, InstrumentType, ParamTarget, SongDef } from '../types.js';
+import { REGISTRY } from '../instruments/index.js';
+import type { FxParams, FxParamsByType, InstrumentParams, InstrumentType, ParamTarget, SongDef } from '../types.js';
 
 // Resolve an automation target for song authoring, asserting it exists (the
 // codes here are all known-good, so a miss is a programming error).
@@ -12,27 +13,20 @@ function tgt(type: InstrumentType, code: string): ParamTarget {
   return t;
 }
 
-// Default per-instrument param banks (p0, p1). See each shader for the layout.
+// Default per-instrument param banks for every registered engine. Each engine's
+// defaults live in its descriptor (src/instruments/); this deep-clones them so
+// callers can mutate freely.
 export function defaultParams(): Record<InstrumentType, InstrumentParams> {
-  return {
-    '303':  { p0: [400, 0.72, 0.6, 0.4], p1: [0, 0.3, 0.4, 0] },
-    'dx7':  {
-      p0: [1, 2, 3.0, 0.3],
-      p1: [1, 0.6, 0.9, 3],
-      ops: [
-        { coarse: 1.0, fine: 0, level: 99, detune: 0, decay: 0.9, mode: 0, sustain: 0.7, release: 0.25 },
-        { coarse: 2.0, fine: 0, level: 99, detune: 0, decay: 0.6, mode: 0, sustain: 0.7, release: 0.25 },
-        { coarse: 3.0, fine: 0, level: 60, detune: 0, decay: 0.9, mode: 0, sustain: 0.7, release: 0.25 },
-        { coarse: 4.0, fine: 0, level: 80, detune: 0, decay: 0.4, mode: 0, sustain: 0.7, release: 0.25 },
-        { coarse: 5.0, fine: 0, level: 0,  detune: 0, decay: 0.5, mode: 0, sustain: 0.7, release: 0.25 },
-        { coarse: 6.0, fine: 0, level: 0,  detune: 0, decay: 0.5, mode: 0, sustain: 0.7, release: 0.25 }
-      ]
-    },
-    '808':  { p0: [0, 0.6, 0.5, 0.6],    p1: [0, 0, 0, 0] },
-    // p0.w = filter keyboard tracking; p2 = (osc1/2/3 wave, glide s); p3 =
-    // (osc1/2/3 octave, noise mix). Defaults: three saws at 8', no glide/noise.
-    'moog': { p0: [800, 0.45, 0.5, 0],   p1: [8, 0.8, 0.6, 0.9], p2: [1, 1, 1, 0], p3: [2, 2, 2, 0] },
-  };
+  const out: Record<string, InstrumentParams> = {};
+  for (const d of REGISTRY) {
+    const dp = d.defaults;
+    const p: InstrumentParams = { p0: [...dp.p0], p1: [...dp.p1] };
+    if (dp.p2) p.p2 = [...dp.p2];
+    if (dp.p3) p.p3 = [...dp.p3];
+    if (dp.ops) p.ops = dp.ops.map((o) => ({ ...o }));
+    out[d.type] = p;
+  }
+  return out;
 }
 
 export function makeParams(
@@ -62,12 +56,9 @@ export function makeFx(overrides: Partial<Record<InstrumentType, Partial<FxParam
     }
     return res;
   };
-  return {
-    '303': mapInst('303'),
-    'dx7': mapInst('dx7'),
-    '808': mapInst('808'),
-    'moog': mapInst('moog'),
-  };
+  const out: Record<string, FxParams> = {};
+  for (const d of REGISTRY) out[d.type] = mapInst(d.type);
+  return out as FxParamsByType;
 }
 
 export const DEMO_SONGS: SongDef[] = [

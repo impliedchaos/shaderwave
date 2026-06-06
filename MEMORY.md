@@ -123,6 +123,36 @@ Build + `glsl-check` + `render-check` all green.
 
 ## Reference / domain knowledge
 
+### Instrument registry — the plug-in system (`src/instruments/`) — `project`
+Instruments are now data-driven descriptors, not scattered `if (type === …)` branches.
+**`src/instruments/REGISTRY`** (in `index.ts`) is the single source of truth; one
+`InstrumentDef` per engine (`i303.ts`, `idx7.ts`, `i808.ts`, `imoog.ts`) co-locates its
+shader, defaults, `paramDefs` (sidebar knobs), `autoTargets` (automation), `presets`,
+help label/blurb, and flags (`recursive`, `drum`, `customControls`, `uploadVoiceUniforms`).
+Everything derives from it: `constants.INSTRUMENTS` re-exports `index.INSTRUMENTS`;
+`automation.TARGETS`, `presets.PRESETS`, `demo-songs.defaultParams/makeFx`, `help`, and
+`synth-renderer` (maps `REGISTRY`) all read the registry. **Adding an engine that fits the
+universal banks = one descriptor + one `.glsl` + one line in `REGISTRY`.** `InstrumentType`
+is now `string` (open set), not a closed union.
+
+Non-obvious constraints (don't break these):
+- **`uP2`/`uP3`/`uFreqFrom` are now UNIVERSAL banks** declared in `common.glsl` (not the
+  moog shader) and uploaded for *every* engine unconditionally in `synth-renderer`. Shaders
+  that don't use them strip the uniform → `prog.u()` is null → silent no-op. So a new engine
+  has 16 param floats (p0–p3) + freqFrom with zero new plumbing. DX7 operator banks
+  (`uOpA–D`) stay bespoke behind `def.uploadVoiceUniforms` (must guard `if(!vd.dx7Ops)return`
+  — minimal test harnesses build a vd without it).
+- **Automation target ids are persisted in patterns, so `TARGETS` order is FROZEN.**
+  `automation.ts` seeds inst-targets via `AUTO_ORDER = ['303','moog','dx7','808']` (the
+  historical order — NOT registry/INSTRUMENTS order `303,dx7,808,moog`), then appends any
+  newer engines. **Append new engines at the END of `REGISTRY`; never reorder/insert** or
+  every saved/demo pattern's automation retargets. Verified ids: 303=0–6, moog=7–13,
+  dx7=14–17, 808=18–20 (32 total with FX/CHAN/GLOBAL).
+- Descriptors import only `../types.js` (type-only) + their `.glsl?raw` — **never** import
+  `constants`/`engine`/`ui` (would cycle, since `constants` re-exports from `index.ts`).
+- Refactor was behaviour-preserving: `render-check` byte-identical pre/post, all 16 demo
+  songs load, glsl-check green. Tanpura is the next instrument, added through this registry.
+
 ### 808 drum reference tuning + the analysis harness — `project`
 The 808 snare and clap (`src/gl/shaders/synth-808.glsl`) were tuned to objectively match
 real TR-808 reference recordings, not by ear (which failed repeatedly).

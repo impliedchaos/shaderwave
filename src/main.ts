@@ -10,6 +10,7 @@ import { TrackerView } from './ui/tracker-view.js';
 import { Controls, bindKnob } from './ui/controls.js';
 import { DEMO_SONGS, loadSongInstruments } from './tracker/song.js';
 import { instGlow, DEFAULT_MASTER } from './constants.js';
+import { REGISTRY, byType } from './instruments/index.js';
 import { EMPTY, OFF, Pattern } from './tracker/pattern.js';
 import { targetsForType, TARGETS } from './tracker/automation.js';
 import { showExportDialog } from './audio/export.js';
@@ -189,7 +190,7 @@ export class App {
         invalidateTheme();
       },
       onPresetChange: (instName, fxParams) => {
-        if (instName !== 'dx7' && fxParams) {
+        if (!byType(instName)?.customControls && fxParams) {
           Object.assign((this.fxParams as Record<string, FxParams>)[instName], fxParams);
           this._buildFxPanel(instName);
         }
@@ -659,12 +660,9 @@ export class App {
         this.engine.currentPatternIdx = 0;
 
         this.engine.instruments = [];
-        this.fxParams = {
-          '303': defaultFxParams(),
-          'dx7': defaultFxParams(),
-          '808': defaultFxParams(),
-          'moog': defaultFxParams()
-        };
+        this.fxParams = Object.fromEntries(
+          REGISTRY.map((d) => [d.type, defaultFxParams()]),
+        ) as FxParamsByType;
         this.engine.fxParams = this.fxParams;
 
         if (this.renderer) {
@@ -860,7 +858,7 @@ export class App {
     // No instrument selected (e.g. a freshly created blank song) → nothing to play.
     const sel = this.engine.instruments[this.controls.selected];
     if (!sel) return null;
-    if (sel.type === '808') {
+    if (byType(sel.type)?.drum) {
       const semi = KEY_SEMI[code];
       return semi == null ? null : (DRUM_KEYS[semi] ?? null);
     }

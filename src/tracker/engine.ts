@@ -9,6 +9,7 @@ import { EMPTY, OFF } from './pattern.js';
 import type { Pattern } from './pattern.js';
 import { defaultParams, instrumentsFromParams, DRUM_MAP } from './song.js';
 import { targetById, denorm } from './automation.js';
+import { byType } from '../instruments/index.js';
 import type {
   FxParamsByType, InstrumentInstance, InstrumentType, SongData, VoiceData,
 } from '../types.js';
@@ -241,8 +242,8 @@ export class Engine {
     v.vel = vol;
     v.onFrame = frame;
     v.offFrame = HELD;
-    if (instr.type === '808') {
-      v.freq = 220; // unused by 808, but keep sane
+    if (byType(instr.type)?.drum) {
+      v.freq = 220; // unused by drum engines, but keep sane
       this._writeParams(ch, instr, idx, DRUM_MAP[note] ?? 0);
     } else {
       v.freq = noteToFreq(note);
@@ -282,7 +283,10 @@ export class Engine {
       || INSTRUMENT_COLORS[this.instruments.length % INSTRUMENT_COLORS.length];
     const e: InstrumentInstance = { name: type.toUpperCase(), type, color, p0: [...dp.p0], p1: [...dp.p1] };
     if (dp.ops) e.ops = dp.ops.map((o) => ({ ...o }));
-    if (type === 'moog') { e.p2 = dp.p2 ? [...dp.p2] : [1, 1, 1, 0]; e.p3 = dp.p3 ? [...dp.p3] : [2, 2, 2, 0]; }
+    // defaultParams() already deep-clones the engine's extra banks (p2/p3) when
+    // its descriptor declares them, so just carry whatever it produced.
+    if (dp.p2) e.p2 = [...dp.p2];
+    if (dp.p3) e.p3 = [...dp.p3];
     this.instruments.push(e);
     return this.instruments.length - 1;
   }

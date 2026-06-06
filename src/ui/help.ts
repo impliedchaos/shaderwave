@@ -28,12 +28,9 @@ const MOUSE = [
   ['Right-click an instrument', 'Remove that instance from the table'],
 ];
 
-const INSTRUMENTS = [
-  ['303 — Acid Bass', 'Saw/square through a 4-pole nonlinear ladder filter with a downward envelope sweep and accent. Cutoff, Reso, EnvMod, Accent, Wave, FiltDecay, AmpDecay.'],
-  ['808 — Drum Machine', 'Analytical drums — swept-sine kick/toms, sine+noise snare, metallic hi-hats, clap, cowbell. Tone, Decay, Snappy.'],
-  ['Moog — Analog Polysynth', '3 detuned saw oscillators into a ladder filter with separate filter & amp ADSRs. Cutoff, Reso, EnvAmt, Detune, AmpSus, FiltDecay, AmpDecay.'],
-  ['DX7 — FM Synthesizer', '6-operator FM with all 32 algorithms and per-operator envelopes, loaded from .syx SysEx banks (288 patches across 9 ROMs).'],
-];
+// Instrument list comes straight from the registry (label + blurb per engine),
+// so a newly-crafted instrument documents itself here automatically.
+const INSTRUMENTS = REGISTRY.map((d) => [d.label, d.blurb]);
 
 const EFFECTS = [
   ['Distortion', 'Boss DS-1 style diode hard-clip — Dist, Tone, Level'],
@@ -71,6 +68,7 @@ const STYLE = `
 `;
 
 import { el } from './dom.js';
+import { REGISTRY } from '../instruments/index.js';
 
 let overlay: HTMLElement | null = null;
 let open = false;

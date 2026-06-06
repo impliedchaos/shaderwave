@@ -29,6 +29,9 @@ uniform float uOnRel[VOICES];   // note-on frame, relative to block start (may b
 uniform float uOffRel[VOICES];  // note-off frame, relative; +1e9 sentinel while held
 uniform vec4  uP0[VOICES];      // per-instrument param bank A
 uniform vec4  uP1[VOICES];      // per-instrument param bank B
+uniform vec4  uP2[VOICES];      // universal param bank C (e.g. moog osc/glide)
+uniform vec4  uP3[VOICES];      // universal param bank D (e.g. moog octave/noise)
+uniform float uFreqFrom[VOICES];// glide source pitch (note freq when no glide)
 uniform sampler2D uPrevState;   // previous block's end-of-block state (ladder etc.)
 uniform sampler2D uPrevPhase;   // previous block's end-of-block phase
 uniform sampler2D uPrevPhase2;  // for DX7 operators 5/6

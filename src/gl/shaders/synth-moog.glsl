@@ -12,9 +12,7 @@
 //   uFreqFrom = pitch the voice glides FROM (set to the note freq when no glide)
 // Waveform index: 0 Tri · 1 Saw · 2 Square · 3 Wide Pulse · 4 Narrow Pulse
 // Octave index:   0 32' · 1 16' · 2 8' · 3 4' · 4 2'  (offset -2..+2 octaves)
-uniform vec4  uP2[VOICES];
-uniform vec4  uP3[VOICES];
-uniform float uFreqFrom[VOICES];
+// (uP2/uP3/uFreqFrom are universal banks now declared in common.glsl.)
 
 float moogOsc(int w, float ph, float dt){
   if (w == 0) return oscTri(ph);

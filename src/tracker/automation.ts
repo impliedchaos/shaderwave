@@ -17,45 +17,9 @@
 //
 // Target ids are the flat index into TARGETS and must stay append-only (they are
 // persisted in patterns and will key MIDI-CC maps).
-import type { InstrumentType, ParamTarget } from '../types.js';
+import type { InstrumentType, ParamTarget, RawTarget } from '../types.js';
 import { DEFAULT_MASTER } from '../constants.js';
-
-// A target as authored in the tables below — the scope/type/id are stamped on
-// when flattening into TARGETS.
-type RawTarget = Omit<ParamTarget, 'id' | 'scope' | 'type'>;
-
-// inst-scope targets, grouped by engine type. bank/index point into p0/p1.
-const INST: Record<InstrumentType, RawTarget[]> = {
-  '303': [
-    { code: 'CUT', label: 'Cutoff',       bank: 'p0', index: 0, min: 30, max: 4000, curve: 'log', unit: 'Hz' },
-    { code: 'RES', label: 'Resonance',    bank: 'p0', index: 1, min: 0,  max: 0.98, curve: 'lin' },
-    { code: 'ENV', label: 'Env Mod',      bank: 'p0', index: 2, min: 0,  max: 1,    curve: 'lin' },
-    { code: 'ACC', label: 'Accent',       bank: 'p0', index: 3, min: 0,  max: 1,    curve: 'lin' },
-    { code: 'WAV', label: 'Wave',         bank: 'p1', index: 0, min: 0,  max: 4,    curve: 'enum' },
-    { code: 'FDC', label: 'Filter Decay', bank: 'p1', index: 1, min: 0.05, max: 1,  curve: 'lin', unit: 's' },
-    { code: 'ADC', label: 'Amp Decay',    bank: 'p1', index: 2, min: 0.05, max: 1,  curve: 'lin', unit: 's' },
-  ],
-  'moog': [
-    { code: 'CUT', label: 'Cutoff',       bank: 'p0', index: 0, min: 30, max: 6000, curve: 'log', unit: 'Hz' },
-    { code: 'RES', label: 'Resonance',    bank: 'p0', index: 1, min: 0,  max: 0.95, curve: 'lin' },
-    { code: 'FEN', label: 'Filter Env',   bank: 'p0', index: 2, min: 0,  max: 1,    curve: 'lin' },
-    { code: 'DTC', label: 'Detune',       bank: 'p1', index: 0, min: 0,  max: 30,   curve: 'lin', unit: 'ct' },
-    { code: 'SUS', label: 'Amp Sustain',  bank: 'p1', index: 1, min: 0,  max: 1,    curve: 'lin' },
-    { code: 'FDC', label: 'Filter Decay', bank: 'p1', index: 2, min: 0.05, max: 2,  curve: 'lin', unit: 's' },
-    { code: 'ADC', label: 'Amp Decay',    bank: 'p1', index: 3, min: 0.05, max: 2,  curve: 'lin', unit: 's' },
-  ],
-  'dx7': [
-    { code: 'MOD', label: 'Mod Index',    bank: 'p0', index: 2, min: 0,  max: 12,   curve: 'lin' },
-    { code: 'FBK', label: 'Feedback',     bank: 'p0', index: 3, min: 0,  max: 1,    curve: 'lin' },
-    { code: 'MDD', label: 'Mod Decay',    bank: 'p1', index: 1, min: 0.05, max: 4,  curve: 'lin', unit: 's' },
-    { code: 'AMD', label: 'Amp Decay',    bank: 'p1', index: 2, min: 0.05, max: 4,  curve: 'lin', unit: 's' },
-  ],
-  '808': [
-    { code: 'TON', label: 'Tone',         bank: 'p0', index: 1, min: 0,  max: 1,    curve: 'lin' },
-    { code: 'DEC', label: 'Decay',        bank: 'p0', index: 2, min: 0,  max: 1,    curve: 'lin' },
-    { code: 'SNP', label: 'Snappy',       bank: 'p0', index: 3, min: 0,  max: 1,    curve: 'lin' },
-  ],
-};
+import { REGISTRY, byType } from '../instruments/index.js';
 
 // fx-scope targets. `key` is a fxParams field; these apply to whichever engine
 // type the channel's instrument is, and are shared across that type's channels.
@@ -86,10 +50,22 @@ const GLOBAL: RawTarget[] = [
   { code: 'VOL', label: 'Volume', key: 'master', min: 0, max: DEFAULT_MASTER * 255 / 128, curve: 'lin' },
 ];
 
-// Flatten into a stable, id-indexed table. Order = append-only.
+// Flatten into a stable, id-indexed table. Order = append-only: target ids are
+// persisted in patterns, so the inst block is FROZEN to the original four engines
+// in their historical order (303, moog, dx7, 808 — NOT registry/INSTRUMENTS
+// order), with any later-registered engines appended after. Never reorder/insert.
+// Each engine's inst-targets come from its descriptor (`autoTargets`).
+const AUTO_ORDER = ['303', 'moog', 'dx7', '808'];
+const autoTypes = [
+  ...AUTO_ORDER.filter((t) => byType(t)),
+  ...REGISTRY.map((d) => d.type).filter((t) => !AUTO_ORDER.includes(t)),
+];
+
 export const TARGETS: ParamTarget[] = [];
-for (const type of ['303', 'moog', 'dx7', '808'] as InstrumentType[]) {
-  for (const t of INST[type]) TARGETS.push({ ...t, scope: 'inst', type, id: TARGETS.length });
+for (const type of autoTypes) {
+  const def = byType(type);
+  if (!def) continue;
+  for (const t of def.autoTargets) TARGETS.push({ ...t, scope: 'inst', type, id: TARGETS.length });
 }
 for (const t of FX) TARGETS.push({ ...t, scope: 'fx', type: '*', id: TARGETS.length });
 for (const t of CHAN) TARGETS.push({ ...t, scope: 'chan', type: '*', id: TARGETS.length });
