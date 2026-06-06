@@ -3647,5 +3647,187 @@ export const DEMO_SONGS: SongDef[] = [
         pan: [0.42, 0.58, 0.5, 0.5, 0.5, 0.35, 0.65, 0.7]
       };
     }
+  },
+  {
+    // "World 3-1 Infinite Lives" — a lofi / chiptune hybrid that shows off the
+    // new 888State (E8E) engine across every role: a crunchy 7-bit square sub,
+    // a nasal NES pulse lead, a narrow-pulse arp, a warm 5-bit triangle pad, and
+    // a sine-fifth bell. 808 keeps a lazy lofi backbeat. The breakdown automates
+    // E8E's Bits down for a tape-degrade wash; the climax wobbles the lead's
+    // Detune2 for a chorused widen — both p0/p1 banks, so they're automatable.
+    name: "World 3-1 Infinite Lives",
+    bpm: 90,
+    master: 0.65,
+    params: [
+      { name: "808 LoFi Kit", type: "808", p0: [0, 0.5, 0.45, 0.5], p1: [0, 0, 0, 0] },
+      // E8E banks: p0=ADSR, p1=[det2,det3,bits,drive], p2=[w1,w2,w3,oscs], p3=[lvl1,lvl2,lvl3,pulseW]
+      // waves: 0 sine · 1 saw · 2 square · 3 tri · 4 noise
+      { name: "E8E Sub Bass",  type: "e8e", p0: [0.001, 0.16, 0.0, 0.06], p1: [0.0, -12, 7, 0.3], p2: [2, 2, 0, 2], p3: [1.0, 0.55, 0.0, 0.5] },
+      { name: "E8E Pulse Lead", type: "e8e", p0: [0.001, 0.35, 0.55, 0.12], p1: [0.05, 0, 8, 0.0], p2: [2, 2, 0, 2], p3: [1.0, 0.5, 0.0, 0.38] },
+      { name: "E8E Arp",       type: "e8e", p0: [0.001, 0.1, 0.0, 0.04], p1: [0.0, 0, 8, 0.0], p2: [2, 0, 0, 1], p3: [1.0, 0.0, 0.0, 0.25] },
+      { name: "E8E Crunch Pad", type: "e8e", p0: [0.06, 0.4, 0.75, 0.5], p1: [0.08, -12, 5, 0.0], p2: [3, 3, 2, 3], p3: [1.0, 0.8, 0.4, 0.5] },
+      { name: "E8E Bell",      type: "e8e", p0: [0.001, 0.7, 0.0, 0.5], p1: [7.0, 12, 9, 0.0], p2: [0, 0, 0, 2], p3: [1.0, 0.45, 0.0, 0.5] }
+    ],
+    fxParams: makeFx({
+      "808": { reverbOn: true, reverbDecay: 0.6, reverbSend: 0.25, reverbMix: 0.16, master: 0.5 },
+      e8e:   { reverbOn: true, reverbDecay: 0.8, reverbSend: 0.4, reverbMix: 0.32,
+               delayOn: true, delayTime: 0.333, delayFeedback: 0.32, delayMix: 0.22,
+               widthOn: true, width: 1.3, master: 0.5 }
+    }),
+    data: () => {
+      const p0 = new Pattern(128, 8);
+      const p1 = new Pattern(128, 8);
+      const p2 = new Pattern(128, 8);
+      const p3 = new Pattern(128, 8);
+      const p4 = new Pattern(128, 8);
+      const p5 = new Pattern(128, 8);
+      const p6 = new Pattern(128, 8);
+      const p7 = new Pattern(128, 8);
+
+      const BD = 36, SD = 38, HH = 42, OH = 46, CLAP = 39;
+      const I_808 = 0, I_BASS = 1, I_LEAD = 2, I_ARP = 3, I_PAD = 4, I_BELL = 5;
+      // channels: 0 kick · 1 snare · 2 hats · 3 bass · 4 lead · 5 arp · 6 pad · 7 bell
+
+      // C major loop, two bars (32 rows) per chord: Cmaj7 · Am7 · Fmaj7 · G7.
+      const ROOTS = [48, 45, 41, 43];                  // bass roots: C A F G
+      const CHORDS = [
+        [60, 64, 67, 71],   // Cmaj7
+        [57, 60, 64, 67],   // Am7
+        [53, 57, 60, 64],   // Fmaj7
+        [55, 59, 62, 65],   // G7
+      ];
+      const chordIdx = (row: number) => Math.floor(row / 32) % 4;
+      const getRoot = (row: number) => ROOTS[chordIdx(row)];
+
+      const setDrums = (pat: Pattern, hasKick: boolean, hasSnare: boolean, hasHats: boolean) => {
+        for (let r = 0; r < 128; r++) {
+          const step = r % 16;
+          if (hasKick && (step === 0 || step === 10)) pat.set(r, 0, BD, I_808, 0.9);
+          if (hasSnare && (step === 4 || step === 12)) {
+            pat.set(r, 1, SD, I_808, 0.8);
+            if (step === 12) pat.set(r, 1, CLAP, I_808, 0.5);   // clap layer on the backbeat
+          }
+          if (hasHats && step % 2 === 0) {
+            if (step === 6 || step === 14) pat.set(r, 2, OH, I_808, 0.45);
+            else pat.set(r, 2, HH, I_808, 0.28);
+          }
+        }
+      };
+
+      const setBass = (pat: Pattern, vol = 0.9) => {
+        for (let r = 0; r < 128; r++) {
+          const step = r % 16, root = getRoot(r);
+          if (step === 0 || step === 8) pat.set(r, 3, root, I_BASS, vol);
+          else if (step === 6) pat.set(r, 3, root + 7, I_BASS, vol * 0.65);   // lazy fifth
+          else if (step === 11) pat.set(r, 3, root + 12, I_BASS, vol * 0.6);
+          else if (step === 3 || step === 14) pat.set(r, 3, OFF, I_BASS);
+        }
+      };
+
+      // Cheerful C-major-pentatonic lead, quarter notes (every 4 rows), 32 long → fills the bar grid.
+      const melody = [
+        72, 76, 79, 76, 74, 72, 69, 72, 67, 69, 72, 74, 76, 74, 72, 67,
+        72, 76, 79, 84, 81, 79, 76, 74, 72, 74, 76, 72, 69, 67, 64, 67,
+      ];
+      const setLead = (pat: Pattern, vol = 0.75) => {
+        for (let r = 0; r < 128; r += 4) {
+          pat.set(r, 4, melody[(r / 4) % melody.length], I_LEAD, vol);
+          pat.set(r + 3, 4, OFF, I_LEAD);
+        }
+      };
+
+      // Narrow-pulse arp, eighth notes, cycling up the current chord an octave up.
+      const setArp = (pat: Pattern, vol = 0.5) => {
+        let i = 0;
+        for (let r = 0; r < 128; r += 2) {
+          const chord = CHORDS[chordIdx(r)];
+          pat.set(r, 5, chord[i % 4] + 12, I_ARP, vol);
+          pat.set(r + 1, 5, OFF, I_ARP);
+          i++;
+        }
+      };
+
+      // Sustained pad — one held voice per channel, so it carries the chord's fifth.
+      const setPad = (pat: Pattern, vol = 0.55) => {
+        for (let seg = 0; seg < 4; seg++) {
+          const start = seg * 32, chord = CHORDS[seg];
+          pat.set(start, 6, chord[2], I_PAD, vol);
+          pat.set(start + 31, 6, OFF, I_PAD);
+        }
+      };
+
+      // Sparse glassy bell on the high 7th (decays on its own — no note-off needed).
+      const setBell = (pat: Pattern, vol = 0.45) => {
+        for (let seg = 0; seg < 4; seg++) {
+          const start = seg * 32, chord = CHORDS[seg];
+          pat.set(start, 7, chord[3] + 12, I_BELL, vol);
+          pat.set(start + 16, 7, chord[1] + 12, I_BELL, vol * 0.7);
+        }
+      };
+
+      const snareRoll = (pat: Pattern, from: number) => {
+        for (let r = from; r < 128; r++) {
+          if (r % 2 === 0 || r >= 120) pat.set(r, 1, SD, I_808, 0.35 + ((r - from) / (128 - from)) * 0.6);
+        }
+      };
+
+      // Automation: tape-degrade the pad by sweeping its Bits 8→2→8 (triangle, 2 cycles).
+      const BIT = tgt('e8e', 'BIT');
+      const bitsSweep = (pat: Pattern, inst: number, hiBits: number, loBits: number) => {
+        const hiB = normByte(BIT, hiBits), loB = normByte(BIT, loBits);
+        const track = pat.getOrCreateAutoTrack(inst, BIT.id);
+        for (let r = 0; r < 128; r++) {
+          const phase = (r % 64) / 64;
+          const tri = phase < 0.5 ? phase * 2 : (1 - phase) * 2;   // 0..1..0
+          track[r] = Math.round(hiB + (loB - hiB) * tri);
+        }
+      };
+
+      // Automation: wobble the lead's Detune2 for a chorused widen during the climax.
+      const DT2 = tgt('e8e', 'DT2');
+      const detuneWob = (pat: Pattern, inst: number, loSemi: number, hiSemi: number) => {
+        const loB = normByte(DT2, loSemi), hiB = normByte(DT2, hiSemi);
+        const track = pat.getOrCreateAutoTrack(inst, DT2.id);
+        for (let r = 0; r < 128; r++) {
+          const w = 0.5 + 0.5 * Math.sin((r / 8) * Math.PI);   // ~16-row period
+          track[r] = Math.round(loB + (hiB - loB) * w);
+        }
+      };
+
+      // p0 — warm intro: pad + bell only.
+      setPad(p0, 0.55); setBell(p0, 0.4);
+
+      // p1 — add sub bass, soft kick + hats (no snare yet).
+      setDrums(p1, true, false, true); setBass(p1, 0.85); setPad(p1, 0.5); setBell(p1, 0.4);
+
+      // p2 — main groove: full drums, bass, lead, pad, bell.
+      setDrums(p2, true, true, true); setBass(p2, 0.9); setLead(p2, 0.75); setPad(p2, 0.5); setBell(p2, 0.4);
+
+      // p3 — main + arp running.
+      setDrums(p3, true, true, true); setBass(p3, 0.9); setLead(p3, 0.7); setArp(p3, 0.5); setPad(p3, 0.45);
+
+      // p4 — breakdown: atmospheric, pad Bits degrade, bass + bell, hats only.
+      setDrums(p4, false, false, true); setBass(p4, 0.7); setPad(p4, 0.6); setBell(p4, 0.45);
+      bitsSweep(p4, I_PAD, 8, 2);
+
+      // p5 — build: kick + hats + bass + arp + lead, snare roll into the climax.
+      setDrums(p5, true, false, true); setBass(p5, 0.85); setLead(p5, 0.75); setArp(p5, 0.55);
+      snareRoll(p5, 100);
+
+      // p6 — climax: everything, with the lead detune-wobbling.
+      setDrums(p6, true, true, true); setBass(p6, 0.95); setLead(p6, 0.8); setArp(p6, 0.55);
+      setPad(p6, 0.45); setBell(p6, 0.4);
+      detuneWob(p6, I_LEAD, 0.0, 0.35);
+
+      // p7 — outro: pad + bell + a soft kick, letting it ring out.
+      setDrums(p7, true, false, false); setBass(p7, 0.6); setPad(p7, 0.55); setBell(p7, 0.4);
+
+      return {
+        patterns: [p0, p1, p2, p3, p4, p5, p6, p7],
+        order: [0, 1, 2, 3, 4, 5, 6, 2, 3, 7],
+        rowsPerBeat: 4,
+        pan: [0.5, 0.5, 0.5, 0.5, 0.44, 0.34, 0.62, 0.7]
+      };
+    }
   }
 ];
