@@ -1,6 +1,6 @@
 {
   "name": "shaderwave",
-  "version": "0.8.2",
+  "version": "0.9.0",
   "private": true,
   "type": "module",
   "description": "WebGL2 synthesizer & tracker — instruments synthesized entirely on the GPU.",

@@ -42,6 +42,7 @@ const DX7_ROMS = [
 // Display labels for the Moog stepped osc knobs.
 const MOOG_WAVES: Record<number, string> = { 0: 'Tri', 1: 'Saw', 2: 'Square', 3: 'WidePul', 4: 'NarPul' };
 const MOOG_OCTS: Record<number, string> = { 0: "32'", 1: "16'", 2: "8'", 3: "4'", 4: "2'" };
+const E8E_WAVES: Record<number, string> = { 0: 'Sine', 1: 'Saw', 2: 'Square', 3: 'Triangle', 4: 'Noise' };
 
 interface ControlsOpts {
   instEl: HTMLElement;
@@ -577,6 +578,7 @@ export class Controls {
         return map[Math.round(v)] || v.toString();
       } : (name === 'moog' && /Wave$/.test(d.label)) ? (v: number) => MOOG_WAVES[Math.round(v)] || v.toString()
         : (name === 'moog' && /Oct$/.test(d.label)) ? (v: number) => MOOG_OCTS[Math.round(v)] || v.toString()
+        : (name === 'e8e' && /^Wave\d$/.test(d.label)) ? (v: number) => E8E_WAVES[Math.round(v)] || v.toString()
         : (d.label === 'Op Mode' && name === 'dx7') ? (v: number) => {
         return Math.round(v) === 0 ? 'Ratio' : 'Fixed';
       } : (d.label === 'Op Coarse' && name === 'dx7' && pr.ops![this.activeOp].mode === 1) ? (v: number) => {

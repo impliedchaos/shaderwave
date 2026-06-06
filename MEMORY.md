@@ -13,14 +13,20 @@ wants you to work — include the why), **reference** (external pointers), **use
 
 ## How the user wants you to work
 
-### Check if the dev server is already running — `feedback`
+### Check if the dev server is already running — AND NEVER `pkill` IT — `feedback`
 Before starting the Vite dev server (`npx vite --port 5173`) for headless harnesses or
 anything else, **always check whether one is already running first**
 (`curl -s -o /dev/null -w "%{http_code}" http://localhost:5173/`, or `pgrep -af vite` /
-`lsof -i:5173`) and reuse it.
-- **Why:** the user got frustrated by repeated redundant dev-server launches piling up.
-- **How to apply:** probe port 5173 first; only launch if nothing answers. Never spawn a
-  fresh server per harness run.
+`lsof -i:5173`) and reuse it. **NEVER kill vite** — not with `pkill -f vite`, not with
+`pkill -f "vite --port 5173"` (that still nukes the user's own server when port 5173 was
+already taken and theirs bound elsewhere, or vice-versa), not any pattern. This has
+burned the user ~10 times and they are (rightly) furious about it.
+- **Why:** the user runs their own long-lived dev server; killing it interrupts their work,
+  and redundant launches piling up frustrated them.
+- **How to apply:** (1) probe port 5173 first; if something answers, REUSE it and run the
+  harness — do not launch your own. (2) If you must spawn one, run it on a *different*
+  port (e.g. `--port 5199`) and, to stop it, kill **only the exact PID you captured**
+  (`SERVER_PID=$!`), never a `pkill` pattern. (3) When in doubt, leave it running and move on.
 
 ---
 
@@ -153,7 +159,8 @@ pitch slide, `3` tone-porta (meend, no re-attack), `4` vibrato (gamak), `A` volu
 ### Instrument registry — the plug-in system (`src/instruments/`) — `project`
 Instruments are now data-driven descriptors, not scattered `if (type === …)` branches.
 **`src/instruments/REGISTRY`** (in `index.ts`) is the single source of truth; one
-`InstrumentDef` per engine (`i303.ts`, `idx7.ts`, `i808.ts`, `imoog.ts`) co-locates its
+`InstrumentDef` per engine (`i303.ts`, `idx7.ts`, `i808.ts`, `imoog.ts`, `itanpura.ts`,
+`ie8e.ts`) co-locates its
 shader, defaults, `paramDefs` (sidebar knobs), `autoTargets` (automation), `presets`,
 help label/blurb, and flags (`recursive`, `drum`, `customControls`, `uploadVoiceUniforms`).
 Everything derives from it: `constants.INSTRUMENTS` re-exports `index.INSTRUMENTS`;
@@ -178,7 +185,11 @@ Non-obvious constraints (don't break these):
 - Descriptors import only `../types.js` (type-only) + their `.glsl?raw` — **never** import
   `constants`/`engine`/`ui` (would cycle, since `constants` re-exports from `index.ts`).
 - Refactor was behaviour-preserving: `render-check` byte-identical pre/post, all 16 demo
-  songs load, glsl-check green. Tanpura is the next instrument, added through this registry.
+  songs load, glsl-check green. Tanpura, then **888State (`e8e`)**, were added through this
+  registry. **E8E** is a closed-form 3-osc additive synth with an 8-bit quantizer; banks:
+  p0=ADSR, p1=(detune2, detune3, bits, drive) — the automatable ones — p2=(wave1/2/3, oscs),
+  p3=(level1/2/3, pulseWidth). Waves: 0 sine 1 saw 2 square 3 tri 4 noise; the Wave1–3 sidebar
+  knobs render the name via `E8E_WAVES` in `controls.ts` (same `formatFn` path as 303/moog).
 
 ### 808 drum reference tuning + the analysis harness — `project`
 The 808 snare and clap (`src/gl/shaders/synth-808.glsl`) were tuned to objectively match

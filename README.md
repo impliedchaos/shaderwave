@@ -110,6 +110,20 @@ and **Infinite** (a toggle that disables the decay so the drone rings until
 note-off). Play it as a plucked-string voice — the demo *Let That Raga Drop*
 programs the classic Pa–sa–sa–Sa· cycle across channels.
 
+### 888State — 8-bit Additive (short name **E8E**)
+
+A 3-oscillator additive synth (closed-form, like the 808/DX7/Tanpura) crunched
+through a deliberate **8-bit quantizer** — the staircase that gives it its lo-fi
+chiptune bite (the name nods to 808 State). Each oscillator is independently
+**Sine / Saw / Square / Triangle / Noise**, and the **Oscs** knob runs it as a
+single, dual or triple oscillator. Parameters: **Attack/Decay/Sustain/Release**
+(a standard ADSR), **Detune2** and **Detune3** (osc 2/3 offset in semitones —
+fractional values beat against osc 1), **Bits** (1–16; the quantizer depth, 8 by
+default = 256 steps), **Drive**, three **Wave** selectors (which display the
+waveform name), per-oscillator **Levels**, and **PulseW** (square pulse width).
+The expressive controls (detune, bits, drive) live in the p0/p1 banks so they're
+automatable; the short name is **E8E** to stay visually distinct from the 808.
+
 ## Effect column
 
 Each pattern cell has a fourth sub-column — a classic tracker **effect command**
@@ -127,7 +141,7 @@ the command key, then two hex digits.
 
 The engine modulates pitch/volume once per render block (~93 Hz). Pitch effects
 are smooth on the phase-accumulating melodic engines (**303**, **Moog**); the
-closed-form engines (Tanpura/DX7/808) step on per-block pitch changes, so pitch
+closed-form engines (Tanpura/DX7/808/E8E) step on per-block pitch changes, so pitch
 effects are best on the leads — volume slide works on any instrument.
 
 ## Presets
@@ -290,6 +304,7 @@ src/gl/                    context, program helpers, SynthRenderer, shaders/
   shaders/synth-moog.glsl      Minimoog Model D voice
   shaders/synth-dx7.glsl       6-op FM (all 32 algorithms)
   shaders/synth-tanpura.glsl   additive/modal Indian drone (jivari)
+  shaders/synth-e8e.glsl       888State — 3-osc additive, 8-bit crunch
   shaders/fx-distortion.glsl   DS-1 distortion stage
   shaders/fx-chorus-*.glsl     chorus ring update + tap
   shaders/fx-tremolo.glsl      auto-pan tremolo stage
@@ -329,8 +344,9 @@ google-chrome --headless=new --enable-unsafe-swiftshader --dump-dom \
 
 - **Tabla** — a synthesized modelling tabla hand drums.
 - **SBPro91** — a recreation of the FM synthesis capabilities of the SoundBlaster Pro which used a pair of YM3812 (OPL2) chips.
-- **888State** — a 3-oscillator (can also act as single or dual oscillator) additive synth with a standard ADSR envelope. It supports sine, square, triangle, and noise waves for all three oscillators, but all three oscillators are quantized down to 256 steps (8-bit).
 - **Pipi** - A physically modelled piano sythn.
+
+(✓ *888State* shipped — see the **888State / E8E** instrument above.)
 
 ## Known Limitations / Next Steps
 
