@@ -8,6 +8,8 @@ import shader from '../gl/shaders/synth-dx7.glsl?raw';
 
 export const idx7: InstrumentDef = {
   type: 'dx7',
+  name: 'DX7',
+  short: 'DX7',
   label: 'DX7 — FM Synthesizer',
   blurb: '6-operator FM with all 32 algorithms and per-operator envelopes, loaded from .syx SysEx banks (288 patches across 9 ROMs).',
   shader,

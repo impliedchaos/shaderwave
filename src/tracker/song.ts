@@ -32,7 +32,7 @@ export function instrumentsFromParams(
   if (Array.isArray(params)) {
     return params.map((pr, i) => {
       const e: InstrumentInstance = {
-        name: pr.name || pr.type.toUpperCase(),
+        name: pr.name || byType(pr.type)?.name || pr.type.toUpperCase(),
         type: pr.type,
         color: pr.color || INSTRUMENT_COLORS[i % INSTRUMENT_COLORS.length],
         p0: [...pr.p0],
@@ -45,7 +45,7 @@ export function instrumentsFromParams(
   return INSTRUMENTS.map((type, i) => {
     const pr = params[type];
     if (!pr) throw new Error(`Song params missing engine type "${type}"`);
-    const e: InstrumentInstance = { name: type.toUpperCase(), type, color: INSTRUMENT_COLORS[i % INSTRUMENT_COLORS.length], p0: [...pr.p0], p1: [...pr.p1] };
+    const e: InstrumentInstance = { name: byType(type)?.name ?? type.toUpperCase(), type, color: INSTRUMENT_COLORS[i % INSTRUMENT_COLORS.length], p0: [...pr.p0], p1: [...pr.p1] };
     if (pr.ops) e.ops = pr.ops.map((o) => ({ ...o }));
     return addExtraBanks(e, pr);
   });

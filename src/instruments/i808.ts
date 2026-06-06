@@ -6,6 +6,8 @@ import shader from '../gl/shaders/synth-808.glsl?raw';
 
 export const i808: InstrumentDef = {
   type: '808',
+  name: 'TR-808',
+  short: '808',
   label: '808 — Drum Machine',
   blurb: 'Analytical drums — swept-sine kick/toms, sine+noise snare, metallic hi-hats, clap, cowbell. Tone, Decay, Snappy.',
   shader,

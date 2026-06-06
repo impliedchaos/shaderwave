@@ -216,6 +216,8 @@ export interface Preset {
 // a new descriptor + a .glsl shader + one registry entry; nothing else.
 export interface InstrumentDef {
   type: string;            // unique id; shader program key; fxParams bucket key
+  name: string;            // long display name, e.g. "Moog" (sidebar, + Add menu)
+  short: string;           // 3-char label for the pattern editor, e.g. "MŌG"
   label: string;           // help title, e.g. "303 — Acid Bass"
   blurb: string;           // help description
   color?: string;          // optional accent override (else from the palette)

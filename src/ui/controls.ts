@@ -148,7 +148,7 @@ export class Controls {
     const sel = document.getElementById('inst-add') as HTMLSelectElement | null;
     if (!sel) return;
     sel.innerHTML = '<option value="">+ Add</option>'
-      + INSTRUMENTS.map((t) => `<option value="${t}">${t.toUpperCase()}</option>`).join('');
+      + INSTRUMENTS.map((t) => `<option value="${t}">${byType(t)?.name ?? t.toUpperCase()}</option>`).join('');
     sel.value = '';
     sel.onchange = (e) => {
       const target = e.target as HTMLSelectElement;

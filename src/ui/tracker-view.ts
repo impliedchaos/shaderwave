@@ -5,9 +5,15 @@ import { EMPTY, OFF } from '../tracker/pattern.js';
 import type { Pattern } from '../tracker/pattern.js';
 import type { Engine } from '../tracker/engine.js';
 import { targetById } from '../tracker/automation.js';
+import { byType } from '../instruments/index.js';
 import { themeVar } from './theme.js';
 
 const NOTE_NAMES = ['C-', 'C#', 'D-', 'D#', 'E-', 'F-', 'F#', 'G-', 'G#', 'A-', 'A#', 'B-'];
+
+// 3-char engine label for the pattern grid (descriptor `short`, e.g. "MŌG"/"TAN").
+function instShort(type: string): string {
+  return byType(type)?.short ?? type.slice(0, 3).toUpperCase();
+}
 
 export function noteName(midi: number): string {
   if (midi === EMPTY) return '···';
@@ -538,8 +544,7 @@ export class TrackerView {
         const inst = this.engine.instruments[track.targetInstIdx!];
         if (inst) {
           scopeColor = inst.color;
-          const INST_LABELS: Record<string, string> = { 'moog': 'MŌG' };
-          scopeLabel = INST_LABELS[inst.type] || inst.type.toUpperCase();
+          scopeLabel = instShort(inst.type);
         } else {
           scopeLabel = '---';
         }
@@ -597,8 +602,7 @@ export class TrackerView {
               ctx.fillStyle = (instr && instr.color) || C('--accent');
             }
             // Display-only label overrides (keeps the underlying instrument id).
-            const INST_LABELS: Record<string, string> = { 'moog': 'MŌG' };
-            const instLabel = INST_LABELS[instName] || instName.toUpperCase();
+            const instLabel = instShort(instName);
             ctx.fillText(instLabel, instX, y + ROW_H / 2);
 
             // Draw volume data (percentage value 00..99)

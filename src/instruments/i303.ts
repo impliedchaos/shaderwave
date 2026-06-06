@@ -6,6 +6,8 @@ import shader from '../gl/shaders/synth-303.glsl?raw';
 
 export const i303: InstrumentDef = {
   type: '303',
+  name: 'TB-303',
+  short: '303',
   label: '303 — Acid Bass',
   blurb: 'Saw/square through a 4-pole nonlinear ladder filter with a downward envelope sweep and accent. Cutoff, Reso, EnvMod, Accent, Wave, FiltDecay, AmpDecay.',
   shader,

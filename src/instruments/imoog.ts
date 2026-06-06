@@ -7,6 +7,8 @@ import shader from '../gl/shaders/synth-moog.glsl?raw';
 
 export const imoog: InstrumentDef = {
   type: 'moog',
+  name: 'Moog',
+  short: 'MŌG',
   label: 'Moog — Analog Polysynth',
   blurb: '3 detuned saw oscillators into a ladder filter with separate filter & amp ADSRs. Cutoff, Reso, EnvAmt, Detune, AmpSus, FiltDecay, AmpDecay.',
   shader,
