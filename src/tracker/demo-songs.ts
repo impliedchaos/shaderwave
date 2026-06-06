@@ -502,302 +502,6 @@ export const DEMO_SONGS: SongDef[] = [
     }
   },
   {
-    name: "Fake My Breath Away",
-    bpm: 116,
-    master: DEFAULT_MASTER * 0.5,
-    params: [
-      {
-        name: "BASS 2",
-        type: "dx7",
-        p0: [1, 2, 3.0, 1.5],
-        p1: [17, 0.6, 0.9, 3],
-        ops: [
-          { coarse: 0.5, fine: 1, level: 99, detune: 0, decay: 2.505, mode: 0, sustain: 0.0, release: 1.455 },
-          { coarse: 0.5, fine: 3, level: 80, detune: 0, decay: 2.505, mode: 0, sustain: 0.0, release: 1.980 },
-          { coarse: 1.0, fine: 0, level: 68, detune: 7, decay: 2.990, mode: 0, sustain: 0.0, release: 2.788 },
-          { coarse: 0.5, fine: 0, level: 99, detune: 0, decay: 2.424, mode: 0, sustain: 0.0, release: 1.859 },
-          { coarse: 1.0, fine: 1, level: 75, detune: 0, decay: 1.939, mode: 0, sustain: 0.0, release: 4.0 },
-          { coarse: 0.5, fine: 0, level: 87, detune: 1, decay: 1.980, mode: 0, sustain: 0.0, release: 1.778 }
-        ]
-      },
-      { name: "808 Gated Kit", type: "808", p0: [0, 0.5, 0.8, 0.6], p1: [0, 0, 0, 0] },
-      { name: "Warm Pad", type: "moog", p0: [400, 0.2, 0.3, 0.1], p1: [15.0, 0.8, 1.5, 1.2], p2: [1, 1, 0, 0], p3: [2, 2, 1, 0.05] },
-      { name: "FM Chime Hook", type: "dx7",
-        p0: [1, 3.5, 4.0, 0.6], p1: [1, 0.5, 0.8, 4],
-        ops: [
-          { coarse: 1.0, fine: 0, level: 99, detune: 0, decay: 0.9, mode: 0, sustain: 0.7, release: 0.25 },
-          { coarse: 3.5, fine: 0, level: 85, detune: 1, decay: 0.6, mode: 0, sustain: 0.6, release: 0.25 },
-          { coarse: 5.0, fine: 0, level: 70, detune: -1, decay: 0.5, mode: 0, sustain: 0.5, release: 0.25 },
-          { coarse: 7.0, fine: 0, level: 60, detune: 0, decay: 0.4, mode: 0, sustain: 0.4, release: 0.25 },
-          { coarse: 1.0, fine: 0, level: 0,  detune: 0, decay: 0.5, mode: 0, sustain: 0.5, release: 0.25 },
-          { coarse: 1.0, fine: 0, level: 0,  detune: 0, decay: 0.5, mode: 0, sustain: 0.5, release: 0.25 }
-        ]
-      },
-      { name: "Soaring Moog Lead", type: "moog", p0: [900, 0.4, 0.6, 0.45], p1: [6.0, 0.9, 0.8, 0.6], p2: [1, 1, 2, 0.08], p3: [2, 3, 2, 0] }
-    ],
-    fxParams: {
-      '303': defaultFxParams(),
-      'dx7': Object.assign(defaultFxParams(), { chorusMix: 0.45, chorusRate: 1.2, delayMix: 0.35, delayTime: 0.375, reverbMix: 0.35, reverbDecay: 0.85 }),
-      '808': Object.assign(defaultFxParams(), { dist: 2.0, master: 0.9, reverbMix: 0.45, reverbDecay: 0.8 }),
-      'moog': Object.assign(defaultFxParams(), { chorusMix: 0.55, chorusRate: 0.8, chorusDepth: 4.0, delayMix: 0.3, reverbMix: 0.55, reverbDecay: 0.92 }),
-    },
-    data: () => {
-      const p0 = new Pattern(128, 8);
-      const p1 = new Pattern(128, 8);
-      const p2 = new Pattern(128, 8);
-      const p3 = new Pattern(128, 8);
-      const p4 = new Pattern(128, 8);
-      const p5 = new Pattern(128, 8);
-      const p6 = new Pattern(128, 8);
-      const p7 = new Pattern(128, 8);
-      const p8 = new Pattern(128, 8);
-      const p9 = new Pattern(128, 8);
-
-      const BD = 36, SD = 38, HH = 42, OH = 46;
-      const I_bass = 0, I_808 = 1, I_pad = 2, I_chime = 3, I_moog = 4;
-
-      const v1Bass = [
-        [[0, 44], [14, 39]],
-        [[0, 43], [14, 37]],
-        [[0, 41], [14, 39]],
-        [[0, 43], [8, 39], [10, 41], [12, 44], [14, 46]],
-        [[0, 44], [14, 39]],
-        [[0, 43], [14, 37]],
-        [[0, 41], [14, 39]],
-        [[0, 43], [8, 39], [10, 41], [12, 44], [14, 48]],
-      ];
-
-      const v2Bass = [
-        [[0, 46], [14, 41]],
-        [[0, 44], [14, 37]],
-        [[0, 39], [14, 37]],
-        [[0, 39], [8, 39], [10, 41], [12, 44], [14, 46]],
-        [[0, 44], [14, 39]],
-        [[0, 43], [14, 36]],
-        [[0, 37], [14, 34]],
-        [[0, 39], [8, 39], [10, 41], [12, 44], [14, 46]],
-      ];
-
-      const chorusBass = [
-        [[0, 44], [14, 39]],
-        [[0, 43], [14, 36]],
-        [[0, 37], [14, 34]],
-        [[0, 39], [8, 39], [10, 41], [12, 44], [14, 46]],
-        [[0, 44], [14, 39]],
-        [[0, 43], [14, 36]],
-        [[0, 37], [14, 34]],
-        [[0, 39], [8, 39], [10, 41], [12, 44], [14, 46]],
-      ];
-
-      const bridgeBass = [
-        [[0, 44], [14, 39]],
-        [[0, 43], [14, 37]],
-        [[0, 41], [14, 39]],
-        [[0, 43], [8, 43], [12, 44]],
-        [[0, 46], [14, 44]],
-        [[0, 43], [14, 39]],
-        [[0, 37], [14, 37]],
-        [[0, 44], [14, 44]],
-        [[0, 46], [14, 44]],
-        [[0, 43], [14, 39]],
-        [[0, 37], [14, 37]],
-        [[0, 44], [14, 44]],
-        [[0, 46], [4, 41], [14, 34]],
-        [],
-        [[0, 51], [4, 46], [14, 39]],
-        [[8, 39], [10, 41], [12, 44], [14, 46]],
-      ];
-
-      const v1Chords = [
-        [56, 60, 63],
-        [55, 58, 62],
-        [53, 56, 60],
-        [55, 58, 62],
-        [56, 60, 63],
-        [55, 58, 62],
-        [53, 56, 60],
-        [55, 58, 62],
-      ];
-
-      const v2Chords = [
-        [58, 62, 65],
-        [56, 60, 63],
-        [51, 55, 58],
-        [51, 55, 58],
-        [56, 60, 63],
-        [51, 55, 60],
-        [49, 53, 56],
-        [51, 55, 58],
-      ];
-
-      const chorusChords = [
-        [56, 60, 63],
-        [51, 55, 60],
-        [49, 53, 56],
-        [51, 55, 58],
-        [56, 60, 63],
-        [51, 55, 60],
-        [49, 53, 56],
-        [51, 55, 58],
-      ];
-
-      const bridgeChords = [
-        [56, 60, 63],
-        [55, 58, 62],
-        [53, 56, 60],
-        [55, 58, 62],
-        [58, 62, 65],
-        [55, 58, 62],
-        [49, 53, 56],
-        [56, 60, 63],
-        [58, 62, 65],
-        [55, 58, 62],
-        [49, 53, 56],
-        [56, 60, 63],
-        [58, 62, 65],
-        [58, 62, 65],
-        [51, 55, 58],
-        [51, 55, 58],
-      ];
-
-      const writeBass = (pat: Pattern, barsArray: number[][][], transpose = 0) => {
-        barsArray.forEach((bar: number[][], barIdx: number) => {
-          const startRow = barIdx * 16;
-          bar.forEach(([offset, note]: number[]) => {
-            pat.set(startRow + offset, 3, note + transpose + 12, I_bass, 0.88);
-          });
-        });
-      };
-
-      const writePads = (pat: Pattern, chordsArray: number[][], transpose = 0) => {
-        chordsArray.forEach((chord: number[], barIdx: number) => {
-          const startRow = barIdx * 16;
-          chord.forEach((note: number) => {
-            pat.set(startRow, 4, note + transpose, I_pad, 0.58);
-          });
-          pat.set(startRow + 14, 4, OFF, I_pad);
-        });
-      };
-
-      const setGatedDrums = (pat: Pattern, hasKick: boolean, hasSnare: boolean, hasHats: boolean) => {
-        for (let r = 0; r < 128; r++) {
-          const step = r % 16;
-          if (hasKick) {
-            if (step === 0 || step === 10) {
-              pat.set(r, 0, BD, I_808, 0.95);
-            }
-          }
-          if (hasSnare) {
-            if (step === 4 || step === 12) {
-              pat.set(r, 1, SD, I_808, 0.85);
-            }
-          }
-          if (hasHats) {
-            if (step === 2 || step === 6 || step === 10 || step === 14) {
-              pat.set(r, 2, OH, I_808, 0.45);
-            } else if (step % 4 === 0) {
-              pat.set(r, 2, HH, I_808, 0.3);
-            }
-          }
-        }
-      };
-
-      const setChimeMelody = (pat: Pattern, ch: number, inst: number, vol = 0.7, transpose = 0) => {
-        for (let r = 0; r < 128; r++) {
-          const step = r % 16;
-          const bar = Math.floor(r / 16);
-          
-          if (step === 2 || step === 10) {
-            let note = 74;
-            if (bar === 3 || bar === 7) note = 72;
-            pat.set(r, ch, note + transpose, inst, vol);
-          } else if (step === 4 || step === 8 || step === 12) {
-            let note = 77;
-            if (bar === 6) note = 75;
-            pat.set(r, ch, note + transpose, inst, vol);
-          } else if (step === 6 || step === 14) {
-            let note = 82;
-            if (bar === 1 || bar === 7) note = 81;
-            else if (bar === 2) note = 79;
-            else if (bar === 4) note = 77;
-            else if (bar === 5) note = 82;
-            else if (bar === 6) note = 79;
-            pat.set(r, ch, note + transpose, inst, vol);
-          } else if (step === 3 || step === 5 || step === 7 || step === 9 || step === 11 || step === 13 || step === 15) {
-            pat.set(r, ch, OFF, inst);
-          }
-        }
-      };
-
-      const setSoaringMoog = (pat: Pattern, ch: number, inst: number, vol = 0.7, transpose = 0) => {
-        const lead = [
-          82, 82, 81, 81, 79, 79, 77, 77,
-          75, 75, 77, 77, 79, 79, 81, 81
-        ];
-        for (let r = 0; r < 128; r += 8) {
-          const step = Math.floor(r / 8) % lead.length;
-          pat.set(r, ch, lead[step] + 12 + transpose, inst, vol);
-          pat.set(r + 6, ch, OFF, inst);
-        }
-      };
-
-      writeBass(p0, v1Bass);
-      writePads(p0, v1Chords);
-
-      writeBass(p1, v1Bass);
-      writePads(p1, v1Chords);
-      setChimeMelody(p1, 5, I_chime, 0.7);
-
-      setGatedDrums(p2, true, false, true);
-      writeBass(p2, v1Bass);
-      writePads(p2, v1Chords);
-      setChimeMelody(p2, 5, I_chime, 0.7);
-
-      setGatedDrums(p3, true, true, true);
-      writeBass(p3, v2Bass);
-      writePads(p3, v2Chords);
-      setChimeMelody(p3, 5, I_chime, 0.65);
-
-      setGatedDrums(p4, true, true, true);
-      writeBass(p4, chorusBass);
-      writePads(p4, chorusChords);
-      setChimeMelody(p4, 5, I_chime, 0.75, 12);
-
-      writeBass(p5, bridgeBass.slice(0, 8));
-      writePads(p5, bridgeChords.slice(0, 8));
-
-      setGatedDrums(p6, false, false, true);
-      writeBass(p6, bridgeBass.slice(8, 16));
-      writePads(p6, bridgeChords.slice(8, 16));
-      for (let r = 96; r < 128; r++) {
-        if (r % 2 === 0 || r >= 112) {
-          p6.set(r, 1, SD, I_808, 0.4 + ((r - 96) / 32) * 0.55);
-        }
-      }
-
-      setGatedDrums(p7, true, true, true);
-      writeBass(p7, v1Bass, 3);
-      writePads(p7, v1Chords, 3);
-      setChimeMelody(p7, 5, I_chime, 0.7, 3);
-
-      setGatedDrums(p8, true, true, true);
-      writeBass(p8, v2Bass, 3);
-      writePads(p8, v2Chords, 3);
-      setChimeMelody(p8, 5, I_chime, 0.75, 15);
-      setSoaringMoog(p8, 6, I_moog, 0.75, 3);
-
-      setGatedDrums(p9, true, false, false);
-      writeBass(p9, chorusBass.slice(0, 4), 3);
-      writePads(p9, chorusChords.slice(0, 4), 3);
-
-      return {
-        patterns: [p0, p1, p2, p3, p4, p5, p6, p7, p8, p9],
-        order: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
-        rowsPerBeat: 4
-      };
-    }
-  },
-  {
     name: "Nonconsensual Assisted Suicide",
     bpm: 78,
     master: DEFAULT_MASTER * 0.48,
@@ -3653,6 +3357,294 @@ export const DEMO_SONGS: SongDef[] = [
         rowsPerBeat: 4,
         // Tanpuras spread wide; lead leans left, sitar right.
         pan: [0.42, 0.58, 0.5, 0.5, 0.5, 0.5, 0.4, 0.6],
+      };
+    }
+  },
+  {
+    name: "Shamanic Colonic",
+    bpm: 100,
+    master: DEFAULT_MASTER * 0.5,
+    params: [
+      { name: "Tanpura Drone", type: "tanpura", p0: [3.0, 0.65, 0.05, 0.12], p1: [48, 0.0001, 0.22, 0.005] },
+      { name: "808 Downtempo Kit", type: "808", p0: [0, 0.5, 0.45, 0.55], p1: [0, 0, 0, 0] },
+      { name: "Vacuum Bass", type: "moog", p0: [130, 0.45, 0.7, 0], p1: [2, 0.95, 0.5, 0.7], p2: [2, 1, 1, 0], p3: [2, 2, 1, 0] },
+      { name: "Coffee Acid", type: "303", p0: [450, 0.82, 0.65, 0.5], p1: [1, 0.25, 0.35, 0] },
+      { name: "Glitch Bell", type: "dx7",
+        p0: [1, 2.5, 3.8, 0.5], p1: [4, 0.4, 0.75, 4],
+        ops: [
+          { coarse: 1.0, fine: 0, level: 99, detune: 0, decay: 1.2, mode: 0, sustain: 0.1, release: 0.8 },
+          { coarse: 2.5, fine: 0, level: 85, detune: 2, decay: 0.6, mode: 0, sustain: 0.0, release: 0.5 },
+          { coarse: 3.8, fine: 0, level: 75, detune: -2, decay: 0.4, mode: 0, sustain: 0.0, release: 0.4 },
+          { coarse: 5.0, fine: 0, level: 60, detune: 4, decay: 0.3, mode: 0, sustain: 0.0, release: 0.3 },
+          { coarse: 1.0, fine: 0, level: 0,  detune: 0, decay: 0.5, mode: 0, sustain: 0.0, release: 0.5 },
+          { coarse: 1.0, fine: 0, level: 0,  detune: 0, decay: 0.5, mode: 0, sustain: 0.0, release: 0.5 }
+        ]
+      },
+      { name: "Sky Pad", type: "moog", p0: [350, 0.1, 0.2, 0.1], p1: [14.0, 0.85, 3.0, 3.0], p2: [1, 1, 0, 0], p3: [2, 2, 1, 0.04] }
+    ],
+    fxParams: makeFx({
+      tanpura: { dist: 0.001, delayMix: 0.2, reverbMix: 0.4, master: 0.8 },
+      '808': { dist: 1.5, tone: 0.4, reverbMix: 0.15, master: 0.85 },
+      moog: { dist: 1.2, tone: 0.5, chorusMix: 0.4, reverbMix: 0.35, reverbDecay: 0.9, master: 0.8 },
+      '303': { dist: 3.0, tone: 0.6, delayMix: 0.25, delayTime: 0.375, reverbMix: 0.2, master: 0.75 }
+    }),
+    data: () => {
+      const P = () => new Pattern(128, 8);
+      const p0 = P(), p1 = P(), p2 = P(), p3 = P(), p4 = P(), p5 = P(), p6 = P(), p7 = P();
+
+      const I_TAN = 0, I_808 = 1, I_BASS = 2, I_ACID = 3, I_BELL = 4, I_PAD = 5;
+      const BD = 36, SD = 38, HH = 42, OH = 46, RIM = 37, SD_ROLL = 38;
+
+      const PAN = tgt('moog', 'PAN');
+      const CUTm = tgt('moog', 'CUT');
+      const CUT3 = tgt('303', 'CUT');
+      const RVM = tgt('moog', 'RVM');
+      const RES = tgt('303', 'RES');
+
+      const drone = (pat: Pattern, vol = 0.8) => {
+        for (let r = 0; r < 128; r++) {
+          if (r % 32 === 0)  pat.set(r, 0, 48, I_TAN, vol);          // Sa  (C3) on ch 0
+          if (r % 32 === 8)  pat.set(r, 1, 43, I_TAN, vol * 0.9);    // Pa  (G2) on ch 1
+          if (r % 32 === 16) pat.set(r, 0, 48, I_TAN, vol);          // Sa  (C3) on ch 0
+          if (r % 32 === 24) pat.set(r, 1, 36, I_TAN, vol * 0.85);   // low Sa (C2) on ch 1
+        }
+      };
+
+      const writeBass = (pat: Pattern, vol = 0.8) => {
+        const roots = [36, 32, 29, 31]; // C2, Ab1, F1, G1
+        for (let bar = 0; bar < 8; bar++) {
+          const start = bar * 16;
+          const note = roots[Math.floor(bar / 2) % roots.length];
+          pat.set(start, 5, note, I_BASS, vol);
+          pat.set(start + 4, 5, OFF, I_BASS);
+          pat.set(start + 8, 5, note, I_BASS, vol * 0.85);
+          pat.set(start + 12, 5, OFF, I_BASS);
+        }
+      };
+
+      const writePad = (pat: Pattern, vol = 0.6) => {
+        const roots = [48, 44, 41, 43]; // C3, Ab2, F2, G2
+        for (let bar = 0; bar < 8; bar += 2) {
+          const start = bar * 16;
+          const note = roots[(bar / 2) % roots.length];
+          pat.set(start, 4, note, I_PAD, vol);
+          pat.set(start + 30, 4, OFF, I_PAD);
+        }
+      };
+
+      const writeGlitchBell = (pat: Pattern, vol = 0.45) => {
+        const chordTones = [
+          [63, 67, 70, 74], // Cm9 (Eb4, G4, Bb4, D5)
+          [60, 63, 67, 70], // Abmaj7 (C4, Eb4, G4, Bb4)
+          [56, 60, 63, 67], // Fm9 (Ab3, C4, Eb4, G4)
+          [55, 59, 62, 65]  // G7 (G3, B3, D4, F4)
+        ];
+        for (let bar = 0; bar < 8; bar++) {
+          const start = bar * 16;
+          const chord = chordTones[Math.floor(bar / 2) % chordTones.length];
+          pat.set(start + 4, 7, chord[bar % 4], I_BELL, vol);
+          pat.set(start + 7, 7, OFF, I_BELL);
+          pat.set(start + 12, 7, chord[(bar + 2) % 4], I_BELL, vol * 0.85);
+          pat.set(start + 15, 7, OFF, I_BELL);
+        }
+      };
+
+      const writeAcid = (pat: Pattern, vol = 0.68) => {
+        const acidNotes = [60, 63, 65, 67, 68, 70, 68, 67];
+        for (let bar = 0; bar < 8; bar++) {
+          const start = bar * 16;
+          const note1 = acidNotes[bar % acidNotes.length];
+          const note2 = acidNotes[(bar + 3) % acidNotes.length];
+          pat.set(start + 2, 6, note1, I_ACID, vol);
+          pat.set(start + 6, 6, note2, I_ACID, vol);
+          pat.setFx(start + 6, 6, 0x3, 0x12); // meend
+          pat.set(start + 10, 6, OFF, I_ACID);
+        }
+      };
+
+      const writeAcidActive = (pat: Pattern, vol = 0.72) => {
+        const acidNotes = [60, 63, 65, 67, 68, 70, 72, 74];
+        for (let bar = 0; bar < 8; bar++) {
+          const start = bar * 16;
+          const note1 = acidNotes[bar % acidNotes.length] + 12;
+          const note2 = acidNotes[(bar + 2) % acidNotes.length] + 12;
+          const note3 = acidNotes[(bar + 4) % acidNotes.length] + 12;
+
+          pat.set(start + 0, 6, note1, I_ACID, vol);
+          pat.set(start + 3, 6, note2, I_ACID, vol * 0.9);
+          pat.setFx(start + 3, 6, 0x3, 0x18);
+          pat.set(start + 6, 6, note3, I_ACID, vol);
+          pat.setFx(start + 6, 6, 0x4, 0x36);
+          pat.set(start + 10, 6, note2 - 12, I_ACID, vol * 0.8);
+          pat.set(start + 13, 6, OFF, I_ACID);
+        }
+      };
+
+      const writeDrums = (pat: Pattern, opt: { kick?: boolean; snare?: boolean; hats?: boolean; glitch?: boolean; build?: boolean } = {}) => {
+        const o = Object.assign({ kick: true, snare: true, hats: true, glitch: false, build: false }, opt);
+        for (let r = 0; r < 128; r++) {
+          const step = r % 16;
+          if (o.kick && (step === 0 || step === 10)) {
+            pat.set(r, 2, BD, I_808, 0.95); // kick on ch 2
+          }
+          if (o.snare && (step === 4 || step === 12)) {
+            pat.set(r, 3, SD, I_808, 0.85); // snare on ch 3
+          }
+          if (o.hats) {
+            if (step % 2 === 1) pat.set(r, 3, HH, I_808, 0.35); // HH on ch 3
+            if (step === 6 || step === 14) pat.set(r, 3, OH, I_808, 0.45);
+          }
+          if (o.glitch && (step === 2 || step === 9 || step === 13)) {
+            pat.set(r, 3, RIM, I_808, 0.4);
+          }
+        }
+        if (o.build) {
+          for (let r = 112; r < 128; r++) {
+            if (r % 2 === 0 || r >= 120) {
+              pat.set(r, 3, SD_ROLL, I_808, 0.45 + ((r - 112) / 16) * 0.45);
+            }
+          }
+        }
+      };
+
+      const swirlPan = (pat: Pattern, ch: number, cycles = 1, lo = 0.15, hi = 0.85) => {
+        const panTrack = pat.getOrCreateAutoTrack(ch, PAN.id);
+        for (let r = 0; r < 128; r++) {
+          const ph = (r / 128) * cycles;
+          const tri = 0.5 + 0.5 * Math.sin(ph * Math.PI * 2);
+          panTrack[r] = normByte(PAN, lo + (hi - lo) * tri);
+        }
+      };
+
+      const padCutoffSweep = (pat: Pattern, inst: number, loHz = 150, hiHz = 1200) => {
+        const lo = normByte(CUTm, loHz), hi = normByte(CUTm, hiHz);
+        const track = pat.getOrCreateAutoTrack(inst, CUTm.id);
+        for (let r = 0; r < 128; r++) {
+          const ph = r / 127;
+          const s = 0.5 - 0.5 * Math.cos(ph * Math.PI * 2);
+          track[r] = Math.round(lo + (hi - lo) * s);
+        }
+      };
+
+      const padRiserSweep = (pat: Pattern, inst: number, loHz = 200, hiHz = 2200) => {
+        const lo = normByte(CUTm, loHz), hi = normByte(CUTm, hiHz);
+        const track = pat.getOrCreateAutoTrack(inst, CUTm.id);
+        for (let r = 0; r < 128; r++) {
+          const ph = r / 127;
+          track[r] = Math.round(lo + (hi - lo) * ph);
+        }
+      };
+
+      const acidCutoffSweep = (pat: Pattern, inst: number, loHz = 150, hiHz = 1100) => {
+        const lo = normByte(CUT3, loHz), hi = normByte(CUT3, hiHz);
+        const track = pat.getOrCreateAutoTrack(inst, CUT3.id);
+        for (let r = 0; r < 128; r++) {
+          const ph = r / 127;
+          const s = 0.5 - 0.5 * Math.cos(ph * Math.PI * 4);
+          track[r] = Math.round(lo + (hi - lo) * s);
+        }
+      };
+
+      const resClimb = (pat: Pattern, inst: number, lo = 0.35, hi = 0.95) => {
+        const loB = normByte(RES, lo), hiB = normByte(RES, hi);
+        const track = pat.getOrCreateAutoTrack(inst, RES.id);
+        for (let r = 0; r < 128; r++) {
+          track[r] = Math.round(loB + (hiB - loB) * (r / 127));
+        }
+      };
+
+      // P0: Endless Water (Intro 1)
+      drone(p0, 0.8);
+      writePad(p0, 0.6);
+      swirlPan(p0, 4, 0.5); // Pad moves slowly L to R
+      padCutoffSweep(p0, I_PAD, 200, 800);
+
+      // P1: The Pedestal Rises (Intro 2)
+      drone(p1, 0.8);
+      writePad(p1, 0.65);
+      writeBass(p1, 0.75); // Heartbeat bass
+      swirlPan(p1, 4, 0.5);
+      swirlPan(p1, 5, 1, 0.3, 0.7); // Bass swirls
+      padCutoffSweep(p1, I_PAD, 250, 950);
+
+      // P2: Glitchy Reflection (Build 1)
+      drone(p2, 0.85);
+      writePad(p2, 0.65);
+      writeBass(p2, 0.8);
+      writeGlitchBell(p2, 0.5);
+      writeDrums(p2, { kick: false, snare: false, hats: true, glitch: true });
+      swirlPan(p2, 4, 1);
+      swirlPan(p2, 7, 2); // Bell swirls fast
+      padCutoffSweep(p2, I_PAD, 250, 1100);
+
+      // P3: The Banana Groove (Drop 1)
+      drone(p3, 0.75);
+      writePad(p3, 0.6);
+      writeBass(p3, 0.85);
+      writeGlitchBell(p3, 0.55);
+      writeAcid(p3, 0.7);
+      writeDrums(p3, { kick: true, snare: true, hats: true, glitch: false });
+      swirlPan(p3, 4, 1);
+      swirlPan(p3, 6, 1.5); // Acid swirls
+      swirlPan(p3, 7, 2);
+      padCutoffSweep(p3, I_PAD, 300, 1200);
+      acidCutoffSweep(p3, I_ACID, 200, 800);
+
+      // P4: Coffee-Stained Grocery List (Drop Var)
+      drone(p4, 0.75);
+      writePad(p4, 0.6);
+      writeBass(p4, 0.88);
+      writeGlitchBell(p4, 0.6);
+      writeAcidActive(p4, 0.75);
+      writeDrums(p4, { kick: true, snare: true, hats: true, glitch: true });
+      swirlPan(p4, 4, 1);
+      swirlPan(p4, 6, 2);
+      swirlPan(p4, 7, 3);
+      padCutoffSweep(p4, I_PAD, 300, 1300);
+      acidCutoffSweep(p4, I_ACID, 200, 1100);
+      resClimb(p4, I_ACID, 0.4, 0.85);
+
+      // P5: Meaningless Breakdown
+      drone(p5, 0.85);
+      writePad(p5, 0.55);
+      writeGlitchBell(p5, 0.45);
+      swirlPan(p5, 4, 0.5);
+      swirlPan(p5, 7, 1);
+      padCutoffSweep(p5, I_PAD, 150, 600);
+      const revTrack = p5.getOrCreateAutoTrack(I_PAD, RVM.id);
+      for (let r = 0; r < 128; r++) {
+        const ph = r / 127;
+        const s = 0.5 - 0.5 * Math.cos(ph * Math.PI * 2);
+        revTrack[r] = Math.round(normByte(RVM, 0.35) + (normByte(RVM, 0.8) - normByte(RVM, 0.35)) * s);
+      }
+
+      // P6: Rebuild
+      drone(p6, 0.8);
+      writePad(p6, 0.65);
+      writeBass(p6, 0.85);
+      writeDrums(p6, { kick: true, snare: false, hats: true, build: true });
+      swirlPan(p6, 4, 1);
+      padRiserSweep(p6, I_PAD, 200, 1800);
+
+      // P7: Climax Drop
+      drone(p7, 0.7);
+      writePad(p7, 0.7);
+      writeBass(p7, 0.95);
+      writeGlitchBell(p7, 0.65);
+      writeAcidActive(p7, 0.8);
+      writeDrums(p7, { kick: true, snare: true, hats: true, glitch: true });
+      swirlPan(p7, 4, 2);
+      swirlPan(p7, 6, 3);
+      swirlPan(p7, 7, 4);
+      padCutoffSweep(p7, I_PAD, 300, 1600);
+      acidCutoffSweep(p7, I_ACID, 200, 1300);
+      resClimb(p7, I_ACID, 0.5, 0.98);
+
+      return {
+        patterns: [p0, p1, p2, p3, p4, p5, p6, p7],
+        order: [0, 1, 2, 3, 4, 5, 6, 7, 7, 5, 0, 0],
+        rowsPerBeat: 4,
+        pan: [0.42, 0.58, 0.5, 0.5, 0.5, 0.35, 0.65, 0.7]
       };
     }
   }

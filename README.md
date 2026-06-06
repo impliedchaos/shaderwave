@@ -325,6 +325,12 @@ google-chrome --headless=new --enable-unsafe-swiftshader --dump-dom \
 # a drum sounds identical on every trigger:         test/onset-check.html
 ```
 
+## New Instrument Ideas
+
+- **Tabla** — a synthesized modelling tabla hand drums.
+- **SBPro91** — a recreation of the FM synthesis capabilities of the SoundBlaster Pro which used a pair of YM3812 (OPL2) chips.
+- **888State** — a 3-oscillator (can also act as single or dual oscillator) additive synth. It supports sine, square, triangle, and noise waves for all three oscillators, but all three oscillators are quantized down to 256 steps (8-bit).
+
 ## Known Limitations / Next Steps
 
 - Save/load functionality to export and import song data as JSON.
