@@ -3575,16 +3575,21 @@ export const DEMO_SONGS: SongDef[] = [
         }
       };
 
-      // Sarangi lead — consecutive notes (no note-off between) glide = meend.
-      const lead = (pat: Pattern, phrase: (number | null)[], step: number, vol = 0.8, oct = 0) => {
+      // Sarangi lead. Optional per-note effect [cmd,val]: 4xy = vibrato (gamak),
+      // 3xx = tone portamento (meend, slides into the note without re-attacking).
+      const lead = (pat: Pattern, phrase: (number | null)[], step: number, vol = 0.8, oct = 0, fx: [number, number] | null = null) => {
         for (let r = 0; r + step <= 128; r += step) {
           const d = phrase[(r / step) % phrase.length];
-          if (d === null) pat.set(r, 6, OFF, I_LEAD);
-          else pat.set(r, 6, nd(d) + oct * 12, I_LEAD, vol);
+          if (d === null) { pat.set(r, 6, OFF, I_LEAD); continue; }
+          pat.set(r, 6, nd(d) + oct * 12, I_LEAD, vol);
+          if (fx) pat.setFx(r, 6, fx[0], fx[1]);
         }
       };
       const alapPhrase: (number | null)[] = [4, null, 3, 2, 1, null, 2, 4, 3, 2, 1, 0, -1, 0, null, null];
       const hookPhrase: (number | null)[] = [0, 2, 1, 0, 4, 2, 1, 2, 1, 0, -1, 0, 1, 2, 1, 0];
+      // No rests → with 3xx (meend) the first note attacks and the rest slide into
+      // one another for a liquid, vocal sarangi line.
+      const meendPhrase: (number | null)[] = [4, 3, 2, 1, 2, 3, 2, 1, 0, -1, 0, 1, 0, -1, 0, 0];
 
       // Sitar (303) taans — fast scalar runs, plucks left to ring on the amp decay.
       const sitar = (pat: Pattern, motif: (number | null)[], vol = 0.7, oct = 0) => {
@@ -3600,12 +3605,12 @@ export const DEMO_SONGS: SongDef[] = [
       drone(p0, 0.85);                                   // p0 alap: drone + sparse sitar
       sitar(p0, [0, null, null, null, null, null, null, null, 2, null, null, null, null, null, 1, null], 0.55);
 
-      drone(p1, 0.85);                                   // p1 alap: + slow lead meend
-      lead(p1, alapPhrase, 8, 0.75);
+      drone(p1, 0.85);                                   // p1 alap: + slow lead with gamak (vibrato)
+      lead(p1, alapPhrase, 8, 0.75, 0, [4, 0x46]);
       sitar(p1, taanSlow, 0.5);
 
       drone(p2, 0.8);                                    // p2 build: + bass + hats
-      lead(p2, alapPhrase, 8, 0.78);
+      lead(p2, alapPhrase, 8, 0.78, 0, [4, 0x35]);
       bass(p2, 0.7);
       beat(p2, { hats: true });
 
@@ -3618,13 +3623,13 @@ export const DEMO_SONGS: SongDef[] = [
       drone(p4, 0.7);                                    // p4 THE DROP
       bass(p4, 0.95);
       beat(p4, { kick: true, snare: true, hats: true, ghost: true });
-      lead(p4, hookPhrase, 4, 0.8);
+      lead(p4, hookPhrase, 4, 0.8, 0, [4, 0x23]);        // subtle vibrato on the hook
       sitar(p4, taanSlow, 0.6);
 
       drone(p5, 0.7);                                    // p5 drop var: lead +oct, busy sitar
       bass(p5, 0.95);
       beat(p5, { kick: true, snare: true, hats: true, ghost: true });
-      lead(p5, hookPhrase, 4, 0.8, 1);
+      lead(p5, hookPhrase, 4, 0.8, 1, [4, 0x24]);
       sitar(p5, taanFast, 0.6);
 
       drone(p6, 0.7);                                    // p6 groove: sitar taan feature
@@ -3633,8 +3638,8 @@ export const DEMO_SONGS: SongDef[] = [
       sitar(p6, taanFast, 0.7);
       lead(p6, [4, null, 2, null, 1, null, 0, null], 8, 0.7);
 
-      drone(p7, 0.85);                                   // p7 breakdown: drums out
-      lead(p7, alapPhrase, 8, 0.8);
+      drone(p7, 0.85);                                   // p7 breakdown: drums out, sarangi meend
+      lead(p7, meendPhrase, 8, 0.8, 0, [3, 0x28]);
       sitar(p7, taanSlow, 0.6);
 
       drone(p9, 0.85);                                   // p9 outro: kick thins, drone rings

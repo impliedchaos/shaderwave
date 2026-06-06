@@ -53,6 +53,8 @@ export function renderArranger(app: App) {
         newPat.notes.set(pat.notes);
         newPat.inst.set(pat.inst);
         newPat.vol.set(pat.vol);
+        newPat.fxCmd.set(pat.fxCmd);
+        newPat.fxVal.set(pat.fxVal);
         // Deep-copy automation tracks (fresh data arrays so the clone is independent).
         newPat.autoTracks = pat.autoTracks.map((t) => ({
           targetScope: t.targetScope,

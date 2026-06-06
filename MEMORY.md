@@ -123,6 +123,33 @@ Build + `glsl-check` + `render-check` all green.
 
 ## Reference / domain knowledge
 
+### Effect column (per-cell note articulations) — `project`
+Classic tracker effect column (added 0.8.0): a 4th per-cell sub-column (note·inst·vol·**fx**)
+holding `cmd`+2-hex-`val`. **Distinct from automation tracks** — these are transient note
+articulations (slides/vibrato), NOT param sweeps. Command set + helpers in
+`src/tracker/fx.ts` (`FX_CMDS`, `fxChar`, `fxByKey`); the numeric code doubles as the
+display nibble so it must stay 0..15 and match the typing key. Codes: `0` arp, `1`/`2`
+pitch slide, `3` tone-porta (meend, no re-attack), `4` vibrato (gamak), `A` volume slide.
+
+- **Storage:** `Pattern.fxCmd`/`fxVal` (Int16Array, fxCmd fill **-1** = none). Parallel
+  arrays like notes/inst/vol — every clone/resize/clipboard path must carry them (resize,
+  arranger Clone, `_copyBlock`/`_pasteBlock`+`ClipCell`, `clear()` wipes them).
+- **Engine:** per-`Voice` fx state (`fxCmd/fxVal/fxStart/targetFreq`); `_applyCell` (called
+  by `_triggerCells`) handles note+fx, with `3xx`+note as the no-retrigger meend special
+  case; `_modulateVoices(blockStart)` runs each block (after `_refreshVoiceData`) and
+  overrides `vd.freq`/`vd.vel`. Tuning consts at top of engine.ts (`FX_SLIDE` etc.).
+- **WHY block-rate works with no shader changes:** modulation updates `vd.freq` once per
+  BLOCK (~93 Hz). Smooth ONLY on phase-accumulating engines (303 `synth-303.glsl:33`, moog
+  `synth-moog.glsl:109` — both `fract(phase + freq/SR)` from `uPrevPhase`). Closed-form
+  engines (tanpura/dx7/808, `sin(2π·f·t)` from absolute t) STEP/click on per-block pitch
+  changes → pitch fx are scoped to the leads; volume slide (vel) works everywhere. Pitch fx
+  on closed-form engines need a per-voice pitch uniform applied to phase (future phase).
+- **UI:** `tracker-view.ts` 4th sub-column (`COL_X/COL_W/COL_TEXT_PAD` 4 entries, `CH_W`
+  124, `maxCol` 3); cmd amber / val cyan. Instrument column shows the numeric instance index
+  (not short name) while `cursor.col===1`. Input in `main.ts._handleFxEdit` (col 3): a
+  command key (0-4,A) sets cmd + arms `_hexEntry{col:3}`, next two hex digits fill val +
+  auto-advance; Delete at col 3 clears only the fx. Note entry is skipped at col 3.
+
 ### Instrument registry — the plug-in system (`src/instruments/`) — `project`
 Instruments are now data-driven descriptors, not scattered `if (type === …)` branches.
 **`src/instruments/REGISTRY`** (in `index.ts`) is the single source of truth; one

@@ -5,6 +5,7 @@ import { EMPTY, OFF } from '../tracker/pattern.js';
 import type { Pattern } from '../tracker/pattern.js';
 import type { Engine } from '../tracker/engine.js';
 import { targetById } from '../tracker/automation.js';
+import { fxChar } from '../tracker/fx.js';
 import { byType } from '../instruments/index.js';
 import { themeVar } from './theme.js';
 
@@ -25,15 +26,15 @@ export function noteName(midi: number): string {
 
 const ROW_H = 18;
 const NUM_W = 38;
-const CH_W = 96;
+const CH_W = 124;
 
 // Sub-column layout within one channel column: cell start-x and width for the
-// note / instrument / volume fields. Shared by the renderer (colRect), the
-// hit-tester (_cellAt), and the text layout so the three can't drift apart.
-const COL_X = [2, 38, 70];
-const COL_W = [36, 32, CH_W - 72];
-// Text inset within each field (note is padded slightly more than inst/vol).
-const COL_TEXT_PAD = [6, 4, 4];
+// note / instrument / volume / effect fields. Shared by the renderer (colRect),
+// the hit-tester (_cellAt), and the text layout so they can't drift apart.
+const COL_X = [2, 36, 66, 88];
+const COL_W = [34, 30, 22, 34];
+// Text inset within each field (note is padded slightly more than the rest).
+const COL_TEXT_PAD = [6, 4, 4, 4];
 
 const AUTO_W = 40;
 
@@ -54,7 +55,7 @@ export class TrackerView {
     this.canvas = canvas;
     this.engine = engine;
     this.ctx = canvas.getContext('2d')!;
-    this.cursor = { row: 0, ch: 0, col: 0 };   // col: 0 note · 1 inst · 2 vol
+    this.cursor = { row: 0, ch: 0, col: 0 };   // col: 0 note · 1 inst · 2 vol · 3 fx
     this.selection = null;                      // { r0, c0, r1, c1 } (normalized) or null
     this._dragAnchor = null;
     this.scroll = 0;                            // top visible row (when stopped)
@@ -84,8 +85,8 @@ export class TrackerView {
 
   // Full per-channel column stride (note/inst/vol)
   get chW() { return CH_W; }
-  // Highest valid cursor sub-column (2).
-  get maxCol() { return 2; }
+  // Highest valid cursor sub-column (3 = effect).
+  get maxCol() { return 3; }
 
   _trackX(ch: number): number {
     const p = this.pattern;
@@ -124,7 +125,7 @@ export class TrackerView {
     if (ch >= p.channels) {
       col = 0; // AutoTrack only has one column
     } else {
-      col = local >= COL_X[2] ? 2 : local >= COL_X[1] ? 1 : 0;
+      col = local >= COL_X[3] ? 3 : local >= COL_X[2] ? 2 : local >= COL_X[1] ? 1 : 0;
     }
     return { row, ch, col };
   }
@@ -601,8 +602,12 @@ export class TrackerView {
             } else {
               ctx.fillStyle = (instr && instr.color) || C('--accent');
             }
-            // Display-only label overrides (keeps the underlying instrument id).
-            const instLabel = instShort(instName);
+            // Normally show the engine short name; while the instrument column is
+            // the cursor's column, show the numeric instance index instead — that's
+            // what you type, so it's easier to see while editing.
+            const instLabel = this.cursor.col === 1
+              ? String(p.inst[idx]).padStart(2, '0')
+              : instShort(instName);
             ctx.fillText(instLabel, instX, y + ROW_H / 2);
 
             // Draw volume data (percentage value 00..99)
@@ -622,6 +627,22 @@ export class TrackerView {
           }
         }
 
+        // Effect column (independent of the note — effects can sit on empty cells).
+        const fxX = x + COL_X[3] + COL_TEXT_PAD[3];
+        const ci = p.idx(row, ch);
+        const cmd = p.fxCmd[ci];
+        if (cmd < 0) {
+          ctx.fillStyle = isMuted ? 'rgba(45, 58, 82, 0.15)' : C('--grid');
+          ctx.fillText('···', fxX, y + ROW_H / 2);
+        } else {
+          // Command in amber, value in cyan so the two read apart at a glance.
+          const cmdStr = fxChar(cmd)!;
+          const valStr = p.fxVal[ci].toString(16).toUpperCase().padStart(2, '0');
+          ctx.fillStyle = isMuted ? 'rgba(106, 124, 150, 0.3)' : '#ff9e64';
+          ctx.fillText(cmdStr, fxX, y + ROW_H / 2);
+          ctx.fillStyle = isMuted ? 'rgba(106, 124, 150, 0.3)' : '#46d6c4';
+          ctx.fillText(valStr, fxX + ctx.measureText(cmdStr).width, y + ROW_H / 2);
+        }
       }
 
       for (let tIdx = 0; tIdx < p.autoTracks.length; tIdx++) {

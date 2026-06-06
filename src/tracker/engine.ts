@@ -22,11 +22,25 @@ interface Voice {
   active: boolean;
   inst: number;
   instrument: number;
-  freq: number;
+  freq: number;          // nominal pitch (slides mutate this; vibrato/arp don't)
   vel: number;
   onFrame: number;
   offFrame: number;
+  // Effect-column state (see _modulateVoices). fxCmd < 0 = no active effect.
+  fxCmd: number;
+  fxVal: number;
+  fxStart: number;       // frame the effect last (re)started — vibrato/arp timing
+  targetFreq: number;    // tone-portamento (3xx) destination pitch
 }
+
+// Effect modulation tuning (block-rate). Rates are per second; nibble/byte come
+// from the cell's value (xx = whole byte, x/y = high/low nibble).
+const FX_SLIDE = 0.5;    // 1xx/2xx: semitones/sec per value unit
+const FX_PORTA = 0.6;    // 3xx: semitones/sec per value unit (meend speed)
+const FX_VIB_HZ = 0.55;  // 4xy: vibrato Hz per speed nibble
+const FX_VIB_DEPTH = 0.09; // 4xy: vibrato semitones per depth nibble
+const FX_ARP_SEC = 0.04; // 0xy: seconds per arpeggio step
+const FX_VOLSLIDE = 0.12; // Axy: volume (0..1) per sec per nibble
 
 export class Engine {
   sampleRate: number;
@@ -91,6 +105,7 @@ export class Engine {
     this.voices = Array.from({ length: VOICES }, () => ({
       active: false, inst: 0, instrument: 0, freq: 440, vel: 0,
       onFrame: 0, offFrame: HELD,
+      fxCmd: -1, fxVal: 0, fxStart: 0, targetFreq: 440,
     }));
 
     this.muted = new Array(VOICES).fill(false);
@@ -242,6 +257,8 @@ export class Engine {
     v.vel = vol;
     v.onFrame = frame;
     v.offFrame = HELD;
+    v.fxCmd = -1;                                      // a fresh note clears any prior effect
+    v.fxStart = frame;
     if (byType(instr.type)?.drum) {
       v.freq = 220; // unused by drum engines, but keep sane
       this._writeParams(ch, instr, idx, DRUM_MAP[note] ?? 0);
@@ -408,6 +425,7 @@ export class Engine {
     }
 
     this._refreshVoiceData(blockStart);
+    this._modulateVoices(blockStart);
 
     // Refresh each active DX7 voice's operator config from ITS instrument, packed
     // into the per-voice vec4 arrays. Refreshing every block (not just at trigger)
@@ -447,12 +465,7 @@ export class Engine {
       const pat = song.patterns[this.currentPatternIdx];
       if (!pat) return;
       const row = ((k % pat.rows) + pat.rows) % pat.rows;
-      for (let ch = 0; ch < pat.channels; ch++) {
-        const note = pat.note(row, ch);
-        if (note === EMPTY) continue;
-        const i = pat.idx(row, ch);
-        this.triggerNote(ch, note, pat.inst[i], pat.vol[i], fr);
-      }
+      this._triggerCells(pat, row, fr);
       this._applyAutomation(pat, row);
     } else {
       const total = this.totalRows;
@@ -461,13 +474,47 @@ export class Engine {
       const { patIdx, localRow } = this.resolveSongRow(songRow);
       const pat = song.patterns[patIdx];
       if (!pat) return;
-      for (let ch = 0; ch < pat.channels; ch++) {
-        const note = pat.note(localRow, ch);
-        if (note === EMPTY) continue;
-        const i = pat.idx(localRow, ch);
-        this.triggerNote(ch, note, pat.inst[i], pat.vol[i], fr);
-      }
+      this._triggerCells(pat, localRow, fr);
       this._applyAutomation(pat, localRow);
+    }
+  }
+
+  // Trigger every non-empty cell of a pattern row: a real note, an effect command,
+  // or both. Cells that are entirely empty (no note AND no effect) are skipped.
+  _triggerCells(pat: Pattern, row: number, fr: number) {
+    for (let ch = 0; ch < pat.channels; ch++) {
+      const i = pat.idx(row, ch);
+      const note = pat.notes[i];
+      const cmd = pat.fxCmd[i];
+      if (note === EMPTY && cmd < 0) continue;
+      this._applyCell(ch, note, pat.inst[i], pat.vol[i], cmd, pat.fxVal[i], fr);
+    }
+  }
+
+  // Resolve one cell into voice actions. A note retriggers the voice (and latches
+  // the cell's effect); an effect on a cell WITHOUT a note continues/changes the
+  // running effect on that channel's voice. Tone portamento (3) with a note is the
+  // exception: it slides the existing voice to the new pitch WITHOUT re-attacking.
+  _applyCell(ch: number, note: number, inst: number, vol: number, cmd: number, val: number, frame: number) {
+    const v = this.voices[ch];
+    const hasNote = note !== EMPTY;
+
+    if (cmd === 3 && hasNote && note !== OFF && v.active) {
+      v.targetFreq = noteToFreq(note);          // meend: glide to the note, no re-attack
+      v.fxCmd = 3; v.fxVal = val; v.fxStart = frame;
+      return;
+    }
+    if (hasNote) {
+      this.triggerNote(ch, note, inst, vol, frame);   // resets fxCmd to -1
+      if (note !== OFF) {
+        v.fxCmd = cmd; v.fxVal = val; v.fxStart = frame; v.targetFreq = v.freq;
+      }
+      return;
+    }
+    // Effect-only cell: update the continuing effect on the live voice.
+    if (cmd >= 0 && v.active) {
+      if (cmd !== v.fxCmd) v.fxStart = frame;   // re-anchor timing when the effect changes
+      v.fxCmd = cmd; v.fxVal = val;
     }
   }
 
@@ -551,6 +598,48 @@ export class Engine {
       vd.gain[v] = this.muted[v] ? 0.0 : 1.0;
       // Live pan = automation override if set this run, else the channel base.
       vd.pan[v] = Number.isNaN(this.panAuto[v]) ? this.channelPan[v] : this.panAuto[v];
+    }
+  }
+
+  // Apply per-cell effect-column modulation to the GPU-facing freq/vel, once per
+  // block (~93 Hz update rate). Pitch slides/tone-porta permanently move vc.freq;
+  // vibrato/arpeggio are transient multipliers on top of it; volume slide ramps
+  // vc.vel. Block-rate is finer than a classic tick and keeps freq constant within
+  // a block, so the recursive strip renderer + phase carry stay smooth on the
+  // phase-accumulating engines (303, moog). See src/tracker/fx.ts for the codes.
+  _modulateVoices(blockStart: number) {
+    const vd = this.vd;
+    const dt = BLOCK / this.sampleRate;
+    for (let v = 0; v < VOICES; v++) {
+      const vc = this.voices[v];
+      if (!vc.active || vc.fxCmd < 0) continue;
+      const t = (blockStart - vc.fxStart) / this.sampleRate;   // seconds since effect start
+      const xx = vc.fxVal & 0xff, x = (vc.fxVal >> 4) & 0xf, y = vc.fxVal & 0xf;
+      let pitchMult = 1;
+      switch (vc.fxCmd) {
+        case 0x1: vc.freq *= Math.pow(2, (xx * FX_SLIDE * dt) / 12); break;   // slide up
+        case 0x2: vc.freq *= Math.pow(2, -(xx * FX_SLIDE * dt) / 12); break;  // slide down
+        case 0x3: {                                                           // tone porta (meend)
+          const cents = Math.log2(vc.targetFreq / Math.max(vc.freq, 1e-6)) * 12;
+          const stepC = xx * FX_PORTA * dt;
+          if (Math.abs(cents) <= stepC) vc.freq = vc.targetFreq;
+          else vc.freq *= Math.pow(2, (Math.sign(cents) * stepC) / 12);
+          break;
+        }
+        case 0x0: {                                                           // arpeggio
+          const steps = [0, x, y];
+          pitchMult = Math.pow(2, steps[Math.floor(t / FX_ARP_SEC) % 3] / 12);
+          break;
+        }
+        case 0x4:                                                            // vibrato
+          pitchMult = Math.pow(2, (y * FX_VIB_DEPTH * Math.sin(2 * Math.PI * (x * FX_VIB_HZ) * t)) / 12);
+          break;
+        case 0xA:                                                            // volume slide
+          vc.vel = Math.max(0, Math.min(1, vc.vel + (x - y) * FX_VOLSLIDE * dt));
+          break;
+      }
+      vd.freq[v] = vc.freq * pitchMult;
+      vd.vel[v] = vc.vel;
     }
   }
 }

@@ -12,6 +12,7 @@ import { DEMO_SONGS, loadSongInstruments } from './tracker/song.js';
 import { instGlow, DEFAULT_MASTER } from './constants.js';
 import { REGISTRY, byType } from './instruments/index.js';
 import { EMPTY, OFF, Pattern } from './tracker/pattern.js';
+import { fxByKey } from './tracker/fx.js';
 import { targetsForType, TARGETS } from './tracker/automation.js';
 import { showExportDialog } from './audio/export.js';
 import { renderArranger } from './ui/arranger.js';
@@ -101,7 +102,7 @@ type KnobEl = HTMLElement & { _extSet?: (v: number) => void };
 // One copied tracker cell.
 // A copied cell is either a note cell (note/inst/vol) or an automation-track
 // cell (`auto` = the row's Int16 value). `auto === undefined` discriminates.
-type ClipCell = { note: number; inst: number; vol: number; auto?: number };
+type ClipCell = { note: number; inst: number; vol: number; fxCmd?: number; fxVal?: number; auto?: number };
 
 export class App {
   gl: WebGL2RenderingContext;
@@ -122,7 +123,7 @@ export class App {
   _songVolumeKnob?: KnobEl;
   _fxPanelType?: string;
   _digitEntry: { idx: number; col: number; first: number } | null = null;
-  _hexEntry: { idx?: number; ch?: number; row?: number; first: number } | null = null;
+  _hexEntry: { idx?: number; ch?: number; row?: number; col?: number; first: number } | null = null;
   _clipboard: { rows: number; chans: number; cells: ClipCell[][] } | null = null;
   _fxPicker: HTMLElement | null = null;
   _vuL = 0;
@@ -828,9 +829,11 @@ export class App {
       if (this._handleCursor(e)) { e.preventDefault(); return; }
       if (this._handleAutoTrackEdit(e)) return;
       if (this._handleEdit(e)) return;
+      if (this._handleFxEdit(e)) return;
 
       if (e.repeat) return;
       if (this.view.cursor.ch >= this.view.pattern.channels) return; // No note entry in AutoTracks
+      if (this.view.cursor.col === 3) return;                        // effect column: no note entry
 
       const note = this._keyToNote(e.code);
       if (note == null) return;
@@ -880,12 +883,12 @@ export class App {
       return true;
     }
     switch (e.code) {
-      case 'ArrowUp': c.row = (c.row - 1 + p.rows) % p.rows; this.view.revealCursor(); this._digitEntry = null; return true;
-      case 'ArrowDown': c.row = (c.row + 1) % p.rows; this.view.revealCursor(); this._digitEntry = null; return true;
-      case 'PageUp': c.row = Math.max(0, c.row - this.view._viewRows()); this.view.revealCursor(); this._digitEntry = null; return true;
-      case 'PageDown': c.row = Math.min(p.rows - 1, c.row + this.view._viewRows()); this.view.revealCursor(); this._digitEntry = null; return true;
-      case 'Home': c.row = 0; this.view.revealCursor(); this._digitEntry = null; return true;
-      case 'End': c.row = p.rows - 1; this.view.revealCursor(); this._digitEntry = null; return true;
+      case 'ArrowUp': c.row = (c.row - 1 + p.rows) % p.rows; this.view.revealCursor(); this._digitEntry = null; this._hexEntry = null; return true;
+      case 'ArrowDown': c.row = (c.row + 1) % p.rows; this.view.revealCursor(); this._digitEntry = null; this._hexEntry = null; return true;
+      case 'PageUp': c.row = Math.max(0, c.row - this.view._viewRows()); this.view.revealCursor(); this._digitEntry = null; this._hexEntry = null; return true;
+      case 'PageDown': c.row = Math.min(p.rows - 1, c.row + this.view._viewRows()); this.view.revealCursor(); this._digitEntry = null; this._hexEntry = null; return true;
+      case 'Home': c.row = 0; this.view.revealCursor(); this._digitEntry = null; this._hexEntry = null; return true;
+      case 'End': c.row = p.rows - 1; this.view.revealCursor(); this._digitEntry = null; this._hexEntry = null; return true;
       // Left/Right step through the note → instrument → volume sub-columns,
       // wrapping to the adjacent channel at the ends.
       case 'ArrowLeft':
@@ -898,7 +901,7 @@ export class App {
             else { c.ch = p.channels + p.autoTracks.length - 1; c.col = c.ch >= p.channels ? 0 : this.view.maxCol; }
           }
         }
-        this._digitEntry = null; return true;
+        this._digitEntry = null; this._hexEntry = null; return true;
       case 'ArrowRight':
         if (c.ch >= p.channels) {
           if (c.ch < p.channels + p.autoTracks.length - 1) c.ch++;
@@ -908,7 +911,7 @@ export class App {
             c.ch++; c.col = 0;
           }
         }
-        this._digitEntry = null; return true;
+        this._digitEntry = null; this._hexEntry = null; return true;
       case 'Delete':
       case 'Backspace':
         if (this.view.selection) {
@@ -927,6 +930,9 @@ export class App {
         } else if (c.ch >= p.channels) {
           const tIdx = c.ch - p.channels;
           if (tIdx < p.autoTracks.length) p.autoTracks[tIdx].data[c.row] = -1;
+          this._advanceCursorRow();
+        } else if (c.col === 3) {
+          p.setFx(c.row, c.ch, -1, 0);   // effect column: clear just the effect
           this._advanceCursorRow();
         } else {
           p.clear(c.row, c.ch);
@@ -984,6 +990,60 @@ export class App {
     if (c.col === 1) p.inst[idx] = Math.min(val, this.engine.instruments.length - 1);
     else p.vol[idx] = Math.min(99, val) / 99;
     return true;
+  }
+
+  // Effect column (cursor col 3): a command key (0-4, A — see fx.ts) sets the
+  // command and arms a 2-nibble hex value; the next two hex digits fill the value
+  // byte and auto-advance the row, mirroring inst/vol and the auto-track entry.
+  _handleFxEdit(e: KeyboardEvent): boolean {
+    const c = this.view.cursor, p = this.view.pattern;
+    if (c.col !== 3 || c.ch >= p.channels) return false;
+    const idx = p.idx(c.row, c.ch);
+    const armed = !!this._hexEntry && this._hexEntry.col === 3
+      && this._hexEntry.ch === c.ch && this._hexEntry.row === c.row;
+
+    if (!armed) {
+      // Expect a command key; swallow anything else so col 3 never types a note.
+      const ch = this._keyChar(e.code);
+      if (ch === null) return false;
+      const def = fxByKey(ch);
+      e.preventDefault();
+      if (def) {
+        p.setFx(c.row, c.ch, def.code, 0);
+        this._hexEntry = { col: 3, ch: c.ch, row: c.row, first: -1 };  // awaiting value
+      }
+      return true;
+    }
+
+    // Armed: consume two hex nibbles into the value byte.
+    const nyb = this._keyHex(e.code);
+    if (nyb === null) { e.preventDefault(); return true; }   // ignore non-hex while armed
+    e.preventDefault();
+    if (this._hexEntry!.first < 0) {
+      p.fxVal[idx] = nyb;                                     // first (high) nibble
+      this._hexEntry!.first = nyb;
+    } else {
+      p.fxVal[idx] = ((this._hexEntry!.first << 4) | nyb) & 0xff;
+      this._hexEntry = null;
+      this._advanceCursorRow();
+    }
+    return true;
+  }
+
+  // A single upper-case char for a Digit/Key code (else null).
+  _keyChar(code: string): string | null {
+    const d = /^(?:Digit|Numpad)([0-9])$/.exec(code);
+    if (d) return d[1];
+    const k = /^Key([A-Z])$/.exec(code);
+    return k ? k[1] : null;
+  }
+  // A 0..15 hex nibble from a digit/A–F key (else null).
+  _keyHex(code: string): number | null {
+    const ch = this._keyChar(code);
+    if (ch === null) return null;
+    if (ch >= '0' && ch <= '9') return ch.charCodeAt(0) - 48;
+    if (ch >= 'A' && ch <= 'F') return ch.charCodeAt(0) - 55;
+    return null;
   }
 
   _closeFxPicker() {
@@ -1067,7 +1127,7 @@ export class App {
           if (cut && has) p.autoTracks[tIdx].data[r] = -1;
         } else {
           const i = p.idx(r, ch);
-          rowCells.push({ note: p.notes[i], inst: p.inst[i], vol: p.vol[i] });
+          rowCells.push({ note: p.notes[i], inst: p.inst[i], vol: p.vol[i], fxCmd: p.fxCmd[i], fxVal: p.fxVal[i] });
           if (cut) p.clear(r, ch);
         }
       }
@@ -1095,6 +1155,7 @@ export class App {
         } else if (cell.auto === undefined) {            // note cell into a note column
           const i = p.idx(r, ch);
           p.notes[i] = cell.note; p.inst[i] = cell.inst; p.vol[i] = cell.vol;
+          p.fxCmd[i] = cell.fxCmd ?? -1; p.fxVal[i] = cell.fxVal ?? 0;
         }
       }
     }
