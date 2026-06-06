@@ -18,8 +18,9 @@ import { imoog } from './imoog.js';
 import { itanpura } from './itanpura.js';
 import { ie8e } from './ie8e.js';
 import { igroove } from './igroove.js';
+import { itabla } from './itabla.js';
 
-export const REGISTRY: InstrumentDef[] = [i303, idx7, i808, imoog, itanpura, ie8e, igroove];
+export const REGISTRY: InstrumentDef[] = [i303, idx7, i808, imoog, itanpura, ie8e, igroove, itabla];
 
 // Engine-type ids, in registry order. The index is the shader-dispatch id.
 export const INSTRUMENTS: string[] = REGISTRY.map((d) => d.type);

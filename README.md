@@ -140,6 +140,19 @@ record — more/louder defects), **Tone**, **Rumble**, **Drift**, **RPM**,
 **Defects** (count), **Color** (click voicing) and **Fade**. Play it as a drone
 — one long note lays down the bed; pitch is ignored, velocity sets the level.
 
+### Tabla — Indian Hand Drums (short name **TBL**)
+
+Modal synthesis (closed-form, like the Tanpura/808): each sample is a sum of
+exponentially-decaying, **near-harmonic modes**. On a real tabla the central syahi
+(tuning paste) loads the membrane so its low modes fall on ~harmonic ratios — which
+is what gives the drum a definite musical **pitch** (set by the played note) instead
+of a dull thud. A short **strike** transient is the finger/palm contact; **Damp**
+shortens the ring for closed strokes (*te/ka*); and **Bend** is the bayan's signature
+palm-heel pitch glide (*ge/ghe*) — play a low note with a positive Bend. The bend is a
+linear chirp so its phase stays analytic (no per-block glitch) and every mode rides it
+together. Parameters: **Decay**, **Damp**, **Strike**, **Bend**, **Modes**, **Inharm**,
+**BendTime**, **Tone**. Pairs naturally with the Tanpura for the raga demos.
+
 ## Effect column
 
 Each pattern cell has a fourth sub-column — a classic tracker **effect command**
@@ -322,6 +335,7 @@ src/gl/                    context, program helpers, SynthRenderer, shaders/
   shaders/synth-tanpura.glsl   additive/modal Indian drone (jivari)
   shaders/synth-e8e.glsl       888State — 3-osc additive, 8-bit crunch
   shaders/synth-groove.glsl    Locked Groove — vinyl noise (rotation-locked)
+  shaders/synth-tabla.glsl     Tabla — modal Indian hand drums (dayan/bayan)
   shaders/fx-distortion.glsl   DS-1 distortion stage
   shaders/fx-chorus-*.glsl     chorus ring update + tap
   shaders/fx-tremolo.glsl      auto-pan tremolo stage
@@ -366,9 +380,10 @@ against the reference targets baked into the harness header.
 
 ## New Instrument Ideas
 
-- **Tabla** — a synthesized modelling tabla hand drums.
 - **SBPro91** — a recreation of the FM synthesis capabilities of the SoundBlaster Pro which used a pair of YM3812 (OPL2) chips.
 - **Pipi** - A physically modelled piano sythn.
+
+(✓ *888State*, *Locked Groove* and *Tabla* shipped — see the instrument sections above.)
 
 (✓ *888State* shipped — see the **888State / E8E** instrument above.)
 

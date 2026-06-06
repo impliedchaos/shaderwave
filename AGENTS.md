@@ -73,8 +73,8 @@ and `git status` before committing** so they don't get swept into a commit.
   producer feeds the worklet strictly contiguous blocks (`src/audio/pipeline.ts`),
   so under CPU load you get silent underruns, never skipped/dropped blocks.
 - **Instruments**: a **registry** of engine descriptors in `src/instruments/` (one file
-  per engine — `i303`, `idx7`, `i808`, `imoog`, `itanpura` — listed in `index.ts`'s
-  `REGISTRY`). `constants.ts` re-exports `INSTRUMENTS` from it; every per-engine table
+  per engine — `i303`, `idx7`, `i808`, `imoog`, `itanpura`, `ie8e`, `igroove`, `itabla`
+  — listed in `index.ts`'s `REGISTRY`). `constants.ts` re-exports `INSTRUMENTS` from it; every per-engine table
   (param defs, presets, automation targets, defaults, help) derives from the descriptor.
   **Adding an engine = one descriptor + one `.glsl` + one `REGISTRY` line** (append at the
   end — automation target ids are persisted). A song's `params` is a table of *instances*

@@ -3243,25 +3243,31 @@ export const DEMO_SONGS: SongDef[] = [
     // re-struck in a steady traditional cycle, anchors a C Phrygian-dominant raga
     // (the snake-charmer scale: Sa Re♭ Ga Ma Pa
     // Dha♭ Ni♭, with the tell-tale augmented 2nd Re♭→Ga). Builds from a free alap
-    // into a driving 808 + sub-bass DROP, a moog "sarangi" singing meend (glide)
+    // into a tabla + 808 + sub-bass DROP, a moog "sarangi" singing meend (glide)
     // over 303 "sitar" taans, a breakdown, a second drop, and an outro back to the
-    // drone. Channels: 0/1 tanpura · 2/3/4 tabla(808) · 5 bass · 6 lead · 7 sitar.
+    // drone. Real modal Tabla: ch2 bayan (bass, palm-bend), ch3 dayan (treble, tuned
+    // to Sa); ch4 808 adds hats + a drop kick. Channels: 0/1 tanpura · 2 bayan ·
+    // 3 dayan · 4 808 · 5 bass · 6 sarangi · 7 sitar.
     name: "Let That Raga Drop",
     author: "AI Slop",
-    note: "128 BPM Indian-classical-meets-EDM \u2014 twin Tanpura drones, an 808 'tabla', a singing Moog 'sarangi' (meend/glide) and 303 'sitar' taans in the double-harmonic (snake-charmer) scale. Free alap -> 808/sub drop -> breakdown -> second drop -> drone outro.",
+    note: "128 BPM Indian-classical-meets-EDM \u2014 twin Tanpura drones, a real modal Tabla (bayan + dayan, with the palm-bend ge) layered with an 808 for the drop, a singing Moog 'sarangi' (meend/glide) and 303 'sitar' taans in the double-harmonic (snake-charmer) scale. Free alap -> tabla/sub drop -> breakdown -> second drop -> drone outro.",
     bpm: 128,
     master: DEFAULT_MASTER * 0.5,
     params: [
       { name: "Tanpura A", type: "tanpura", p0: [3.0, 0.62, 0.06, 0.13], p1: [48, 0.00008, 0.25, 0.005] },
       { name: "Tanpura B", type: "tanpura", p0: [3.4, 0.68, 0.05, 0.16], p1: [52, 0.00012, 0.20, 0.005] },
-      { name: "Tabla",     type: "808",     p0: [0, 0.55, 0.5, 0.6],     p1: [0, 0, 0, 0] },
+      // Real modal Tabla: a bayan (bass, palm-bend "ge") + a dayan (treble, tuned to Sa).
+      { name: "Bayan",  type: "tabla", p0: [0.7, 0.0, 0.45, 4.0], p1: [5, 0.0012, 0.08, 0.40] },
+      { name: "Dayan",  type: "tabla", p0: [0.5, 0.15, 0.5, 0.0], p1: [7, 0.0008, 0.05, 0.60] },
+      { name: "808 Kit", type: "808",  p0: [0, 0.5, 0.45, 0.5],   p1: [0, 0, 0, 0] },   // hats + drop kick
       { name: "Sub Bass",  type: "moog",    p0: [260, 0.55, 0.6, 0],     p1: [3, 0.6, 0.4, 0.5],   p2: [1, 1, 1, 0],    p3: [1, 1, 1, 0] },
       { name: "Sarangi",   type: "moog",    p0: [1500, 0.45, 0.65, 0.4], p1: [6, 0.75, 0.7, 0.8],  p2: [1, 1, 0, 0.06], p3: [2, 2, 2, 0] },
       { name: "Sitar",     type: "303",     p0: [2200, 0.82, 0.7, 0.4],  p1: [0, 0.15, 0.28, 0] },
     ],
     fxParams: makeFx({
       tanpura: { dist: 0.001, delayMix: 0, reverbDecay: 0.9, reverbSend: 0.55, reverbMix: 0.3, master: 0.6 },
-      '808':   { dist: 2.5, tone: 0.55, delayMix: 0, reverbDecay: 0.5, reverbSend: 0.25, reverbMix: 0.12, master: 0.9 },
+      tabla:   { dist: 1.2, tone: 0.5, delayMix: 0, reverbDecay: 0.7, reverbSend: 0.35, reverbMix: 0.18, master: 0.85 },
+      '808':   { dist: 1.6, tone: 0.55, delayMix: 0, reverbDecay: 0.5, reverbSend: 0.25, reverbMix: 0.12, master: 0.85 },
       moog:    { dist: 2.0, tone: 0.5, delayMix: 0, reverbDecay: 0.85, reverbSend: 0.4, reverbMix: 0.2, master: 0.8 },
       '303':   { dist: 3.5, tone: 0.6, delayTime: 0.28, delayFeedback: 0.42, delayMix: 0.3, reverbDecay: 0.85, reverbSend: 0.4, reverbMix: 0.25, master: 0.75 },
     }),
@@ -3269,8 +3275,9 @@ export const DEMO_SONGS: SongDef[] = [
       const P = () => new Pattern(128, 8);
       const p0 = P(), p1 = P(), p2 = P(), p3 = P(), p4 = P(), p5 = P(), p6 = P(), p7 = P(), p9 = P();
 
-      const I_TANA = 0, I_TANB = 1, I_DR = 2, I_BASS = 3, I_LEAD = 4, I_SIT = 5;
-      const BD = 36, SD = 38, HH = 42, OH = 46, TOM = 45;
+      const I_TANA = 0, I_TANB = 1, I_BAYAN = 2, I_DAYAN = 3, I_808 = 4, I_BASS = 5, I_LEAD = 6, I_SIT = 7;
+      const BD = 36, HH = 42, OH = 46;       // 808 strokes (drop kick + hats)
+      const BAYAN = 36, DAYAN = 60;          // bayan low (C2); dayan tuned to Sa (C4)
 
       // Raga = C Phrygian-dominant. nd(d) maps a scale-degree (can run below 0 or
       // past 6 into other octaves) to a MIDI note; Sa = C4.
@@ -3289,18 +3296,22 @@ export const DEMO_SONGS: SongDef[] = [
         }
       };
 
+      // The tabla kit. The old kick→bayan (bass strokes, ch2), snare→dayan na
+      // (accents, ch3), ghost→dayan ti (ch3), hats→808 hats (ch4); the strong beat
+      // also drops an 808 kick (ch4) for rave weight under the bayan.
       type Beat = { kick?: boolean; snare?: boolean; hats?: boolean; ghost?: boolean };
       const beat = (pat: Pattern, o: Beat) => {
         for (let r = 0; r < 128; r++) {
           const s = r % 16;
-          if (o.kick && (s === 0 || s === 6 || s === 10)) pat.set(r, 2, BD, I_DR, 0.97);
-          if (o.snare && (s === 4 || s === 12)) pat.set(r, 3, SD, I_DR, 0.85);
-          if (o.hats) { if (s % 2 === 1) pat.set(r, 4, HH, I_DR, 0.4); if (s === 7 || s === 14) pat.set(r, 4, OH, I_DR, 0.5); }
-          if (o.ghost && (s === 9 || s === 15)) pat.set(r, 3, TOM, I_DR, 0.45);   // tabla-ish fills
+          if (o.kick && (s === 0 || s === 6 || s === 10)) pat.set(r, 2, BAYAN, I_BAYAN, 0.95);  // bayan
+          if (o.kick && s === 0) pat.set(r, 4, BD, I_808, 0.9);                                 // 808 drop thump
+          if (o.snare && (s === 4 || s === 12)) pat.set(r, 3, DAYAN, I_DAYAN, 0.85);            // dayan na
+          if (o.ghost && (s === 9 || s === 15)) pat.set(r, 3, DAYAN, I_DAYAN, 0.45);            // dayan ti ghost
+          if (o.hats) { if (s % 2 === 1) pat.set(r, 4, HH, I_808, 0.38); if (s === 7 || s === 14) pat.set(r, 4, OH, I_808, 0.5); }
         }
       };
-      const tomRoll = (pat: Pattern) => {        // pre-drop riser through the last bar
-        for (let r = 112; r < 128; r++) pat.set(r, 3, TOM, I_DR, 0.35 + (r - 112) * 0.035);
+      const tomRoll = (pat: Pattern) => {        // dayan tirakita riser into the drop
+        for (let r = 112; r < 128; r++) pat.set(r, 3, DAYAN, I_DAYAN, 0.3 + (r - 112) * 0.035);
       };
 
       // Bass locked to the kick, two octaves down; one root per bar.
@@ -3382,8 +3393,8 @@ export const DEMO_SONGS: SongDef[] = [
       lead(p7, meendPhrase, 8, 0.8, 0, [3, 0x28]);
       sitar(p7, taanSlow, 0.6);
 
-      drone(p9, 0.85);                                   // p9 outro: kick thins, drone rings
-      for (let r = 0; r < 64; r++) { if (r % 16 === 0) p9.set(r, 2, BD, I_DR, 0.7); }
+      drone(p9, 0.85);                                   // p9 outro: bayan thins, drone rings
+      for (let r = 0; r < 64; r++) { if (r % 16 === 0) p9.set(r, 2, BAYAN, I_BAYAN, 0.6); }
       lead(p9, [0, null, null, null, -1, null, 0, null, null, null, null, null, null, null, null, null], 8, 0.7);
 
       return {
