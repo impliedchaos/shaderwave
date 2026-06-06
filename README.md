@@ -168,6 +168,19 @@ thunk** transient. Parameters: **Decay**, **Inharm**, **Hardness**, **Hammer**,
 **Partials**, **Detune**, **Damping**, **Release** (a long Release ≈ holding the
 sustain pedal). Presets: Grand, Mellow, Bright, Honky-Tonk, Upright, Bell Piano.
 
+### Guitar — Acoustic / Electric (short name **GTR**)
+
+A plucked-string synth (modal, closed-form) that **morphs between acoustic and electric**
+via the **Body** control. The string is a sum of decaying near-harmonic partials combed by
+**pluck position** (near the bridge = bright/twangy, over the middle = mellow). As Body goes
+from electric→acoustic it crossfades a magnetic-**pickup comb** + long sustain (electric)
+into a **soundboard body resonance** (a woody ~185 Hz formant) with faster high-partial
+damping (acoustic). A **pick** transient gives the attack, and a built-in **Drive** adds
+electric overdrive/crunch (on top of the per-channel fx). Parameters: **Decay**,
+**PluckPos**, **Tone**, **Body**, **Partials**, **Drive**, **Pick**, **Release** (palm-mute
+↔ let-ring). Presets: Steel Acoustic, Nylon Classical, Clean Electric, Overdrive, Crunch
+Rock, Muted Funk.
+
 ## Effect column
 
 Each pattern cell has a fourth sub-column — a classic tracker **effect command**
@@ -352,6 +365,7 @@ src/gl/                    context, program helpers, SynthRenderer, shaders/
   shaders/synth-groove.glsl    Locked Groove — vinyl noise (rotation-locked)
   shaders/synth-tabla.glsl     Tabla — modal Indian hand drums (dayan/bayan)
   shaders/synth-pipi.glsl      Pipi — physically-informed modal piano
+  shaders/synth-guitar.glsl    Guitar — modal plucked string (acoustic/electric)
   shaders/fx-distortion.glsl   DS-1 distortion stage
   shaders/fx-chorus-*.glsl     chorus ring update + tap
   shaders/fx-tremolo.glsl      auto-pan tremolo stage
