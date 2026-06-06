@@ -160,7 +160,7 @@ pitch slide, `3` tone-porta (meend, no re-attack), `4` vibrato (gamak), `A` volu
 Instruments are now data-driven descriptors, not scattered `if (type === …)` branches.
 **`src/instruments/REGISTRY`** (in `index.ts`) is the single source of truth; one
 `InstrumentDef` per engine (`i303.ts`, `idx7.ts`, `i808.ts`, `imoog.ts`, `itanpura.ts`,
-`ie8e.ts`) co-locates its
+`ie8e.ts`, `igroove.ts`) co-locates its
 shader, defaults, `paramDefs` (sidebar knobs), `autoTargets` (automation), `presets`,
 help label/blurb, and flags (`recursive`, `drum`, `customControls`, `uploadVoiceUniforms`).
 Everything derives from it: `constants.INSTRUMENTS` re-exports `index.INSTRUMENTS`;
@@ -190,6 +190,24 @@ Non-obvious constraints (don't break these):
   p0=ADSR, p1=(detune2, detune3, bits, drive) — the automatable ones — p2=(wave1/2/3, oscs),
   p3=(level1/2/3, pulseWidth). Waves: 0 sine 1 saw 2 square 3 tri 4 noise; the Wave1–3 sidebar
   knobs render the name via `E8E_WAVES` in `controls.ts` (same `formatFn` path as 303/moog).
+- **`groove`** (Locked Groove, short `GRV`) is a closed-form vinyl-noise texture: hiss +
+  aperiodic grain crackle + dust pops + motor rumble + a **rotation-locked defect layer**
+  (defects recur every revolution: P=(60/RPM)·SR samples; rev=floor(frame/P), phi=fract(frame/P);
+  ~8 hashed-angle slots, drift-migrated and per-rev breathing; `Cycle` blends random↔locked).
+  Banks: p0=(hiss,crackle,pop,wear) p1=(cycle,tone,rumble,drift) p2=(rpm,defects,color,fade).
+  Play as a drone (pitch ignored, vel=level). **GLSL gotcha learned here:** `smooth` is a
+  RESERVED keyword in GLSL ES 3.00 (interpolation qualifier) — can't be a variable name.
+  Also: `glsl-check` passed this typo but `render-check` caught it — trust render-check (the
+  real GPU compile path) as authoritative for shader validity, not glsl-check alone.
+  **Tuned by reference-matching (like the 808):** downloaded CC0 vinyl recordings (Freesound),
+  measured their stats, matched the synth. `test/vinyl-analyze.html` renders the synth and
+  prints click-rate / spectral-tilt / rotation-autocorr with the reference TARGETS in its
+  header (LP @33⅓ #263996: ~18 clicks/s, centroid ~3kHz, low-tilted, period 1.8s, ac~0.10);
+  it's self-contained (no committed audio — refs are downloaded to a temp dir and removed).
+  Key sound lessons: vinyl clicks are NOISY broadband bursts (a clean damped cosine reads as
+  a tonal "water drop"); the hiss floor must be DARK (steep low-tilt) not bright white; clicks
+  ride ~20dB above the floor (crest); deep <150Hz rumble gives the warmth. Click detection must
+  high-pass first (first-difference) or loud rumble hides the transients.
 
 ### 808 drum reference tuning + the analysis harness — `project`
 The 808 snare and clap (`src/gl/shaders/synth-808.glsl`) were tuned to objectively match

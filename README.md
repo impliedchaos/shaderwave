@@ -124,6 +124,22 @@ waveform name), per-oscillator **Levels**, and **PulseW** (square pulse width).
 The expressive controls (detune, bits, drive) live in the p0/p1 banks so they're
 automatable; the short name is **E8E** to stay visually distinct from the 808.
 
+### Locked Groove — Vinyl Noise (short name **GRV**)
+
+A vinyl record-noise texture (closed-form, no recursion) for laying grit under a
+mix. It layers **surface hiss**, aperiodic **crackle**, dust **pops**, motor
+**rumble**, and — the part that makes it read as *vinyl* rather than generic
+noise — a **rotation-locked defect layer**: a handful of clicks/pops that recur
+once per platter revolution (**33⅓ RPM → every 1.8 s**, also 45/78). Each defect
+sits at a hashed angular position, **drifts** slightly per revolution (a radial
+scratch crossing many grooves as the needle spirals in) and breathes in and out
+across revolutions, so the ticks never sound metronomic. The **Cycle** knob
+blends the pop energy from fully-random to fully-rotation-locked. Other
+parameters: **Hiss**, **Crackle**, **Pop**, **Wear** (a macro that ages the
+record — more/louder defects), **Tone**, **Rumble**, **Drift**, **RPM**,
+**Defects** (count), **Color** (click voicing) and **Fade**. Play it as a drone
+— one long note lays down the bed; pitch is ignored, velocity sets the level.
+
 ## Effect column
 
 Each pattern cell has a fourth sub-column — a classic tracker **effect command**
@@ -305,6 +321,7 @@ src/gl/                    context, program helpers, SynthRenderer, shaders/
   shaders/synth-dx7.glsl       6-op FM (all 32 algorithms)
   shaders/synth-tanpura.glsl   additive/modal Indian drone (jivari)
   shaders/synth-e8e.glsl       888State — 3-osc additive, 8-bit crunch
+  shaders/synth-groove.glsl    Locked Groove — vinyl noise (rotation-locked)
   shaders/fx-distortion.glsl   DS-1 distortion stage
   shaders/fx-chorus-*.glsl     chorus ring update + tap
   shaders/fx-tremolo.glsl      auto-pan tremolo stage
@@ -336,9 +353,16 @@ google-chrome --headless=new --enable-unsafe-swiftshader --dump-dom \
 # full GPU render path produces finite signal:  test/render-check.html
 # live audio ring/worklet drains with no underruns:  test/audio-check.html
 # drum spectrum / autocorrelation vs reference:   test/drum-analyze.html
+# vinyl-noise stats (click rate, tilt, rotation):  test/vinyl-analyze.html
 # two instances of one engine render differently:  test/instance-check.html
 # a drum sounds identical on every trigger:         test/onset-check.html
 ```
+
+The Locked Groove engine was tuned by **matching the measured statistics of real
+CC0 vinyl recordings** (click rate ≈18/s, dark low-tilted spectrum, ~1.8 s
+rotation tick), the same objective approach used for the 808 drums.
+`vinyl-analyze.html` prints those stats for the synth so it can be re-checked
+against the reference targets baked into the harness header.
 
 ## New Instrument Ideas
 

@@ -1803,13 +1803,17 @@ export const DEMO_SONGS: SongDef[] = [
       },
       { name: "Lo-Fi Vinyl Kit", type: "808", p0: [0, 0.45, 0.5, 0.5], p1: [0, 0, 0, 0] },
       { name: "Moog Sub Bass", type: "moog", p0: [180, 0.35, 0.6, 0.2], p1: [8.0, 0.9, 0.8, 0.8], p2: [2, 1, 1, 0.06], p3: [2, 2, 1, 0.05] },
-      { name: "Vinyl Crackle", type: "303", p0: [350, 0.75, 0.0, 0.0], p1: [4.0, 10.0, 10.0, 0] }
+      // Real vinyl-noise bed (was a filtered-noise 303 fake). p0=(hiss,crackle,pop,wear)
+      // p1=(cycle,tone,rumble,drift) p2=(rpm,defects,color,fade) — 33⅓ RPM, a little
+      // rotation-locked tick via Cycle. Played as a sustained drone on channel 7.
+      { name: "Vinyl Crackle", type: "groove", p0: [0.22, 0.5, 0.5, 0.45], p1: [0.5, 0.4, 0.32, 0.4], p2: [33.333, 6, 0.5, 0.03], p3: [0.35, 1.5, 0, 0] }
     ],
     fxParams: {
       '303': Object.assign(defaultFxParams(), { delayMix: 0.35, delayTime: 0.375, reverbMix: 0.4 }),
       'dx7': Object.assign(defaultFxParams(), { chorusMix: 0.45, chorusRate: 0.6, chorusDepth: 3.5, delayMix: 0.4, delayTime: 0.5, delayFeedback: 0.4, reverbMix: 0.5, reverbDecay: 0.9 }),
       '808': Object.assign(defaultFxParams(), { distOn: true, dist: 1.4, tone: 0.38, master: 0.9, bitcrushOn: false, bitcrushBits: 12.0, bitcrushRate: 18000.0, delayMix: 0.05, delayTime: 0.33, delayFeedback: 0.4, reverbMix: 0.06, reverbDecay: 0.7 }),
-      'moog': Object.assign(defaultFxParams(), { dist: 1.6, tone: 0.45, chorusMix: 0.3, chorusRate: 0.8, chorusDepth: 2.0, master: 0.85 })
+      'moog': Object.assign(defaultFxParams(), { dist: 1.6, tone: 0.45, chorusMix: 0.3, chorusRate: 0.8, chorusDepth: 2.0, master: 0.85 }),
+      'groove': Object.assign(defaultFxParams(), { reverbOn: true, reverbMix: 0.15, reverbDecay: 0.6, master: 0.8 })
     },
     data: () => {
       const p = Array.from({ length: 7 }, () => new Pattern(128, 8));

@@ -1,0 +1,157 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>pending</title></head>
+<body><pre id="out">running…</pre>
+<script type="module">
+// Renders the Locked Groove (GRV) synth and prints noise statistics (click rate,
+// spectral tilt/centroid, rotation autocorrelation) so it can be A/B-tuned against
+// real vinyl recordings. The TARGET numbers below were measured from CC0 vinyl on
+// Freesound (LP @ 33⅓, sound #263996, matched high-pass detector): clicks≈18/s,
+// centroid≈3000Hz, heavily low-tilted spectrum, rotation period≈1.8s, autocorr≈0.10.
+// Self-contained — renders the synth only, fetches nothing.
+import { createGL } from '../src/gl/context.js';
+import { SynthRenderer } from '../src/gl/synth-renderer.js';
+import { BLOCK, VOICES, INSTRUMENTS } from '../src/constants.js';
+
+const out = document.getElementById('out');
+const lines = [];
+const log = (s) => { lines.push(s); out.textContent = lines.join('\n'); console.log(s); };
+
+const SR = 48000;
+const GRV = INSTRUMENTS.indexOf('groove');
+const BANDS = [60,100,150,220,330,500,750,1100,1600,2400,3500,5000,7500,11000,16000];
+
+function makeVD(p0, p1, p2, p3) {
+  const z4 = () => new Float32Array(VOICES * 4);
+  const P0 = z4(), P1 = z4(), P2 = z4(), P3 = z4();
+  for (let k = 0; k < 4; k++) { P0[k]=p0[k]||0; P1[k]=p1[k]||0; P2[k]=p2[k]||0; P3[k]=(p3&&p3[k])||0; }
+  return {
+    active: Int32Array.of(1,0,0,0,0,0,0,0),
+    inst: Int32Array.of(GRV,0,0,0,0,0,0,0),
+    freq: Float32Array.of(220,0,0,0,0,0,0,0),
+    vel: Float32Array.of(1,0,0,0,0,0,0,0),
+    onRel: Float32Array.of(0,0,0,0,0,0,0,0),
+    offRel: Float32Array.of(1e9,0,0,0,0,0,0,0),
+    p0:P0, p1:P1, p2:P2, p3:P3,
+    freqFrom: Float32Array.of(220,0,0,0,0,0,0,0),
+    gain: new Float32Array(VOICES).fill(1),
+    pan: new Float32Array(VOICES).fill(0.5),
+    master: 1.0,
+  };
+}
+
+function render(r, gl, vd, nBlocks) {
+  const fbo = gl.createFramebuffer();
+  const row = new Float32Array(BLOCK * 4);
+  const sig = new Float32Array(nBlocks * BLOCK);
+  for (let b = 0; b < nBlocks; b++) {
+    const bs = b * BLOCK;
+    vd.onRel[0] = -bs;
+    r.renderBlock(vd, bs);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, fbo);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, r.inst[GRV].audio, 0);
+    gl.readPixels(0, 0, BLOCK, 1, gl.RGBA, gl.FLOAT, row);
+    for (let i = 0; i < BLOCK; i++) sig[b*BLOCK+i] = row[i*4];
+  }
+  return sig;
+}
+
+function mag(sig, f) {
+  const w = 2*Math.PI*f/SR, c = 2*Math.cos(w);
+  let s1=0, s2=0;
+  for (let i=0;i<sig.length;i++){ const s0=sig[i]+c*s1-s2; s2=s1; s1=s0; }
+  return Math.sqrt(s1*s1+s2*s2-c*s1*s2)/sig.length;
+}
+
+function percentile(absSorted, p){ return absSorted[Math.min(absSorted.length-1, Math.floor(p*absSorted.length))]; }
+
+function analyze(name, sig) {
+  const n = sig.length, dur = n/SR;
+  let peak=0, sum=0;
+  const abs = new Float32Array(n);
+  for (let i=0;i<n;i++){ const a=Math.abs(sig[i]); abs[i]=a; peak=Math.max(peak,a); sum+=sig[i]*sig[i]; }
+  const rms = Math.sqrt(sum/n);
+  const sorted = Float32Array.from(abs).sort();
+  const floor = percentile(sorted, 0.5), p95 = percentile(sorted, 0.95);
+
+  // spectrum / centroid / tilt
+  const mags = BANDS.map(f=>mag(sig,f));
+  const tot = mags.reduce((a,b)=>a+b,0)||1;
+  let cw=0; BANDS.forEach((f,i)=>cw+=f*mags[i]); const centroid=cw/tot;
+  const lowE = BANDS.filter((f,i)=>f>=100&&f<800).reduce((a,f,i)=>a,0);
+  let lo=0,loc=0,hi=0,hic=0;
+  BANDS.forEach((f,i)=>{ if(f>=100&&f<800){lo+=mags[i];loc++;} if(f>=3000&&f<12000){hi+=mags[i];hic++;} });
+  const tilt = 20*Math.log10(((hi/(hic||1))+1e-9)/((lo/(loc||1))+1e-9));
+
+  // clicks — detect on a high-passed (first-difference) signal so deep rumble/hiss
+  // doesn't raise the threshold and hide the broadband click transients.
+  const hp = new Float32Array(n);
+  for (let i=1;i<n;i++) hp[i] = Math.abs(sig[i]-sig[i-1]);
+  const hpSorted = Float32Array.from(hp).sort();
+  const hpFloor = percentile(hpSorted, 0.5);
+  const thr = hpFloor*8 + 1e-6, dead = Math.round(0.005*SR);
+  const events = [];
+  let last = -1e9;
+  for (let i=0;i<n;i++){ if(hp[i]>thr){ if(i-last>dead) events.push(i); last=i; } }
+  const rate = events.length/dur;
+  const decays=[];
+  for (let e of events.slice(0,300)){ let pk=0; for(let j=e;j<Math.min(n,e+Math.round(0.03*SR));j++)pk=Math.max(pk,abs[j]);
+    for(let j=e;j<Math.min(n,e+Math.round(0.03*SR));j++){ if(abs[j]<pk*0.1){ decays.push((j-e)/SR*1000); break; } } }
+  decays.sort((a,b)=>a-b); const decayMs = decays.length?decays[decays.length>>1]:0;
+
+  // click-shape: split events by amplitude (crackle = mid, pops = loudest 5%) and
+  // measure each group's spectral centroid — target crackle≈2400Hz, pops≈670Hz.
+  const amps = events.map(e=>{ let m=0; for(let j=e;j<Math.min(n,e+40);j++)m=Math.max(m,abs[j]); return m; });
+  const ord = events.map((e,i)=>i).sort((a,b)=>amps[a]-amps[b]);
+  const groupCentroid = (idxs)=>{
+    const acc = new Array(BANDS.length).fill(0);
+    let cnt=0;
+    for (const oi of idxs){ const e=events[oi]; if(e+192>=n) continue;
+      const win=sig.subarray(e, e+192);
+      BANDS.forEach((f,bi)=>acc[bi]+=mag(win,f)); cnt++; }
+    const tt=acc.reduce((a,b)=>a+b,0)||1; let cw=0; BANDS.forEach((f,bi)=>cw+=f*acc[bi]);
+    return {cen: cw/tt, cnt};
+  };
+  const crkG = groupCentroid(ord.slice(Math.floor(ord.length*0.4), Math.floor(ord.length*0.7)));
+  const popG = groupCentroid(ord.slice(Math.floor(ord.length*0.95)));
+
+  // rotation autocorr on 1ms onset train
+  const H=1000, m=Math.floor(dur*H)+1, train=new Float32Array(m);
+  for (let e of events){ const b=Math.floor(e/SR*H); if(b<m) train[b]+=1; }
+  let mean=0; for(let i=0;i<m;i++)mean+=train[i]; mean/=m;
+  for(let i=0;i<m;i++)train[i]-=mean;
+  let ac0=0; for(let i=0;i<m;i++)ac0+=train[i]*train[i];
+  let bestLag=0,bestR=0;
+  for(let lag=Math.round(0.3*H); lag<Math.min(Math.round(3.0*H),m); lag++){
+    let acc=0; for(let i=0;i+lag<m;i++)acc+=train[i]*train[i+lag];
+    const rr=acc/(ac0||1); if(rr>bestR){bestR=rr;bestLag=lag;}
+  }
+
+  log(`\n### ${name} (${dur.toFixed(1)}s)`);
+  log(`rms=${rms.toFixed(5)} floor=${floor.toFixed(5)} p95=${p95.toFixed(4)} crest=${(20*Math.log10((peak+1e-9)/(rms+1e-9))).toFixed(1)}dB`);
+  log(`centroid=${centroid.toFixed(0)}Hz  tilt(hi/lo)=${tilt.toFixed(1)}dB`);
+  log(`clicks: rate=${rate.toFixed(1)}/s  count=${events.length}  crackleCentroid=${crkG.cen.toFixed(0)}Hz (ref~2400)  popCentroid=${popG.cen.toFixed(0)}Hz (ref~670)`);
+  log(`rotation: bestPeriod=${(bestLag/H).toFixed(3)}s  autocorr=${bestR.toFixed(3)}  ${bestR>0.12?'PERIODIC':'subtle/none'}`);
+  log('bands%: '+BANDS.map((f,i)=>`${f}:${(mags[i]/tot*100).toFixed(0)}`).join(' '));
+}
+
+try {
+  log('TARGET (ref LP #263996): clicks≈15/s decay≈5ms centroid≈3000Hz tilt≈-25dB period≈1.8s ac≈0.10');
+  const gl = createGL(document.createElement('canvas'));
+  const N = Math.round(15*SR/BLOCK);   // ~15s
+  // current descriptor-ish defaults: p0=(hiss,crackle,pop,wear) p1=(cycle,tone,rumble,drift) p2=(rpm,defects,color,fade)
+  const SETS = [
+    // isolated channels (hiss/rumble off) → overall centroid ≈ that click's centroid
+    ['crackle-only', [0,1,0,0],   [0,0.4,0,0], [33.333,0,0.5,0.03], [0,2,0,0]],
+    ['pop-only',     [0,0,1,0.8], [0,0.4,0,0], [33.333,0,0.5,0.03], [0,2,0,0]],
+    ['song',     [0.22,0.5,0.5,0.45], [0.5,0.4,0.32,0.4], [33.333,6,0.5,0.03], [0.35,1.5,0,0]],
+  ];
+  for (const [name,p0,p1,p2,p3] of SETS)
+    analyze(name, render(new SynthRenderer(gl, SR), gl, makeVD(p0,p1,p2,p3), N));
+  document.title = 'DONE';
+  log('\n=== DONE ===');
+} catch (e) {
+  document.title = 'ERROR';
+  log('FATAL: ' + e.message + '\n' + (e.stack||''));
+}
+</script>
+</body></html>

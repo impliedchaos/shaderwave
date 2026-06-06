@@ -390,12 +390,12 @@ export class Controls {
         const prDst = this._instr;
         prDst.p0 = [...preset.p0];
         prDst.p1 = [...preset.p1];
-        // Moog carries the extra osc/glide/noise banks; reset to the classic
-        // Model D default (3 saws at 8') when a preset doesn't specify them.
-        if (instName === 'moog') {
-          prDst.p2 = preset.p2 ? [...preset.p2] : [1, 1, 1, 0];
-          prDst.p3 = preset.p3 ? [...preset.p3] : [2, 2, 2, 0];
-        }
+        // Engines with extra banks (moog/e8e/groove) carry p2/p3; apply the preset's
+        // values, falling back to the engine's descriptor defaults when omitted (for
+        // moog that's the classic Model D: 3 saws at 8').
+        const def = byType(instName);
+        if (def?.defaults.p2) prDst.p2 = preset.p2 ? [...preset.p2] : [...def.defaults.p2];
+        if (def?.defaults.p3) prDst.p3 = preset.p3 ? [...preset.p3] : [...def.defaults.p3];
         if (this.onPresetChange && preset.fx) {
           this.onPresetChange(instName, preset.fx);
         }
