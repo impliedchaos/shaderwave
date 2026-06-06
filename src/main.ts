@@ -38,7 +38,12 @@ const PAUSE_ICON = `<svg class="icon" viewBox="0 0 16 16" width="14" height="14"
 // Deep-clone song params so slider mutations never corrupt the DEMO_SONGS defs.
 function cloneFx(src: Record<string, FxParams>): FxParamsByType {
   const dst: Record<string, FxParams> = {};
-  for (const k in src) dst[k] = { ...src[k] };
+  // Fill EVERY registered engine type, not just the ones a song specifies. A song's
+  // fxParams literal may omit engines it doesn't use; downstream code assigns
+  // fxParams[type] straight onto each renderer instrument's EffectsChain, and an
+  // undefined there makes the worklet's per-block render throw → the transport
+  // silently dies (was: switching to a partial-fx song broke play).
+  for (const d of REGISTRY) dst[d.type] = { ...defaultFxParams(), ...(src[d.type] || {}) };
   return dst as FxParamsByType;
 }
 
@@ -516,7 +521,7 @@ export class App {
 
           if (this.renderer) {
             for (const it of this.renderer.inst) {
-              it.fx.params = this.fxParams[it.name];
+              it.fx.params = this.fxParams[it.name] || defaultFxParams();
             }
           }
 

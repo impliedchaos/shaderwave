@@ -48,5 +48,14 @@ export const ie8e: InstrumentDef = {
     { name: 'Glass Bell',    p0: [0.001, 0.6,  0.0, 0.5],  p1: [7.0,  19,  10, 0.0], p2: [0, 0, 0, 3], p3: [1.0, 0.6, 0.4, 0.5] },
     { name: 'Lo-Fi Pad',     p0: [0.2,   0.5,  0.7, 0.6],  p1: [0.08, -12, 5,  0.0], p2: [3, 3, 0, 3], p3: [1.0, 0.8, 0.6, 0.5] },
     { name: 'Hiss Stab',     p0: [0.001, 0.08, 0.0, 0.05], p1: [0.0,  -24, 4,  0.3], p2: [2, 4, 0, 2], p3: [1.0, 0.4, 0.5, 0.5] },
+    // Chiptune/NES-style drums — E8E is pitched (no pitch envelope), so these are
+    // short pitched blips + noise bursts. Play kick/toms LOW (toms hi→low on
+    // descending notes); snare/hat are noise-led so pitch barely matters.
+    { name: 'Drum: Kick',       p0: [0.0, 0.13, 0.0, 0.05], p1: [-12, 0, 8, 0.3],  p2: [0, 0, 0, 2], p3: [1.0, 0.7, 0.0, 0.5] },
+    { name: 'Drum: Snare',      p0: [0.0, 0.14, 0.0, 0.06], p1: [7,   0, 7, 0.2],  p2: [4, 2, 0, 2], p3: [1.0, 0.5, 0.0, 0.5] },
+    { name: 'Drum: Closed Hat', p0: [0.0, 0.03, 0.0, 0.02], p1: [0,   0, 8, 0.0],  p2: [4, 0, 0, 1], p3: [1.0, 0.0, 0.0, 0.5] },
+    { name: 'Drum: Tom Hi',     p0: [0.0, 0.11, 0.0, 0.05], p1: [-12, 0, 8, 0.1],  p2: [3, 0, 0, 2], p3: [1.0, 0.4, 0.0, 0.5] },
+    { name: 'Drum: Tom Mid',    p0: [0.0, 0.16, 0.0, 0.06], p1: [-12, 0, 8, 0.12], p2: [3, 0, 0, 2], p3: [1.0, 0.5, 0.0, 0.5] },
+    { name: 'Drum: Tom Low',    p0: [0.0, 0.23, 0.0, 0.08], p1: [-12, 0, 7, 0.18], p2: [3, 0, 0, 2], p3: [1.0, 0.6, 0.0, 0.5] },
   ],
 };

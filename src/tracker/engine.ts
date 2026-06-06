@@ -166,6 +166,8 @@ export class Engine {
       this.channelPan[v] = (pan && pan[v] != null) ? pan[v] : 0.5;
       this.panAuto[v] = NaN;
     }
+    // Clear any channel mutes — they belong to the previous song, not this one.
+    this.muted.fill(false);
   }
 
   // Set the song's base global volume from the UI (the Song Editor's Volume knob).
