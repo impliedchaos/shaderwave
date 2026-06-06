@@ -171,13 +171,7 @@ export class Controls {
         fx.widthOn = false;
         fx.bitcrushOn = false;
 
-        if (this.app.renderer) {
-          for (const it of this.app.renderer.inst) {
-            if (it.name === type) {
-              it.fx.params = fx;
-            }
-          }
-        }
+        if (this.app.renderer) this.app.renderer.setFxParams(this.app.fxParams);
       }
 
       const idx = this.engine.addInstrument(type);

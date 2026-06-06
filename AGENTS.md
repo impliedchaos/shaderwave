@@ -87,8 +87,14 @@ and `git status` before committing** so they don't get swept into a commit.
   no-op). So a new engine gets 16 param floats with zero new plumbing. DX7's 6-operator
   banks (`uOpA–D`) stay engine-specific, uploaded via the descriptor's `uploadVoiceUniforms`
   hook.
-- **Effects** are per *engine type* (`fxParams['303']` etc.), shared by all instances/
-  channels of that type — they operate on the summed instrument output.
+- **Effects**: the chain is a data-driven registry (`FX_EFFECTS` in `src/gl/effects.ts`)
+  — each effect is an `FxEffectDef` (params + shader(s) + `init(gl)` → process closure);
+  `EffectsChain` is a generic runner; `defaultFxParams()`/order derive from it. Adding an
+  effect = one descriptor (+ `.glsl`), like the instrument registry. The chains run **per
+  channel** (== voice): each voice routes through its OWN insert with its own reverb/delay
+  state (`SynthRenderer.chanFx[v]`), so two instances of one engine no longer share a chain.
+  Params are still stored per *engine type* (`fxParams['303']`); each channel sources its
+  params per block from the type it's currently playing (`renderer.setFxParams`).
 - **Effect column** (per-cell note articulations — slides/vibrato/arp/volume-slide, distinct
   from automation tracks): `Pattern.fxCmd`/`fxVal`, command set in `src/tracker/fx.ts`,
   modulated per render block in `engine._modulateVoices` (`3xx`+note is the no-retrigger

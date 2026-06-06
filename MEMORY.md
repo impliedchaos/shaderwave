@@ -290,3 +290,17 @@ omits — e.g. engines added later), patterns via `patternFromSerialized` (lengt
 hand-edited file can't throw). `_applySerializedSong` mirrors the demo-switch load path.
 **Why versioned:** automation `paramId`s are the frozen target ids, and the data model keeps
 shifting (banks, new engines), so the header lets old files keep opening.
+
+### Effects: registry + PER-CHANNEL chains (`src/gl/effects.ts`, `synth-renderer.ts`) — `project`
+Effects were decoupled into a data-driven registry like instruments: `FX_EFFECTS` is a list
+of `FxEffectDef` (params + shader(s) + `init(gl)`→`process` closure); `EffectsChain` is a
+generic runner; `defaultFxParams()` and chain order DERIVE from the registry. Add an effect =
+one descriptor (+ `.glsl`). Then chains were moved from per-engine-type to **per channel**
+(`SynthRenderer.chanFx[VOICES]`): each voice routes through its own insert (own reverb/delay
+state) — two instances of one engine no longer share a chain. The per-voice dry signal is
+isolated by reusing `mix.glsl` with the gain array MASKED to a single voice, reading that
+voice's row of its engine's audio tex. Params are still stored per type (`fxParams['type']`);
+each channel sources its params per block from the type it's playing (`renderer.setFxParams`),
+so **no save-format change** and byte-identical for one-voice-per-type songs. Cost: 8 chains
+run every block (~8× fx passes/state) — fine on real GPU. **Follow-up not yet done:** per-channel
+param EDITING (distinct fx per channel), its UI, and the save-format migration that implies.

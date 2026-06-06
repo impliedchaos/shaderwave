@@ -16,9 +16,10 @@ import type { FxParamsByType, InstrumentDef, InstrumentType, VoiceData } from '.
 import COMMON from './shaders/common.glsl?raw';
 import MIX_FS from './shaders/mix.glsl?raw';
 
-// One instrument's GPU resources: its synth program + audio/state textures, its
-// own dry-mix target, and its effects chain. `def` is the registry descriptor —
-// the source of its shader, recursion flag, and any engine-specific uniforms.
+// One instrument's GPU resources: its synth program + audio/state textures. `def`
+// is the registry descriptor — the source of its shader, recursion flag, and any
+// engine-specific uniforms. Effects are NOT per-instrument here: the chain runs
+// PER CHANNEL (see SynthRenderer.chanFx), so a voice routes through its own insert.
 interface InstRender {
   name: InstrumentType;
   id: number;
@@ -32,9 +33,6 @@ interface InstRender {
   phase2Read: WebGLTexture;
   phase2Write: WebGLTexture;
   fbo: WebGLFramebuffer | null;
-  mixTex: WebGLTexture;
-  mixFbo: WebGLFramebuffer | null;
-  fx: EffectsChain;
 }
 
 export class SynthRenderer {
@@ -42,6 +40,11 @@ export class SynthRenderer {
   sampleRate: number;
   subBlock: number;
   inst: InstRender[];
+  chanFx: EffectsChain[];               // one effects chain per channel (== voice)
+  chanDryTex: WebGLTexture;
+  chanDryFbo: WebGLFramebuffer | null;
+  fxByType: FxParamsByType | null;      // per-engine-type params (source for each channel)
+  _maskGain: Float32Array;              // scratch: gain array masked to a single voice
   mixProg: GLProgram;
   mixTex: WebGLTexture;
   mixFbo: WebGLFramebuffer | null;
@@ -58,13 +61,6 @@ export class SynthRenderer {
     this.inst = REGISTRY.map((def, id) => {
       const name = def.type;
       const prog = createProgram(gl, COMMON + def.shader);
-      const mixTex = makeTex(gl, BLOCK, 1);
-      const mixFbo = gl.createFramebuffer();
-      gl.bindFramebuffer(gl.FRAMEBUFFER, mixFbo);
-      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, mixTex, 0);
-
-      const itParams = (fxParams && fxParams[name]) ? fxParams[name] : null;
-
       return {
         name, id, def, prog,
         audio: makeTex(gl, BLOCK, VOICES),
@@ -75,11 +71,23 @@ export class SynthRenderer {
         phase2Read: makeTex(gl, BLOCK, VOICES),
         phase2Write: makeTex(gl, BLOCK, VOICES),
         fbo: gl.createFramebuffer(),
-        mixTex,
-        mixFbo,
-        fx: new EffectsChain(gl, sampleRate, itParams),
       };
     });
+
+    // Per-CHANNEL effect chains (channel == voice). Each voice routes through its
+    // own insert chain with its own reverb/delay state — the params for each are
+    // sourced per block from the per-engine-type fxParams of whatever instrument
+    // that channel is playing (so existing songs keep their fx data; the difference
+    // is each channel now gets a SEPARATE chain instead of one shared per type).
+    this.fxByType = fxParams;
+    this.chanFx = Array.from({ length: VOICES }, () =>
+      new EffectsChain(gl, sampleRate, fxParams ? fxParams[this.inst[0].name] : null));
+    // One reusable dry-mix target (BLOCK×1) the per-channel mix writes into.
+    this.chanDryTex = makeTex(gl, BLOCK, 1);
+    this.chanDryFbo = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.chanDryFbo);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.chanDryTex, 0);
+    this._maskGain = new Float32Array(VOICES);
 
     this.mixProg = createProgram(gl, MIX_FS);
     
@@ -126,9 +134,15 @@ export class SynthRenderer {
       gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, it.phase2Write, 0);
       gl.clear(gl.COLOR_BUFFER_BIT);
 
-      it.fx.reset();
     }
+    for (const fx of this.chanFx) fx.reset();
     gl.deleteFramebuffer(fbo);
+  }
+
+  // Update the per-engine-type fx params each channel sources from (called by the
+  // app when a song's fx is (re)built). Replaces the old per-type chain wiring.
+  setFxParams(fxByType: FxParamsByType | null) {
+    this.fxByType = fxByType;
   }
 
   // vd: voice data with typed arrays (see tracker engine). blockStart: absolute frame.
@@ -210,22 +224,34 @@ export class SynthRenderer {
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT);
 
-    // 2. Mix and process FX per instrument
-    for (const it of this.inst) {
-      gl.useProgram(this.mixProg);
-      gl.uniform1fv(this.mixProg.u('uGain[0]'), vd.gain);
-      gl.uniform1fv(this.mixProg.u('uPan[0]'), vd.pan);
+    // 2. Per-CHANNEL mix + FX. Each voice routes through its OWN effects chain
+    //    (its own reverb/delay state), so two channels of the same engine no longer
+    //    share one chain. The mix shader sums per-voice rows with gain+pan, so we
+    //    mask the gain array to a single voice to isolate that channel's dry signal
+    //    from the audio texture of whatever engine it's playing.
+    for (let v = 0; v < VOICES; v++) {
+      // 2a. Isolate channel v's dry signal (its row of its engine's audio texture).
+      const typeId = vd.inst[v];
+      const src = this.inst[typeId] ?? this.inst[0];
+      this._maskGain.fill(0);
+      this._maskGain[v] = vd.gain[v];
 
-      // 2a. Mix this instrument's voices into its own dry mix texture
-      gl.bindFramebuffer(gl.FRAMEBUFFER, it.mixFbo);
+      gl.useProgram(this.mixProg);
+      gl.uniform1fv(this.mixProg.u('uGain[0]'), this._maskGain);
+      gl.uniform1fv(this.mixProg.u('uPan[0]'), vd.pan);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, this.chanDryFbo);
       gl.drawBuffers([gl.COLOR_ATTACHMENT0]);
       gl.activeTexture(gl.TEXTURE0);
-      gl.bindTexture(gl.TEXTURE_2D, it.audio);
+      gl.bindTexture(gl.TEXTURE_2D, src.audio);
       gl.viewport(0, 0, BLOCK, 1);
       drawQuad(gl);
 
-      // 2b. Process FX chain, accumulating (additive blend) directly into this.mixFbo
-      it.fx.process(it.mixTex, this.mixFbo, blockStart, vd.master);
+      // 2b. Point this channel's chain at the current instrument-type's params, then
+      //     process — accumulating (additive blend) directly into the shared mix.
+      const fx = this.chanFx[v];
+      const params = this.fxByType ? this.fxByType[src.name] : null;
+      if (params) fx.params = params;
+      fx.process(this.chanDryTex, this.mixFbo, blockStart, vd.master);
     }
 
     // 3. Readback + deinterleave from the final combined mixFbo

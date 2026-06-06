@@ -527,11 +527,7 @@ export class App {
           this.fxParams = cloneFx(songDef.fxParams);
           this.engine.fxParams = this.fxParams;
 
-          if (this.renderer) {
-            for (const it of this.renderer.inst) {
-              it.fx.params = this.fxParams[it.name] || defaultFxParams();
-            }
-          }
+          if (this.renderer) this.renderer.setFxParams(this.fxParams);
 
           const wasPlaying = this.engine.playing;
           this.engine.stop();
@@ -697,11 +693,7 @@ export class App {
         ) as FxParamsByType;
         this.engine.fxParams = this.fxParams;
 
-        if (this.renderer) {
-          for (const it of this.renderer.inst) {
-            it.fx.params = this.fxParams[it.name] || defaultFxParams();
-          }
-        }
+        if (this.renderer) this.renderer.setFxParams(this.fxParams);
 
         this.view.cursor.row = 0;
         this.view.cursor.ch = 0;
@@ -806,11 +798,7 @@ export class App {
     this.engine.instruments = instrumentsFromParams(instrumentSpecs(doc));
     this.fxParams = cloneFx(doc.fxParams);
     this.engine.fxParams = this.fxParams;
-    if (this.renderer) {
-      for (const it of this.renderer.inst) {
-        it.fx.params = this.fxParams[it.name] || defaultFxParams();
-      }
-    }
+    if (this.renderer) this.renderer.setFxParams(this.fxParams);
 
     let patterns = doc.patterns.map(patternFromSerialized);
     if (!patterns.length) patterns = [new Pattern(32, 8)];
