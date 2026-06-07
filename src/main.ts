@@ -12,7 +12,7 @@ import { DEMO_SONGS, loadSongInstruments, instrumentsFromParams } from './tracke
 import { serializeSong, deserializeSong, patternFromSerialized, instrumentSpecs } from './tracker/song-io.js';
 import type { SerializedSong } from './tracker/song-io.js';
 import { instGlow, DEFAULT_MASTER } from './constants.js';
-import { REGISTRY, byType } from './instruments/index.js';
+import { byType } from './instruments/index.js';
 import { EMPTY, OFF, Pattern } from './tracker/pattern.js';
 import { fxByKey } from './tracker/fx.js';
 import { targetsForType, TARGETS } from './tracker/automation.js';
@@ -21,7 +21,7 @@ import { renderArranger } from './ui/arranger.js';
 import { invalidateTheme, themeVar } from './ui/theme.js';
 import { initHelp } from './ui/help.js';
 import pkg from '../package.json';
-import type { FxParams, FxParamsByType, ParamTarget } from './types.js';
+import type { ParamTarget } from './types.js';
 
 // Display version from package.json
 const versionSpan = document.getElementById('app-version');
@@ -36,18 +36,6 @@ const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getEleme
 
 const PLAY_ICON = `<svg class="icon" viewBox="0 0 16 16" width="14" height="14"><path d="M4 2.5v11l9-5.5-9-5.5z" fill="currentColor"/></svg>`;
 const PAUSE_ICON = `<svg class="icon" viewBox="0 0 16 16" width="14" height="14"><path d="M3 2.5h3.5v11H3zm6.5 0h3.5v11H9.5z" fill="currentColor"/></svg>`;
-
-// Deep-clone song params so slider mutations never corrupt the DEMO_SONGS defs.
-function cloneFx(src: Record<string, FxParams>): FxParamsByType {
-  const dst: Record<string, FxParams> = {};
-  // Fill EVERY registered engine type, not just the ones a song specifies. A song's
-  // fxParams literal may omit engines it doesn't use; downstream code assigns
-  // fxParams[type] straight onto each renderer instrument's EffectsChain, and an
-  // undefined there makes the worklet's per-block render throw → the transport
-  // silently dies (was: switching to a partial-fx song broke play).
-  for (const d of REGISTRY) dst[d.type] = { ...defaultFxParams(), ...(src[d.type] || {}) };
-  return dst as FxParamsByType;
-}
 
 // Lower keyboard row → semitone offset within the current octave.
 const KEY_SEMI: Record<string, number> = {
@@ -115,7 +103,6 @@ export class App {
   gl: WebGL2RenderingContext;
   engine: Engine;
   currentSongIdx: number;
-  fxParams: FxParamsByType;
   pipeline: AudioPipeline;
   renderer: SynthRenderer | null;
   audioReady: boolean;
@@ -130,7 +117,7 @@ export class App {
   _playbackVolume?: number;
   _fxKnobs: { el: KnobEl; key: string }[] = [];
   _songVolumeKnob?: KnobEl;
-  _fxPanelType?: string;
+  _fxPanelInst?: number;   // instrument-instance index the FX panel is editing
   _digitEntry: { idx: number; col: number; first: number } | null = null;
   _hexEntry: { idx?: number; ch?: number; row?: number; col?: number; first: number } | null = null;
   _clipboard: { rows: number; chans: number; cells: ClipCell[][] } | null = null;
@@ -165,8 +152,8 @@ export class App {
     this.engine.instruments = init.instruments;
     this.engine.loadSong(init.data);
     this.engine.bpm = initialSong.bpm;
-    this.fxParams = cloneFx(initialSong.fxParams);
-    this.engine.fxParams = this.fxParams;   // let the engine apply fx-scope automation
+    // fx is per-instrument now: each instance carries its own .fx (set by
+    // loadSongInstruments). The renderer is told via _syncRendererFx() once it exists.
 
     const bpmInput = $<HTMLInputElement>('bpm');
     if (bpmInput) {
@@ -192,8 +179,8 @@ export class App {
           return;
         }
 
-        // FX chains are per engine type
-        this._buildFxPanel(instr.type);
+        // FX is per instrument INSTANCE — the panel edits the selected one's chain.
+        this._buildFxPanel();
 
         // Theme the UI accent with this instance's colour.
         document.documentElement.style.setProperty('--accent', instr.color);
@@ -201,10 +188,14 @@ export class App {
         document.documentElement.style.setProperty('--cursor-border', instr.color);
         invalidateTheme();
       },
-      onPresetChange: (instName, fxParams) => {
-        if (!byType(instName)?.customControls && fxParams) {
-          Object.assign((this.fxParams as Record<string, FxParams>)[instName], fxParams);
-          this._buildFxPanel(instName);
+      onPresetChange: (instName, fx) => {
+        // A preset carries its own fx chain → apply it to the SELECTED instance
+        // (default-filled so the preset fully defines its sound), then resync.
+        const instr = this.engine.instruments[this.controls.selected];
+        if (instr && !byType(instName)?.customControls && fx) {
+          instr.fx = Object.assign(defaultFxParams(), fx);
+          this._buildFxPanel();
+          this._syncRendererFx();
         }
       }
     });
@@ -231,7 +222,8 @@ export class App {
     const sr = await this.pipeline.init();
     this.engine.sampleRate = sr;
     this._updateLatencyDisplay();   // now reflects the real sample rate
-    this.renderer = new SynthRenderer(this.gl, sr, this.fxParams);
+    this.renderer = new SynthRenderer(this.gl, sr);
+    this._syncRendererFx();   // hand the renderer this song's per-instance fx
     const produce = (blockStart: number) => this.renderer!.renderBlock(this.engine.advance(blockStart), blockStart);
     await this.pipeline.start(produce);
     this.pipeline.setVolume(this._playbackVolume ?? 1.0); // apply the slider's monitor gain
@@ -343,13 +335,22 @@ export class App {
     }
   }
 
-  _buildFxPanel(itName: string) {
-    const params = (this.fxParams as Record<string, FxParams>)[itName];
+  // Hand the renderer the current per-instance fx (array indexed by instance), called
+  // after any instrument-table or fx change. The renderer reads each instance.fx by
+  // reference, so live knob edits are picked up without re-calling this.
+  _syncRendererFx() {
+    this.renderer?.setInstrumentFx(this.engine.instruments.map((i) => i.fx));
+  }
+
+  _buildFxPanel() {
     const host = $('fx');
     host.innerHTML = '';
-    // Knobs the UI loop re-reads from fxParams so fx-scope automation shows live.
     this._fxKnobs = [];
-    this._fxPanelType = itName;
+    const idx = this.controls.selected;
+    this._fxPanelInst = idx;
+    const instr = this.engine.instruments[idx];
+    if (!instr) return;                       // nothing selected (e.g. blank New song)
+    const params = instr.fx as unknown as Record<string, number | boolean>;
     for (const d of FX_DEFS) {
       if (d.category) {
         const cat = document.createElement('h3');
@@ -523,11 +524,8 @@ export class App {
           // Build the instrument table for this song, pruned to the engines it
           // actually uses (also discards any user-added instances).
           const loaded = loadSongInstruments(songDef);
-          this.engine.instruments = loaded.instruments;
-          this.fxParams = cloneFx(songDef.fxParams);
-          this.engine.fxParams = this.fxParams;
-
-          if (this.renderer) this.renderer.setFxParams(this.fxParams);
+          this.engine.instruments = loaded.instruments;   // each instance carries its own .fx
+          this._syncRendererFx();
 
           const wasPlaying = this.engine.playing;
           this.engine.stop();
@@ -687,13 +685,8 @@ export class App {
         this.engine.loadSong(songData);
         this.engine.currentPatternIdx = 0;
 
-        this.engine.instruments = [];
-        this.fxParams = Object.fromEntries(
-          REGISTRY.map((d) => [d.type, defaultFxParams()]),
-        ) as FxParamsByType;
-        this.engine.fxParams = this.fxParams;
-
-        if (this.renderer) this.renderer.setFxParams(this.fxParams);
+        this.engine.instruments = [];   // blank song → no instruments, no fx chains
+        this._syncRendererFx();
 
         this.view.cursor.row = 0;
         this.view.cursor.ch = 0;
@@ -742,8 +735,7 @@ export class App {
       rowsPerBeat: eng.rowsPerBeat,
       master: eng.songMaster,
       pan: Array.from(eng.channelPan),
-      instruments: eng.instruments,
-      fxParams: this.fxParams as Record<string, FxParams>,
+      instruments: eng.instruments,   // each carries its own .fx (serialized per-instance)
       order: eng.song.order,
       patterns: eng.song.patterns,
     });
@@ -795,10 +787,10 @@ export class App {
     const bpmInput = $<HTMLInputElement>('bpm');
     if (bpmInput) bpmInput.value = String(doc.bpm);
 
+    // Serialized instruments carry their own .fx (deserializeSong migrates v1's
+    // per-type fxParams onto them), so instrumentsFromParams rebuilds per-instance fx.
     this.engine.instruments = instrumentsFromParams(instrumentSpecs(doc));
-    this.fxParams = cloneFx(doc.fxParams);
-    this.engine.fxParams = this.fxParams;
-    if (this.renderer) this.renderer.setFxParams(this.fxParams);
+    this._syncRendererFx();
 
     let patterns = doc.patterns.map(patternFromSerialized);
     if (!patterns.length) patterns = [new Pattern(32, 8)];
@@ -1222,9 +1214,10 @@ export class App {
         const live = playing ? this.engine.autoLive.inst.get(`${instIdx}:${k.bank}:${k.i}`) : undefined;
         k.el._extSet?.(live !== undefined ? live : (instr as any)[k.bank!][k.i!]);
       }
-      const fp = this._fxPanelType ? (this.fxParams as Record<string, FxParams>)[this._fxPanelType] : undefined;
-      if (fp && this._fxPanelType === instr.type) {
-        for (const k of this._fxKnobs || []) k.el._extSet?.(fp[k.key] as number);
+      // Reflect the selected instance's fx (so fx-scope automation animates the knobs).
+      if (this._fxPanelInst === instIdx && instr.fx) {
+        const fp = instr.fx as unknown as Record<string, number>;
+        for (const k of this._fxKnobs || []) k.el._extSet?.(fp[k.key]);
       }
     }
     

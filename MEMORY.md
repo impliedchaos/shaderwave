@@ -291,16 +291,25 @@ hand-edited file can't throw). `_applySerializedSong` mirrors the demo-switch lo
 **Why versioned:** automation `paramId`s are the frozen target ids, and the data model keeps
 shifting (banks, new engines), so the header lets old files keep opening.
 
-### Effects: registry + PER-CHANNEL chains (`src/gl/effects.ts`, `synth-renderer.ts`) — `project`
-Effects were decoupled into a data-driven registry like instruments: `FX_EFFECTS` is a list
-of `FxEffectDef` (params + shader(s) + `init(gl)`→`process` closure); `EffectsChain` is a
-generic runner; `defaultFxParams()` and chain order DERIVE from the registry. Add an effect =
-one descriptor (+ `.glsl`). Then chains were moved from per-engine-type to **per channel**
-(`SynthRenderer.chanFx[VOICES]`): each voice routes through its own insert (own reverb/delay
-state) — two instances of one engine no longer share a chain. The per-voice dry signal is
-isolated by reusing `mix.glsl` with the gain array MASKED to a single voice, reading that
-voice's row of its engine's audio tex. Params are still stored per type (`fxParams['type']`);
-each channel sources its params per block from the type it's playing (`renderer.setFxParams`),
-so **no save-format change** and byte-identical for one-voice-per-type songs. Cost: 8 chains
-run every block (~8× fx passes/state) — fine on real GPU. **Follow-up not yet done:** per-channel
-param EDITING (distinct fx per channel), its UI, and the save-format migration that implies.
+### Effects: registry + PER-INSTRUMENT chains (`src/gl/effects.ts`, `synth-renderer.ts`) — `project`
+Effects are a data-driven registry like instruments: `FX_EFFECTS` is a list of `FxEffectDef`
+(params + shader(s) + `init(gl)`→`process` closure); `EffectsChain` is a generic runner;
+`defaultFxParams()` and chain order DERIVE from the registry. Add an effect = one descriptor
+(+ `.glsl`). Chains are **PER INSTRUMENT INSTANCE** (each instance owns its `fx` =
+`InstrumentInstance.fx`, and a chain `SynthRenderer.instFx[k]` keyed by instance index, built
+lazily). Voices route to their instance's chain via `vd.instId[v]`; voices of one instance
+(e.g. a chord spread over channels) sum into ONE chain — so no reverb multiplication — and two
+instances of the same engine can sound completely different. App feeds params via
+`renderer.setInstrumentFx(instruments.map(i=>i.fx))` (called after any table/fx change); the
+renderer reads each `instance.fx` BY REFERENCE so live knob edits need no re-call. fx-scope
+automation + presets write `instance.fx`. Demos author per-engine-TYPE `SongDef.fxParams` for
+convenience; `loadSongInstruments` clones it onto each instance. Saved songs store fx per
+instrument (song format **v2**; v1's per-type `fxParams` is migrated onto instances by type in
+`song-io.migrate`). **History:** this started as a per-CHANNEL (per-voice) implementation
+(v1.1.0) — WRONG: a channel plays whatever instrument a cell says, and one instrument can span
+several channels, so per-channel tripled the reverb on a 3-voice pad chord (drowned the Moog
+bass in "Nonconsensual"). Per-INSTRUMENT is the correct model and fixes that at the source.
+**Still-true gotcha:** distinct INSTANCES of one type each get their own chain, so a song with
+many instances of one engine (e.g. Gooner's 4 separate 303s) has N× the reverb tails of the
+old per-type sum — that's correct per-instance behaviour (no shared bus), but such demos may
+sound wetter; tune per-instance if needed.

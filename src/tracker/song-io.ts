@@ -19,7 +19,7 @@ import { Pattern } from './pattern.js';
 import type { AutoTrack, DX7Op, FxParams, InstrumentInstance, InstrumentSpec } from '../types.js';
 
 export const SONG_FORMAT = 'shaderwave-song';
-export const SONG_FORMAT_VERSION = 1;
+export const SONG_FORMAT_VERSION = 2;   // v2: per-instrument fx (v1 had per-type fxParams)
 
 export interface SerializedPattern {
   rows: number;
@@ -41,6 +41,7 @@ export interface SerializedInstrument {
   p2?: number[];
   p3?: number[];
   ops?: DX7Op[];
+  fx?: FxParams;          // v2+: this instance's own effect chain
 }
 
 export interface SerializedSong {
@@ -53,8 +54,7 @@ export interface SerializedSong {
   rowsPerBeat: number;
   master: number;
   pan: number[];
-  instruments: SerializedInstrument[];
-  fxParams: Record<string, FxParams>;
+  instruments: SerializedInstrument[];   // each carries its own fx (v2+)
   order: number[];
   patterns: SerializedPattern[];
 }
@@ -68,8 +68,7 @@ export interface SongIOInput {
   rowsPerBeat: number;
   master: number;
   pan: number[];
-  instruments: InstrumentInstance[];
-  fxParams: Record<string, FxParams>;
+  instruments: InstrumentInstance[];   // fx lives on each instance
   order: number[];
   patterns: Pattern[];
 }
@@ -95,8 +94,6 @@ function serializePattern(p: Pattern): SerializedPattern {
 }
 
 export function serializeSong(s: SongIOInput): SerializedSong {
-  const fxParams: Record<string, FxParams> = {};
-  for (const k in s.fxParams) fxParams[k] = { ...s.fxParams[k] };
   return {
     format: SONG_FORMAT,
     version: SONG_FORMAT_VERSION,
@@ -116,17 +113,26 @@ export function serializeSong(s: SongIOInput): SerializedSong {
       ...(i.p2 ? { p2: [...i.p2] } : {}),
       ...(i.p3 ? { p3: [...i.p3] } : {}),
       ...(i.ops ? { ops: i.ops.map((o) => ({ ...o })) } : {}),
+      fx: { ...i.fx },                     // v2+: per-instance effect chain
     })),
-    fxParams,
     order: [...s.order],
     patterns: s.patterns.map(serializePattern),
   };
 }
 
-// Upgrade an older document in place to the current schema. No migrations exist
-// yet (only v1). Future shape:
-//   if (d.version < 2) { /* …transform… */ d.version = 2; }
+// Upgrade an older document in place to the current schema.
+//   v1 → v2: fx moved from a top-level per-engine-TYPE map onto each instrument
+//   instance. Assign every v1 instrument its type's fx (so the chains still match),
+//   then drop the obsolete top-level map.
 function migrate(d: SerializedSong): SerializedSong {
+  if (d.version < 2) {
+    const byType = (d as { fxParams?: Record<string, FxParams> }).fxParams || {};
+    for (const inst of d.instruments) {
+      if (!inst.fx && byType[inst.type]) inst.fx = { ...byType[inst.type] };
+    }
+    delete (d as { fxParams?: unknown }).fxParams;
+    d.version = 2;
+  }
   return d;
 }
 

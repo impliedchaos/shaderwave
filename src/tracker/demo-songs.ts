@@ -510,7 +510,7 @@ export const DEMO_SONGS: SongDef[] = [
     author: "AI Slop",
     note: "Slow 78 BPM dark ambient \u2014 warm Moog bass, an ethereal sub and a shimmering 303 pad. Bleak and spacious.",
     bpm: 78,
-    master: DEFAULT_MASTER * 0.48,
+    master: DEFAULT_MASTER * 0.43,
     params: [
       {
         name: "DX7 Lush Pad",
@@ -992,287 +992,6 @@ export const DEMO_SONGS: SongDef[] = [
         // Per-channel pan (0=L, 0.5=C, 1=R): pads spread wide (ch0/3/4/7),
         // pluck & lead nudged off-axis, drums + bass anchored centre.
         pan: [0.38, 0.35, 0.5, 0.62, 0.3, 0.5, 0.55, 0.7],
-      };
-    }
-  },
-  {
-    name: "Lance's Left Nut",
-    author: "AI Slop",
-    note: "Bouncy 125 BPM synthpop \u2014 funky Moog bass and a Britpop-style lead over a synthpop 808 kit.",
-    bpm: 125,
-    master: DEFAULT_MASTER * 0.68,
-    params: [
-      {
-        name: "DX7 Retro Brass",
-        type: "dx7",
-        p0: [1.0, 1.0, 2.5, 0.4],
-        p1: [12, 0.4, 0.6, 0],
-        ops: [
-          { coarse: 1.0, fine: 0, level: 99, detune: 4,  decay: 1.5, mode: 0, sustain: 0.85, release: 1.5 },
-          { coarse: 1.0, fine: 1, level: 90, detune: -4, decay: 1.2, mode: 0, sustain: 0.8,  release: 1.2 },
-          { coarse: 2.0, fine: 0, level: 85, detune: 5,  decay: 1.0, mode: 0, sustain: 0.75, release: 1.0 },
-          { coarse: 2.0, fine: 2, level: 75, detune: -5, decay: 0.8, mode: 0, sustain: 0.7,  release: 0.8 },
-          { coarse: 0.5, fine: 0, level: 95, detune: 2,  decay: 2.0, mode: 0, sustain: 0.9,  release: 1.8 },
-          { coarse: 1.0, fine: 0, level: 65, detune: 0,  decay: 1.5, mode: 0, sustain: 0.6,  release: 1.0 }
-        ]
-      },
-      { name: "303 Bouncy Pluck", type: "303", p0: [800, 0.6, 0.4, 0.3], p1: [1.0, 0.2, 0.3, 0] },
-      { name: "808 Synthpop Kit", type: "808", p0: [0, 0.55, 0.4, 0.5], p1: [0, 0, 0, 0] },
-      { name: "Moog Funky Bass", type: "moog", p0: [300, 0.25, 0.6, 0], p1: [4.0, 0.9, 0.65, 0.9], p2: [2, 1, 1, 0.02], p3: [2, 2, 1, 0] },
-      { name: "Moog Britpop Lead", type: "moog", p0: [1200, 0.4, 0.5, 0.4], p1: [12.0, 0.55, 0.75, 0.5], p2: [1, 2, 2, 0.05], p3: [2, 2, 3, 0] }
-    ],
-    fxParams: {
-      '303': Object.assign(defaultFxParams(), { distOn: false, bitcrushOn: false, chorusMix: 0.45, delayMix: 0.35, delayFeedback: 0.45 }),
-      'dx7': Object.assign(defaultFxParams(), { chorusMix: 0.65, chorusRate: 1.4, delayMix: 0.3, reverbMix: 0.55, reverbDecay: 0.92 }),
-      '808': Object.assign(defaultFxParams(), { distOn: false, bitcrushOn: false }),
-      'moog': Object.assign(defaultFxParams(), { distOn: false, bitcrushOn: false, chorusMix: 0.4, delayMix: 0.3, reverbMix: 0.35 }),
-    },
-    data: () => {
-      const p: Pattern[] = [];
-      for (let i = 0; i < 12; i++) p.push(new Pattern(128, 8));
-
-      const BD = 36, SD = 38, HH = 42, OH = 46, CLAP = 39;
-      const I_pad = 0, I_303 = 1, I_808 = 2, I_bass = 3, I_lead = 4;
-
-      const verseProg = ['Bm', 'G', 'Em', 'F#'];
-      const chorusProg = ['D', 'Bb', 'C', 'A'];
-      const bridgeProg = ['G', 'A', 'G', 'A'];
-
-      const voicings: Record<string, number[]> = {
-        Bm: [59, 62, 66, 71],
-        G: [55, 59, 62, 67],
-        Em: [52, 55, 59, 64],
-        "F#": [54, 58, 61, 66],
-        D: [50, 54, 57, 62, 66],
-        Bb: [58, 62, 65, 70],
-        C: [48, 52, 55, 60, 64],
-        A: [57, 61, 64, 69]
-      };
-
-      const chordIntervals: Record<string, { root: number; third: number; fifth: number; seventh: number }> = {
-        Bm: { root: 47, third: 50, fifth: 54, seventh: 57 },
-        G: { root: 43, third: 47, fifth: 50, seventh: 54 },
-        Em: { root: 40, third: 43, fifth: 47, seventh: 50 },
-        "F#": { root: 42, third: 46, fifth: 49, seventh: 52 },
-        D: { root: 50, third: 54, fifth: 57, seventh: 61 },
-        Bb: { root: 46, third: 50, fifth: 53, seventh: 57 },
-        C: { root: 48, third: 52, fifth: 55, seventh: 58 },
-        A: { root: 45, third: 49, fifth: 52, seventh: 55 }
-      };
-
-      const writePads = (pat: Pattern, progression: string[], style = 'sustained', vol = 0.4) => {
-        progression.forEach((chordName: string, barIdx: number) => {
-          const start = barIdx * 16;
-          const voicing = voicings[chordName];
-          if (style === 'sustained') {
-            voicing.forEach((note: number, ni: number) => {
-              const ch = [0, 3, 4][ni % 3];
-              pat.set(start, ch, note + 12, I_pad, vol);
-              pat.set(start + 15, ch, OFF, I_pad);
-            });
-          } else {
-            voicing.forEach((note: number, ni: number) => {
-              const ch = [0, 3, 4][ni % 3];
-              [0, 3, 6, 8, 11, 14].forEach((step: number) => {
-                pat.set(start + step, ch, note + 12, I_pad, vol);
-                pat.set(start + step + 2, ch, OFF, I_pad);
-              });
-            });
-          }
-        });
-      };
-
-      const writeBass = (pat: Pattern, progression: string[], style = 'driving', vol = 0.7) => {
-        progression.forEach((chordName: string, barIdx: number) => {
-          const start = barIdx * 16;
-          const chords = chordIntervals[chordName];
-          if (style === 'driving') {
-            const verseBassPattern = [
-              [0, chords.root],
-              [2, chords.root],
-              [4, chords.fifth],
-              [6, chords.fifth],
-              [8, chords.root + 12],
-              [10, chords.root + 12],
-              [12, chords.root],
-              [14, chords.seventh]
-            ];
-            verseBassPattern.forEach(([step, note]: number[]) => {
-              pat.set(start + step, 5, note, I_bass, vol);
-              pat.set(start + step + 1, 5, OFF, I_bass);
-            });
-          } else if (style === 'funky') {
-            const funkyBassPattern = [
-              [0, chords.root],
-              [2, chords.root],
-              [3, chords.root + 12],
-              [6, chords.third],
-              [8, chords.root],
-              [10, chords.fifth],
-              [12, chords.root + 12],
-              [14, chords.seventh]
-            ];
-            funkyBassPattern.forEach(([step, note]: number[]) => {
-              pat.set(start + step, 5, note, I_bass, vol);
-              pat.set(start + step + 1, 5, OFF, I_bass);
-            });
-          } else {
-            pat.set(start, 5, chords.root, I_bass, vol);
-            pat.set(start + 15, 5, OFF, I_bass);
-          }
-        });
-      };
-
-      const writeErasureArp = (pat: Pattern, progression: string[], vol = 0.58) => {
-        progression.forEach((chordName: string, barIdx: number) => {
-          const start = barIdx * 16;
-          const voicing = voicings[chordName];
-          for (let step = 0; step < 16; step++) {
-            if (step % 4 !== 3) {
-              const noteIdx = step % voicing.length;
-              const octave = (step % 8 >= 4) ? 12 : 0;
-              const note = voicing[noteIdx] + 12 + octave;
-              pat.set(start + step, 1, note, I_303, vol);
-              pat.set(start + step + 1, 1, OFF, I_303);
-            }
-          }
-        });
-      };
-
-      const writeDrums = (pat: Pattern, style = 'synthpop') => {
-        for (let r = 0; r < 128; r++) {
-          const step = r % 16;
-          if (style === 'basic') {
-            if (step === 0 || step === 8) pat.set(r, 2, BD, I_808, 0.9);
-            if (step === 4 || step === 12) pat.set(r, 2, SD, I_808, 0.75);
-            if (step % 4 === 2) pat.set(r, 2, HH, I_808, 0.4);
-          } else if (style === 'synthpop') {
-            if (step === 0 || step === 8 || step === 10 || step === 13) pat.set(r, 2, BD, I_808, 0.95);
-            if (step === 4 || step === 12) pat.set(r, 2, SD, I_808, 0.85);
-            if (step === 12 && r % 32 >= 16) pat.set(r, 2, CLAP, I_808, 0.8);
-            if (step % 2 === 0) pat.set(r, 2, HH, I_808, step % 4 === 2 ? 0.45 : 0.3);
-            if (step === 6 || step === 14) pat.set(r, 2, OH, I_808, 0.5);
-          } else if (style === 'duran') {
-            if (step % 4 === 0) pat.set(r, 2, BD, I_808, 0.95);
-            if (step === 4 || step === 12) {
-              pat.set(r, 2, SD, I_808, 0.85);
-              pat.set(r, 2, CLAP, I_808, 0.88);
-            }
-            if (step % 2 === 1) pat.set(r, 2, HH, I_808, 0.5);
-            if (step === 2 || step === 6 || step === 10 || step === 14) {
-              pat.set(r, 2, OH, I_808, 0.55);
-            }
-            if (step === 15) pat.set(r, 2, HH, I_808, 0.6);
-          }
-        }
-      };
-
-      const writeLead = (pat: Pattern, melody: number[][], vol = 0.7) => {
-        melody.forEach(([row, note, dur]: number[]) => {
-          if (row < pat.rows) {
-            pat.set(row, 6, note, I_lead, vol);
-            if (dur && row + dur < pat.rows) {
-              pat.set(row + dur, 6, OFF, I_lead);
-            }
-          }
-        });
-      };
-
-      const verseMelody = [
-        [0, 71, 4], [4, 69, 4], [8, 66, 6], [14, 62, 2],
-        [16, 67, 8], [24, 69, 4], [28, 71, 4],
-        [32, 64, 4], [36, 67, 4], [40, 71, 8],
-        [48, 66, 8], [56, 69, 8],
-        [64, 71, 4], [68, 69, 4], [72, 66, 6], [78, 62, 2],
-        [80, 67, 8], [88, 69, 4], [92, 71, 4],
-        [96, 76, 8], [104, 74, 8],
-        [112, 73, 8], [120, 71, 8]
-      ];
-
-      const chorusMelody = [
-        [0, 74, 6], [6, 76, 2], [8, 78, 6], [14, 81, 2],
-        [16, 82, 8], [24, 80, 4], [28, 78, 4],
-        [32, 80, 6], [38, 78, 2], [40, 76, 6], [46, 74, 2],
-        [48, 73, 8], [56, 76, 8],
-        [64, 86, 6], [70, 88, 2], [72, 90, 6], [78, 93, 2],
-        [80, 94, 8], [88, 93, 4], [92, 90, 4],
-        [96, 91, 6], [102, 90, 2], [104, 88, 6], [110, 86, 2],
-        [112, 85, 8], [120, 88, 8]
-      ];
-
-      writePads(p[0], chorusProg, 'sustained', 0.4);
-      writeBass(p[0], chorusProg, 'drone', 0.6);
-      writeDrums(p[0], 'basic');
-      writeLead(p[0], [
-        [0, 62, 12], [16, 66, 12], [32, 69, 16], [64, 62, 12], [80, 66, 12], [96, 67, 24]
-      ], 0.6);
-
-      writePads(p[1], verseProg, 'sustained', 0.38);
-      writeBass(p[1], verseProg, 'driving', 0.65);
-      writeDrums(p[1], 'synthpop');
-      writeLead(p[1], verseMelody, 0.7);
-
-      writePads(p[2], verseProg, 'sustained', 0.4);
-      writeBass(p[2], verseProg, 'driving', 0.68);
-      writeDrums(p[2], 'synthpop');
-      writeErasureArp(p[2], verseProg, 0.48);
-      writeLead(p[2], verseMelody, 0.72);
-
-      writePads(p[3], bridgeProg, 'sustained', 0.45);
-      writeBass(p[3], bridgeProg, 'driving', 0.7);
-      writeDrums(p[3], 'synthpop');
-      writeErasureArp(p[3], bridgeProg, 0.58);
-
-      writePads(p[4], chorusProg, 'stabs', 0.48);
-      writeBass(p[4], chorusProg, 'funky', 0.72);
-      writeDrums(p[4], 'duran');
-      writeErasureArp(p[4], chorusProg, 0.5);
-      writeLead(p[4], chorusMelody, 0.75);
-
-      writePads(p[5], chorusProg, 'stabs', 0.48);
-      writeBass(p[5], chorusProg, 'funky', 0.72);
-      writeDrums(p[5], 'duran');
-      writeErasureArp(p[5], chorusProg, 0.5);
-      writeLead(p[5], chorusMelody.map(([r, n, d]) => [r, n + 12, d]), 0.75);
-
-      writePads(p[6], verseProg, 'sustained', 0.4);
-      writeBass(p[6], verseProg, 'driving', 0.68);
-      writeDrums(p[6], 'synthpop');
-      writeErasureArp(p[6], verseProg, 0.45);
-      writeLead(p[6], verseMelody, 0.7);
-
-      writePads(p[7], bridgeProg, 'sustained', 0.45);
-      writeBass(p[7], bridgeProg, 'driving', 0.7);
-      writeDrums(p[7], 'synthpop');
-      writeErasureArp(p[7], bridgeProg, 0.58);
-
-      writePads(p[8], chorusProg, 'stabs', 0.5);
-      writeBass(p[8], chorusProg, 'funky', 0.74);
-      writeDrums(p[8], 'duran');
-      writeErasureArp(p[8], chorusProg, 0.55);
-      writeLead(p[8], chorusMelody, 0.76);
-
-      writePads(p[9], chorusProg, 'stabs', 0.5);
-      writeBass(p[9], chorusProg, 'funky', 0.74);
-      writeDrums(p[9], 'duran');
-      writeErasureArp(p[9], chorusProg, 0.55);
-      writeLead(p[9], chorusMelody.map(([r, n, d]) => [r, n + 12, d]), 0.78);
-
-      writePads(p[10], bridgeProg, 'sustained', 0.52);
-      writeBass(p[10], bridgeProg, 'drone', 0.75);
-      writeDrums(p[10], 'duran');
-      writeLead(p[10], [
-        [0, 67, 24], [32, 69, 24], [64, 71, 24], [96, 73, 24]
-      ], 0.78);
-
-      writePads(p[11], chorusProg, 'sustained', 0.4);
-      writeBass(p[11], chorusProg, 'drone', 0.55);
-      writeLead(p[11], [[0, 74, 32]], 0.6);
-
-      return {
-        patterns: p,
-        order: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
-        rowsPerBeat: 4
       };
     }
   },
@@ -1822,7 +1541,7 @@ export const DEMO_SONGS: SongDef[] = [
       // Real vinyl-noise bed (was a filtered-noise 303 fake). p0=(hiss,crackle,pop,wear)
       // p1=(cycle,tone,rumble,drift) p2=(rpm,defects,color,fade) — 33⅓ RPM, a little
       // rotation-locked tick via Cycle. Played as a sustained drone on channel 7.
-      { name: "Vinyl Crackle", type: "groove", p0: [0.22, 0.5, 0.5, 0.45], p1: [0.5, 0.4, 0.32, 0.4], p2: [33.333, 6, 0.5, 0.03], p3: [0.35, 1.5, 0, 0] }
+      { name: "Vinyl Crackle", type: "groove", p0: [0.22, 0.12, 0.5, 0.45], p1: [0.5, 0.4, 0.32, 0.4], p2: [33.333, 6, 0.5, 0.03], p3: [0.35, 1.5, 0, 0] }
     ],
     fxParams: {
       '303': Object.assign(defaultFxParams(), { delayMix: 0.35, delayTime: 0.375, reverbMix: 0.4 }),
@@ -2402,7 +2121,7 @@ export const DEMO_SONGS: SongDef[] = [
     author: "AI Slop",
     note: "Minimal 75 BPM lo-fi sketch \u2014 a lone Satie-style 303 lead over a dusty vinyl kit.",
     bpm: 75,
-    master: DEFAULT_MASTER * 0.5,
+    master: DEFAULT_MASTER * 0.4,
     params: [
       { name: "Satie Lead", type: "303", p0: [600, 0.1, 0.4, 0.2], p1: [2.0, 0.3, 0.4, 0] },
       {
@@ -2556,7 +2275,7 @@ export const DEMO_SONGS: SongDef[] = [
     author: "AI Slop",
     note: "137 BPM acid-techno banger \u2014 a driving 303 acid line and sub bass over a hard 808 kit.",
     bpm: 137,
-    master: DEFAULT_MASTER * 0.45,
+    master: DEFAULT_MASTER * 0.35,
     params: [
       { name: "Acid 303", type: "303", p0: [420, 0.85, 0.55, 0.55], p1: [1, 0.4, 0.4, 0] },
       {
@@ -2760,7 +2479,7 @@ export const DEMO_SONGS: SongDef[] = [
     fxParams: {
       '303': Object.assign(defaultFxParams(), { dist: 6.0, tone: 0.55, level: 1.0, master: 0.85, delayMix: 0.25, delayTime: 0.33, delayFeedback: 0.4, reverbMix: 0.18 }),
       'dx7': Object.assign(defaultFxParams(), { chorusMix: 0.3, chorusRate: 0.8, chorusDepth: 2.5, delayMix: 0.3, delayTime: 0.44, delayFeedback: 0.45, reverbMix: 0.4, reverbDecay: 0.9, master: 0.9 }),
-      '808': Object.assign(defaultFxParams(), { dist: 2.0, tone: 0.5, level: 1.0, master: 0.9, reverbMix: 0.12 }),
+      '808': Object.assign(defaultFxParams(), { dist: 2.0, tone: 0.5, level: 1.0, master: 0.9, reverbMix: 0.12, delayMix: 0.13 }),
       'moog': Object.assign(defaultFxParams(), { dist: 2.0, tone: 0.5, level: 1.0, master: 0.85, chorusMix: 0.3, reverbMix: 0.35, reverbDecay: 0.9 })
     },
     data: () => {
@@ -3227,7 +2946,11 @@ export const DEMO_SONGS: SongDef[] = [
       p[8].set(0, 4, 72, I_acidL, 0.5); p[8].set(48, 4, OFF, I_acidL);   // C (left)
       p[8].set(0, 5, 76, I_acidR, 0.5); p[8].set(48, 5, OFF, I_acidR);   // E (right)
       p[8].set(0, 6, 33, I_sub, 0.6);   p[8].set(112, 6, OFF, I_sub);    // A (sub)
-      for (let c = 0; c < 8; c++) pingPong(p[8], c, 1, 0.05, 0.95, c % 2 === 0);
+      // Tail: slow, decorrelated pan drift — each channel sweeps at its OWN (much
+      // slower) rate and phase, so the field wanders apart instead of snapping in sync.
+      const tailRates  = [0.5, 0.8, 0.35, 1.1, 0.65, 0.95, 0.45, 1.25];
+      const tailPhases = [0.0, 1.7, 3.1, 0.9, 2.4, 4.2, 1.1, 5.0];
+      for (let c = 0; c < 8; c++) sweep(p[8], c, tailRates[c], 0.1, 0.9, tailPhases[c]);
       return {
         patterns: p,
         // intro·build·pre·DROP·DROP·var·breakdown·DROP2·DROP2·DROP·var·outro·tail

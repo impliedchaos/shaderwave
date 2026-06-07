@@ -2,7 +2,6 @@
 // engine's instrument table (instances); editing a slider writes straight into
 // the selected instance, which the engine snapshots onto each new note.
 import { INSTRUMENTS, instGlow } from '../constants.js';
-import { defaultFxParams } from '../gl/effects.js';
 import { PRESETS } from './presets.js';
 import { byType } from '../instruments/index.js';
 import type { Preset } from './presets.js';
@@ -157,24 +156,13 @@ export class Controls {
       target.value = '';
       if (!type) return;
 
-      if (this.app && this.app.fxParams) {
-        if (!this.app.fxParams[type]) {
-          this.app.fxParams[type] = defaultFxParams();
-        }
-        const fx = this.app.fxParams[type];
-        fx.enabled = false;
-        fx.distOn = false;
-        fx.chorusOn = false;
-        fx.tremoloOn = false;
-        fx.delayOn = false;
-        fx.reverbOn = false;
-        fx.widthOn = false;
-        fx.bitcrushOn = false;
-
-        if (this.app.renderer) this.app.renderer.setFxParams(this.app.fxParams);
+      const idx = this.engine.addInstrument(type);   // new instance with its own default fx
+      // Start a freshly-added instrument DRY so it doesn't surprise with reverb/delay.
+      const fx = this.engine.instruments[idx]?.fx;
+      if (fx) {
+        fx.enabled = fx.distOn = fx.chorusOn = fx.tremoloOn = fx.delayOn = fx.reverbOn = fx.widthOn = fx.bitcrushOn = false;
       }
-
-      const idx = this.engine.addInstrument(type);
+      this.app?._syncRendererFx();
       this.select(idx);   // select() rebuilds the list
     };
   }

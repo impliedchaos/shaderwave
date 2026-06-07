@@ -36,6 +36,7 @@ function makeVD(instId, freq, blockStart, params) {
   return {
     active: Int32Array.of(1, 0, 0, 0, 0, 0, 0, 0),
     inst: Int32Array.of(instId, 0, 0, 0, 0, 0, 0, 0),
+    instId: Int32Array.of(0, 0, 0, 0, 0, 0, 0, 0),
     freq: Float32Array.of(freq, 0, 0, 0, 0, 0, 0, 0),
     vel: Float32Array.of(1, 0, 0, 0, 0, 0, 0, 0),
     onRel: Float32Array.of(-blockStart, 0, 0, 0, 0, 0, 0, 0), // note-on at frame 0

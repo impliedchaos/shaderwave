@@ -3,6 +3,7 @@
 import { EMPTY } from './pattern.js';
 import { INSTRUMENTS, INSTRUMENT_COLORS } from '../constants.js';
 import { byType } from '../instruments/index.js';
+import { defaultFxParams } from '../gl/effects.js';
 import { DEMO_SONGS, defaultParams, makeParams, makeFx } from './demo-songs.js';
 import type { InstrumentInstance, InstrumentParams, InstrumentSpec, InstrumentType, SongData, SongDef } from '../types.js';
 
@@ -36,7 +37,8 @@ export function instrumentsFromParams(
         type: pr.type,
         color: pr.color || INSTRUMENT_COLORS[i % INSTRUMENT_COLORS.length],
         p0: [...pr.p0],
-        p1: [...pr.p1]
+        p1: [...pr.p1],
+        fx: pr.fx ? { ...pr.fx } : defaultFxParams(),    // per-instance fx (spec carries it, else default)
       };
       if (pr.ops) e.ops = pr.ops.map((o) => ({ ...o }));
       return addExtraBanks(e, pr);
@@ -45,7 +47,7 @@ export function instrumentsFromParams(
   return INSTRUMENTS.map((type, i) => {
     const pr = params[type];
     if (!pr) throw new Error(`Song params missing engine type "${type}"`);
-    const e: InstrumentInstance = { name: byType(type)?.name ?? type.toUpperCase(), type, color: INSTRUMENT_COLORS[i % INSTRUMENT_COLORS.length], p0: [...pr.p0], p1: [...pr.p1] };
+    const e: InstrumentInstance = { name: byType(type)?.name ?? type.toUpperCase(), type, color: INSTRUMENT_COLORS[i % INSTRUMENT_COLORS.length], p0: [...pr.p0], p1: [...pr.p1], fx: defaultFxParams() };
     if (pr.ops) e.ops = pr.ops.map((o) => ({ ...o }));
     return addExtraBanks(e, pr);
   });
@@ -94,6 +96,14 @@ export function loadSongInstruments(songDef: SongDef): { instruments: Instrument
         track.targetInstIdx = m === undefined ? 0 : m;
       }
     }
+  }
+
+  // Per-INSTRUMENT fx: demos author fxParams per engine TYPE for convenience; give
+  // each kept instance its OWN chain params, cloned from its type (so two instances
+  // of one engine start identical but can diverge via the FX panel / presets / save).
+  for (const inst of instruments) {
+    const typeFx = songDef.fxParams?.[inst.type];
+    if (typeFx) inst.fx = { ...typeFx };
   }
   return { instruments, data };
 }

@@ -168,7 +168,7 @@ thunk** transient. Parameters: **Decay**, **Inharm**, **Hardness**, **Hammer**,
 **Partials**, **Detune**, **Damping**, **Release** (a long Release ≈ holding the
 sustain pedal). Presets: Grand, Mellow, Bright, Honky-Tonk, Upright, Bell Piano.
 
-### Guitar — Acoustic / Electric (short name **GTR**)
+### Gigi — Acoustic / Electric Guitar (short name **GIG**)
 
 A plucked-string synth (modal, closed-form) that **morphs between acoustic and electric**
 via the **Body** control. The string is a sum of decaying near-harmonic partials combed by
@@ -176,7 +176,7 @@ via the **Body** control. The string is a sum of decaying near-harmonic partials
 from electric→acoustic it crossfades a magnetic-**pickup comb** + long sustain (electric)
 into a **soundboard body resonance** (a woody ~185 Hz formant) with faster high-partial
 damping (acoustic). A **pick** transient gives the attack, and a built-in **Drive** adds
-electric overdrive/crunch (on top of the per-channel fx). Parameters: **Decay**,
+electric overdrive/crunch (on top of the per-instrument fx chain). Parameters: **Decay**,
 **PluckPos**, **Tone**, **Body**, **Partials**, **Drive**, **Pick**, **Release** (palm-mute
 ↔ let-ring). Presets: Steel Acoustic, Nylon Classical, Clean Electric, Overdrive, Crunch
 Rock, Muted Funk.
@@ -410,9 +410,8 @@ against the reference targets baked into the harness header.
 
 ## New Instrument Ideas
 
-- **SBPro91** — a recreation of the FM synthesis capabilities of the SoundBlaster Pro which used a pair of YM3812 (OPL2) chips.
-
-(✓ *888State*, *Locked Groove*, *Tabla* and *Pipi* shipped — see the instrument sections above. **SBPro91** is the last one on the wishlist.)
+*(Wishlist cleared — 888State, Locked Groove, Tabla, Pipi and the acoustic/electric
+Gigi guitar all shipped. Add new ideas here.)*
 
 ## Song files (save / load)
 

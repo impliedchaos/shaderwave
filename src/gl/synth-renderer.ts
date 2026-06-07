@@ -12,7 +12,7 @@ import type { GLProgram } from './program.js';
 import { EffectsChain } from './effects.js';
 import { BLOCK, VOICES } from '../constants.js';
 import { REGISTRY } from '../instruments/index.js';
-import type { FxParamsByType, InstrumentDef, InstrumentType, VoiceData } from '../types.js';
+import type { FxParams, FxParamsByType, InstrumentDef, InstrumentType, VoiceData } from '../types.js';
 import COMMON from './shaders/common.glsl?raw';
 import MIX_FS from './shaders/mix.glsl?raw';
 
@@ -40,18 +40,18 @@ export class SynthRenderer {
   sampleRate: number;
   subBlock: number;
   inst: InstRender[];
-  chanFx: EffectsChain[];               // one effects chain per channel (== voice)
+  instFx: EffectsChain[];               // lazily-built effects chain per instrument INSTANCE
+  instFxParams: FxParams[];             // per-instance fx params (set by the app)
   chanDryTex: WebGLTexture;
   chanDryFbo: WebGLFramebuffer | null;
-  fxByType: FxParamsByType | null;      // per-engine-type params (source for each channel)
-  _maskGain: Float32Array;              // scratch: gain array masked to a single voice
+  _maskGain: Float32Array;              // scratch: mix gains masked to one instance's voices
   mixProg: GLProgram;
   mixTex: WebGLTexture;
   mixFbo: WebGLFramebuffer | null;
   readBuf: Float32Array;
   outBuf: Float32Array;
 
-  constructor(gl: WebGL2RenderingContext, sampleRate: number, fxParams: FxParamsByType | null) {
+  constructor(gl: WebGL2RenderingContext, sampleRate: number, _fxParams?: FxParamsByType | null) {
     this.gl = gl;
     this.sampleRate = sampleRate;
     // Strip width for the recursive ladder (303/Moog). Smaller = fewer filter
@@ -79,10 +79,10 @@ export class SynthRenderer {
     // sourced per block from the per-engine-type fxParams of whatever instrument
     // that channel is playing (so existing songs keep their fx data; the difference
     // is each channel now gets a SEPARATE chain instead of one shared per type).
-    this.fxByType = fxParams;
-    this.chanFx = Array.from({ length: VOICES }, () =>
-      new EffectsChain(gl, sampleRate, fxParams ? fxParams[this.inst[0].name] : null));
-    // One reusable dry-mix target (BLOCK×1) the per-channel mix writes into.
+    // Per-INSTRUMENT effect chains are built lazily (keyed by instance index) as the
+    // app supplies per-instance fx via setInstrumentFx. One reusable dry-mix target.
+    this.instFx = [];
+    this.instFxParams = [];
     this.chanDryTex = makeTex(gl, BLOCK, 1);
     this.chanDryFbo = gl.createFramebuffer();
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.chanDryFbo);
@@ -135,14 +135,20 @@ export class SynthRenderer {
       gl.clear(gl.COLOR_BUFFER_BIT);
 
     }
-    for (const fx of this.chanFx) fx.reset();
+    for (const fx of this.instFx) if (fx) fx.reset();
     gl.deleteFramebuffer(fbo);
   }
 
-  // Update the per-engine-type fx params each channel sources from (called by the
-  // app when a song's fx is (re)built). Replaces the old per-type chain wiring.
-  setFxParams(fxByType: FxParamsByType | null) {
-    this.fxByType = fxByType;
+  // Per-instance fx params (instruments.map(i => i.fx)), set by the app whenever the
+  // instrument table or its fx changes. Each instance's chain reads instFxParams[k].
+  setInstrumentFx(fx: FxParams[]) {
+    this.instFxParams = fx;
+  }
+
+  // Lazily build the effects chain for instrument-instance k.
+  _instChain(k: number): EffectsChain {
+    if (!this.instFx[k]) this.instFx[k] = new EffectsChain(this.gl, this.sampleRate, this.instFxParams[k] || null);
+    return this.instFx[k];
   }
 
   // vd: voice data with typed arrays (see tracker engine). blockStart: absolute frame.
@@ -224,18 +230,26 @@ export class SynthRenderer {
     gl.clearColor(0, 0, 0, 0);
     gl.clear(gl.COLOR_BUFFER_BIT);
 
-    // 2. Per-CHANNEL mix + FX. Each voice routes through its OWN effects chain
-    //    (its own reverb/delay state), so two channels of the same engine no longer
-    //    share one chain. The mix shader sums per-voice rows with gain+pan, so we
-    //    mask the gain array to a single voice to isolate that channel's dry signal
-    //    from the audio texture of whatever engine it's playing.
-    for (let v = 0; v < VOICES; v++) {
-      // 2a. Isolate channel v's dry signal (its row of its engine's audio texture).
-      const typeId = vd.inst[v];
-      const src = this.inst[typeId] ?? this.inst[0];
-      this._maskGain.fill(0);
-      this._maskGain[v] = vd.gain[v];
+    // 2. Per-INSTRUMENT mix + FX. Each instrument INSTANCE has its own effects chain
+    //    (its own reverb/delay state AND its own params). A chord/instrument spread
+    //    over several channels sums into ONE chain (no reverb multiplication), and two
+    //    instances of the same engine can sound completely different. We isolate an
+    //    instance's dry signal by masking the mix gains to the voices playing it.
+    //    Every table instance is processed each block (even with silent input) so its
+    //    reverb/delay tail rings out after the notes stop.
+    let nInst = this.instFxParams.length;
+    for (let v = 0; v < VOICES; v++) if (vd.active[v]) nInst = Math.max(nInst, vd.instId[v] + 1);
+    if (nInst < 1) nInst = 1;
 
+    for (let k = 0; k < nInst; k++) {
+      this._maskGain.fill(0);
+      let typeId = 0;
+      for (let v = 0; v < VOICES; v++) {
+        if (vd.active[v] && vd.instId[v] === k) { this._maskGain[v] = vd.gain[v]; typeId = vd.inst[v]; }
+      }
+      const src = this.inst[typeId] ?? this.inst[0];
+
+      // 2a. Mix this instance's voices (silent if none active) into the dry buffer.
       gl.useProgram(this.mixProg);
       gl.uniform1fv(this.mixProg.u('uGain[0]'), this._maskGain);
       gl.uniform1fv(this.mixProg.u('uPan[0]'), vd.pan);
@@ -246,10 +260,9 @@ export class SynthRenderer {
       gl.viewport(0, 0, BLOCK, 1);
       drawQuad(gl);
 
-      // 2b. Point this channel's chain at the current instrument-type's params, then
-      //     process — accumulating (additive blend) directly into the shared mix.
-      const fx = this.chanFx[v];
-      const params = this.fxByType ? this.fxByType[src.name] : null;
+      // 2b. This instance's own chain processes + accumulates into the shared mix.
+      const fx = this._instChain(k);
+      const params = this.instFxParams[k];
       if (params) fx.params = params;
       fx.process(this.chanDryTex, this.mixFbo, blockStart, vd.master);
     }

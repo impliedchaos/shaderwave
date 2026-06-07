@@ -8,6 +8,7 @@ import { VOICES, INSTRUMENTS, INSTRUMENT_COLORS, noteToFreq, BLOCK, DEFAULT_MAST
 import { EMPTY, OFF } from './pattern.js';
 import type { Pattern } from './pattern.js';
 import { defaultParams, instrumentsFromParams, DRUM_MAP } from './song.js';
+import { defaultFxParams } from '../gl/effects.js';
 import { targetById, denorm } from './automation.js';
 import { byType } from '../instruments/index.js';
 import type {
@@ -126,6 +127,7 @@ export class Engine {
     this.vd = {
       active: new Int32Array(VOICES),
       inst: new Int32Array(VOICES),
+      instId: new Int32Array(VOICES),
       freq: new Float32Array(VOICES),
       vel: new Float32Array(VOICES),
       onRel: new Float32Array(VOICES),
@@ -332,7 +334,7 @@ export class Engine {
     const used = new Set(this.instruments.map((i) => i.color));
     const color = INSTRUMENT_COLORS.find((c) => !used.has(c))
       || INSTRUMENT_COLORS[this.instruments.length % INSTRUMENT_COLORS.length];
-    const e: InstrumentInstance = { name: byType(type)?.name ?? type.toUpperCase(), type, color, p0: [...dp.p0], p1: [...dp.p1] };
+    const e: InstrumentInstance = { name: byType(type)?.name ?? type.toUpperCase(), type, color, p0: [...dp.p0], p1: [...dp.p1], fx: defaultFxParams() };
     if (dp.ops) e.ops = dp.ops.map((o) => ({ ...o }));
     // defaultParams() already deep-clones the engine's extra banks (p2/p3) when
     // its descriptor declares them, so just carry whatever it produced.
@@ -583,9 +585,9 @@ export class Engine {
               vdArr[v * 4 + t.index!] = value;
             }
           }
-        } else if (t.scope === 'fx' && this.fxParams) {
-          const fp = this.fxParams[instr.type];
-          if (fp) fp[t.key!] = value;
+        } else if (t.scope === 'fx') {
+          // fx-scope automation targets THIS instance's own effect chain.
+          if (instr.fx) instr.fx[t.key!] = value;
         }
       }
     }
@@ -602,12 +604,10 @@ export class Engine {
       this.autoLive.inst.set(`${instIdx}:${target.bank}:${target.index}`, value);
     } else if (target.scope === 'chan') {
       this.panAuto[ch] = value;
-    } else if (this.fxParams) {
+    } else {
+      // fx scope → this instance's own chain.
       const instr = this.instruments[instIdx];
-      if (instr) {
-        const fp = this.fxParams[instr.type];
-        if (fp) fp[target.key!] = value;
-      }
+      if (instr?.fx) instr.fx[target.key!] = value;
     }
   }
 
@@ -621,6 +621,7 @@ export class Engine {
       }
       vd.active[v] = vc.active ? 1 : 0;
       vd.inst[v] = vc.inst;
+      vd.instId[v] = vc.instrument;   // which instrument-instance → which fx chain
       vd.freq[v] = vc.freq;
       vd.vel[v] = vc.vel;
       vd.onRel[v] = vc.onFrame - blockStart;

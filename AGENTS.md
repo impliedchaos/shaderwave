@@ -91,10 +91,14 @@ and `git status` before committing** so they don't get swept into a commit.
   — each effect is an `FxEffectDef` (params + shader(s) + `init(gl)` → process closure);
   `EffectsChain` is a generic runner; `defaultFxParams()`/order derive from it. Adding an
   effect = one descriptor (+ `.glsl`), like the instrument registry. The chains run **per
-  channel** (== voice): each voice routes through its OWN insert with its own reverb/delay
-  state (`SynthRenderer.chanFx[v]`), so two instances of one engine no longer share a chain.
-  Params are still stored per *engine type* (`fxParams['303']`); each channel sources its
-  params per block from the type it's currently playing (`renderer.setFxParams`).
+  INSTRUMENT instance**: each instance owns its `fx` (`InstrumentInstance.fx`) AND a chain
+  (`SynthRenderer.instFx[k]`, lazily built, keyed by instance index). Voices route to their
+  instance's chain via `vd.instId[v]`; voices of one instance (e.g. a chord across channels)
+  sum into ONE chain (no reverb multiplication), and two instances of the same engine can
+  sound completely different. The app feeds per-instance params via `renderer.setInstrumentFx
+  (instruments.map(i => i.fx))`; fx-scope automation and presets write `instance.fx`. Demos
+  author fx per engine TYPE (`SongDef.fxParams`); `loadSongInstruments` clones it onto each
+  instance. Saved songs store fx per instrument (song format v2; v1 per-type is migrated).
 - **Effect column** (per-cell note articulations — slides/vibrato/arp/volume-slide, distinct
   from automation tracks): `Pattern.fxCmd`/`fxVal`, command set in `src/tracker/fx.ts`,
   modulated per render block in `engine._modulateVoices` (`3xx`+note is the no-retrigger

@@ -50,6 +50,7 @@ export interface InstrumentInstance extends InstrumentParams {
   name: string;
   type: InstrumentType;
   color: string;
+  fx: FxParams;          // this instance's OWN effect chain (per-instrument fx)
 }
 
 // An instrument as *authored* in a song's `params` array: the engine type is
@@ -58,6 +59,7 @@ export interface InstrumentSpec extends InstrumentParams {
   type: InstrumentType;
   name?: string;
   color?: string;
+  fx?: FxParams;         // optional authored fx (saved songs carry it; demos author per-type)
 }
 
 // ── Automation ────────────────────────────────────────────────────────────
@@ -129,7 +131,8 @@ export type FxParamsByType = Record<InstrumentType, FxParams>;
 // param banks); see Engine constructor for the layout.
 export interface VoiceData {
   active: Int32Array;
-  inst: Int32Array;
+  inst: Int32Array;       // engine-type id (shader dispatch)
+  instId: Int32Array;     // instrument-INSTANCE index (which table entry / fx chain)
   freq: Float32Array;
   vel: Float32Array;
   onRel: Float32Array;
