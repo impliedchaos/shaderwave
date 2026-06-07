@@ -1,0 +1,398 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Wavewright — Wavetable Prototype</title>
+<style>
+  :root {
+    --bg: #070a10; --panel: #0d1219; --ink: #c9d6e4; --dim: #5d6b7d;
+    --cyan: #36e0d6; --amber: #ffb347; --grid: #16202c; --line: #233143;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: radial-gradient(1200px 700px at 50% -10%, #0c141f, var(--bg));
+    color: var(--ink); font: 14px/1.5 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    padding: 24px; display: flex; flex-direction: column; gap: 18px; align-items: center;
+  }
+  h1 { font-size: 18px; letter-spacing: 0.12em; margin: 0; color: var(--cyan); font-weight: 600; }
+  h1 small { color: var(--dim); letter-spacing: 0.2em; font-weight: 400; }
+  .wrap { width: min(880px, 100%); display: flex; flex-direction: column; gap: 16px; }
+  .row { display: flex; gap: 16px; flex-wrap: wrap; }
+  .card {
+    background: linear-gradient(180deg, var(--panel), #0a0f16);
+    border: 1px solid var(--line); border-radius: 10px; padding: 14px;
+    box-shadow: 0 10px 40px -20px #000 inset, 0 1px 0 #1c2734 inset;
+  }
+  .card h2 { font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--dim); margin: 0 0 10px; }
+  canvas { display: block; width: 100%; border-radius: 6px; background: #060a0f; }
+  .grow { flex: 1 1 360px; }
+  .controls { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
+  label.field { display: flex; flex-direction: column; gap: 6px; font-size: 11px; color: var(--dim); letter-spacing: 0.08em; }
+  input[type=range] { width: 220px; accent-color: var(--cyan); }
+  .val { color: var(--amber); font-variant-numeric: tabular-nums; }
+  button {
+    background: #11202b; color: var(--cyan); border: 1px solid #1f3a44; border-radius: 7px;
+    padding: 9px 16px; font: inherit; cursor: pointer; letter-spacing: 0.06em;
+  }
+  button:hover { background: #163040; }
+  button.on { background: var(--cyan); color: #04140f; border-color: var(--cyan); }
+  .kf { display: flex; justify-content: space-between; font-size: 11px; color: var(--dim); margin-top: 6px; padding: 0 2px; }
+  .kf b { color: var(--ink); font-weight: 600; }
+  .note { font-size: 11px; color: var(--dim); max-width: 880px; }
+  .note b { color: var(--amber); }
+  .stat { color: var(--dim); font-size: 11px; }
+  .stat b { color: var(--cyan); }
+</style>
+</head>
+<body>
+  <h1>WAVEWRIGHT <small>· wavetable bake prototype · <span id="bankTitle">Bank 0 “Classic”</span></small></h1>
+
+  <div class="wrap">
+    <div class="row">
+      <div class="card grow">
+        <h2>Morphed cycle (sampled from the baked table)</h2>
+        <canvas id="scope" width="820" height="240"></canvas>
+        <div class="kf">
+          <span>◀ <b id="kfFirst">Sine</b></span>
+          <span><b id="kfLabel">Sine</b></span>
+          <span><b id="kfLast">Saw</b> ▶</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="card grow">
+        <h2>Wavetable — all <span id="frameCount">64</span> baked frames</h2>
+        <canvas id="waterfall" width="820" height="260"></canvas>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="controls">
+        <label class="field">BANK
+          <select id="bank" style="background:#11202b;color:var(--cyan);border:1px solid #1f3a44;border-radius:6px;padding:7px 10px;font:inherit;"></select>
+        </label>
+        <label class="field">POSITION <span class="val" id="posVal">0.00</span>
+          <input id="pos" type="range" min="0" max="1000" value="0" />
+        </label>
+        <button id="sweep" class="on">⟲ auto-sweep</button>
+        <button id="play">▶ play (110 Hz)</button>
+        <label class="field">PITCH <span class="val" id="freqVal">110 Hz</span>
+          <input id="freq" type="range" min="55" max="440" value="110" />
+        </label>
+        <span class="stat" id="bakeStat"></span>
+      </div>
+    </div>
+
+    <p class="note">
+      The waveform you see (and hear) is read back from a baked CPU table —
+      <b>64 frames × 1024 samples</b>, the single source of truth the real engine will share
+      with the GPU texture, the oscillator scopes, and the LFO shapes. Morph crossfades the
+      four keyframes <b>Triangle → Sine → Square → Saw</b>. Audio here is the naive
+      full-bandwidth table (prototype only) — it'll alias up high until per-octave
+      band-limited mips are added; that's why playback is pitched low.
+    </p>
+  </div>
+
+<script type="module">
+// ─────────────────────────────────────────────────────────────────────────────
+// The keystone: bank definitions + a baker that yields plain Float32Arrays.
+// This is the shape the real shared module (src/instruments/wavetables.ts) will
+// take — four consumers (GPU texture / osc scope / LFO readout / LFO scope) all
+// read these arrays. Here we wire two of them: the scope + a ScriptProcessor osc.
+// ─────────────────────────────────────────────────────────────────────────────
+const TAU = Math.PI * 2;
+
+// ── Wave/spectrum helpers. These run ONLY at bake time (audio + scope read the
+//    baked tables, never these), so they can be as heavy as we like. ──
+const fracp = (p) => p - Math.floor(p);
+function additive(p, amps) { let s = 0; for (let k = 0; k < amps.length; k++) if (amps[k]) s += amps[k] * Math.sin(TAU * (k + 1) * p); return s; }
+const pulse = (p, d) => (fracp(p) < d ? 1 : -1);
+const fm = (p, ratio, idx) => Math.sin(TAU * p + idx * Math.sin(TAU * ratio * p));
+const fold = (p, drive) => Math.sin(Math.PI * drive * Math.sin(TAU * p));
+const crush = (v, levels) => Math.round(v * levels) / levels;
+const sawc = (p) => 1 - 2 * fracp(p);   // phase-aligned (descending) saw — fundamental = +sin
+
+// Resonant peak scanning the harmonic series — a "filter sweep" with no filter.
+function resoWave(p, center, q, nH = 48) {
+  let s = 0;
+  for (let n = 1; n <= nH; n++) {
+    const bump = q * Math.exp(-0.5 * ((n - center) / 2.0) ** 2);
+    s += ((0.22 + bump) / n) * Math.sin(TAU * n * p);
+  }
+  return s;
+}
+// Vowel = glottal (1/n) source shaped by formant resonances. Single-cycle tables
+// only hold integer harmonics, so vowels are approximated at a reference f0.
+const F0_REF = 120;
+function vowelAmps(formants, nH = 48) {
+  const a = new Float32Array(nH);
+  for (let n = 1; n <= nH; n++) {
+    const fHz = n * F0_REF; let g = 0;
+    for (const [Ff, amp, bw] of formants) g += amp * Math.exp(-0.5 * ((fHz - Ff) / bw) ** 2);
+    a[n - 1] = (g + 0.015) / n;
+  }
+  return a;
+}
+const VOW = {
+  U: vowelAmps([[325, 1, 120], [700, 0.6, 150], [2500, 0.1, 350]]),
+  O: vowelAmps([[450, 1, 120], [800, 0.7, 160], [2830, 0.1, 350]]),
+  A: vowelAmps([[700, 1, 130], [1100, 0.8, 160], [2450, 0.2, 350]]),
+  E: vowelAmps([[530, 1, 120], [1840, 0.7, 220], [2480, 0.3, 350]]),
+  I: vowelAmps([[270, 1, 100], [2300, 0.8, 260], [3000, 0.4, 380]]),
+};
+
+// The 8 morph banks. Each keyframe is one cycle: phase p∈[0,1) → sample (baked,
+// then per-frame normalised). Each bank's keyframes are ordered so Position reads
+// as ONE coherent axis. Note "Classic" is phase-aligned (every fundamental = +sin,
+// incl. the DESCENDING saw) so crossfades reinforce instead of cancelling.
+const BANKS = [
+  { name: 'Classic', keyframes: [
+    { name: 'Sine',     fn: (p) => Math.sin(TAU * p) },
+    { name: 'Triangle', fn: (p) => (2 / Math.PI) * Math.asin(Math.sin(TAU * p)) },
+    { name: 'Square',   fn: (p) => (Math.sin(TAU * p) >= 0 ? 1 : -1) },
+    { name: 'Saw',      fn: sawc },
+  ] },
+  { name: 'Harmonic', keyframes: [   // additive bloom: light up successive partials
+    { name: 'Fund',   fn: (p) => additive(p, [1]) },
+    { name: '+oct',   fn: (p) => additive(p, [1, 1]) },
+    { name: '4-comb', fn: (p) => additive(p, [1, 1, 1, 1]) },
+    { name: '8-comb', fn: (p) => additive(p, [1, 1, 1, 1, 1, 1, 1, 1]) },
+  ] },
+  { name: 'PWM', keyframes: [        // pulse width: square → thin/nasal (classic strings)
+    { name: 'Square', fn: (p) => pulse(p, 0.5) },
+    { name: '35%',    fn: (p) => pulse(p, 0.65) },
+    { name: '20%',    fn: (p) => pulse(p, 0.8) },
+    { name: 'Thin',   fn: (p) => pulse(p, 0.93) },
+  ] },
+  { name: 'Formant', keyframes: [    // talking vowel sweep, dark→bright (U·O·A·E·I)
+    { name: 'U', fn: (p) => additive(p, VOW.U) },
+    { name: 'O', fn: (p) => additive(p, VOW.O) },
+    { name: 'A', fn: (p) => additive(p, VOW.A) },
+    { name: 'E', fn: (p) => additive(p, VOW.E) },
+    { name: 'I', fn: (p) => additive(p, VOW.I) },
+  ] },
+  { name: 'Resonant', keyframes: [   // a resonant peak scanning up the harmonics
+    { name: 'Low',  fn: (p) => resoWave(p, 1.5, 8) },
+    { name: 'Mid',  fn: (p) => resoWave(p, 4, 8) },
+    { name: 'Hi',   fn: (p) => resoWave(p, 10, 8) },
+    { name: 'Peak', fn: (p) => resoWave(p, 22, 8) },
+  ] },
+  { name: 'Metallic', keyframes: [   // integer-ratio FM (stays periodic) → clangorous
+    { name: 'r1',    fn: (p) => fm(p, 1, 2) },
+    { name: 'r2',    fn: (p) => fm(p, 2, 4) },
+    { name: 'r3',    fn: (p) => fm(p, 3, 6) },
+    { name: 'clang', fn: (p) => fm(p, 4, 8) },
+  ] },
+  { name: 'Wavefolder', keyframes: [ // sine folded ever harder (West-coast)
+    { name: 'Sine',  fn: (p) => fold(p, 0.4) },
+    { name: 'Fold1', fn: (p) => fold(p, 1.2) },
+    { name: 'Fold2', fn: (p) => fold(p, 2.2) },
+    { name: 'Fold3', fn: (p) => fold(p, 3.5) },
+  ] },
+  { name: 'Digital', keyframes: [    // clean saw degraded: bitcrush + decimate
+    { name: 'Clean', fn: sawc },
+    { name: 'Crush', fn: (p) => crush(sawc(p), 12) },
+    { name: 'Bits',  fn: (p) => crush(sawc(Math.floor(p * 48) / 48), 5) },
+    { name: 'Grit',  fn: (p) => crush(sawc(Math.floor(p * 16) / 16), 3) },
+  ] },
+];
+
+// Continuous morph across the keyframes at position x ∈ [0,1].
+function morphSample(bank, x, p) {
+  const K = bank.keyframes.length;
+  const f = Math.max(0, Math.min(1, x)) * (K - 1);
+  let i = Math.floor(f), t = f - i;
+  if (i >= K - 1) { i = K - 2; t = 1; }
+  const a = bank.keyframes[i].fn(p);
+  const b = bank.keyframes[i + 1].fn(p);
+  return a + (b - a) * t;
+}
+
+// Bake → Float32Array[frames*samples]. Row-major: frame j, sample s. Each frame
+// is normalised to ~unity peak so banks sit at an even level (prototype nicety;
+// the real engine will manage gain per voice instead).
+function bakeBank(bank, frames, samples) {
+  const table = new Float32Array(frames * samples);
+  for (let j = 0; j < frames; j++) {
+    const x = frames > 1 ? j / (frames - 1) : 0;
+    let peak = 1e-6;
+    for (let s = 0; s < samples; s++) {
+      const v = morphSample(bank, x, s / samples);
+      table[j * samples + s] = v;
+      const a = Math.abs(v); if (a > peak) peak = a;
+    }
+    const g = 0.98 / peak;
+    for (let s = 0; s < samples; s++) table[j * samples + s] *= g;
+  }
+  return table;
+}
+
+// Read the baked table at continuous position x ∈ [0,1] and phase p ∈ [0,1),
+// bilinearly (between the two nearest frames, and within the cycle).
+function sampleTable(table, frames, samples, x, p) {
+  const fx = Math.max(0, Math.min(1, x)) * (frames - 1);
+  let j0 = Math.floor(fx); let ft = fx - j0;
+  if (j0 >= frames - 1) { j0 = frames - 2; ft = 1; }
+  if (j0 < 0) { j0 = 0; ft = 0; }
+  const j1 = j0 + 1;
+  const sp = (p - Math.floor(p)) * samples;
+  let s0 = Math.floor(sp); const st = sp - s0;
+  s0 = ((s0 % samples) + samples) % samples;
+  const s1 = (s0 + 1) % samples;
+  const a = table[j0 * samples + s0] * (1 - st) + table[j0 * samples + s1] * st;
+  const b = table[j1 * samples + s0] * (1 - st) + table[j1 * samples + s1] * st;
+  return a * (1 - ft) + b * ft;
+}
+
+const FRAMES = 64, SAMPLES = 1024;
+const t0 = performance.now();
+const BAKED = BANKS.map((b) => bakeBank(b, FRAMES, SAMPLES));
+const bakeMs = (performance.now() - t0).toFixed(1);
+let TABLE = BAKED[0];   // reassigned on bank switch; drawing + audio close over this binding
+
+// ── State ──
+const state = { position: 0, sweep: true, freq: 110, playing: false, sweepDir: 1, bank: 0 };
+
+// ── Drawing ──
+const scope = document.getElementById('scope'), sctx = scope.getContext('2d');
+const wf = document.getElementById('waterfall'), wctx = wf.getContext('2d');
+const css = getComputedStyle(document.documentElement);
+const CYAN = css.getPropertyValue('--cyan').trim();
+const AMBER = css.getPropertyValue('--amber').trim();
+const GRID = css.getPropertyValue('--grid').trim();
+
+function fit(canvas, ctx) {
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const w = canvas.clientWidth, h = parseInt(canvas.getAttribute('height'));
+  if (canvas.width !== w * dpr || canvas.height !== h * dpr) {
+    canvas.width = w * dpr; canvas.height = h * dpr; canvas.style.height = h + 'px';
+  }
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  return { w, h };
+}
+
+function drawScope() {
+  const { w, h } = fit(scope, sctx);
+  sctx.clearRect(0, 0, w, h);
+  // grid
+  sctx.strokeStyle = GRID; sctx.lineWidth = 1;
+  sctx.beginPath();
+  for (let i = 0; i <= 8; i++) { const x = (i / 8) * w; sctx.moveTo(x, 0); sctx.lineTo(x, h); }
+  for (let i = 0; i <= 4; i++) { const y = (i / 4) * h; sctx.moveTo(0, y); sctx.lineTo(w, y); }
+  sctx.stroke();
+  sctx.strokeStyle = '#2a3a4a'; sctx.beginPath(); sctx.moveTo(0, h / 2); sctx.lineTo(w, h / 2); sctx.stroke();
+  // waveform (two cycles for readability)
+  sctx.strokeStyle = CYAN; sctx.lineWidth = 2; sctx.shadowColor = CYAN; sctx.shadowBlur = 8;
+  sctx.beginPath();
+  for (let px = 0; px <= w; px++) {
+    const p = (px / w) * 2; // two cycles
+    const v = sampleTable(TABLE, FRAMES, SAMPLES, state.position, p);
+    const y = h / 2 - v * (h / 2 - 6);
+    px === 0 ? sctx.moveTo(px, y) : sctx.lineTo(px, y);
+  }
+  sctx.stroke(); sctx.shadowBlur = 0;
+}
+
+function drawWaterfall() {
+  const { w, h } = fit(wf, wctx);
+  wctx.clearRect(0, 0, w, h);
+  const padX = 100, padTop = 16, padBottom = 14;
+  const usableH = h - padTop - padBottom;
+  const stepX = padX / FRAMES, stepY = usableH / FRAMES;
+  const plotW = w - padX - 18, amp = stepY * 1.7;
+  const curFrame = Math.round(state.position * (FRAMES - 1));
+  // Draw back→front (frame 0 = front/bottom, last = back/top) so nearer frames
+  // occlude farther ones; baseline marches UP and LEFT as frames recede.
+  for (let j = FRAMES - 1; j >= 0; j--) {
+    const ox = padX - j * stepX;
+    const baseY = (h - padBottom) - j * stepY;
+    const isCur = j === curFrame;
+    wctx.strokeStyle = isCur ? CYAN : `rgba(80,130,160,${0.18 + 0.5 * (1 - j / FRAMES)})`;
+    wctx.lineWidth = isCur ? 2.2 : 1;
+    if (isCur) { wctx.shadowColor = CYAN; wctx.shadowBlur = 10; }
+    wctx.beginPath();
+    for (let s = 0; s <= 120; s++) {
+      const v = TABLE[j * SAMPLES + Math.floor((s / 120) * (SAMPLES - 1))];
+      const x = ox + (s / 120) * plotW;
+      const y = baseY - v * amp;
+      s === 0 ? wctx.moveTo(x, y) : wctx.lineTo(x, y);
+    }
+    wctx.stroke(); wctx.shadowBlur = 0;
+  }
+}
+
+// ── Audio: a tiny ScriptProcessor oscillator reading the live morph position.
+// (Prototype only — the real engine renders this on the GPU. ScriptProcessor is
+// deprecated but self-contained, which is what we want for a throwaway page.)
+let ac = null, node = null, phase = 0;
+function startAudio() {
+  ac = new (window.AudioContext || window.webkitAudioContext)();
+  node = ac.createScriptProcessor(2048, 0, 1);
+  node.onaudioprocess = (e) => {
+    const out = e.outputBuffer.getChannelData(0);
+    const inc = state.freq / ac.sampleRate;
+    for (let i = 0; i < out.length; i++) {
+      out[i] = 0.22 * sampleTable(TABLE, FRAMES, SAMPLES, state.position, phase);
+      phase += inc; if (phase >= 1) phase -= 1;
+    }
+  };
+  node.connect(ac.destination);
+}
+function stopAudio() { if (node) { node.disconnect(); node.onaudioprocess = null; node = null; } if (ac) { ac.close(); ac = null; } }
+
+// ── Controls ──
+const posEl = document.getElementById('pos'), posVal = document.getElementById('posVal');
+const kfLabel = document.getElementById('kfLabel');
+const sweepBtn = document.getElementById('sweep'), playBtn = document.getElementById('play');
+const freqEl = document.getElementById('freq'), freqVal = document.getElementById('freqVal');
+document.getElementById('frameCount').textContent = FRAMES;
+document.getElementById('bakeStat').textContent = `baked ${BANKS.length}×${FRAMES}×${SAMPLES} in ${bakeMs} ms`;
+
+const bankSel = document.getElementById('bank');
+const bankTitle = document.getElementById('bankTitle');
+const kfFirst = document.getElementById('kfFirst');
+const kfLast = document.getElementById('kfLast');
+BANKS.forEach((b, i) => { const o = document.createElement('option'); o.value = i; o.textContent = `${i} · ${b.name}`; bankSel.appendChild(o); });
+
+function kfNames() { return BANKS[state.bank].keyframes.map((k) => k.name); }
+function nearestKf(x) { const n = kfNames(); return n[Math.round(x * (n.length - 1))]; }
+function refreshBankLabels() {
+  const n = kfNames();
+  bankTitle.textContent = `Bank ${state.bank} “${BANKS[state.bank].name}”`;
+  kfFirst.textContent = n[0]; kfLast.textContent = n[n.length - 1];
+}
+bankSel.onchange = () => { state.bank = +bankSel.value; TABLE = BAKED[state.bank]; refreshBankLabels(); };
+refreshBankLabels();
+
+posEl.oninput = () => { state.sweep = false; sweepBtn.classList.remove('on'); state.position = +posEl.value / 1000; };
+sweepBtn.onclick = () => { state.sweep = !state.sweep; sweepBtn.classList.toggle('on', state.sweep); };
+freqEl.oninput = () => { state.freq = +freqEl.value; freqVal.textContent = state.freq + ' Hz'; };
+playBtn.onclick = async () => {
+  state.playing = !state.playing;
+  playBtn.classList.toggle('on', state.playing);
+  playBtn.textContent = state.playing ? '◼ stop' : '▶ play (110 Hz)';
+  if (state.playing) { startAudio(); await ac.resume(); } else { stopAudio(); }
+};
+
+// ── Loop ──
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  if (state.sweep) {
+    state.position += state.sweepDir * dt * 0.18; // ~5.5 s per sweep
+    if (state.position >= 1) { state.position = 1; state.sweepDir = -1; }
+    if (state.position <= 0) { state.position = 0; state.sweepDir = 1; }
+    posEl.value = Math.round(state.position * 1000);
+  }
+  posVal.textContent = state.position.toFixed(2);
+  kfLabel.textContent = nearestKf(state.position);
+  drawScope(); drawWaterfall();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>

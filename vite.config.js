@@ -11,5 +11,13 @@ export default defineConfig({
     // Keep the AudioWorklet as a real emitted file rather than an inlined
     // data: URI — addModule() is happier with a fetchable URL.
     assetsInlineLimit: 0,
+    rollupOptions: {
+      input: {
+        main: 'index.html',
+        // Wavewright wavetable prototype — a self-contained page (no src/ imports),
+        // shipped so it's viewable on the deployed site at /test/wavetable-proto.html.
+        'wavetable-proto': 'test/wavetable-proto.html',
+      },
+    },
   },
 });

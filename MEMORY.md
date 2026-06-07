@@ -42,6 +42,131 @@ to audition songs themselves in their own browser.
 
 ## Current work
 
+### Global LFOs — design agreed, implement SOON (not yet started) — `project`
+Agreed 2026-06-07 with the user: add **two song-wide LFOs** as a continuous modulation
+source (the gap between row-rate automation tracks and the transient effect column).
+**Decisions locked:** target **all scopes incl. fx** (modulating synth + effects at once
+is a priority); **per-LFO sync toggle** (tempo-synced beats ↔ free-run Hz, both
+deterministic); **LFO shapes can borrow Wavewright's wavetable banks** (see the Wavewright
+entry below) — shape enum `0 sine·1 tri·2 square·3 saw·4 S&H·5 ramp·6 WAVETABLE`; in WT
+mode the LFO reads bank `wtBank` at fixed `wtPos` from the **shared CPU wavetable arrays**
+(app-static, so it works even in a song with no WVT instance; band-limiting irrelevant for
+a control signal → just linear interp). User wants this written down to build soon, *not*
+immediately.
+
+**Why it fits cheaply:** evaluate per render block in the engine (CPU scalar math on `vd`
+before upload — **no shader changes**), exactly like the effect-column path; route through
+the existing `ParamTarget`/`denorm`/`targetsForType` machinery. It's **song-wide, a single
+object — NOT per-pattern**, so it does NOT become another `autoTracks`-style parallel
+structure threaded through clone/resize/paste (only song-io + loadSong + new-song touch it).
+
+**The crux / gotcha:** the LFO is a TRANSIENT layer *above* the base+automation center —
+**never write `instr.p0/p1`** (the base-corruption trap, see the automation-tracks entry
+below). Recompute from the center each block (overwrite, no accumulation/drift), in the
+**normalized byte domain** (so a log target like cutoff swings perceptually, not linear Hz).
+- **inst**: center = `autoLive.get(key) ?? instr base`; write `vd.p0/p1[v*4+idx]` for every
+  live voice of `targetInstIdx`.
+- **chan (PAN)**: center = `channelPan[ch]`; write `panAuto[ch]` (already feeds `vd.pan`,
+  already reset on play/stop).
+- **global VOL**: center = `songMaster`; write `vd.master` (already reset on stop).
+- **fx**: the only NEW bookkeeping. `instr.fx[key]` is read by reference and *persists*, so
+  snapshot the base into a `_lfoFxBase` map on first apply, write `base+offset` each block,
+  and **restore + clear in `stop()`** (next to the autoLive/panAuto/vd.master resets at
+  engine.ts ~276-278).
+- **Exclude BPM as a target** so `estimateSongFrames()` and export length stay exact.
+
+**Integration points (verified 2026-06-07):**
+- Data model `src/types.ts`: `LfoConfig { shape, rateBeats, rateHz, sync, depth, bipolar,
+  targetParamId(-1=off), targetInstIdx, wtBank, wtPos }` (`wtBank`/`wtPos` used only when
+  `shape===6` WAVETABLE); add `lfos?: LfoConfig[]` (len 2) to `SongData`. Keep the basic
+  shapes 0–5 as closed-form math (one-liners; no dependency on the wavetable module loading);
+  `wtPos` is a static knob in v1 (cross-LFO modulation of it deferred).
+- Engine `src/tracker/engine.ts`: `lfos` field (ctor + `loadSong` from `song.lfos`, absent →
+  both off). New `_applyLfos(blockStart)` called in `advance()` **right after
+  `_modulateVoices` (line 460)** so the LFO writes last. Phase from song time:
+  `periodSec = sync ? rateBeats*60/bpm : 1/rateHz; phase = fract((blockStart-startFrame)/SR /
+  periodSec)` — deterministic since `startFrame` resets on play; S&H hashes `floor(...)`.
+  Add fx-base restore to `stop()`.
+- Persistence `src/tracker/song-io.ts`: bump `SONG_FORMAT_VERSION` → **3**; add `lfos` to
+  `SerializedSong`/`SongIOInput` + serialize/deserialize; `migrate()`:
+  `if (d.version<3){ d.lfos ??= [off,off]; d.version=3 }`. `main.ts` `data()` (~736) emits
+  `lfos: eng.lfos`.
+- UI: two LFO panels in the Song Editor output-section (`index.html` ~1335, wired in
+  `main.ts` ~482 beside `song-volume-knob`): shape select, sync toggle + rate select/knob,
+  depth knob (`bindKnob`), target button reusing the picker (`_openAutoTrackPicker` /
+  `targetsForType`, main.ts:822/843) + an instance/channel selector for inst/chan scope.
+  Reflect on song load near main.ts:1561.
+- Verify: `npm run build` (gate) + esbuild+node check of the pure phase/shape math; ONE
+  minimal `render-check` for finite output (engine change justifies it — keep it minimal per
+  the laptop note above). Bump `package.json` **minor** (new feature).
+
+### Wavewright (`WVT`) — new wavetable engine, design agreed, build SOON (not started) — `project`
+Agreed 2026-06-07. A wavetable synth, planned as the **pair to the global LFOs above**
+(position morph is the ideal LFO target; LFOs can reuse its banks as shapes). Name
+**"Wavewright"**, short **`WVT`**, type `wvt`, descriptor `src/instruments/iwvt.ts` +
+`src/gl/shaders/synth-wvt.glsl` + one line appended at the END of `REGISTRY` (automation
+ids are frozen — never insert). User approved all recommendations below.
+
+**Identity / why it's not a dupe of e8e:** e8e is additive with a *discrete* wave SELECT.
+Wavewright's identity is the **continuous Position morph axis** through each bank — that's
+the marquee, modulatable param. Sits between e8e (additive) and dx7 (pure 6-op FM).
+
+**Architecture:**
+- **Closed-form but PHASE-ACCUMULATING** — reuse the existing MRT phase-carry (from the
+  phase-drift fix) so pitch slides, detune-LFO, and position morph are all click-free.
+  (Position morph alone is clickless even with absolute `t` — it's a timbral crossfade —
+  but detune/pitch mod would click; phase-accumulating fixes all of it. Infra exists.)
+- **2 morphing oscillators + a simple sub.** Per osc: `bank, position, detune, level`. Sub:
+  `level, octave`. Plus ADSR (4) and **one cross-FM amount** (osc2 phase-modulates osc1 —
+  NOT an operator matrix; that's dx7's job). Budget: 2×4 + sub 2 + ADSR 4 = 14 of the 16
+  universal floats, leaving ~2 for FM amount + one tone control. **3rd osc deferred** —
+  addable later via a bespoke bank through `uploadVoiceUniforms` (like DX7's `uOpA–D`),
+  non-breaking, so 2-vs-3 is not a now-or-never call.
+- **Synthesis = mix + detune** (lush/supersaw default) **+ optional cross-FM** for the
+  digital/metallic edge.
+- **8 morph banks** (each a 1-D Position axis, morph from→to): `0 Classic` (Tri·Sine·Square·
+  Saw — the required classic), `1 Harmonic` (sine→bright), `2 PWM` (narrow→square→narrow;
+  lush PWM strings under an LFO), `3 Formant/Vocal` (A·E·I·O·U), `4 Resonant Sweep` (a
+  resonant peak scanning the harmonics — filter-sweep *without a filter*, important since
+  no engine/FX has a resonant filter), `5 Metallic/Inharmonic` (bell/clangorous), `6
+  Wavefolder` (sine→folded, West-coast), `7 Digital/Grit` (clean→bitcrushed/aliased).
+
+**Band-limiting (the real gotcha — design in from the start):** bake each bank to a GPU
+texture in JS at load with **per-octave band-limited mip levels**; sample via `textureLod`
+choosing the mip by playing frequency. **No synth shader currently binds a `sampler2D`**
+(only the FX chain does) → small new plumbing in `synth-renderer` to upload ONE **shared,
+app-static** wavetable texture (NOT per-instance; instances index into it). Rejected
+alternative: additive-in-shader capped at Nyquist (heavier per-sample, less flexible).
+
+**KEYSTONE — build this first:** a shared module of bank definitions + a JS baker that
+produces **CPU `Float32Array`s = the single source of truth**, consumed by four things:
+(1) the GPU wavetable texture (audio), (2) the per-oscillator UI scope, (3) the LFO
+WAVETABLE-shape readout, (4) the LFO scope. Prototyping just this (baker + a canvas drawing
+bank 0 morphing Tri→Sine→Square→Saw) de-risks the engine, both scopes, AND the LFO shapes
+in one cheap step — do it before committing to the engine.
+
+**UI:** per-oscillator waveform **scope** (plain 2D canvas — table data is already CPU-side,
+just a `lineTo` loop; animate via rAF reading the LFO-modulated Position). Same widget draws
+LFO shapes (unified visual language). Standard descriptor otherwise: `paramDefs` (sidebar),
+`autoTargets` (Position/Detune/Level/FM/ADSR — these become LFO + automation targets),
+`presets`, `help`. App-static banks mean the **LFO can borrow them even with no WVT track**.
+
+**KEEP — keystone prototype exists: `test/wavetable-proto.html`** (not a throwaway; do NOT
+`rm` it despite the usual test/-cleanup rule). Self-contained page: bakes all 8 banks to CPU
+`Float32Array`s (64 frames × 1024 samples, per-frame normalised), draws the morphed cycle +
+a pseudo-3D 64-frame waterfall, and plays a ScriptProcessor osc that reads the live morph
+position so you can hear it sweep. BANK selector + Position slider/auto-sweep + pitch. The
+`bakeBank`/`morphSample`/`sampleTable` + bank/keyframe defs are written in the shape the real
+`src/instruments/wavetables.ts` will take. **Bank 0 "Classic" order locked by ear =
+Sine→Triangle→Square→Saw with a PHASE-ALIGNED descending saw** (`1-2·frac`; the ascending
+ramp's fundamental is anti-phase to sine and cancels in the crossfade — confirmed audibly).
+Bank recipes (Harmonic/PWM/Formant/Resonant/Metallic/Wavefolder/Digital) are first-draft,
+tune later. Note: single-cycle tables hold only integer harmonics, so Metallic uses
+integer-ratio FM (stays periodic) and Formant approximates vowels at a reference f0.
+
+**Status:** keystone prototype DONE + auditioned (user loves it). Next = sketch/tune the
+spicier banks if desired, then build the engine, landing as the planned pair with the LFOs.
+
 ### Automation-tracks review + fix plan (`feature/automation-tracks`) — `project`
 Gemini migrated per-cell `fxCmd`/`fxVal` automation to dedicated per-pattern
 `AutoTrack[]`. Compiles clean, all 16 demo songs load. **Commit `fe40fc8` is only
