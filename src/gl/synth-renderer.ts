@@ -12,6 +12,7 @@ import type { GLProgram } from './program.js';
 import { EffectsChain } from './effects.js';
 import { BLOCK, VOICES } from '../constants.js';
 import { REGISTRY } from '../instruments/index.js';
+import { bakeWavetableAtlas, WT_SAMPLES } from '../instruments/wavetables.js';
 import type { FxParams, FxParamsByType, InstrumentDef, InstrumentType, VoiceData } from '../types.js';
 import COMMON from './shaders/common.glsl?raw';
 import MIX_FS from './shaders/mix.glsl?raw';
@@ -50,6 +51,7 @@ export class SynthRenderer {
   mixFbo: WebGLFramebuffer | null;
   readBuf: Float32Array;
   outBuf: Float32Array;
+  wavetableTex: WebGLTexture;   // shared Wavewright wavetable atlas (bound to unit 3)
 
   constructor(gl: WebGL2RenderingContext, sampleRate: number, _fxParams?: FxParamsByType | null) {
     this.gl = gl;
@@ -100,13 +102,34 @@ export class SynthRenderer {
     this.readBuf = new Float32Array(BLOCK * 4);     // RGBA readback
     this.outBuf = new Float32Array(BLOCK * 2);      // interleaved stereo result
 
+    // Wavewright wavetable atlas: one R32F texture (width = samples, height =
+    // mips × banks × frames) holding every band-limited frame, sampled by the wvt
+    // shader via texelFetch. Built once (the bake is the ~1 s mip synthesis),
+    // bound permanently to texture unit 3 (the synth pass only ever rebinds units
+    // 0–2), and shared by every wvt instance.
+    this.wavetableTex = gl.createTexture()!;
+    {
+      const atlas = bakeWavetableAtlas();
+      const rows = atlas.mips * atlas.rowsPerMip;
+      gl.activeTexture(gl.TEXTURE3);
+      gl.bindTexture(gl.TEXTURE_2D, this.wavetableTex);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.R32F, WT_SAMPLES, rows, 0, gl.RED, gl.FLOAT, atlas.data);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      gl.activeTexture(gl.TEXTURE0);
+    }
+
     // Tell each synth program its uPrevState sampler lives on texture unit 0,
-    // and uPrevPhase/uPrevPhase2 on units 1 and 2.
+    // and uPrevPhase/uPrevPhase2 on units 1 and 2; uWavetable on unit 3 (only the
+    // wvt shader references it — for the rest u() is null → a no-op).
     for (const it of this.inst) {
       gl.useProgram(it.prog);
       gl.uniform1i(it.prog.u('uPrevState'), 0);
       gl.uniform1i(it.prog.u('uPrevPhase'), 1);
       gl.uniform1i(it.prog.u('uPrevPhase2'), 2);
+      gl.uniform1i(it.prog.u('uWavetable'), 3);
     }
     
     // Tell mixProg its uInstTex sampler lives on texture unit 0.

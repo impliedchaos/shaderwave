@@ -125,6 +125,23 @@ export interface FxParams {
 // fxParams as stored per engine type (the table the renderer's chains read).
 export type FxParamsByType = Record<InstrumentType, FxParams>;
 
+// ── Global LFOs ───────────────────────────────────────────────────────────
+// A song-wide low-frequency modulator. Maps a waveform onto any automation
+// ParamTarget as a transient offset layered above the param's center (never the
+// instrument base). See src/tracker/lfo.ts for evaluation + defaults.
+export interface LfoConfig {
+  shape: number;                 // 0 sine 1 tri 2 square 3 saw 4 S&H 5 ramp 6 wavetable
+  sync: boolean;                 // true → tempo-synced (rateBeats); false → free Hz (rateHz)
+  rateBeats: number;             // cycle length in beats when synced
+  rateHz: number;                // cycle frequency in Hz when free-running
+  depth: number;                 // 0..1 swing in normalized units
+  bipolar: boolean;              // ±depth around center vs 0..+depth
+  targetParamId: number;         // -1 = off; else an automation TARGETS id
+  targetInstIdx: number | null;  // instrument instance (inst) or channel (chan); null otherwise
+  wtBank: number;                // shape 6: which Wavewright wavetable bank
+  wtPos: number;                 // shape 6: morph position 0..1
+}
+
 // ── Voice data ──────────────────────────────────────────────────────────────
 // The GPU-facing per-voice buffers the engine fills each block and the renderer
 // uploads as uniforms. All arrays are length VOICES (or VOICES*4 for the vec4
@@ -171,6 +188,7 @@ export interface SongData {
   bpm?: number;
   pan?: number[];
   master?: number;
+  lfos?: LfoConfig[];   // song-wide global LFOs (absent → both off)
 }
 
 // A demo-song definition. `params` may be a keyed record (one entry per engine

@@ -9,10 +9,11 @@ import { EMPTY, OFF } from './pattern.js';
 import type { Pattern } from './pattern.js';
 import { defaultParams, instrumentsFromParams, DRUM_MAP } from './song.js';
 import { defaultFxParams } from '../gl/effects.js';
-import { targetById, denorm } from './automation.js';
+import { targetById, denorm, normUnit, denormUnit } from './automation.js';
+import { defaultLfos, lfoOffset, lfoPeriodSec } from './lfo.js';
 import { byType } from '../instruments/index.js';
 import type {
-  FxParamsByType, InstrumentInstance, InstrumentType, SongData, VoiceData,
+  FxParamsByType, InstrumentInstance, InstrumentType, LfoConfig, SongData, VoiceData,
 } from '../types.js';
 
 export const HELD = 1e9; // offRel sentinel: note is still held
@@ -67,6 +68,12 @@ export class Engine {
   channelPan: Float32Array;
   panAuto: Float32Array;
   songMaster = DEFAULT_MASTER;   // the loaded song's base global volume; VOL automation overrides vd.master transiently
+  lfos: LfoConfig[];             // two song-wide global LFOs (modulation sources)
+  // Snapshot of fx-param values an LFO is transiently overriding, keyed
+  // `${instIdx}:${key}`. fx params are read by reference + persist, so the LFO
+  // must restore them on play/stop (inst/chan/global overrides self-heal via
+  // autoLive/panAuto/vd.master, but fx does not).
+  _lfoFxBase: Map<string, number>;
   vd: VoiceData;
   _preview: number;
 
@@ -123,6 +130,11 @@ export class Engine {
     this.channelPan = new Float32Array(VOICES).fill(0.5);
     this.panAuto = new Float32Array(VOICES).fill(NaN);
 
+    // Global LFOs (song-wide). Default to two inert LFOs; loadSong replaces them
+    // from the song. _lfoFxBase tracks fx params an LFO is transiently driving.
+    this.lfos = defaultLfos();
+    this._lfoFxBase = new Map();
+
     // GPU-facing buffers, updated in place every block.
     this.vd = {
       active: new Int32Array(VOICES),
@@ -174,6 +186,23 @@ export class Engine {
     }
     // Clear any channel mutes — they belong to the previous song, not this one.
     this.muted.fill(false);
+    // Global LFOs saved with the song; absent → both off. Restore any fx the old
+    // song's LFOs were driving before swapping (so we don't leak overrides).
+    this._restoreLfoFx();
+    this.lfos = (song.lfos && song.lfos.length) ? song.lfos : defaultLfos();
+  }
+
+  // Restore every fx param an LFO transiently overrode back to its snapshot base,
+  // then clear the snapshots. Called on play()/stop()/loadSong so fx-scope LFO
+  // overrides never persist past a run (inst/chan/global self-heal elsewhere).
+  _restoreLfoFx() {
+    if (!this._lfoFxBase.size) return;
+    for (const [key, base] of this._lfoFxBase) {
+      const [idxStr, fxKey] = key.split(/:(.+)/);
+      const instr = this.instruments[+idxStr];
+      if (instr?.fx) instr.fx[fxKey] = base;
+    }
+    this._lfoFxBase.clear();
   }
 
   // Set the song's base global volume from the UI (the Song Editor's Volume knob).
@@ -250,6 +279,7 @@ export class Engine {
     this.autoLive.inst.clear();
     this.panAuto.fill(NaN);
     this.vd.master = this.songMaster;   // drop any VOL automation override
+    this._restoreLfoFx();               // fresh run → drop any prior fx-LFO override
   }
   // Pause: hold the current song position (so resume() continues from here) and
   // silence the voices. The transport clock keeps running while paused; the
@@ -276,6 +306,7 @@ export class Engine {
     this.panAuto.fill(NaN);     // drop pan automation overrides; slider base returns
     this.autoLive.inst.clear(); // drop inst automation overrides; base params return
     this.vd.master = this.songMaster; // drop VOL automation override; song base returns
+    this._restoreLfoFx();       // restore any fx params the LFOs were driving
   }
 
   // --- note triggering ----------------------------------------------------
@@ -458,6 +489,7 @@ export class Engine {
 
     this._refreshVoiceData(blockStart);
     this._modulateVoices(blockStart);
+    this._applyLfos(blockStart);
 
     // Refresh each active DX7 voice's operator config from ITS instrument, packed
     // into the per-voice vec4 arrays. Refreshing every block (not just at trigger)
@@ -611,6 +643,19 @@ export class Engine {
     }
   }
 
+  // Push a base-param edit (from a sidebar knob) into any currently-sounding voices
+  // of an instance, so the change is heard immediately rather than only at the next
+  // note-on. The caller updates the pristine base (instr.pN); this writes the
+  // GPU-facing per-voice bank, mirroring how inst-automation/LFO update live voices.
+  // Any LFO/automation targeting the same param will keep modulating around the new
+  // base on subsequent blocks.
+  updateInstrumentParam(instrIdx: number, bank: 'p0' | 'p1' | 'p2' | 'p3', index: number, value: number) {
+    const arr = bank === 'p1' ? this.vd.p1 : bank === 'p2' ? this.vd.p2 : bank === 'p3' ? this.vd.p3 : this.vd.p0;
+    for (let v = 0; v < VOICES; v++) {
+      if (this.voices[v].active && this.voices[v].instrument === instrIdx) arr[v * 4 + index] = value;
+    }
+  }
+
   _refreshVoiceData(blockStart: number) {
     const vd = this.vd;
     for (let v = 0; v < VOICES; v++) {
@@ -671,6 +716,56 @@ export class Engine {
       }
       vd.freq[v] = vc.freq * pitchMult;
       vd.vel[v] = vc.vel;
+    }
+  }
+
+  // Apply the global LFOs to their targets, once per block, AFTER automation and
+  // effect-column modulation so the LFO is the last writer. Each LFO adds a
+  // transient offset (in normalized space) around the target's CENTER, recomputed
+  // every block by reading a STABLE store and writing a DIFFERENT one — so the LFO
+  // never re-reads its own output (no drift) and never touches the instrument base.
+  // Phase derives from song time → deterministic for export. When both automation
+  // and an LFO target the same param, inst-scope stacks (center = autoLive); the
+  // other scopes modulate around the base and the LFO wins.
+  _applyLfos(blockStart: number) {
+    if (!this.playing) return;
+    const start = this.startFrame ?? blockStart;
+    const songSec = (blockStart - start) / this.sampleRate;
+    for (const cfg of this.lfos) {
+      if (!cfg || cfg.targetParamId < 0 || cfg.depth <= 0) continue;
+      const t = targetById(cfg.targetParamId);
+      if (!t) continue;
+      const cyclePos = songSec / lfoPeriodSec(cfg, this.bpm);
+      const cycle = Math.floor(cyclePos);
+      const offset = lfoOffset(cfg, cyclePos - cycle, cycle);
+
+      if (t.scope === 'global') {
+        if (t.code === 'BPM') continue;            // excluded → keeps export length exact
+        if (t.code === 'VOL') this.vd.master = denormUnit(t, normUnit(t, this.songMaster) + offset);
+      } else if (t.scope === 'chan' && cfg.targetInstIdx !== null) {
+        const ch = cfg.targetInstIdx;              // center = channel base (not the pan-auto override)
+        this.panAuto[ch] = denormUnit(t, normUnit(t, this.channelPan[ch]) + offset);
+      } else if (cfg.targetInstIdx !== null) {
+        const instr = this.instruments[cfg.targetInstIdx];
+        if (!instr) continue;
+        if (t.scope === 'inst' && t.bank && t.index != null) {
+          const key = `${cfg.targetInstIdx}:${t.bank}:${t.index}`;
+          const auto = this.autoLive.inst.get(key);   // stacks with automation if present
+          const base = auto !== undefined ? auto : (t.bank === 'p1' ? instr.p1 : instr.p0)[t.index];
+          const value = denormUnit(t, normUnit(t, base) + offset);
+          const vdArr = t.bank === 'p1' ? this.vd.p1 : this.vd.p0;
+          for (let v = 0; v < VOICES; v++) {
+            if (this.voices[v].active && this.voices[v].instrument === cfg.targetInstIdx) {
+              vdArr[v * 4 + t.index] = value;
+            }
+          }
+        } else if (t.scope === 'fx' && t.key && instr.fx) {
+          const sk = `${cfg.targetInstIdx}:${t.key}`;
+          let base = this._lfoFxBase.get(sk);          // snapshot once; restored on play/stop
+          if (base === undefined) { base = instr.fx[t.key] as number; this._lfoFxBase.set(sk, base); }
+          instr.fx[t.key] = denormUnit(t, normUnit(t, base) + offset);
+        }
+      }
     }
   }
 }

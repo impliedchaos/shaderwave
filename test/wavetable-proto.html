@@ -143,8 +143,14 @@ const VOW = {
   E: vowelAmps([[530, 1, 120], [1840, 0.7, 220], [2480, 0.3, 350]]),
   I: vowelAmps([[270, 1, 100], [2300, 0.8, 260], [3000, 0.4, 380]]),
 };
+// Helpers for banks 9–16 (mirror src/instruments/wavetables.ts).
+const sat = (p, drive) => Math.tanh(drive * Math.sin(TAU * p)) / (Math.tanh(drive) || 1);
+function combWave(p, depth, nH = 32) { let s = 0; for (let n = 1; n <= nH; n++) s += ((1 / n) * Math.abs(Math.cos(Math.PI * n * depth))) * Math.sin(TAU * n * p); return s; }
+function skew(p, s) { const x = fracp(p), sc = Math.min(Math.max(s, 0.02), 0.98); return x < sc ? (-1 + 2 * x / sc) : (1 - 2 * (x - sc) / (1 - sc)); }
+const _nph = (n) => { const x = Math.sin(n * 78.233) * 43758.5453; return (x - Math.floor(x)) * TAU; };
+function noiseWave(p, nH = 16) { let s = 0; for (let n = 1; n <= nH; n++) s += (1 / Math.sqrt(n)) * Math.sin(TAU * n * p + _nph(n)); return s; }
 
-// The 8 morph banks. Each keyframe is one cycle: phase p∈[0,1) → sample (baked,
+// The 16 morph banks. Each keyframe is one cycle: phase p∈[0,1) → sample (baked,
 // then per-frame normalised). Each bank's keyframes are ordered so Position reads
 // as ONE coherent axis. Note "Classic" is phase-aligned (every fundamental = +sin,
 // incl. the DESCENDING saw) so crossfades reinforce instead of cancelling.
@@ -197,6 +203,52 @@ const BANKS = [
     { name: 'Crush', fn: (p) => crush(sawc(p), 12) },
     { name: 'Bits',  fn: (p) => crush(sawc(Math.floor(p * 48) / 48), 5) },
     { name: 'Grit',  fn: (p) => crush(sawc(Math.floor(p * 16) / 16), 3) },
+  ] },
+  { name: 'Organ', keyframes: [      // additive drawbars filling in
+    { name: '8ft',    fn: (p) => additive(p, [1]) },
+    { name: '+4ft',   fn: (p) => additive(p, [1, 0.8]) },
+    { name: 'full',   fn: (p) => additive(p, [1, 0.8, 0.6, 0.7, 0, 0.5, 0, 0.4]) },
+    { name: 'bright', fn: (p) => additive(p, [1, 0.9, 0.7, 0.8, 0.5, 0.6, 0.4, 0.6]) },
+  ] },
+  { name: 'Sync', keyframes: [       // oscillator-sync sweep (fractional ratio → hard edge)
+    { name: 'x1',   fn: (p) => Math.sin(TAU * p) },
+    { name: 'x2.5', fn: (p) => Math.sin(TAU * fracp(p) * 2.5) },
+    { name: 'x4',   fn: (p) => Math.sin(TAU * fracp(p) * 4.0) },
+    { name: 'x5.5', fn: (p) => Math.sin(TAU * fracp(p) * 5.5) },
+  ] },
+  { name: 'Saturate', keyframes: [   // sine driven into tanh (warm → square)
+    { name: 'clean',  fn: (p) => sat(p, 1) },
+    { name: 'warm',   fn: (p) => sat(p, 3) },
+    { name: 'hot',    fn: (p) => sat(p, 6) },
+    { name: 'square', fn: (p) => sat(p, 12) },
+  ] },
+  { name: 'Comb', keyframes: [       // comb/phaser scallops sweeping the spectrum
+    { name: 'open', fn: (p) => combWave(p, 0.0) },
+    { name: 'c1',   fn: (p) => combWave(p, 0.3) },
+    { name: 'c2',   fn: (p) => combWave(p, 0.6) },
+    { name: 'c3',   fn: (p) => combWave(p, 0.9) },
+  ] },
+  { name: 'Skew', keyframes: [       // asymmetric triangle: ramp-up → tri → ramp-down
+    { name: 'rampU', fn: (p) => skew(p, 0.05) },
+    { name: 'tri',   fn: (p) => skew(p, 0.5) },
+    { name: 'rampD', fn: (p) => skew(p, 0.95) },
+  ] },
+  { name: 'Noise', keyframes: [      // tone → fixed pseudo-random cycle (breathy/airy)
+    { name: 'tone',   fn: (p) => Math.sin(TAU * p) },
+    { name: 'airy',   fn: (p) => 0.5 * Math.sin(TAU * p) + 0.5 * noiseWave(p) },
+    { name: 'breath', fn: (p) => noiseWave(p) },
+  ] },
+  { name: 'Power', keyframes: [      // hollow stacked octave/fifth partials
+    { name: 'root',  fn: (p) => additive(p, [1]) },
+    { name: '+5th',  fn: (p) => additive(p, [1, 0, 0.7]) },
+    { name: 'oct5',  fn: (p) => additive(p, [1, 0.6, 0.7]) },
+    { name: 'stack', fn: (p) => additive(p, [1, 0.6, 0.7, 0.4, 0, 0.4]) },
+  ] },
+  { name: 'Glass', keyframes: [      // high-ratio low-index FM (sparse bright bell)
+    { name: 'pure',    fn: (p) => fm(p, 7, 0.4) },
+    { name: 'shimmer', fn: (p) => fm(p, 7, 0.9) },
+    { name: 'bright',  fn: (p) => fm(p, 7, 1.5) },
+    { name: 'bell',    fn: (p) => fm(p, 7, 2.2) },
   ] },
 ];
 

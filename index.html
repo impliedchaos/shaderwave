@@ -1049,6 +1049,25 @@
     flex: 0 0 auto;
     align-items: center;
   }
+
+  /* Global-LFO control panels. */
+  .song-editor-section.lfo-section { flex: 0 0 auto; overflow-y: auto; }
+  #lfo-panels { display: flex; flex-direction: column; gap: 12px; }
+  .lfo-panel {
+    border: 1px solid var(--panel-border); border-radius: 6px; padding: 10px;
+    background: rgba(8, 12, 22, 0.5); display: flex; flex-direction: column; gap: 6px;
+  }
+  .lfo-head { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent, #36e0d6); }
+  .lfo-row { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #b8c4d4; }
+  .lfo-row select, .lfo-row input[type=range] { flex: 1; min-width: 0; }
+  .lfo-row select { background: #11202b; color: #cfe; border: 1px solid var(--panel-border); border-radius: 5px; padding: 4px 6px; font: inherit; }
+  .lfo-val { font-variant-numeric: tabular-nums; color: #ffb347; min-width: 44px; text-align: right; }
+
+  /* Wavewright per-oscillator scopes (sidebar, under the knobs). */
+  .wt-scopes { display: flex; flex-direction: column; gap: 8px; padding: 8px 10px 4px; }
+  .wt-scope { display: flex; flex-direction: column; gap: 3px; }
+  .wt-scope-label { font-size: 10px; letter-spacing: 0.14em; color: var(--text-dim, #7d8aa0); }
+  .wt-scope canvas { width: 100%; height: 56px; background: #060a0f; border: 1px solid var(--panel-border); border-radius: 5px; }
   
   .song-editor-section h3 {
     margin: 0 0 15px 0;
@@ -1341,6 +1360,10 @@
                 <span class="knob-value" id="song-volume-val"></span>
               </div>
             </div>
+          </div>
+          <div class="song-editor-section lfo-section">
+            <h3>Global LFOs</h3>
+            <div id="lfo-panels"></div>
           </div>
         </div>
       </div>

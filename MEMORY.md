@@ -42,7 +42,23 @@ to audition songs themselves in their own browser.
 
 ## Current work
 
-### Global LFOs — design agreed, implement SOON (not yet started) — `project`
+### Global LFOs — IMPLEMENTED (first cut, 1.6.0, uncommitted) — `project`
+Built 2026-06-07 (autonomous). Two song-wide LFOs, all scopes incl. fx, sync/Hz toggle,
+wavetable shapes. **Verified headlessly** (esbuild+node): inst-LFO oscillates the voice
+param, **instrument base never mutated**, fx param moves + restores on stop, output finite,
+and bit-**deterministic** across runs (export-safe). `npm run build` green.
+- **Files:** `src/tracker/lfo.ts` (shapes/eval/defaults), `LfoConfig` + `SongData.lfos` in
+  `types.ts`, `normUnit`/`denormUnit` in `automation.ts`, engine `lfos`+`_lfoFxBase`+
+  `_applyLfos`+`_restoreLfoFx` (called in advance after `_modulateVoices`; reset in
+  play/stop/loadSong), song-io **v3** + migrate, `_buildLfoUI()` in main.ts (Song Editor
+  "Global LFOs" panels), markup+CSS in index.html.
+- **Key semantic:** LFO reads a STABLE store, writes a DIFFERENT one → no drift. inst-scope
+  STACKS with automation (center = autoLive ?? base); chan/global/fx modulate around base/
+  snapshot and the LFO wins if both target the same param. BPM excluded as a target.
+- **Left to do / polish:** UI is functional native controls (not styled knobs); pause/resume
+  restarts LFO phase; no live LFO scope viz. Needs real-ears audition.
+
+### (superseded) Global LFOs — original design plan — `project`
 Agreed 2026-06-07 with the user: add **two song-wide LFOs** as a continuous modulation
 source (the gap between row-rate automation tracks and the transient effect column).
 **Decisions locked:** target **all scopes incl. fx** (modulating synth + effects at once
@@ -164,8 +180,50 @@ Bank recipes (Harmonic/PWM/Formant/Resonant/Metallic/Wavefolder/Digital) are fir
 tune later. Note: single-cycle tables hold only integer harmonics, so Metallic uses
 integer-ratio FM (stays periodic) and Formant approximates vowels at a reference f0.
 
-**Status:** keystone prototype DONE + auditioned (user loves it). Next = sketch/tune the
-spicier banks if desired, then build the engine, landing as the planned pair with the LFOs.
+**Status:** ENGINE IMPLEMENTED — first cut (1.6.0, uncommitted, 2026-06-07 autonomous).
+- **Shared module `src/instruments/wavetables.ts`** built from the prototype (8 banks, baker,
+  `sampleTable`, `wtShape`, `WT_TABLES` baked once). Consumed by the LFO (`wtShape`) and the
+  renderer (texture). **Compiles green.**
+- **Engine `iwvt.ts` + `synth-wvt.glsl`** appended to REGISTRY (id last). **CLOSED-FORM first
+  cut** (NOT yet phase-accumulating): 2 morph oscs (Pos1/Pos2 in p1 → automatable + LFO
+  targets) + detune + cross-FM (osc2→osc1 phase) + sine sub. Banks/levels in p2/p3.
+- **Renderer:** one R32F wavetable atlas texture (width=samples, height=banks×frames) built
+  once, bound permanently to **texture unit 3** (synth pass only rebinds 0–2), `uWavetable`=3
+  per program. **First synth shader to bind a sampler2D.** Sampled via `texelFetch` + manual
+  bilinear (avoids bank-row bleed; no linear-float ext needed).
+- **VERIFIED:** `npm run build` + headless `glsl-check` + `render-check` — all ALL_OK.
+- **Gaps 1–3 DONE (1.7.0, 2026-06-07 autonomous):**
+  1. **Band-limiting** — `bakeWavetableAtlas()` in wavetables.ts builds WT_MIPS=8 harmonic-
+     limited copies per frame (DFT each bank's KEYFRAMES, interp coeffs per frame — exact +
+     cheap; LUT trig; ~1 s one-time bake on first audio). Atlas texture height = mips×banks×
+     frames. Shader `wtSample(bank,pos,phase,freq)` picks/blends the mip whose top harmonic
+     stays < Nyquist (`log2(2·MAXH·f/SR)`). Verified by data check: HF energy halves per mip
+     (0.71→0.006), monotonic.
+  2. **Phase-accumulation** — wvt is now the first CLOSED-FORM engine to use the MRT phase
+     carry. Carry layout `outPhase=(ph1,ph2,phSub,-)` (fract'd); a continuing note (onRel<0)
+     accumulates from the carried value, a note-on (onRel≥0) measures from note-on; branches
+     agree at the seam. FM offset applied at read only (carrier phase stored clean). Click-free
+     detune/pitch — *needs ears to confirm the sweep, algebra verified*.
+  3. **Per-osc scope UI** — `Controls._buildWtScopes()` draws OSC1/OSC2 morphed cycles under
+     the WVT knobs via a rAF reading the live instance bank/pos through `sampleTable` + the
+     full-bandwidth `WT_TABLES`. CSS `.wt-scopes` in index.html.
+- **Scope shows LIVE modulation (done):** `_buildWtScopes` reads `vd.p1[v*4+idx]` for an active
+  voice of the selected instance (else the base knob) — so the scope animates with LFO +
+  automation while a note plays. Idle → base.
+- **16 BANKS (done):** added 9–16 = Organ, Sync, Saturate, Comb, Skew, Noise, Power, Glass
+  (helpers `sat`/`combWave`/`skew`/`noiseWave` in wavetables.ts). `WT_BANK_COUNT` auto-derives;
+  atlas = 8 mips × 16 banks × 64 frames = 8192 rows (×1024 = ~33 MB R32F texture). **Shader
+  `WT_ROWS_PER_MIP` is hardcoded 1024 = 16·64 — must be kept in sync if bank count changes.**
+  iwvt Bank1/Bank2 knob max = 15. Verified finite (tsx) + glsl/render-check.
+- **Live param edits (done, ALL engines):** `engine.updateInstrumentParam(instrIdx,bank,i,v)`
+  pushes a sidebar-knob edit into `vd` for active voices, so held notes change immediately (not
+  only at note-on). Called from the controls knob handler (non-op params). Base `instr.pN` stays
+  the source of truth; LFO/automation keep modulating around the new base.
+- **Bank knobs show NAMES:** controls `formatFn` maps WVT Bank1/Bank2 → `WT_BANKS[n].name` (same
+  path as e8e/moog stepped knobs).
+- **Still open:** real-ears audition (click-free detune + aliasing across the range); banks 9–16
+  are first-draft recipes (tune by ear); mip blend can leak slight alias in the crossfade region
+  (accept / bias up if needed).
 
 ### Automation-tracks review + fix plan (`feature/automation-tracks`) — `project`
 Gemini migrated per-cell `fxCmd`/`fxVal` automation to dedicated per-pattern

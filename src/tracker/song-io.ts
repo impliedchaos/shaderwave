@@ -16,10 +16,11 @@
 //   - fxParams is re-completed through the App's cloneFx (fills any engine type a
 //     file omits, e.g. engines added in a later version).
 import { Pattern } from './pattern.js';
-import type { AutoTrack, DX7Op, FxParams, InstrumentInstance, InstrumentSpec } from '../types.js';
+import { defaultLfos, normalizeLfo, LFO_COUNT, defaultLfo } from './lfo.js';
+import type { AutoTrack, DX7Op, FxParams, InstrumentInstance, InstrumentSpec, LfoConfig } from '../types.js';
 
 export const SONG_FORMAT = 'shaderwave-song';
-export const SONG_FORMAT_VERSION = 2;   // v2: per-instrument fx (v1 had per-type fxParams)
+export const SONG_FORMAT_VERSION = 3;   // v3: global LFOs · v2: per-instrument fx (v1 per-type)
 
 export interface SerializedPattern {
   rows: number;
@@ -57,6 +58,7 @@ export interface SerializedSong {
   instruments: SerializedInstrument[];   // each carries its own fx (v2+)
   order: number[];
   patterns: SerializedPattern[];
+  lfos?: LfoConfig[];   // v3+: song-wide global LFOs
 }
 
 // Everything the App must hand over to capture a song.
@@ -71,6 +73,7 @@ export interface SongIOInput {
   instruments: InstrumentInstance[];   // fx lives on each instance
   order: number[];
   patterns: Pattern[];
+  lfos: LfoConfig[];
 }
 
 const r4 = (v: number) => Math.round(v * 1e4) / 1e4;   // tidy float (vol) for JSON
@@ -117,6 +120,7 @@ export function serializeSong(s: SongIOInput): SerializedSong {
     })),
     order: [...s.order],
     patterns: s.patterns.map(serializePattern),
+    lfos: s.lfos.map((l) => ({ ...l })),
   };
 }
 
@@ -133,6 +137,16 @@ function migrate(d: SerializedSong): SerializedSong {
     delete (d as { fxParams?: unknown }).fxParams;
     d.version = 2;
   }
+  if (d.version < 3) {
+    // v2 → v3: songs gain two global LFOs. Older files simply default to off.
+    d.version = 3;
+  }
+  // Always normalise the LFO array (fills missing fields, pads/truncates to count)
+  // so a hand-edited or partial file can't throw downstream.
+  const raw = Array.isArray(d.lfos) ? d.lfos : [];
+  const lfos = defaultLfos();
+  for (let i = 0; i < LFO_COUNT; i++) lfos[i] = normalizeLfo(raw[i] ?? defaultLfo());
+  d.lfos = lfos;
   return d;
 }
 

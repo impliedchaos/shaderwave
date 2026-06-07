@@ -16,6 +16,8 @@ import { byType } from './instruments/index.js';
 import { EMPTY, OFF, Pattern } from './tracker/pattern.js';
 import { fxByKey } from './tracker/fx.js';
 import { targetsForType, TARGETS } from './tracker/automation.js';
+import { LFO_SHAPES, LFO_SHAPE_WAVETABLE } from './tracker/lfo.js';
+import { WT_BANKS } from './instruments/wavetables.js';
 import { showExportDialog } from './audio/export.js';
 import { renderArranger } from './ui/arranger.js';
 import { invalidateTheme, themeVar } from './ui/theme.js';
@@ -491,6 +493,7 @@ export class App {
         (v) => this.engine.setMaster(v),
         (v) => `${Math.round((v / DEFAULT_MASTER) * 100)}%`);
     }
+    this._buildLfoUI();
     const songSelect = $<HTMLSelectElement>('song-select');
     if (songSelect) {
       // Populate from DEMO_SONGS so the list never drifts out of sync.
@@ -738,6 +741,7 @@ export class App {
       instruments: eng.instruments,   // each carries its own .fx (serialized per-instance)
       order: eng.song.order,
       patterns: eng.song.patterns,
+      lfos: eng.lfos,
     });
     const blob = new Blob([JSON.stringify(doc, null, 1)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -801,6 +805,7 @@ export class App {
       bpm: doc.bpm,
       pan: doc.pan,
       master: doc.master,
+      lfos: doc.lfos,
     });
     this.engine.currentPatternIdx = 0;
 
@@ -1559,6 +1564,99 @@ export class App {
     renderArranger(this);
     this._populateSongMeta();
     this._songVolumeKnob?._extSet?.(this.engine.songMaster);   // reflect the loaded song's volume
+    this._buildLfoUI();   // rebuild (target options depend on the instrument table)
+  }
+
+  // Build the two global-LFO control panels in the Song Editor. Rebuilds from
+  // scratch (target options depend on the live instrument table); each control
+  // mutates engine.lfos[i] in place. Native controls — no custom knobs — kept
+  // intentionally compact. See src/tracker/lfo.ts for the model.
+  _buildLfoUI() {
+    const host = document.getElementById('lfo-panels');
+    if (!host) return;
+    const eng = this.engine;
+    const voices = eng.voices.length;
+
+    // Flat target list: Off · Global (VOL) · per-instrument inst/fx · per-channel pan.
+    type Opt = { paramId: number; instIdx: number | null; label: string };
+    const opts: Opt[] = [{ paramId: -1, instIdx: null, label: '— Off —' }];
+    for (const t of TARGETS) if (t.scope === 'global' && t.code !== 'BPM') opts.push({ paramId: t.id, instIdx: null, label: `Global · ${t.label}` });
+    for (let i = 0; i < eng.instruments.length; i++) {
+      const instr = eng.instruments[i];
+      for (const t of targetsForType(instr.type)) {
+        if (t.scope === 'inst') opts.push({ paramId: t.id, instIdx: i, label: `${i}:${instr.type.toUpperCase()} · ${t.label}` });
+        else if (t.scope === 'fx') opts.push({ paramId: t.id, instIdx: i, label: `${i}:${instr.type.toUpperCase()} · FX ${t.label}` });
+      }
+    }
+    for (const t of TARGETS) if (t.scope === 'chan') for (let ch = 0; ch < voices; ch++) opts.push({ paramId: t.id, instIdx: ch, label: `Ch ${ch + 1} · ${t.label}` });
+
+    const BEATS: [number, string][] = [[16, '4 bars'], [8, '2 bars'], [4, '1 bar'], [2, '1/2 bar'], [1, '1 beat'], [0.5, '1/2'], [0.25, '1/4'], [0.125, '1/8']];
+
+    host.innerHTML = '';
+    eng.lfos.forEach((cfg, i) => {
+      const panel = document.createElement('div');
+      panel.className = 'lfo-panel';
+      const shapeOpts = LFO_SHAPES.map((s, k) => `<option value="${k}">${s}</option>`).join('');
+      const tgtOpts = opts.map((o, k) => `<option value="${k}">${o.label}</option>`).join('');
+      const beatOpts = BEATS.map(([v, l]) => `<option value="${v}">${l}</option>`).join('');
+      const bankOpts = WT_BANKS.map((b, k) => `<option value="${k}">${b.name}</option>`).join('');
+      panel.innerHTML = `
+        <div class="lfo-head">LFO ${i + 1}</div>
+        <label class="lfo-row">Target <select data-k="target">${tgtOpts}</select></label>
+        <label class="lfo-row">Shape <select data-k="shape">${shapeOpts}</select></label>
+        <label class="lfo-row">Depth <input type="range" data-k="depth" min="0" max="1" step="0.01"><span data-k="depthv" class="lfo-val"></span></label>
+        <label class="lfo-row"><input type="checkbox" data-k="sync"> Sync</label>
+        <label class="lfo-row" data-when="sync">Rate <select data-k="beats">${beatOpts}</select></label>
+        <label class="lfo-row" data-when="free">Hz <input type="range" data-k="hz" min="0.05" max="20" step="0.05"><span data-k="hzv" class="lfo-val"></span></label>
+        <label class="lfo-row"><input type="checkbox" data-k="bipolar"> Bipolar</label>
+        <label class="lfo-row" data-when="wt">Bank <select data-k="wtbank">${bankOpts}</select></label>
+        <label class="lfo-row" data-when="wt">Pos <input type="range" data-k="wtpos" min="0" max="1" step="0.01"><span data-k="wtposv" class="lfo-val"></span></label>`;
+      host.appendChild(panel);
+
+      const q = <T extends HTMLElement>(k: string) => panel.querySelector(`[data-k="${k}"]`) as T;
+      const tgt = q<HTMLSelectElement>('target');
+      const shape = q<HTMLSelectElement>('shape');
+      const depth = q<HTMLInputElement>('depth');
+      const depthv = q<HTMLSpanElement>('depthv');
+      const sync = q<HTMLInputElement>('sync');
+      const beats = q<HTMLSelectElement>('beats');
+      const hz = q<HTMLInputElement>('hz');
+      const hzv = q<HTMLSpanElement>('hzv');
+      const bipolar = q<HTMLInputElement>('bipolar');
+      const wtbank = q<HTMLSelectElement>('wtbank');
+      const wtpos = q<HTMLInputElement>('wtpos');
+      const wtposv = q<HTMLSpanElement>('wtposv');
+
+      const refresh = () => {
+        // current-target index (or Off if it no longer resolves)
+        const ti = opts.findIndex((o) => o.paramId === cfg.targetParamId && o.instIdx === cfg.targetInstIdx);
+        tgt.value = String(ti >= 0 ? ti : 0);
+        shape.value = String(cfg.shape);
+        depth.value = String(cfg.depth); depthv.textContent = cfg.depth.toFixed(2);
+        sync.checked = cfg.sync;
+        beats.value = String(cfg.rateBeats);
+        hz.value = String(cfg.rateHz); hzv.textContent = cfg.rateHz.toFixed(2) + 'Hz';
+        bipolar.checked = cfg.bipolar;
+        wtbank.value = String(cfg.wtBank);
+        wtpos.value = String(cfg.wtPos); wtposv.textContent = cfg.wtPos.toFixed(2);
+        const isWt = cfg.shape === LFO_SHAPE_WAVETABLE;
+        panel.querySelectorAll<HTMLElement>('[data-when]').forEach((el) => {
+          const w = el.dataset.when;
+          el.style.display = (w === 'sync' ? cfg.sync : w === 'free' ? !cfg.sync : w === 'wt' ? isWt : true) ? '' : 'none';
+        });
+      };
+
+      tgt.onchange = () => { const o = opts[+tgt.value]; cfg.targetParamId = o.paramId; cfg.targetInstIdx = o.instIdx; };
+      shape.onchange = () => { cfg.shape = +shape.value; refresh(); };
+      depth.oninput = () => { cfg.depth = +depth.value; depthv.textContent = cfg.depth.toFixed(2); };
+      sync.onchange = () => { cfg.sync = sync.checked; refresh(); };
+      beats.onchange = () => { cfg.rateBeats = +beats.value; };
+      hz.oninput = () => { cfg.rateHz = +hz.value; hzv.textContent = cfg.rateHz.toFixed(2) + 'Hz'; };
+      bipolar.onchange = () => { cfg.bipolar = bipolar.checked; };
+      wtbank.onchange = () => { cfg.wtBank = +wtbank.value; };
+      wtpos.oninput = () => { cfg.wtPos = +wtpos.value; wtposv.textContent = cfg.wtPos.toFixed(2); };
+      refresh();
+    });
   }
 
   // Reflect the current song's metadata into the Song Info fields (without

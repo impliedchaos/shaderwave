@@ -4,6 +4,7 @@
 import { INSTRUMENTS, instGlow } from '../constants.js';
 import { PRESETS } from './presets.js';
 import { byType } from '../instruments/index.js';
+import { WT_BANKS, WT_TABLES, WT_FRAMES, WT_SAMPLES, sampleTable } from '../instruments/wavetables.js';
 import type { Preset } from './presets.js';
 import type { DX7Op, FxParams, InstrumentInstance, InstrumentType } from '../types.js';
 import type { Engine } from '../tracker/engine.js';
@@ -64,6 +65,7 @@ export class Controls {
   activeRomFile: string;
   romCache: Record<string, SysexPatch[]>;
   paramKnobs: { el: KnobEl; bank?: string; i?: number }[] = [];
+  _wtScopeRaf = 0;   // rAF handle for the live Wavewright oscilloscopes
 
   constructor(engine: Engine, { instEl, paramEl, onSelect, onPresetChange, app }: ControlsOpts) {
     this.engine = engine;
@@ -561,6 +563,7 @@ export class Controls {
       } : (name === 'moog' && /Wave$/.test(d.label)) ? (v: number) => MOOG_WAVES[Math.round(v)] || v.toString()
         : (name === 'moog' && /Oct$/.test(d.label)) ? (v: number) => MOOG_OCTS[Math.round(v)] || v.toString()
         : (name === 'e8e' && /^Wave\d$/.test(d.label)) ? (v: number) => E8E_WAVES[Math.round(v)] || v.toString()
+        : (name === 'wvt' && /^Bank\d$/.test(d.label)) ? (v: number) => WT_BANKS[Math.round(v)]?.name ?? v.toString()
         : (d.label === 'Op Mode' && name === 'dx7') ? (v: number) => {
         return Math.round(v) === 0 ? 'Ratio' : 'Fixed';
       } : (d.label === 'Op Coarse' && name === 'dx7' && pr.ops![this.activeOp].mode === 1) ? (v: number) => {
@@ -593,6 +596,9 @@ export class Controls {
           }
         } else {
           (pr as any)[d.bank!][d.i!] = v;
+          // Push the edit into any sounding voices so held notes change immediately
+          // (not only on the next note-on).
+          this.engine.updateInstrumentParam(this.selected, d.bank!, d.i!, v);
         }
       }, formatFn,
       // Preset matching scans every cached ROM bank, so run it once on drag-end
@@ -602,6 +608,62 @@ export class Controls {
       // Per-operator dx7 knobs have no automation target; p0/p1 knobs do.
       if (d.type !== 'op') this.paramKnobs.push({ el: knob, bank: d.bank, i: d.i });
     }
+
+    // Wavewright: live oscilloscopes showing each oscillator's morphed waveform.
+    if (this._wtScopeRaf) { cancelAnimationFrame(this._wtScopeRaf); this._wtScopeRaf = 0; }
+    if (name === 'wvt') this._buildWtScopes(pr);
+  }
+
+  // Two small canvases under the WVT knobs, each drawing one oscillator's current
+  // morphed single cycle (bank + Position) from the shared wavetable arrays. A rAF
+  // redraws from the live instance params so turning Bank/Pos animates the scope.
+  _buildWtScopes(pr: InstrumentInstance) {
+    const wrap = document.createElement('div');
+    wrap.className = 'wt-scopes';
+    const mk = (title: string) => {
+      const box = document.createElement('div'); box.className = 'wt-scope';
+      const lab = document.createElement('div'); lab.className = 'wt-scope-label'; lab.textContent = title;
+      const c = document.createElement('canvas'); c.width = 240; c.height = 56;
+      box.appendChild(lab); box.appendChild(c); wrap.appendChild(box);
+      return c.getContext('2d')!;
+    };
+    const c1 = mk('OSC 1'), c2 = mk('OSC 2');
+    this.paramEl.appendChild(wrap);
+    const color = pr.color || '#36e0d6';
+
+    const draw = (ctx: CanvasRenderingContext2D, bank: number, pos: number) => {
+      const W = ctx.canvas.width, H = ctx.canvas.height;
+      ctx.clearRect(0, 0, W, H);
+      ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(0, H / 2); ctx.lineTo(W, H / 2); ctx.stroke();
+      const b = Math.max(0, Math.min(WT_TABLES.length - 1, Math.round(bank)));
+      ctx.strokeStyle = color; ctx.lineWidth = 1.5; ctx.beginPath();
+      for (let px = 0; px <= W; px++) {
+        const v = sampleTable(WT_TABLES[b], WT_FRAMES, WT_SAMPLES, pos, px / W);
+        const y = H / 2 - v * (H / 2 - 3);
+        px === 0 ? ctx.moveTo(px, y) : ctx.lineTo(px, y);
+      }
+      ctx.stroke();
+    };
+    // Live Position: while a voice of THIS instance is sounding, the engine has
+    // written the LFO/automation-modulated value into vd.p1, so the scope animates
+    // with the modulation. Idle (no active voice) → the base knob value.
+    const livePos = (idx: number, base: number) => {
+      const eng = this.engine;
+      for (let v = 0; v < eng.voices.length; v++) {
+        if (eng.voices[v].active && eng.voices[v].instrument === this.selected) return eng.vd.p1[v * 4 + idx];
+      }
+      return base;
+    };
+    const tick = () => {
+      // Stop if the panel was rebuilt for another instrument.
+      if (this._instr !== pr || !wrap.isConnected) { this._wtScopeRaf = 0; return; }
+      const banks = pr.p2 ?? [0, 0];
+      draw(c1, banks[0], livePos(0, pr.p1[0]));   // osc1: bank1 / pos1 (live)
+      draw(c2, banks[1], livePos(1, pr.p1[1]));   // osc2: bank2 / pos2 (live)
+      this._wtScopeRaf = requestAnimationFrame(tick);
+    };
+    this._wtScopeRaf = requestAnimationFrame(tick);
   }
 
   // Sync the preset dropdown to whatever preset (if any) the current params match.

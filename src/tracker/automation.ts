@@ -97,6 +97,29 @@ export function denorm(t: ParamTarget, byte: number): number {
   return t.min + (t.max - t.min) * x;
 }
 
+// Real value → normalized position in [0,1] (UNROUNDED, unlike normByte which
+// rounds to a byte). Used by the LFO to find a target's center without quantizing
+// it to 8-bit; pairs with denormUnit for the inverse.
+export function normUnit(t: ParamTarget, value: number): number {
+  if (t.curve === 'log') {
+    const lo = Math.max(1e-4, t.min);
+    return Math.log(Math.max(lo, value) / lo) / Math.log(t.max / lo);
+  }
+  if (t.curve === 'enum') return t.max ? value / t.max : 0;
+  return (t.max === t.min) ? 0 : (value - t.min) / (t.max - t.min);
+}
+
+// Normalized position [0,1] → real value (unrounded inverse of normUnit).
+export function denormUnit(t: ParamTarget, x: number): number {
+  const xx = Math.max(0, Math.min(1, x));
+  if (t.curve === 'log') {
+    const lo = Math.max(1e-4, t.min);
+    return lo * Math.pow(t.max / lo, xx);
+  }
+  if (t.curve === 'enum') return Math.round(xx * t.max);
+  return t.min + (t.max - t.min) * xx;
+}
+
 // Real engine value → normalized byte (for song authoring / future MIDI learn).
 export function normByte(t: ParamTarget, value: number): number {
   let x;
