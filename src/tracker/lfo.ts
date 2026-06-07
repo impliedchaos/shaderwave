@@ -7,27 +7,28 @@
 // Shapes 0–5 are closed-form (no dependency on the wavetable module loading);
 // shape 6 "Wavetable" borrows a Wavewright bank (wtBank) at a fixed Position
 // (wtPos) — the same shared CPU arrays the engine + scopes use. See MEMORY.md.
-import type { LfoConfig } from '../types.js';
+import type { LfoConfig, ModRouting } from '../types.js';
 import { wtShape } from '../instruments/wavetables.js';
 
 const TAU = Math.PI * 2;
 
-export const LFO_COUNT = 2;
+export const LFO_COUNT = 2;        // number of LFO sources
+export const MAX_ROUTINGS = 8;     // cap on matrix rows (UI/sanity)
 export const LFO_SHAPES = ['Sine', 'Triangle', 'Square', 'Saw', 'S&H', 'Ramp', 'Wavetable'];
 export const LFO_SHAPE_WAVETABLE = 6;
 
 export function defaultLfo(): LfoConfig {
-  return {
-    shape: 0, sync: true, rateBeats: 4, rateHz: 1, depth: 0, bipolar: true,
-    targetParamId: -1, targetInstIdx: null, wtBank: 0, wtPos: 0,
-  };
+  return { shape: 0, sync: true, rateBeats: 4, rateHz: 1, wtBank: 0, wtPos: 0 };
 }
 export function defaultLfos(): LfoConfig[] {
   return Array.from({ length: LFO_COUNT }, defaultLfo);
 }
+export function defaultRouting(): ModRouting {
+  return { source: 0, targetParamId: -1, targetInstIdx: null, depth: 0, bipolar: true };
+}
 
-// Coerce a possibly-partial/legacy LFO record into a complete config (used by
-// song load / migration so older or hand-edited files can't throw).
+// Coerce a possibly-partial/legacy record into a complete config (used by song
+// load / migration so older or hand-edited files can't throw).
 export function normalizeLfo(raw: Partial<LfoConfig> | undefined): LfoConfig {
   const d = defaultLfo();
   if (!raw) return d;
@@ -36,12 +37,19 @@ export function normalizeLfo(raw: Partial<LfoConfig> | undefined): LfoConfig {
     sync: raw.sync ?? d.sync,
     rateBeats: raw.rateBeats ?? d.rateBeats,
     rateHz: raw.rateHz ?? d.rateHz,
-    depth: raw.depth ?? d.depth,
-    bipolar: raw.bipolar ?? d.bipolar,
-    targetParamId: raw.targetParamId ?? d.targetParamId,
-    targetInstIdx: raw.targetInstIdx ?? d.targetInstIdx,
     wtBank: raw.wtBank ?? d.wtBank,
     wtPos: raw.wtPos ?? d.wtPos,
+  };
+}
+export function normalizeRouting(raw: Partial<ModRouting> | undefined): ModRouting {
+  const d = defaultRouting();
+  if (!raw) return d;
+  return {
+    source: raw.source ?? d.source,
+    targetParamId: raw.targetParamId ?? d.targetParamId,
+    targetInstIdx: raw.targetInstIdx ?? d.targetInstIdx,
+    depth: raw.depth ?? d.depth,
+    bipolar: raw.bipolar ?? d.bipolar,
   };
 }
 
@@ -67,12 +75,13 @@ function lfoWaveRaw(cfg: LfoConfig, phase: number, cycle: number): number {
   }
 }
 
-// The normalized offset to add to a target's center, in [-depth,depth] (bipolar)
-// or [0,depth] (unipolar). Center + this is then clamped to [0,1] and denormed.
-export function lfoOffset(cfg: LfoConfig, phase: number, cycle: number): number {
-  let v = lfoWaveRaw(cfg, phase, cycle);
-  if (!cfg.bipolar) v = v * 0.5 + 0.5;
-  return v * cfg.depth;
+// The normalized offset a routing adds to its target's center, in [-depth,depth]
+// (bipolar) or [0,depth] (unipolar), from its source waveform. Center + this is
+// then clamped to [0,1] and denormed by the engine.
+export function lfoOffset(src: LfoConfig, depth: number, bipolar: boolean, phase: number, cycle: number): number {
+  let v = lfoWaveRaw(src, phase, cycle);
+  if (!bipolar) v = v * 0.5 + 0.5;
+  return v * depth;
 }
 
 // Cycle length in seconds at a given BPM (tempo-synced) or fixed Hz (free-run).

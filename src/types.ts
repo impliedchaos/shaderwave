@@ -125,21 +125,27 @@ export interface FxParams {
 // fxParams as stored per engine type (the table the renderer's chains read).
 export type FxParamsByType = Record<InstrumentType, FxParams>;
 
-// ── Global LFOs ───────────────────────────────────────────────────────────
-// A song-wide low-frequency modulator. Maps a waveform onto any automation
-// ParamTarget as a transient offset layered above the param's center (never the
-// instrument base). See src/tracker/lfo.ts for evaluation + defaults.
+// ── Global LFOs (modulation matrix) ─────────────────────────────────────────
+// An LFO is now just a SOURCE (a waveform generator). Routings connect a source
+// to a target — many routings can reference one source, so a single LFO drives
+// multiple params. Each routing adds a transient offset layered above the param's
+// center (never the instrument base). See src/tracker/lfo.ts.
 export interface LfoConfig {
   shape: number;                 // 0 sine 1 tri 2 square 3 saw 4 S&H 5 ramp 6 wavetable
   sync: boolean;                 // true → tempo-synced (rateBeats); false → free Hz (rateHz)
   rateBeats: number;             // cycle length in beats when synced
   rateHz: number;                // cycle frequency in Hz when free-running
-  depth: number;                 // 0..1 swing in normalized units
-  bipolar: boolean;              // ±depth around center vs 0..+depth
-  targetParamId: number;         // -1 = off; else an automation TARGETS id
-  targetInstIdx: number | null;  // instrument instance (inst) or channel (chan); null otherwise
   wtBank: number;                // shape 6: which Wavewright wavetable bank
   wtPos: number;                 // shape 6: morph position 0..1
+}
+
+// One source→target assignment in the modulation matrix.
+export interface ModRouting {
+  source: number;                // index into the song's lfos[]
+  targetParamId: number;         // -1 = inactive; else an automation TARGETS id
+  targetInstIdx: number | null;  // instrument instance (inst/fx) or channel (chan); null otherwise
+  depth: number;                 // 0..1 swing in normalized units
+  bipolar: boolean;              // ±depth around center vs 0..+depth
 }
 
 // ── Voice data ──────────────────────────────────────────────────────────────
@@ -188,7 +194,8 @@ export interface SongData {
   bpm?: number;
   pan?: number[];
   master?: number;
-  lfos?: LfoConfig[];   // song-wide global LFOs (absent → both off)
+  lfos?: LfoConfig[];          // song-wide LFO sources (absent → defaults)
+  modRoutings?: ModRouting[];  // source→target assignments (absent → none)
 }
 
 // A demo-song definition. `params` may be a keyed record (one entry per engine

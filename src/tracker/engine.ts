@@ -13,7 +13,7 @@ import { targetById, denorm, normUnit, denormUnit } from './automation.js';
 import { defaultLfos, lfoOffset, lfoPeriodSec } from './lfo.js';
 import { byType } from '../instruments/index.js';
 import type {
-  FxParamsByType, InstrumentInstance, InstrumentType, LfoConfig, SongData, VoiceData,
+  FxParamsByType, InstrumentInstance, InstrumentType, LfoConfig, ModRouting, SongData, VoiceData,
 } from '../types.js';
 
 export const HELD = 1e9; // offRel sentinel: note is still held
@@ -68,7 +68,8 @@ export class Engine {
   channelPan: Float32Array;
   panAuto: Float32Array;
   songMaster = DEFAULT_MASTER;   // the loaded song's base global volume; VOL automation overrides vd.master transiently
-  lfos: LfoConfig[];             // two song-wide global LFOs (modulation sources)
+  lfos: LfoConfig[];             // song-wide LFO sources (waveform generators)
+  modRoutings: ModRouting[];     // modulation matrix: source→target assignments
   // Snapshot of fx-param values an LFO is transiently overriding, keyed
   // `${instIdx}:${key}`. fx params are read by reference + persist, so the LFO
   // must restore them on play/stop (inst/chan/global overrides self-heal via
@@ -130,9 +131,11 @@ export class Engine {
     this.channelPan = new Float32Array(VOICES).fill(0.5);
     this.panAuto = new Float32Array(VOICES).fill(NaN);
 
-    // Global LFOs (song-wide). Default to two inert LFOs; loadSong replaces them
-    // from the song. _lfoFxBase tracks fx params an LFO is transiently driving.
+    // Global LFOs (song-wide sources) + the modulation matrix routing them to
+    // targets. loadSong replaces both from the song. _lfoFxBase tracks fx params a
+    // routing is transiently driving (so they can be restored).
     this.lfos = defaultLfos();
+    this.modRoutings = [];
     this._lfoFxBase = new Map();
 
     // GPU-facing buffers, updated in place every block.
@@ -186,10 +189,11 @@ export class Engine {
     }
     // Clear any channel mutes — they belong to the previous song, not this one.
     this.muted.fill(false);
-    // Global LFOs saved with the song; absent → both off. Restore any fx the old
-    // song's LFOs were driving before swapping (so we don't leak overrides).
+    // Global LFO sources + matrix saved with the song. Restore any fx the old
+    // song's routings were driving before swapping (so we don't leak overrides).
     this._restoreLfoFx();
     this.lfos = (song.lfos && song.lfos.length) ? song.lfos : defaultLfos();
+    this.modRoutings = song.modRoutings ?? [];
   }
 
   // Restore every fx param an LFO transiently overrode back to its snapshot base,
@@ -719,48 +723,51 @@ export class Engine {
     }
   }
 
-  // Apply the global LFOs to their targets, once per block, AFTER automation and
-  // effect-column modulation so the LFO is the last writer. Each LFO adds a
-  // transient offset (in normalized space) around the target's CENTER, recomputed
-  // every block by reading a STABLE store and writing a DIFFERENT one — so the LFO
-  // never re-reads its own output (no drift) and never touches the instrument base.
-  // Phase derives from song time → deterministic for export. When both automation
-  // and an LFO target the same param, inst-scope stacks (center = autoLive); the
-  // other scopes modulate around the base and the LFO wins.
+  // Apply the modulation matrix once per block, AFTER automation and effect-column
+  // modulation so the LFOs are the last writers. Each ROUTING adds a transient
+  // offset (in normalized space) around its target's CENTER, recomputed every block
+  // by reading a STABLE store and writing a DIFFERENT one — so an LFO never re-reads
+  // its own output (no drift) and never touches the instrument base. Many routings
+  // can share one source (one LFO → many targets). Phase derives from song time →
+  // deterministic for export. When automation + a routing hit the same param,
+  // inst-scope stacks (center = autoLive); other scopes modulate the base, last
+  // routing wins on a collision.
   _applyLfos(blockStart: number) {
     if (!this.playing) return;
     const start = this.startFrame ?? blockStart;
     const songSec = (blockStart - start) / this.sampleRate;
-    for (const cfg of this.lfos) {
-      if (!cfg || cfg.targetParamId < 0 || cfg.depth <= 0) continue;
-      const t = targetById(cfg.targetParamId);
+    for (const r of this.modRoutings) {
+      if (!r || r.targetParamId < 0 || r.depth <= 0) continue;
+      const src = this.lfos[r.source];
+      if (!src) continue;
+      const t = targetById(r.targetParamId);
       if (!t) continue;
-      const cyclePos = songSec / lfoPeriodSec(cfg, this.bpm);
+      const cyclePos = songSec / lfoPeriodSec(src, this.bpm);
       const cycle = Math.floor(cyclePos);
-      const offset = lfoOffset(cfg, cyclePos - cycle, cycle);
+      const offset = lfoOffset(src, r.depth, r.bipolar, cyclePos - cycle, cycle);
 
       if (t.scope === 'global') {
         if (t.code === 'BPM') continue;            // excluded → keeps export length exact
         if (t.code === 'VOL') this.vd.master = denormUnit(t, normUnit(t, this.songMaster) + offset);
-      } else if (t.scope === 'chan' && cfg.targetInstIdx !== null) {
-        const ch = cfg.targetInstIdx;              // center = channel base (not the pan-auto override)
+      } else if (t.scope === 'chan' && r.targetInstIdx !== null) {
+        const ch = r.targetInstIdx;                // center = channel base (not the pan-auto override)
         this.panAuto[ch] = denormUnit(t, normUnit(t, this.channelPan[ch]) + offset);
-      } else if (cfg.targetInstIdx !== null) {
-        const instr = this.instruments[cfg.targetInstIdx];
+      } else if (r.targetInstIdx !== null) {
+        const instr = this.instruments[r.targetInstIdx];
         if (!instr) continue;
         if (t.scope === 'inst' && t.bank && t.index != null) {
-          const key = `${cfg.targetInstIdx}:${t.bank}:${t.index}`;
+          const key = `${r.targetInstIdx}:${t.bank}:${t.index}`;
           const auto = this.autoLive.inst.get(key);   // stacks with automation if present
           const base = auto !== undefined ? auto : (t.bank === 'p1' ? instr.p1 : instr.p0)[t.index];
           const value = denormUnit(t, normUnit(t, base) + offset);
           const vdArr = t.bank === 'p1' ? this.vd.p1 : this.vd.p0;
           for (let v = 0; v < VOICES; v++) {
-            if (this.voices[v].active && this.voices[v].instrument === cfg.targetInstIdx) {
+            if (this.voices[v].active && this.voices[v].instrument === r.targetInstIdx) {
               vdArr[v * 4 + t.index] = value;
             }
           }
         } else if (t.scope === 'fx' && t.key && instr.fx) {
-          const sk = `${cfg.targetInstIdx}:${t.key}`;
+          const sk = `${r.targetInstIdx}:${t.key}`;
           let base = this._lfoFxBase.get(sk);          // snapshot once; restored on play/stop
           if (base === undefined) { base = instr.fx[t.key] as number; this._lfoFxBase.set(sk, base); }
           instr.fx[t.key] = denormUnit(t, normUnit(t, base) + offset);

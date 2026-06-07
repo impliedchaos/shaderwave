@@ -4065,7 +4065,7 @@ export const DEMO_SONGS: SongDef[] = [
   {
     name: "La Mesa de Onda",
     author: "AI Slop",
-    note: "A ~3-minute wavetable showcase for Wavewright + the global LFOs: a vowel-morphing pad swept by a slow sine LFO, a glass lead pulsed by a wavetable-shaped LFO, sub bass, sync pluck and an 808 groove. Am–F–C–G, 124 BPM.",
+    note: "A ~3-minute Wavewright + mod-matrix showcase: ONE slow sine LFO fans out to four targets — morphing the vowel pad and sub bass in unison, swelling the pad's reverb (fx) and auto-panning the lead (chan) — while a wavetable-shaped LFO pulses the glass lead and sync pluck in lockstep. Am–F–C–G, 124 BPM.",
     bpm: 124,
     master: DEFAULT_MASTER * 0.7,
     params: [
@@ -4104,6 +4104,9 @@ export const DEMO_SONGS: SongDef[] = [
           if (s === 0 || s === 6 || s === 8 || s === 14) { pat.set(r, 3, root(bar) - 24, I_BASS, vol); pat.set(r + 1, 3, OFF, I_BASS); }
         }
       };
+      const bassHold = (pat: Pattern, vol = 0.7) => {   // one held note/bar — lets the slow LFO sweep its timbre
+        for (let bar = 0; bar < 4; bar++) { const r = bar * 16; pat.set(r, 3, root(bar) - 24, I_BASS, vol); pat.set(r + 15, 3, OFF, I_BASS); }
+      };
       const pad = (pat: Pattern, vol = 0.7) => {        // held open-fifth per bar (ch4/ch5)
         for (let bar = 0; bar < 4; bar++) {
           const r = bar * 16, rt = root(bar);
@@ -4125,27 +4128,41 @@ export const DEMO_SONGS: SongDef[] = [
         }
       };
 
-      pad(pIntro, 0.6); pluck(pIntro, 0.4);
+      pad(pIntro, 0.62); bassHold(pIntro, 0.6); pluck(pIntro, 0.35);   // pad+bass only → slow LFO sweep up front
       pad(pA, 0.65); bass(pA); drums(pA, true, false, true);
       pad(pB, 0.65); bass(pB); drums(pB); pluck(pB);
       pad(pFull, 0.7); bass(pFull); drums(pFull); pluck(pFull); lead(pFull);
       pad(pBreak, 0.7); pluck(pBreak, 0.5);             // breakdown: pad + pluck, no drums/bass
       pad(pOut, 0.55);
 
-      // The stars of the show: LFO 1 = slow sine sweeping the Vowel Pad's morph
-      // Position (vowel-to-vowel wash). LFO 2 = a WAVETABLE-shaped LFO (PWM bank)
-      // rhythmically pulsing the Glass Lead's second-osc Position every half-bar.
-      const PS1 = tgt('wvt', 'PS1'), PS2 = tgt('wvt', 'PS2');
+      // THE MOD MATRIX IN ACTION — each LFO is ONE source fanning out to many
+      // targets across instruments AND scopes:
+      //  LFO 1 (slow sine, 4 bars): pad + bass morph Positions (unison timbre sweep)
+      //  + the pad's reverb mix swelling with it (fx scope) + a slow auto-pan on the
+      //  lead (chan scope) — four destinations from one source.
+      //  LFO 2 (wavetable PWM, 1/2 bar): pulses the lead AND pluck morph in lockstep,
+      //  plus a tight pan wobble on the pluck.
+      const PS1 = tgt('wvt', 'PS1'), PS2 = tgt('wvt', 'PS2'), RVM = tgt('wvt', 'RVM'), PAN = tgt('wvt', 'PAN');
       const lfos = [
-        { ...defaultLfo(), shape: 0, sync: true, rateBeats: 16, depth: 0.45, bipolar: true, targetParamId: PS1.id, targetInstIdx: I_PAD },
-        { ...defaultLfo(), shape: 6, sync: true, rateBeats: 2, depth: 0.35, bipolar: true, targetParamId: PS2.id, targetInstIdx: I_LEAD, wtBank: 2, wtPos: 0.5 },
+        { ...defaultLfo(), shape: 0, sync: true, rateBeats: 16 },                        // slow sine, 4 bars
+        { ...defaultLfo(), shape: 6, sync: true, rateBeats: 2, wtBank: 2, wtPos: 0.5 },  // wavetable (PWM), 1/2 bar
+      ];
+      const modRoutings = [
+        { source: 0, targetParamId: PS1.id, targetInstIdx: I_PAD,  depth: 0.45, bipolar: true },   // pad vowel morph
+        { source: 0, targetParamId: PS1.id, targetInstIdx: I_BASS, depth: 0.20, bipolar: true },   // bass timbre (unison)
+        { source: 0, targetParamId: RVM.id, targetInstIdx: I_PAD,  depth: 0.30, bipolar: false },  // pad reverb swell (fx)
+        { source: 0, targetParamId: PAN.id, targetInstIdx: 6,      depth: 0.22, bipolar: true },   // lead auto-pan (chan 6)
+        { source: 1, targetParamId: PS2.id, targetInstIdx: I_LEAD, depth: 0.35, bipolar: true },   // lead rhythmic morph
+        { source: 1, targetParamId: PS1.id, targetInstIdx: I_PLK,  depth: 0.40, bipolar: true },   // pluck rhythmic morph
+        { source: 1, targetParamId: PAN.id, targetInstIdx: 7,      depth: 0.18, bipolar: true },   // pluck pan wobble (chan 7)
       ];
 
       return {
         patterns: [pIntro, pA, pB, pFull, pBreak, pOut],
-        order: [0, 1, 2, 3, 3, 2, 3, 4, 1, 2, 3, 3, 2, 3, 3, 4, 2, 3, 3, 3, 4, 5, 5, 5],
+        order: [0, 0, 1, 2, 3, 3, 2, 3, 4, 1, 2, 3, 3, 2, 3, 3, 4, 2, 3, 3, 3, 4, 5, 5],
         rowsPerBeat: 4,
         lfos,
+        modRoutings,
         pan: [0.5, 0.5, 0.5, 0.5, 0.42, 0.58, 0.6, 0.4],
       };
     }

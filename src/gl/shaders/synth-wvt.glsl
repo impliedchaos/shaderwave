@@ -80,7 +80,7 @@ void main(){
   float atk = uP0[v].x, dec = uP0[v].y, sus = uP0[v].z, rel = uP0[v].w;
   float pos1 = uP1[v].x, pos2 = uP1[v].y, det2 = uP1[v].z, fmAmt = max(uP1[v].w, 0.0);
   float bank1 = uP2[v].x, bank2 = uP2[v].y, subLvl = uP2[v].z, subOct = uP2[v].w;
-  float lvl1 = uP3[v].x, lvl2 = uP3[v].y;
+  float lvl1 = uP3[v].x, lvl2 = uP3[v].y, envP1 = uP3[v].z, envP2 = uP3[v].w;
 
   float f2   = f0 * exp2(det2 / 12.0);
   float subF = f0 * exp2(subOct);
@@ -103,17 +103,23 @@ void main(){
   float t = (float(x) - onRel) / sr;                  // seconds since note-on
   if (t < 0.0) { outAudio = vec4(0.0); return; }
   float tRel = (float(x) - uOffRel[v]) / sr;          // seconds since note-off (<0 while held)
+  float env = adsr(t, tRel, atk, dec, sus, rel);
+
+  // The ADSR can also push the morph Position (env→pos amount per osc), so a patch
+  // can sweep timbre over the note (e.g. bright→dark on decay). Per-sample → smooth
+  // and click-free; layers ON TOP of the LFO/automation-modulated base Position.
+  float pos1e = clamp(pos1 + envP1 * env, 0.0, 1.0);
+  float pos2e = clamp(pos2 + envP2 * env, 0.0, 1.0);
 
   // osc2 first (it can phase-modulate osc1). Each osc's mip is chosen from its own
   // pitch so detuned/cross-FM voices stay band-limited. Carrier phase is stored
   // WITHOUT the FM offset; FM is applied only at the table read.
-  float s2 = wtSample(bank2, pos2, ph2, f2);
-  float s1 = wtSample(bank1, pos1, ph1 + fmAmt * s2 * 0.5, f0);
+  float s2 = wtSample(bank2, pos2e, ph2, f2);
+  float s1 = wtSample(bank1, pos1e, ph1 + fmAmt * s2 * 0.5, f0);
 
   float acc = s1 * lvl1 + s2 * lvl2;
   if (subLvl > 0.0) acc += subLvl * oscSine(phS);
   acc *= 0.5;   // headroom for the summed oscillators
 
-  float env = adsr(t, tRel, atk, dec, sus, rel);
   outAudio = vec4(acc * env * vel, 0.0, 0.0, 1.0);
 }

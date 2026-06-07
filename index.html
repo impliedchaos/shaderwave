@@ -1062,6 +1062,15 @@
   .lfo-row select, .lfo-row input[type=range] { flex: 1; min-width: 0; }
   .lfo-row select { background: #11202b; color: #cfe; border: 1px solid var(--panel-border); border-radius: 5px; padding: 4px 6px; font: inherit; }
   .lfo-val { font-variant-numeric: tabular-nums; color: #ffb347; min-width: 44px; text-align: right; }
+  .lfo-matrix { margin-top: 4px; display: flex; flex-direction: column; gap: 6px; }
+  .lfo-add { background: #11202b; color: var(--accent, #36e0d6); border: 1px solid #1f3a44; border-radius: 5px; padding: 2px 9px; font: inherit; font-size: 11px; cursor: pointer; margin-left: 8px; }
+  .lfo-add:hover { background: #163040; }
+  .lfo-route { display: flex; align-items: center; gap: 5px; }
+  .lfo-route select { flex: 1 1 0; min-width: 0; background: #11202b; color: #cfe; border: 1px solid var(--panel-border); border-radius: 4px; padding: 3px 4px; font: inherit; font-size: 11px; }
+  .lfo-route input[type=range] { flex: 0 0 54px; accent-color: var(--accent, #36e0d6); }
+  .lfo-route .lfo-bip { flex: 0 0 auto; font-size: 11px; color: #b8c4d4; display: flex; align-items: center; gap: 2px; }
+  .lfo-route button[data-k=del] { flex: 0 0 auto; background: transparent; color: #8a97a8; border: none; cursor: pointer; font-size: 12px; padding: 0 2px; }
+  .lfo-route button[data-k=del]:hover { color: #ff6b6b; }
 
   /* Wavewright per-oscillator scopes (sidebar, under the knobs). */
   .wt-scopes { display: flex; flex-direction: column; gap: 8px; padding: 8px 10px 4px; }

@@ -42,7 +42,24 @@ to audition songs themselves in their own browser.
 
 ## Current work
 
-### Global LFOs — IMPLEMENTED (first cut, 1.6.0, uncommitted) — `project`
+### LFO MOD MATRIX + WVT Env→Pos (1.8.0) — `project`
+Updated 2026-06-07. **Inverted LFO routing into a mod matrix** so one LFO drives many
+targets. `LfoConfig` is now just a SOURCE (shape/sync/rate/wt — no target/depth). New
+`ModRouting {source, targetParamId, targetInstIdx, depth, bipolar}`; `SongData.lfos` (sources,
+len LFO_COUNT=2) + `SongData.modRoutings` (variable, cap MAX_ROUTINGS=8). Engine `_applyLfos`
+iterates routings (source waveform via `lfos[r.source]`); same per-scope apply + no-drift rule;
+collisions = last-routing-wins. `lfoOffset(src, depth, bipolar, phase, cycle)`. **Song format
+v4** (migrate splits each v3 LFO's embedded target into a source + one routing). `loadSongInstruments`
+prune/remap now keys on `modRoutings` (not lfos). UI: Song Editor shows SOURCE panels +
+a Routings matrix (+ Add / ✕, per-row source/target/depth/±). Verified: build + glsl/render-check
++ headless (one source→two targets both move; v3→v4 migration; all 20 songs load). La Mesa de
+Onda updated: LFO1 → pad PS1 AND bass PS1 (one source, two targets); LFO2 → lead PS2.
+
+**WVT Env→Pos:** ADSR can modulate morph Position. `EnvPos1`/`EnvPos2` knobs in WVT's free
+`p3[2]`/`p3[3]` (bipolar −1..1); shader does `clamp(pos + envAmt*env, 0,1)` per-sample before
+the table read (smooth, click-free; layers on the LFO/automation Position).
+
+### Global LFOs — IMPLEMENTED (first cut, 1.6.0; superseded by the mod matrix above) — `project`
 Built 2026-06-07 (autonomous). Two song-wide LFOs, all scopes incl. fx, sync/Hz toggle,
 wavetable shapes. **Verified headlessly** (esbuild+node): inst-LFO oscillates the voice
 param, **instrument base never mutated**, fx param moves + restores on stop, output finite,

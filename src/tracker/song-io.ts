@@ -16,11 +16,11 @@
 //   - fxParams is re-completed through the App's cloneFx (fills any engine type a
 //     file omits, e.g. engines added in a later version).
 import { Pattern } from './pattern.js';
-import { defaultLfos, normalizeLfo, LFO_COUNT, defaultLfo } from './lfo.js';
-import type { AutoTrack, DX7Op, FxParams, InstrumentInstance, InstrumentSpec, LfoConfig } from '../types.js';
+import { defaultLfos, normalizeLfo, normalizeRouting, LFO_COUNT, defaultLfo } from './lfo.js';
+import type { AutoTrack, DX7Op, FxParams, InstrumentInstance, InstrumentSpec, LfoConfig, ModRouting } from '../types.js';
 
 export const SONG_FORMAT = 'shaderwave-song';
-export const SONG_FORMAT_VERSION = 3;   // v3: global LFOs · v2: per-instrument fx (v1 per-type)
+export const SONG_FORMAT_VERSION = 4;   // v4: LFO mod matrix · v3: global LFOs · v2: per-inst fx
 
 export interface SerializedPattern {
   rows: number;
@@ -58,7 +58,8 @@ export interface SerializedSong {
   instruments: SerializedInstrument[];   // each carries its own fx (v2+)
   order: number[];
   patterns: SerializedPattern[];
-  lfos?: LfoConfig[];   // v3+: song-wide global LFOs
+  lfos?: LfoConfig[];          // v3+: LFO sources
+  modRoutings?: ModRouting[];  // v4+: modulation matrix
 }
 
 // Everything the App must hand over to capture a song.
@@ -74,6 +75,7 @@ export interface SongIOInput {
   order: number[];
   patterns: Pattern[];
   lfos: LfoConfig[];
+  modRoutings: ModRouting[];
 }
 
 const r4 = (v: number) => Math.round(v * 1e4) / 1e4;   // tidy float (vol) for JSON
@@ -121,6 +123,7 @@ export function serializeSong(s: SongIOInput): SerializedSong {
     order: [...s.order],
     patterns: s.patterns.map(serializePattern),
     lfos: s.lfos.map((l) => ({ ...l })),
+    modRoutings: s.modRoutings.map((r) => ({ ...r })),
   };
 }
 
@@ -141,12 +144,24 @@ function migrate(d: SerializedSong): SerializedSong {
     // v2 → v3: songs gain two global LFOs. Older files simply default to off.
     d.version = 3;
   }
-  // Always normalise the LFO array (fills missing fields, pads/truncates to count)
-  // so a hand-edited or partial file can't throw downstream.
-  const raw = Array.isArray(d.lfos) ? d.lfos : [];
+  if (d.version < 4) {
+    // v3 → v4: LFOs embedded a single target; split into sources + a routing matrix.
+    // Each v3 LFO with a real target becomes one routing onto that same source.
+    const old = Array.isArray(d.lfos) ? (d.lfos as unknown as Array<Record<string, unknown>>) : [];
+    if (!Array.isArray(d.modRoutings)) {
+      d.modRoutings = old.flatMap((l, i) => (l && typeof l.targetParamId === 'number' && (l.targetParamId as number) >= 0)
+        ? [{ source: i, targetParamId: l.targetParamId as number, targetInstIdx: (l.targetInstIdx ?? null) as number | null, depth: (l.depth ?? 0) as number, bipolar: (l.bipolar ?? true) as boolean }]
+        : []);
+    }
+    d.version = 4;
+  }
+  // Always normalise sources (pad to LFO_COUNT) + routings so a hand-edited or
+  // partial file can't throw downstream.
+  const rawL = Array.isArray(d.lfos) ? d.lfos : [];
   const lfos = defaultLfos();
-  for (let i = 0; i < LFO_COUNT; i++) lfos[i] = normalizeLfo(raw[i] ?? defaultLfo());
+  for (let i = 0; i < LFO_COUNT; i++) lfos[i] = normalizeLfo(rawL[i] ?? defaultLfo());
   d.lfos = lfos;
+  d.modRoutings = (Array.isArray(d.modRoutings) ? d.modRoutings : []).map(normalizeRouting);
   return d;
 }
 

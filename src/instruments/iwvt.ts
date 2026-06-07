@@ -35,6 +35,8 @@ export const iwvt: InstrumentDef = {
     { label: 'SubOct',  bank: 'p2', i: 3, min: -2,   max: 0,   step: 1 },
     { label: 'Level1',  bank: 'p3', i: 0, min: 0,    max: 1,   step: 0.01 },
     { label: 'Level2',  bank: 'p3', i: 1, min: 0,    max: 1,   step: 0.01 },
+    { label: 'EnvPos1', bank: 'p3', i: 2, min: -1,   max: 1,   step: 0.01 },
+    { label: 'EnvPos2', bank: 'p3', i: 3, min: -1,   max: 1,   step: 0.01 },
   ],
   autoTargets: [
     { code: 'ATK', label: 'Attack',  bank: 'p0', index: 0, min: 0,   max: 1,  curve: 'lin', unit: 's' },

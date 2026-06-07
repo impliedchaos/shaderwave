@@ -80,16 +80,16 @@ export function loadSongInstruments(songDef: SongDef): { instruments: Instrument
       }
     }
   }
-  // Global LFOs can target an instrument instance (inst/fx scope); keep those
-  // alive too, and remap their index below like autoTracks. (chan/global LFOs key
-  // on a channel / nothing, so they're left alone.)
-  const lfoIsInst = (paramId: number) => {
+  // LFO routings can target an instrument instance (inst/fx scope); keep those
+  // alive too, and remap their index below like autoTracks. (chan/global routings
+  // key on a channel / nothing, so they're left alone.)
+  const routeIsInst = (paramId: number) => {
     const t = targetById(paramId);
     return !!t && (t.scope === 'inst' || t.scope === 'fx');
   };
-  for (const lfo of data.lfos ?? []) {
-    if (lfo.targetInstIdx !== null && lfo.targetInstIdx >= 0 && lfo.targetInstIdx < full.length && lfoIsInst(lfo.targetParamId)) {
-      used.add(lfo.targetInstIdx);
+  for (const r of data.modRoutings ?? []) {
+    if (r.targetInstIdx !== null && r.targetInstIdx >= 0 && r.targetInstIdx < full.length && routeIsInst(r.targetParamId)) {
+      used.add(r.targetInstIdx);
     }
   }
   if (used.size === 0) used.add(0);                      // always keep ≥1
@@ -111,12 +111,12 @@ export function loadSongInstruments(songDef: SongDef): { instruments: Instrument
     }
   }
 
-  // Remap inst/fx-scope LFO targets through the same prune map (so they still point
-  // at the right instance after unused engines are dropped).
-  for (const lfo of data.lfos ?? []) {
-    if (lfo.targetInstIdx !== null && lfoIsInst(lfo.targetParamId)) {
-      const m = remap.get(lfo.targetInstIdx);
-      lfo.targetInstIdx = m === undefined ? 0 : m;
+  // Remap inst/fx-scope routing targets through the same prune map (so they still
+  // point at the right instance after unused engines are dropped).
+  for (const r of data.modRoutings ?? []) {
+    if (r.targetInstIdx !== null && routeIsInst(r.targetParamId)) {
+      const m = remap.get(r.targetInstIdx);
+      r.targetInstIdx = m === undefined ? 0 : m;
     }
   }
 
