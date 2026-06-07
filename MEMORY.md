@@ -52,6 +52,11 @@ and bit-**deterministic** across runs (export-safe). `npm run build` green.
   `_applyLfos`+`_restoreLfoFx` (called in advance after `_modulateVoices`; reset in
   play/stop/loadSong), song-io **v3** + migrate, `_buildLfoUI()` in main.ts (Song Editor
   "Global LFOs" panels), markup+CSS in index.html.
+- **Demo songs** set LFOs by returning `lfos` in `data()` (SongData). `loadSongInstruments`
+  now counts inst/fx-scope LFO targets in `used` AND remaps their `targetInstIdx` through the
+  prune map (like autoTracks) — so an LFO-targeted instance survives pruning. Demo "La Mesa de
+  Onda" (1.7.1) showcases it: vowel-pad swept by a sine LFO + glass lead pulsed by a wavetable
+  (PWM-shape) LFO.
 - **Key semantic:** LFO reads a STABLE store, writes a DIFFERENT one → no drift. inst-scope
   STACKS with automation (center = autoLive ?? base); chan/global/fx modulate around base/
   snapshot and the LFO wins if both target the same param. BPM excluded as a target.

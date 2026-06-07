@@ -1,6 +1,7 @@
 import { Pattern, OFF } from './pattern.js';
 import { defaultFxParams } from '../gl/effects.js';
 import { targetByCode, normByte } from './automation.js';
+import { defaultLfo } from './lfo.js';
 import { DEFAULT_MASTER } from '../constants.js';
 import { REGISTRY } from '../instruments/index.js';
 import type { FxParams, FxParamsByType, InstrumentParams, InstrumentType, ParamTarget, SongDef } from '../types.js';
@@ -4058,6 +4059,94 @@ export const DEMO_SONGS: SongDef[] = [
         order: [0, 1, 2, 3, 4, 5, 6, 7, 5, 6, 8],
         rowsPerBeat: 4,
         pan: [0.5, 0.36, 0.45, 0.54, 0.64, 0.38, 0.62, 0.5]
+      };
+    }
+  },
+  {
+    name: "La Mesa de Onda",
+    author: "AI Slop",
+    note: "A ~3-minute wavetable showcase for Wavewright + the global LFOs: a vowel-morphing pad swept by a slow sine LFO, a glass lead pulsed by a wavetable-shaped LFO, sub bass, sync pluck and an 808 groove. Am–F–C–G, 124 BPM.",
+    bpm: 124,
+    master: DEFAULT_MASTER * 0.7,
+    params: [
+      { name: "808 Kit",    type: "808", p0: [0, 0.5, 0.5, 0.6], p1: [0, 0, 0, 0] },
+      { name: "Sub Bass",   type: "wvt", p0: [0.004, 0.28, 0.55, 0.18], p1: [0.15, 0.35, 0.04, 0.0], p2: [14, 14, 0.7, -1], p3: [0.85, 0.4, 0, 0] },
+      { name: "Vowel Pad",  type: "wvt", p0: [0.5, 0.7, 0.85, 0.9],     p1: [0.05, 0.5, 0.06, 0.0], p2: [3, 3, 0.0, -1],   p3: [0.7, 0.6, 0, 0] },
+      { name: "Glass Lead", type: "wvt", p0: [0.01, 0.45, 0.5, 0.4],    p1: [0.3, 0.4, 0.05, 0.25], p2: [15, 5, 0.0, -1],  p3: [0.8, 0.5, 0, 0] },
+      { name: "Sync Pluck", type: "wvt", p0: [0.002, 0.16, 0.0, 0.07],  p1: [0.0, 0.4, 0.04, 0.0],  p2: [9, 7, 0.0, 0],    p3: [0.8, 0.45, 0, 0] },
+    ],
+    fxParams: {
+      '808': Object.assign(defaultFxParams(), { dist: 4.0, tone: 0.5, level: 1.0, master: 0.9 }),
+      'wvt': Object.assign(defaultFxParams(), { level: 1.0, master: 0.8, reverbMix: 0.35, reverbDecay: 0.85, delayMix: 0.18, delayFeedback: 0.35, width: 1.3 }),
+    },
+    data: () => {
+      const N = 64;
+      const mk = () => new Pattern(N, 8);
+      const pIntro = mk(), pA = mk(), pB = mk(), pFull = mk(), pBreak = mk(), pOut = mk();
+      const BD = 36, SD = 38, HH = 42, OH = 46;
+      const I_DR = 0, I_BASS = 1, I_PAD = 2, I_LEAD = 3, I_PLK = 4;
+
+      const ROOTS = [45, 41, 48, 43];                  // Am, F, C, G — one chord per bar
+      const root = (bar: number) => ROOTS[bar % ROOTS.length];
+      const PENT = [0, 3, 5, 7, 10, 12];               // A-minor pentatonic degrees
+
+      const drums = (pat: Pattern, kick = true, snare = true, hats = true) => {
+        for (let r = 0; r < N; r++) {
+          const s = r % 16;
+          if (kick && (s === 0 || s === 10)) pat.set(r, 0, BD, I_DR, 0.95);
+          if (snare && (s === 4 || s === 12)) pat.set(r, 1, SD, I_DR, 0.8);
+          if (hats) { if (s % 2 === 1) pat.set(r, 2, HH, I_DR, 0.4); if (s === 14) pat.set(r, 2, OH, I_DR, 0.5); }
+        }
+      };
+      const bass = (pat: Pattern, vol = 0.85) => {
+        for (let r = 0; r < N; r++) {
+          const s = r % 16, bar = Math.floor(r / 16);
+          if (s === 0 || s === 6 || s === 8 || s === 14) { pat.set(r, 3, root(bar) - 24, I_BASS, vol); pat.set(r + 1, 3, OFF, I_BASS); }
+        }
+      };
+      const pad = (pat: Pattern, vol = 0.7) => {        // held open-fifth per bar (ch4/ch5)
+        for (let bar = 0; bar < 4; bar++) {
+          const r = bar * 16, rt = root(bar);
+          pat.set(r, 4, rt, I_PAD, vol); pat.set(r, 5, rt + 7, I_PAD, vol);
+          pat.set(r + 15, 4, OFF, I_PAD); pat.set(r + 15, 5, OFF, I_PAD);
+        }
+      };
+      const lead = (pat: Pattern, vol = 0.75) => {
+        const seq = [12, 10, 7, 10, 12, 15, 12, 10];
+        for (let i = 0; i < 16; i++) {
+          const r = i * 4, bar = Math.floor(r / 16);
+          pat.set(r, 6, root(bar) + seq[i % seq.length], I_LEAD, vol); pat.set(r + 3, 6, OFF, I_LEAD);
+        }
+      };
+      const pluck = (pat: Pattern, vol = 0.6) => {
+        for (let r = 0; r < N; r += 2) {
+          const bar = Math.floor(r / 16);
+          pat.set(r, 7, root(bar) + 12 + PENT[(r / 2) % PENT.length], I_PLK, vol); pat.set(r + 1, 7, OFF, I_PLK);
+        }
+      };
+
+      pad(pIntro, 0.6); pluck(pIntro, 0.4);
+      pad(pA, 0.65); bass(pA); drums(pA, true, false, true);
+      pad(pB, 0.65); bass(pB); drums(pB); pluck(pB);
+      pad(pFull, 0.7); bass(pFull); drums(pFull); pluck(pFull); lead(pFull);
+      pad(pBreak, 0.7); pluck(pBreak, 0.5);             // breakdown: pad + pluck, no drums/bass
+      pad(pOut, 0.55);
+
+      // The stars of the show: LFO 1 = slow sine sweeping the Vowel Pad's morph
+      // Position (vowel-to-vowel wash). LFO 2 = a WAVETABLE-shaped LFO (PWM bank)
+      // rhythmically pulsing the Glass Lead's second-osc Position every half-bar.
+      const PS1 = tgt('wvt', 'PS1'), PS2 = tgt('wvt', 'PS2');
+      const lfos = [
+        { ...defaultLfo(), shape: 0, sync: true, rateBeats: 16, depth: 0.45, bipolar: true, targetParamId: PS1.id, targetInstIdx: I_PAD },
+        { ...defaultLfo(), shape: 6, sync: true, rateBeats: 2, depth: 0.35, bipolar: true, targetParamId: PS2.id, targetInstIdx: I_LEAD, wtBank: 2, wtPos: 0.5 },
+      ];
+
+      return {
+        patterns: [pIntro, pA, pB, pFull, pBreak, pOut],
+        order: [0, 1, 2, 3, 3, 2, 3, 4, 1, 2, 3, 3, 2, 3, 3, 4, 2, 3, 3, 3, 4, 5, 5, 5],
+        rowsPerBeat: 4,
+        lfos,
+        pan: [0.5, 0.5, 0.5, 0.5, 0.42, 0.58, 0.6, 0.4],
       };
     }
   }

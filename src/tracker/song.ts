@@ -3,6 +3,7 @@
 import { EMPTY } from './pattern.js';
 import { INSTRUMENTS, INSTRUMENT_COLORS } from '../constants.js';
 import { byType } from '../instruments/index.js';
+import { targetById } from './automation.js';
 import { defaultFxParams } from '../gl/effects.js';
 import { DEMO_SONGS, defaultParams, makeParams, makeFx } from './demo-songs.js';
 import type { InstrumentInstance, InstrumentParams, InstrumentSpec, InstrumentType, SongData, SongDef } from '../types.js';
@@ -79,6 +80,18 @@ export function loadSongInstruments(songDef: SongDef): { instruments: Instrument
       }
     }
   }
+  // Global LFOs can target an instrument instance (inst/fx scope); keep those
+  // alive too, and remap their index below like autoTracks. (chan/global LFOs key
+  // on a channel / nothing, so they're left alone.)
+  const lfoIsInst = (paramId: number) => {
+    const t = targetById(paramId);
+    return !!t && (t.scope === 'inst' || t.scope === 'fx');
+  };
+  for (const lfo of data.lfos ?? []) {
+    if (lfo.targetInstIdx !== null && lfo.targetInstIdx >= 0 && lfo.targetInstIdx < full.length && lfoIsInst(lfo.targetParamId)) {
+      used.add(lfo.targetInstIdx);
+    }
+  }
   if (used.size === 0) used.add(0);                      // always keep ≥1
 
   const keep = [...used].sort((a, b) => a - b);          // preserve engine order
@@ -95,6 +108,15 @@ export function loadSongInstruments(songDef: SongDef): { instruments: Instrument
         const m = remap.get(track.targetInstIdx);
         track.targetInstIdx = m === undefined ? 0 : m;
       }
+    }
+  }
+
+  // Remap inst/fx-scope LFO targets through the same prune map (so they still point
+  // at the right instance after unused engines are dropped).
+  for (const lfo of data.lfos ?? []) {
+    if (lfo.targetInstIdx !== null && lfoIsInst(lfo.targetParamId)) {
+      const m = remap.get(lfo.targetInstIdx);
+      lfo.targetInstIdx = m === undefined ? 0 : m;
     }
   }
 
