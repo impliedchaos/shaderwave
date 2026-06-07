@@ -3788,5 +3788,277 @@ export const DEMO_SONGS: SongDef[] = [
         pan: [0.5, 0.5, 0.5, 0.5, 0.5, 0.36, 0.64, 0.5]
       };
     }
+  },
+  {
+    name: "Icepick Lobotomy Cotillion",
+    author: "AI Slop",
+    note: "A chilling, gothic waltz in C harmonic minor. Shimmering DX7 bells, a mechanical E8E clockwork tick, and a classical piano theme dance alongside a screaming TB-303 'icepick' lead. Heavy Moog bass and equal-power panned instruments construct a dark, haunting ballroom atmosphere.",
+    bpm: 112,
+    master: DEFAULT_MASTER * 0.45,
+    params: [
+      { name: "808 Mechanical", type: "808", p0: [0, 0.5, 0.5, 0.6], p1: [0, 0, 0, 0] },
+      { name: "Ballroom Vinyl", type: "groove", p0: [0.18, 0.45, 0.4, 0.5], p1: [0.35, 0.4, 0.3, 0.35], p2: [33.333, 6, 0.5, 0.03], p3: [0.3, 1.5, 0, 0] },
+      { name: "Lobotomy Bass", type: "moog", p0: [150, 0.6, 0.55, 0], p1: [4, 0.85, 0.5, 0.6], p2: [1, 1, 1, 0.02], p3: [1, 1, 1, 0.02] },
+      { name: "Cotillion Piano", type: "pipi", p0: [3.5, 0.0006, 0.6, 0.4], p1: [24, 0.0060, 0.8, 0.15] },
+      {
+        name: "Chamber Bell", type: "dx7",
+        p0: [1, 3.5, 3.0, 0.0], p1: [1, 0.7, 1.4, 1],
+        ops: [
+          { coarse: 1.0, fine: 0, level: 99, detune: 0,  decay: 1.2, mode: 0, sustain: 0.0, release: 0.8 },
+          { coarse: 3.0, fine: 0, level: 80, detune: 1,  decay: 0.6, mode: 0, sustain: 0.0, release: 0.4 },
+          { coarse: 6.0, fine: 0, level: 50, detune: -2, decay: 0.3, mode: 0, sustain: 0.0, release: 0.3 },
+          { coarse: 1.0, fine: 0, level: 0,  detune: 0,  decay: 0.5, mode: 0, sustain: 0.0, release: 0.5 },
+          { coarse: 1.0, fine: 0, level: 0,  detune: 0,  decay: 0.5, mode: 0, sustain: 0.0, release: 0.5 },
+          { coarse: 1.0, fine: 0, level: 0,  detune: 0,  decay: 0.5, mode: 0, sustain: 0.0, release: 0.5 }
+        ]
+      },
+      { name: "Haunting Guitar", type: "guitar", p0: [2.5, 0.18, 0.65, 0.92], p1: [28, 0.0, 0.45, 0.12] },
+      { name: "Acid Icepick", type: "303", p0: [600, 0.82, 0.65, 0.45], p1: [1, 0.25, 0.3, 0] },
+      { name: "Clockwork Tick", type: "e8e", p0: [0.001, 0.05, 0.0, 0.02], p1: [0.0, 0, 8, 0.0], p2: [2, 0, 0, 1], p3: [1.0, 0.0, 0.0, 0.2] }
+    ],
+    fxParams: makeFx({
+      '303': { distOn: true, dist: 8.0, tone: 0.6, level: 1.0, master: 0.8, delayOn: true, delayMix: 0.25, delayTime: 0.3, delayFeedback: 0.4 },
+      'dx7': { reverbOn: true, reverbDecay: 0.7, reverbMix: 0.2, master: 0.8 },
+      '808': { distOn: true, dist: 3.0, tone: 0.5, level: 1.0, master: 0.9 },
+      'moog': { distOn: true, dist: 2.0, tone: 0.4, level: 1.0, master: 0.75, reverbOn: true, reverbDecay: 0.8, reverbMix: 0.15 },
+      'pipi': { reverbOn: true, reverbDecay: 0.75, reverbMix: 0.25, chorusOn: true, chorusMix: 0.2, chorusDepth: 2.0, master: 0.75 },
+      'guitar': { reverbOn: true, reverbDecay: 0.85, reverbMix: 0.2, delayOn: true, delayMix: 0.15, delayTime: 0.4, master: 0.8 },
+      'e8e': { master: 0.5 },
+      'groove': { master: 0.6 }
+    }),
+    data: () => {
+      const p = Array.from({ length: 9 }, () => new Pattern(128, 8));
+      const [p0, p1, p2, p3, p4, p5, p6, p7, p8] = p;
+
+      const I_808 = 0, I_GROOVE = 1, I_MOOG = 2, I_PIPI = 3, I_DX7 = 4, I_GUITAR = 5, I_303 = 6, I_E8E = 7;
+
+      const C_MIN = [48, 51, 55];
+      const AB_MAJ = [44, 48, 51];
+      const F_MIN = [41, 44, 48];
+      const G_MAJ = [43, 47, 50];
+      const BASS_ROOTS = [36, 44, 41, 43];
+
+      const PIPI_MELODY = [
+        60, 67, 63, 62,  60, 67, 63, 65,
+        68, 75, 72, 70,  68, 75, 72, 74,
+        65, 72, 68, 67,  65, 72, 68, 70,
+        67, 74, 71, 69,  67, 74, 71, 71
+      ];
+
+      const BELL_NOTES = [84, 91, 92, 87, 89, 84, 95, 91];
+
+      const GUITAR_ARPS = [
+        [48, 51, 55, 51],
+        [44, 48, 51, 48],
+        [41, 44, 48, 44],
+        [43, 47, 50, 47]
+      ];
+
+      const setVinyl = (pat: Pattern, vol = 0.32) => {
+        pat.set(0, 1, 36, I_GROOVE, vol);
+      };
+
+      const setPianoMelody = (pat: Pattern, vol = 0.8, octaveOffset = 0) => {
+        for (let r = 0; r < 128; r += 4) {
+          const note = PIPI_MELODY[Math.floor(r / 4) % 32] + octaveOffset;
+          pat.set(r, 3, note, I_PIPI, vol);
+          pat.set(r + 3, 3, OFF, I_PIPI);
+        }
+      };
+
+      const setGuitarArps = (pat: Pattern, vol = 0.75) => {
+        for (let r = 0; r < 128; r += 4) {
+          const chordIdx = Math.floor(r / 32) % 4;
+          const arp = GUITAR_ARPS[chordIdx];
+          const step = Math.floor(r / 4) % 4;
+          const note = arp[step];
+          pat.set(r + 2, 5, note, I_GUITAR, vol);
+          pat.set(r + 4, 5, OFF, I_GUITAR);
+        }
+      };
+
+      const setBells = (pat: Pattern, vol = 0.7) => {
+        for (let bar = 0; bar < 8; bar++) {
+          const r = bar * 16;
+          const note = BELL_NOTES[bar];
+          pat.set(r, 4, note, I_DX7, vol);
+          pat.set(r + 12, 4, OFF, I_DX7);
+        }
+      };
+
+      const setMoogBass = (pat: Pattern, vol = 0.8) => {
+        for (let r = 0; r < 128; r += 8) {
+          const chordIdx = Math.floor(r / 32) % 4;
+          const root = BASS_ROOTS[chordIdx];
+          const note = (r % 16 === 0) ? root : root + 7;
+          pat.set(r, 2, note, I_MOOG, vol);
+          pat.set(r + 6, 2, OFF, I_MOOG);
+        }
+      };
+
+      const setDrums = (pat: Pattern, hasKick: boolean, hasSnare: boolean, hasHats: boolean) => {
+        const BD = 36, SD = 38, HH = 42, OH = 46;
+        for (let r = 0; r < 128; r += 4) {
+          const step = r % 16;
+          if (hasKick && step === 0) {
+            pat.set(r, 0, BD, I_808, 0.95);
+          }
+          if (hasSnare && (step === 4 || step === 8)) {
+            pat.set(r, 0, SD, I_808, 0.82);
+          }
+          if (hasHats) {
+            if (step === 12) {
+              pat.set(r, 0, OH, I_808, 0.55);
+            } else if (step === 2 || step === 6 || step === 10) {
+              pat.set(r, 0, HH, I_808, 0.45);
+            }
+          }
+        }
+      };
+
+      const set303Icepick = (pat: Pattern, vol = 0.75, octaveOffset = 0) => {
+        const notes = [
+          72, 0, 75, 0, 79, 79, 80, 0, 72, 72, 75, 75, 79, 80, 84, 0,
+          80, 0, 84, 0, 87, 87, 86, 0, 80, 80, 84, 0,  87, 86, 80, 0,
+          77, 0, 80, 0, 84, 84, 83, 0, 77, 77, 80, 80, 84, 83, 80, 0,
+          79, 0, 83, 0, 86, 86, 84, 0, 79, 79, 83, 0,  86, 84, 83, 0
+        ];
+        for (let r = 0; r < 128; r += 2) {
+          const note = notes[Math.floor(r / 2) % 64];
+          if (note > 0) {
+            pat.set(r, 6, note + octaveOffset, I_303, vol);
+            if (r % 8 === 4) {
+              pat.setFx(r, 6, 0x3, 0x18);
+            }
+          }
+        }
+      };
+
+      const setClockwork = (pat: Pattern, vol = 0.3) => {
+        for (let r = 0; r < 128; r++) {
+          const chordIdx = Math.floor(r / 32) % 4;
+          const chord = [C_MIN, AB_MAJ, F_MIN, G_MAJ][chordIdx];
+          const note = chord[r % 3] + 24;
+          pat.set(r, 7, note, I_E8E, vol);
+        }
+      };
+
+      // Automation targets
+      const CUT_303 = tgt('303', 'CUT');
+      const RES_303 = tgt('303', 'RES');
+      const BPM_T = tgt('pipi', 'BPM');
+      const RVM_PIPI = tgt('pipi', 'RVM');
+
+      const sweep303 = (pat: Pattern, startCut: number, endCut: number, startRes: number, endRes: number) => {
+        const cutTrack = pat.getOrCreateAutoTrack(I_303, CUT_303.id);
+        const resTrack = pat.getOrCreateAutoTrack(I_303, RES_303.id);
+        const cLo = normByte(CUT_303, startCut), cHi = normByte(CUT_303, endCut);
+        const rLo = normByte(RES_303, startRes), rHi = normByte(RES_303, endRes);
+        for (let r = 0; r < 128; r++) {
+          cutTrack[r] = Math.round(cLo + (cHi - cLo) * (r / 127));
+          resTrack[r] = Math.round(rLo + (rHi - rLo) * (r / 127));
+        }
+      };
+
+      const bpmRamp = (pat: Pattern, fromBpm: number, toBpm: number) => {
+        const track = pat.getOrCreateAutoTrack(null, BPM_T.id);
+        const lo = normByte(BPM_T, fromBpm), hi = normByte(BPM_T, toBpm);
+        for (let r = 0; r < 128; r++) {
+          track[r] = Math.round(lo + (hi - lo) * (r / 127));
+        }
+      };
+
+      const reverbSwell = (pat: Pattern, fromVal: number, toVal: number) => {
+        const track = pat.getOrCreateAutoTrack(I_PIPI, RVM_PIPI.id);
+        const lo = normByte(RVM_PIPI, fromVal), hi = normByte(RVM_PIPI, toVal);
+        for (let r = 0; r < 128; r++) {
+          track[r] = Math.round(lo + (hi - lo) * (r / 127));
+        }
+      };
+
+      // Assemble patterns
+      // p0: Intro
+      setVinyl(p0, 0.35);
+      setPianoMelody(p0, 0.65, -12);
+      setClockwork(p0, 0.12);
+
+      // p1: Theme Intro
+      setVinyl(p1, 0.35);
+      setPianoMelody(p1, 0.8);
+      setGuitarArps(p1, 0.7);
+      setClockwork(p1, 0.2);
+
+      // p2: Bass & Beat Entrance
+      setVinyl(p2, 0.35);
+      setPianoMelody(p2, 0.8);
+      setGuitarArps(p2, 0.7);
+      setClockwork(p2, 0.25);
+      setMoogBass(p2, 0.8);
+      setDrums(p2, true, false, true);
+
+      // p3: Shimmering Bells & Snare Entrance
+      setVinyl(p3, 0.35);
+      setPianoMelody(p3, 0.8);
+      setGuitarArps(p3, 0.7);
+      setClockwork(p3, 0.25);
+      setMoogBass(p3, 0.8);
+      setBells(p3, 0.75);
+      setDrums(p3, true, true, true);
+
+      // p4: Breakdown / The Icepick
+      setVinyl(p4, 0.4);
+      setBells(p4, 0.6);
+      set303Icepick(p4, 0.75);
+      sweep303(p4, 400, 1800, 0.65, 0.95);
+
+      // p5: Climax 1
+      setVinyl(p5, 0.4);
+      setPianoMelody(p5, 0.85);
+      setGuitarArps(p5, 0.75);
+      setClockwork(p5, 0.3);
+      setMoogBass(p5, 0.85);
+      setBells(p5, 0.8);
+      setDrums(p5, true, true, true);
+      set303Icepick(p5, 0.78);
+      sweep303(p5, 800, 2500, 0.75, 0.96);
+
+      // p6: Climax 2 (Screaming octaves + acceleration)
+      setVinyl(p6, 0.45);
+      setPianoMelody(p6, 0.85, 12);
+      setGuitarArps(p6, 0.8);
+      setClockwork(p6, 0.35);
+      setMoogBass(p6, 0.9);
+      setBells(p6, 0.85);
+      setDrums(p6, true, true, true);
+      set303Icepick(p6, 0.85, 12);
+      sweep303(p6, 1500, 3200, 0.8, 0.98);
+      bpmRamp(p6, 112, 128);
+
+      // p7: Return from climax / tension
+      setVinyl(p7, 0.4);
+      setPianoMelody(p7, 0.8);
+      setGuitarArps(p7, 0.7);
+      setClockwork(p7, 0.25);
+      setMoogBass(p7, 0.8);
+      setBells(p7, 0.75);
+      setDrums(p7, true, true, true);
+      p7.set(0, 6, OFF, I_303);
+      bpmRamp(p7, 128, 112);
+
+      // p8: Outro / Collapse
+      setVinyl(p8, 0.35);
+      setPianoMelody(p8, 0.6, -12);
+      setBells(p8, 0.5);
+      p8.set(0, 6, OFF, I_303);
+      bpmRamp(p8, 112, 56);
+      reverbSwell(p8, 0.25, 0.9);
+
+      return {
+        patterns: p,
+        order: [0, 1, 2, 3, 4, 5, 6, 7, 5, 6, 8],
+        rowsPerBeat: 4,
+        pan: [0.5, 0.36, 0.45, 0.54, 0.64, 0.38, 0.62, 0.5]
+      };
+    }
   }
 ];
