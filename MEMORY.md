@@ -42,11 +42,22 @@ to audition songs themselves in their own browser.
 
 ## Current work
 
-### Undo/redo + localStorage song persistence — Phase 0+1 DONE; 2–4 pending — `project`
-**STATUS (2026-06-08):** Phase 0 (snapshot/restore + markDirty chokepoint) and Phase 1
-(whole-document undo/redo) are IMPLEMENTED + committed. Build green, 36/36 logic tests
-(6 new in `test/logic/history.test.ts`). Phases 2–4 (localStorage store, autosave +
-demo-fork, custom song-list panel) still pending — see the build sequence below.
+### Undo/redo + localStorage song persistence — Phase 0–2 DONE; 3–4 pending — `project`
+**STATUS (2026-06-08):** Phase 0 (snapshot/restore + markDirty chokepoint) + Phase 1
+(whole-document undo/redo) shipped in 1.15.0 (commit 291d03b). Phase 2 (the localStorage
+store module) is IMPLEMENTED + tested, NOT yet wired into the app. Build green, 44/44 logic
+tests. Phases 3–4 (autosave + demo-fork lifecycle, custom song-list panel) still pending.
+- **Phase 2 shipped:** `src/tracker/song-store.ts` — `SongStore` class with an INJECTABLE
+  backend (`KVStore`; defaults to `localStorage`, guarded for sandboxed contexts; tests pass an
+  in-memory stand-in → runs under node). Layout: `shaderwave:songs:index` = `UserSongMeta[]`
+  (id/name/color/createdAt/updatedAt, read once on boot) + `shaderwave:song:<id>` = minified
+  `SerializedSong` body (read only when opened) — so listing N songs doesn't parse N×~300 KB.
+  API: `available/createId/list (newest-first)/has/load (validates via deserializeSong, prunes a
+  stale index entry whose body vanished)/save (upsert: preserves createdAt, bumps updatedAt,
+  dedups, quota-safe with rollback so no orphan body)/delete`. 8 tests in
+  `test/logic/song-store.test.ts`. NEXT: Phase 3 wires it (autosave off the markDirty chokepoint;
+  demo→fork on first content edit; New mints a record) — that's where the deferred
+  `currentSong={kind,id?,demoIdx?}` model gets introduced.
 - **Shipped:** `src/tracker/history.ts` (`History`: past/future snapshot stacks, `reset`/
   `push`/`replacePresent`/`undo`/`redo`, cap 60). App gained `_snapshot()` (factored out of
   `_saveSong`, the single source of truth), `markDirty(tag, coalesce)`, `_seedHistory()`,
