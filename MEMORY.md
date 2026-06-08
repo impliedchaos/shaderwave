@@ -76,11 +76,10 @@ Honest assessment of what the project most needs (beyond the parked plans below)
 1. **Undo/redo** — the biggest UX gap. None today (only a "can't be undone" confirm dialog). A
    creative tool others will use needs it; even coarse per-pattern / whole-song snapshot stack is
    enough to start. Top priority for "a toy others use".
-2. **Per-sample recursive processing in the FX chain** — the LINCHPIN. The FX chain is stateless /
-   ring-buffer only; a filter, a true compressor, AND the transparent limiter ALL need sample-to-
-   sample state (only the SYNTH renderer has it today, via strip rendering + MRT carry). Build that
-   capability into `EffectsChain` ONCE → unlocks all three. Then ship a **resonant multimode filter
-   FX** (LP/HP/BP) — the most obvious missing effect, and the LFOs/mod-matrix were built to sweep it.
+2. **Per-sample recursive processing in the FX chain** — ✅ DONE (1.13.0). The capability + the
+   resonant multimode filter both shipped. See the dedicated entry below ("Per-sample recursive FX +
+   resonant filter"). This unlocks the compressor/limiter (#4) — they reuse the same strip/MRT state
+   carry for their envelope follower.
 3. **Committed test suite** — ✅ SEEDED (1.11.0). `npm run test` bundles `test/logic/index.ts`
    (esbuild+node) and runs the harness in `test/logic/_harness.ts`: LFO invariants incl. the BPM
    continuity regression, mod matrix, automation id-stability + norm/denorm, song-io round-trip +
@@ -172,9 +171,10 @@ on play/stop → deterministic for export.
   is ~11 ms → peaks leak for up to a block. Two ways to fix, decide at build time:
   (a) **lookahead** — delay the audio a few ms via a small ring buffer (FX chain already does
   rings for delay/chorus) so a block-rate envelope ducks BEFORE the peak; or
-  (b) **per-sample strip rendering** in the FX chain (port the synth ladder's strip+MRT
-  approach) — "proper" sample-accurate, bigger lift. **Lean: (a) lookahead first** (reuses
-  existing ring + state patterns), upgrade to (b) later if it's not tight enough.
+  (b) **per-sample strip rendering** in the FX chain — NO LONGER a big lift: `EffectsChain._recursive`
+  (shipped 1.13.0 for the filter) IS this mechanism. An envelope follower can use it directly (state
+  texel carries the envelope across strips/blocks). **Revised lean: (b) is now the clean path** — reuse
+  `_recursive`; fall back to lookahead (a) only if a sample-accurate detector still isn't tight enough.
 - Both: automation/LFO targets + stomp-box toggles for free (registry); placement comp-early /
   limiter-last by default, fully movable once the chain is reorderable.
 - **Gotcha reminder:** add the new enable flags (`compOn`,`limitOn`) to the `_on()` truthy group
@@ -270,6 +270,37 @@ is warranted.
 **Verify:** build + glsl-check + render-check + song-load loop + headless checks (no block-rate
 glitch — render a held tone with decimation across block boundaries, assert sample continuity;
 toggle automation flips an effect on/off; mid-tread quantizer keeps 0).
+
+### Per-sample recursive FX + resonant filter (1.13.0) — `project`
+Added 2026-06-08. The FX chain can now do PER-SAMPLE RECURSION (the linchpin for filter/compressor/
+limiter), and the first consumer — a resonant multimode filter — shipped.
+- **Infra (`effects.ts`):** `EffectsChain._recursive(prog, inTex, outFbo, read, write)` ports the synth
+  ladder's strip+MRT mechanism to the BLOCK×1 FX signal. Renders in `FX_SUB=64`-wide strips; MRT
+  attachment0 = the chain scratch buffer (viewport-restricted per strip), attachment1 = a per-effect
+  ping-pong STATE texture (BLOCK×1 RGBA32F). Checkpoint read at `uSubOffset==0 ? BLOCK-1 : uSubOffset-1`
+  (carries state across blocks via the persisted ping-pong, like the synth). Returns swapped [read,write]
+  for the effect to persist; cleared on `reset()`. Exposed via `FxCtx.recursive`. After the loop it
+  DETACHES attachment1 + resets drawBuffers([0]) so the shared scratch FBO is single-attachment again.
+- **Filter (`fx-filter.glsl` + `fxFilter`):** TPT/Zavalishin state-variable filter (LP/HP/BP), stable
+  to self-oscillation. State = (ic1,ic2) per channel in ONE RGBA texel (rg=L, ba=R). Coeffs (a1/a2/a3/k)
+  computed per block on the CPU from cutoff+reso (block-rate = LFO/automation-swept). `uBypass=1` path
+  when OFF: a cheap O(BLOCK) full-width passthrough (no strips, state frozen) so a song that never uses
+  the filter pays ~nothing — re-enabling from frozen state settles in ms (accepted). Placed after
+  Overdrive in the chain (Dist→OD→**Filter**→Chorus→…).
+- **Params/targets:** FxParams gains `filterOn/filterCutoff/filterReso/filterMode/filterMix`. Automation/
+  LFO targets `FLO`(toggle)/`FLC`(cutoff, LOG)/`FLR`/`FLM` — **appended AFTER the toggles** in
+  `automation.ts` (id-stability: never insert into the FX block — it'd shift CHAN/GLOBAL/TOGGLE ids).
+  `FLC` is the marquee LFO sweep target. FX panel: Filter section (Cutoff log / Reso / Mode LP·HP·BP /
+  Mix). Mode is a stepped knob, NOT automated (enum target deferred).
+- **Verified:** `test/filter-check.html` (NEW) renders a known signal through a filter-only chain and
+  matches a CPU TPT-SVF reference to ~4e-7 across strip+block boundaries (proves the state carry is
+  exact + continuous), confirms LP attenuates 8kHz to 0.3%, high-Q (reso 0.98) stays bounded, and
+  bypass is transparent (~6e-8). glsl-check now also compiles fx-filter/fx-overdrive/fx-bitcrush-update
+  (its list had drifted). golden-render checksum UNCHANGED (0x5fc60c89 — filter-off bypass is bit-
+  transparent, so existing songs are untouched). 25/25 logic tests. build + render-check green.
+- **NEXT (this unlocked it):** compressor + transparent limiter reuse `_recursive` for the envelope
+  follower (see the Compressor/Limiter entry — the "per-sample strip rendering" option is now the easy
+  path, not a big lift). A reorderable chain (feature c) pairs well now that there's a filter to place.
 
 ### 4 LFOs + Pump (ducking) shape (1.12.0) — `project`
 Added 2026-06-08. `LFO_COUNT` 2→4 (`MAX_ROUTINGS` 8→12). The UI is fully data-driven

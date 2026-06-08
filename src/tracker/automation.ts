@@ -94,6 +94,18 @@ for (const t of GLOBAL) TARGETS.push({ ...t, scope: 'global', type: '*', id: TAR
 // fx on/off toggles — appended LAST so ids stay stable when this group grows.
 for (const t of TOGGLES) TARGETS.push({ ...t, scope: 'fx', type: '*', id: TARGETS.length });
 
+// Resonant filter fx targets — appended AFTER the toggles (id-stable). New fx
+// targets MUST go at the very end so they never shift existing CHAN/GLOBAL/TOGGLE
+// ids (persisted in patterns). All fx-scope, so they auto-appear in the automation
+// picker AND the LFO routing dropdown (cutoff is the marquee LFO sweep target).
+const FX_FILTER_TARGETS: RawTarget[] = [
+  { code: 'FLO', label: 'Filter On',     key: 'filterOn',     min: 0,  max: 1,     curve: 'lin', toggle: true },
+  { code: 'FLC', label: 'Filter Cutoff', key: 'filterCutoff', min: 20, max: 18000, curve: 'log', unit: 'Hz' },
+  { code: 'FLR', label: 'Filter Reso',   key: 'filterReso',   min: 0,  max: 1,     curve: 'lin' },
+  { code: 'FLM', label: 'Filter Mix',    key: 'filterMix',    min: 0,  max: 1,     curve: 'lin' },
+];
+for (const t of FX_FILTER_TARGETS) TARGETS.push({ ...t, scope: 'fx', type: '*', id: TARGETS.length });
+
 export function targetById(id: number): ParamTarget | null {
   return (id >= 0 && id < TARGETS.length) ? TARGETS[id] : null;
 }

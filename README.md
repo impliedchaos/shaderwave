@@ -227,13 +227,19 @@ A second shader stage runs between the synth mix and the audio readback. All
 effects are editable from the **Instrument FX** panel.
 
 ```
-input → Distortion → Overdrive → Chorus → Tremolo → Delay → Reverb → Bitcrusher → Width → Master Out
+input → Distortion → Overdrive → Filter → Chorus → Tremolo → Delay → Reverb → Bitcrusher → Width → Master Out
 ```
 
 Each effect is its own GPU pass over a `BLOCK × 1` stereo buffer; the chain runs
 in a data-driven order (`DEFAULT_FX_ORDER` in `src/gl/effects.ts`), so the signal
 flow can be rearranged just by reordering that list. A terminal master pass
 applies the output gain and additively accumulates each instrument's result.
+
+Most effects are pointwise or ring-buffer-based, but the **Filter** is **per-sample
+recursive** (each output sample depends on the previous sample's filter state). It
+borrows the synth ladder's trick: the block is rendered in `FX_SUB`-wide strips that
+carry the filter state forward via an MRT state texture (and across blocks via a
+persistent ping-pong), so the recursion is exact without an `O(BLOCK²)` recompute.
 
 ### Distortion — Boss DS-1 Emulation
 
@@ -250,6 +256,16 @@ clipping (even harmonics), and the **mid-hump** that emerges from the bass-cut +
 - **Drive** — gain into the soft clipper
 - **Tone** — post-clip treble roll
 - **Level** — output volume
+
+### Filter — Resonant State-Variable
+
+A TPT (topology-preserving transform) state-variable filter — the chain's only
+per-sample recursive effect. Self-oscillation-capable resonance; the cutoff is the
+primary target the LFOs / mod matrix were built to sweep.
+- **Cutoff** — corner frequency (Hz, log)
+- **Reso** — resonance / Q (→ self-oscillation near the top)
+- **Mode** — LP (low-pass) · HP (high-pass) · BP (band-pass)
+- **Mix** — wet/dry blend
 
 ### Chorus
 

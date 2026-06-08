@@ -25,8 +25,13 @@ import FX_FDN_UPDATE from './shaders/fx-fdn-update.glsl?raw';
 import FX_FDN_TAP from './shaders/fx-fdn-tap.glsl?raw';
 import FX_BITCRUSH from './shaders/fx-bitcrush.glsl?raw';
 import FX_BITCRUSH_UPDATE from './shaders/fx-bitcrush-update.glsl?raw';
+import FX_FILTER from './shaders/fx-filter.glsl?raw';
 import FX_WIDTH from './shaders/fx-width.glsl?raw';
 import FX_MASTER from './shaders/fx-master.glsl?raw';
+
+// Strip width for per-sample-recursive effects (the resonant filter). Mirrors the
+// synth renderer's subBlock: smaller = fewer redundant recomputes but more draws.
+const FX_SUB = 64;
 
 // Delay ring: 2D (width-limited) layout, ~2.7s at 48k.
 const DELAY_W = 2048, DELAY_H = 64, DELAY_LEN = DELAY_W * DELAY_H;
@@ -50,6 +55,13 @@ export interface FxCtx {
   delaySamples: number;               // clamped delay length in samples
   bind(unit: number, tex: WebGLTexture): void;
   stereoPass(prog: GLProgram, inTex: WebGLTexture, outFbo: WebGLFramebuffer | null): GLProgram;
+  // Per-sample recursive strip pass (filter etc.). `prog` must already be in use
+  // with its block-constant uniforms set; this drives the strip loop, binding uIn
+  // (unit 0) + uPrevState (unit 1), writing outColor → outFbo attachment 0 and
+  // outState → the ping-pong state texture (attachment 1). Returns the swapped
+  // [read, write] state textures for the caller to persist across blocks.
+  recursive(prog: GLProgram, inTex: WebGLTexture, outFbo: WebGLFramebuffer | null,
+            stateRead: WebGLTexture, stateWrite: WebGLTexture): [WebGLTexture, WebGLTexture];
   on(flag: string): boolean;
 }
 
@@ -295,6 +307,47 @@ const fxBitcrush: FxEffectDef = {
   },
 };
 
+const fxFilter: FxEffectDef = {
+  key: 'filter', name: 'Filter', enableFlag: 'filterOn',
+  defaults: { filterOn: false, filterCutoff: 2000.0, filterReso: 0.2, filterMode: 0, filterMix: 1.0 },
+  init(gl) {
+    const prog = createProgram(gl, FX_FILTER);
+    gl.useProgram(prog); gl.uniform1i(prog.u('uIn'), 0); gl.uniform1i(prog.u('uPrevState'), 1);
+    // Per-sample filter state, carried across blocks (ping-pong, cleared on reset).
+    let read = makeTex(gl, BLOCK, 1), write = makeTex(gl, BLOCK, 1);
+    return {
+      reset(clear) { clear(read); clear(write); },
+      process(ctx, inTex, outFbo) {
+        const g = ctx.gl, p = ctx.params, on = ctx.on('filterOn');
+        g.useProgram(prog);
+        g.uniform1i(prog.u('uMode'), Math.round((p.filterMode as number) ?? 0));
+        if (!on) {
+          // Cheap O(BLOCK) bypass — pass the dry signal through, leave state frozen.
+          g.bindFramebuffer(g.FRAMEBUFFER, outFbo);
+          g.drawBuffers([g.COLOR_ATTACHMENT0]);
+          ctx.bind(0, inTex);
+          g.uniform1i(prog.u('uBypass'), 1);
+          g.viewport(0, 0, BLOCK, 1); drawQuad(g);
+          return;
+        }
+        // TPT-SVF coefficients (block-rate; cutoff/reso are LFO/automation-swept).
+        const fc = Math.max(20, Math.min(ctx.sampleRate * 0.45, (p.filterCutoff as number) ?? 2000));
+        const Q = 0.5 * Math.pow(36, (p.filterReso as number) ?? 0.2);   // ~0.5 .. ~18
+        const k = 1 / Q;
+        const gco = Math.tan(Math.PI * fc / ctx.sampleRate);
+        const a1 = 1 / (1 + gco * (gco + k));
+        g.uniform1i(prog.u('uBypass'), 0);
+        g.uniform1f(prog.u('uA1'), a1);
+        g.uniform1f(prog.u('uA2'), gco * a1);
+        g.uniform1f(prog.u('uA3'), gco * gco * a1);
+        g.uniform1f(prog.u('uK'), k);
+        g.uniform1f(prog.u('uMix'), (p.filterMix as number) ?? 1.0);
+        [read, write] = ctx.recursive(prog, inTex, outFbo, read, write);
+      },
+    };
+  },
+};
+
 const fxWidth: FxEffectDef = {
   key: 'width', name: 'Stereo Width', enableFlag: 'widthOn',
   defaults: { widthOn: true, width: 1.15 },
@@ -315,7 +368,7 @@ const fxWidth: FxEffectDef = {
 // Signal-flow order matches the README chain; the master accumulate always runs
 // after it. Reorder this array to rearrange the chain.
 export const FX_EFFECTS: FxEffectDef[] = [
-  fxDistortion, fxOverdrive, fxChorus, fxTremolo, fxDelay, fxReverb, fxBitcrush, fxWidth,
+  fxDistortion, fxOverdrive, fxFilter, fxChorus, fxTremolo, fxDelay, fxReverb, fxBitcrush, fxWidth,
 ];
 
 export const DEFAULT_FX_ORDER = FX_EFFECTS.map((e) => e.key);
@@ -332,7 +385,7 @@ export function defaultFxParams(): FxParams {
 // stays the song-authoring baseline; only `+ Add` uses this.)
 export function neutralFxParams(): FxParams {
   const p = defaultFxParams();
-  p.distOn = p.odOn = p.chorusOn = p.tremoloOn = p.delayOn = p.reverbOn = p.widthOn = p.bitcrushOn = false;
+  p.distOn = p.odOn = p.filterOn = p.chorusOn = p.tremoloOn = p.delayOn = p.reverbOn = p.widthOn = p.bitcrushOn = false;
   p.dist = 0;                         // distortion drive → transparent
   p.odDrive = 1; p.odTone = 0.5;      // overdrive: unity drive, centre tone
   p.delayMix = 0; p.reverbMix = 0; p.bitcrushMix = 0;
@@ -418,6 +471,35 @@ export class EffectsChain {
     return prog;   // caller sets stage-specific uniforms before drawQuad
   }
 
+  // Per-sample recursive strip pass (mirrors SynthRenderer's ladder loop). Renders
+  // the block in FX_SUB-wide strips, ping-ponging the state texture between them
+  // (and persisting the final pair across blocks via the returned tuple). MRT:
+  // attachment 0 = outFbo's signal texture (viewport-restricted per strip),
+  // attachment 1 = the state texture written this strip. `prog` is already in use
+  // with its block-constant uniforms set; uIn (unit 0) + uPrevState (unit 1) and
+  // uBlock/uSubOffset are set here.
+  _recursive(prog: GLProgram, inTex: WebGLTexture, outFbo: WebGLFramebuffer | null,
+             read: WebGLTexture, write: WebGLTexture): [WebGLTexture, WebGLTexture] {
+    const gl = this.gl;
+    gl.useProgram(prog);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, outFbo);
+    gl.uniform1i(prog.u('uBlock'), BLOCK);
+    for (let o = 0; o < BLOCK; o += FX_SUB) {
+      gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, write, 0);
+      gl.drawBuffers([gl.COLOR_ATTACHMENT0, gl.COLOR_ATTACHMENT1]);
+      this._bind(0, inTex);
+      this._bind(1, read);
+      gl.uniform1i(prog.u('uSubOffset'), o);
+      gl.viewport(o, 0, FX_SUB, 1);
+      drawQuad(gl);
+      [read, write] = [write, read];   // next strip reads what we just wrote
+    }
+    // Detach the state target so the shared scratch FBO is single-attachment again.
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT1, gl.TEXTURE_2D, null, 0);
+    gl.drawBuffers([gl.COLOR_ATTACHMENT0]);
+    return [read, write];
+  }
+
   // Run the chain: dry stereo from mixTex flows through `this.order`, then the
   // master pass accumulates (additive) into targetFbo.
   process(mixTex: WebGLTexture, targetFbo: WebGLFramebuffer | null, blockStart: number, masterScale = 1.0) {
@@ -432,6 +514,7 @@ export class EffectsChain {
       delaySamples: Math.max(BLOCK, Math.min(DELAY_LEN - 1, D)),   // keep ≥ BLOCK for parallelism
       bind: (u, t) => this._bind(u, t),
       stereoPass: (prog, inTex, outFbo) => this._stereoPass(prog, inTex, outFbo),
+      recursive: (prog, inTex, outFbo, r, w) => this._recursive(prog, inTex, outFbo, r, w),
       on: (flag) => this._on(flag),
     };
 

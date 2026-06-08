@@ -10,6 +10,9 @@ import SYNTH_808 from '../src/gl/shaders/synth-808.glsl?raw';
 import SYNTH_MOOG from '../src/gl/shaders/synth-moog.glsl?raw';
 import MIX_FS from '../src/gl/shaders/mix.glsl?raw';
 import FX_DISTORTION from '../src/gl/shaders/fx-distortion.glsl?raw';
+import FX_OVERDRIVE from '../src/gl/shaders/fx-overdrive.glsl?raw';
+import FX_FILTER from '../src/gl/shaders/fx-filter.glsl?raw';
+import FX_BITCRUSH_UPDATE from '../src/gl/shaders/fx-bitcrush-update.glsl?raw';
 import FX_CHORUS_UPDATE from '../src/gl/shaders/fx-chorus-update.glsl?raw';
 import FX_CHORUS_TAP from '../src/gl/shaders/fx-chorus-tap.glsl?raw';
 import FX_TREMOLO from '../src/gl/shaders/fx-tremolo.glsl?raw';
@@ -44,12 +47,13 @@ try {
   catch (e) { fail++; log('mix: FAIL\n' + e.message); }
 
   for (const [k, src] of [
-    ['fx-distortion', FX_DISTORTION],
+    ['fx-distortion', FX_DISTORTION], ['fx-overdrive', FX_OVERDRIVE], ['fx-filter', FX_FILTER],
     ['fx-chorus-update', FX_CHORUS_UPDATE], ['fx-chorus-tap', FX_CHORUS_TAP],
     ['fx-tremolo', FX_TREMOLO],
     ['fx-delay-update', FX_DELAY_UPDATE], ['fx-delay-tap', FX_DELAY_TAP],
     ['fx-fdn-update', FX_FDN_UPDATE], ['fx-fdn-tap', FX_FDN_TAP],
-    ['fx-bitcrush', FX_BITCRUSH], ['fx-width', FX_WIDTH], ['fx-master', FX_MASTER],
+    ['fx-bitcrush', FX_BITCRUSH], ['fx-bitcrush-update', FX_BITCRUSH_UPDATE],
+    ['fx-width', FX_WIDTH], ['fx-master', FX_MASTER],
   ]) {
     try { createProgram(gl, src); log(k + ': OK'); }
     catch (e) { fail++; log(k + ': FAIL\n' + e.message); }

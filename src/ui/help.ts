@@ -41,6 +41,7 @@ const PATTERN_FX = FX_CMDS.map((c) => [c.code.toString(16).toUpperCase(), c.labe
 const EFFECTS = [
   ['Distortion', 'Boss DS-1 style diode hard-clip — Dist, Tone, Level'],
   ['Overdrive', 'Ibanez TS9 Tube Screamer — bass-cut soft asymmetric clip + mid-hump — Drive, Tone, Level'],
+  ['Filter', 'Resonant state-variable filter (per-sample) — Cutoff, Reso, Mode (LP/HP/BP), Mix. The marquee LFO/automation sweep target.'],
   ['Chorus', 'Modulated stereo delay line — Mix, Rate, Depth'],
   ['Tremolo', 'Auto-pan amplitude modulation — Mix, Rate'],
   ['Delay', 'Stereo feedback delay, ~2.7 s max — Time, Feedback, Mix'],
@@ -153,7 +154,7 @@ function build() {
   section('Mouse', MOUSE, 'kbd');
   section('Instruments', INSTRUMENTS, 'name');
   section('Effect column  ·  per-cell command + 2-hex value', PATTERN_FX, 'kbd');
-  section('Effects chain  ·  Dist → OD → Chorus → Tremolo → Delay → Reverb → Bitcrush → Width', EFFECTS, 'name');
+  section('Effects chain  ·  Dist → OD → Filter → Chorus → Tremolo → Delay → Reverb → Bitcrush → Width', EFFECTS, 'name');
   section('Modulation', MODULATION, 'name');
 
   // Backdrop click (outside the panel) and the Close button both dismiss.

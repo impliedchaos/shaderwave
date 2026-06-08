@@ -1,0 +1,139 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>pending</title></head>
+<body><pre id="out">running…</pre>
+<script type="module">
+// Resonant filter (TPT-SVF) correctness — the FX chain's first per-sample
+// recursive effect. Drives a known signal through an EffectsChain with ONLY the
+// filter on, and compares the GPU output to a CPU reference SVF computed
+// sample-by-sample across the SAME continuous stream. This validates:
+//   • the strip rendering + MRT state carry (a checkpoint bug would show a big
+//     diff at strip boundaries 64/128/… or at block starts),
+//   • continuity across blocks (state ping-pong persists),
+//   • numerical stability at high resonance (no blow-up / NaN),
+//   • that bypass (filter off) is transparent.
+import { createGL } from '../src/gl/context.js';
+import { EffectsChain, neutralFxParams } from '../src/gl/effects.js';
+import { makeTex } from '../src/gl/program.js';
+import { BLOCK } from '../src/constants.js';
+
+const out = document.getElementById('out');
+const lines = [];
+const log = (s) => { lines.push(s); out.textContent = lines.join('\n'); console.log(s); };
+const SR = 48000;
+
+// CPU reference — identical math + coefficients to fx-filter.glsl / effects.ts.
+function svfRef(input, fc, reso, mode) {
+  const fcc = Math.max(20, Math.min(SR * 0.45, fc));
+  const Q = 0.5 * Math.pow(36, reso), k = 1 / Q;
+  const g = Math.tan(Math.PI * fcc / SR);
+  const a1 = 1 / (1 + g * (g + k)), a2 = g * a1, a3 = g * g * a1;
+  let ic1 = 0, ic2 = 0;
+  const o = new Float32Array(input.length);
+  for (let n = 0; n < input.length; n++) {
+    const x = input[n], v3 = x - ic2;
+    const v1 = a1 * ic1 + a2 * v3, v2 = ic2 + a2 * ic1 + a3 * v3;
+    ic1 = 2 * v1 - ic1; ic2 = 2 * v2 - ic2;
+    o[n] = mode === 0 ? v2 : mode === 1 ? (x - k * v1 - v2) : v1;
+  }
+  return o;
+}
+
+// Test input: low + high sine + a little noise, continuous over the whole run.
+function makeInput(nBlocks) {
+  const N = nBlocks * BLOCK, x = new Float32Array(N);
+  let seed = 1;
+  for (let n = 0; n < N; n++) {
+    seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+    x[n] = 0.5 * Math.sin(2 * Math.PI * 200 * n / SR)
+         + 0.4 * Math.sin(2 * Math.PI * 8000 * n / SR)
+         + 0.05 * ((seed / 0x7fffffff) * 2 - 1);
+  }
+  return x;
+}
+
+// Render `input` through a filter-only chain, block by block, return the GPU output.
+function renderChain(gl, input, { cutoff, reso, mode, on }) {
+  const params = neutralFxParams();
+  params.enabled = true;
+  params.filterOn = on; params.filterCutoff = cutoff; params.filterReso = reso;
+  params.filterMode = mode; params.filterMix = 1.0; params.master = 1.0;
+  const chain = new EffectsChain(gl, SR, params);
+
+  const inTex = makeTex(gl, BLOCK, 1);
+  const tgtTex = makeTex(gl, BLOCK, 1);
+  const tgtFbo = gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, tgtFbo);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tgtTex, 0);
+
+  const rgba = new Float32Array(BLOCK * 4);
+  const readBuf = new Float32Array(BLOCK * 4);
+  const nBlocks = input.length / BLOCK;
+  const o = new Float32Array(input.length);
+
+  for (let b = 0; b < nBlocks; b++) {
+    const bs = b * BLOCK;
+    for (let i = 0; i < BLOCK; i++) { const s = input[bs + i]; rgba[i * 4] = s; rgba[i * 4 + 1] = s; rgba[i * 4 + 2] = 0; rgba[i * 4 + 3] = 1; }
+    gl.bindTexture(gl.TEXTURE_2D, inTex);
+    gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, BLOCK, 1, gl.RGBA, gl.FLOAT, rgba);
+    // The master pass blends additively, so clear the target first.
+    gl.bindFramebuffer(gl.FRAMEBUFFER, tgtFbo);
+    gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
+    chain.process(inTex, tgtFbo, bs, 1.0);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, tgtFbo);
+    gl.readPixels(0, 0, BLOCK, 1, gl.RGBA, gl.FLOAT, readBuf);
+    for (let i = 0; i < BLOCK; i++) o[bs + i] = readBuf[i * 4];   // L
+  }
+  return o;
+}
+
+function maxDiff(a, b) { let m = 0, at = -1; for (let i = 0; i < a.length; i++) { const d = Math.abs(a[i] - b[i]); if (d > m) { m = d; at = i; } } return { m, at }; }
+function rms(a) { let s = 0; for (const v of a) s += v * v; return Math.sqrt(s / a.length); }
+function anyNaN(a) { for (const v of a) if (!Number.isFinite(v)) return true; return false; }
+
+try {
+  const gl = createGL(document.createElement('canvas'));
+  const NB = 8;
+  const input = makeInput(NB);
+  let ok = true;
+
+  // 1. LP matches the CPU reference across strips + blocks.
+  for (const [mode, name] of [[0, 'LP'], [1, 'HP'], [2, 'BP']]) {
+    const gpu = renderChain(gl, input, { cutoff: 1000, reso: 0.35, mode, on: true });
+    const ref = svfRef(input, 1000, 0.35, mode);
+    const { m, at } = maxDiff(gpu, ref);
+    const pass = m < 2e-3 && !anyNaN(gpu);
+    ok = ok && pass;
+    log(`${name} vs CPU ref: maxDiff=${m.toExponential(2)} @${at} (strip/block boundaries clean if small) ${pass ? 'OK' : 'FAIL'}`);
+  }
+
+  // 2. LP actually removes highs: an 8 kHz tone through a 500 Hz LP loses most energy.
+  const hi = new Float32Array(NB * BLOCK);
+  for (let n = 0; n < hi.length; n++) hi[n] = Math.sin(2 * Math.PI * 8000 * n / SR);
+  const lpHi = renderChain(gl, hi, { cutoff: 500, reso: 0.2, mode: 0, on: true });
+  const atten = rms(lpHi.subarray(BLOCK * 2)) / rms(hi);   // skip the settling transient
+  const attenOk = atten < 0.1;
+  ok = ok && attenOk;
+  log(`LP @500Hz on 8kHz tone: residual RMS ratio=${atten.toFixed(4)} (want <0.1) ${attenOk ? 'OK' : 'FAIL'}`);
+
+  // 3. High resonance is stable (no blow-up / NaN) over the whole run.
+  const reso1 = renderChain(gl, input, { cutoff: 1500, reso: 0.98, mode: 0, on: true });
+  let peak = 0; for (const v of reso1) peak = Math.max(peak, Math.abs(v));
+  const stableOk = !anyNaN(reso1) && peak < 50;
+  ok = ok && stableOk;
+  log(`high-Q (reso 0.98) stability: peak=${peak.toFixed(3)} NaN=${anyNaN(reso1)} ${stableOk ? 'OK' : 'FAIL'}`);
+
+  // 4. Bypass (off) is transparent.
+  const bypass = renderChain(gl, input, { cutoff: 1000, reso: 0.3, mode: 0, on: false });
+  const { m: bm } = maxDiff(bypass, input);
+  const bypassOk = bm < 1e-5;
+  ok = ok && bypassOk;
+  log(`bypass transparency: maxDiff vs dry=${bm.toExponential(2)} (want ~0) ${bypassOk ? 'OK' : 'FAIL'}`);
+
+  document.title = ok ? 'ALL_OK' : 'FAILED';
+  log(ok ? '\n=== FILTER OK ===' : '\n=== FILTER FAILED ===');
+} catch (e) {
+  document.title = 'ERROR';
+  log('FATAL: ' + e.message + '\n' + (e.stack || ''));
+}
+</script>
+</body></html>

@@ -39,6 +39,17 @@ test('toggle targets are boolean-ish (byte 0 = off, ≥1 = on)', () => {
   assertEq(normByte(distOn, 1), 255, 'on → byte 255');
 });
 
+test('resonant filter fx targets resolve (cutoff log, mix lin, on toggle)', () => {
+  const flc = targetByCode('303', 'FLC')!, flr = targetByCode('303', 'FLR')!;
+  const flm = targetByCode('303', 'FLM')!, flo = targetByCode('303', 'FLO')!;
+  assertEq(flc.scope, 'fx', 'FLC is fx-scope (LFO/automation sweepable)');
+  assertEq(flc.curve, 'log', 'cutoff sweeps logarithmically');
+  assertEq(flc.key, 'filterCutoff', 'FLC → filterCutoff');
+  assertEq(flr.key, 'filterReso', 'FLR → filterReso');
+  assertEq(flm.key, 'filterMix', 'FLM → filterMix');
+  assert(flo.toggle === true, 'FLO is a toggle');
+});
+
 test('normUnit/denormUnit round-trip (linear and log curves)', () => {
   const lin = targetByCode('303', 'VOL')!;             // linear
   const log = targetByCode('303', 'BCR')!;             // log (crush rate, Hz)

@@ -75,6 +75,13 @@ const FX_DEFS: FxDef[] = [
   { label: 'Tone', key: 'odTone', min: 0, max: 1, step: 0.01 },
   { label: 'Level', key: 'odLevel', min: 0, max: 1.5, step: 0.01 },
 
+  { category: 'Filter', enableKey: 'filterOn' },
+  { label: 'Cutoff', key: 'filterCutoff', min: 20, max: 18000, step: 1, log: true,
+    fmt: (v) => v >= 1000 ? (v / 1000).toFixed(1) + 'k' : Math.round(v) + '' },
+  { label: 'Reso', key: 'filterReso', min: 0, max: 1, step: 0.01 },
+  { label: 'Mode', key: 'filterMode', min: 0, max: 2, step: 1, fmt: (v) => ['LP', 'HP', 'BP'][Math.round(v)] ?? 'LP' },
+  { label: 'Mix', key: 'filterMix', min: 0, max: 1, step: 0.01 },
+
   { category: 'Stereo Chorus', enableKey: 'chorusOn' },
   { label: 'Mix', key: 'chorusMix', min: 0, max: 1, step: 0.01 },
   { label: 'Rate', key: 'chorusRate', min: 0.1, max: 5.0, step: 0.05 },

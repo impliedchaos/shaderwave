@@ -123,6 +123,11 @@ export interface FxParams {
   bitcrushBits: number;
   bitcrushRate: number;
   bitcrushMix: number;
+  filterOn: boolean;
+  filterCutoff: number;   // Hz
+  filterReso: number;     // 0..1 → Q
+  filterMode: number;     // 0 LP · 1 HP · 2 BP
+  filterMix: number;      // dry/wet
   /** Legacy authoring field, migrated to `dist` by makeFx. */
   drive?: number;
   [key: string]: number | boolean | undefined;
