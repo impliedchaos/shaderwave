@@ -42,6 +42,36 @@ to audition songs themselves in their own browser.
 
 ## Current work
 
+### ✅ LFO tempo-sync phase bug under BPM changes — FIXED (2026-06-08, uncommitted) — `project`
+FIXED: `engine._songBeats` accumulator (reset in `play()`, advanced per block at the end of
+`_applyLfos` by `(BLOCK/sampleRate)*(bpm/60)`); synced sources now use `cyclePos = _songBeats /
+rateBeats`, free-run keeps `songSec / lfoPeriodSec`. Verified by a headless continuity test (synced
+sine LFO on 303 CUT, tempo doubled 120→240 mid-render → seam delta 0.0027 < normal step 0.0268, no
+jump). Build green. NOTE: the continuity test was run ad-hoc (esbuild+node) and NOT committed — fold
+it into the future committed test suite (roadmap #3). Original analysis below.
+
+Found 2026-06-08 (user spotted it). **Tempo-synced LFOs glitch when BPM changes mid-song.**
+`engine._applyLfos` computes phase as `songSec / lfoPeriodSec(src, this.bpm)` where
+`songSec = (blockStart - startFrame)/SR` (elapsed wall-clock) and synced period = `rateBeats*60/bpm`.
+So `cyclePos = songSec·bpm/(rateBeats·60)` — a BPM change **retroactively rescales the whole elapsed
+timeline** → the synced LFO's phase jumps (click/lurch). This is EXACTLY the trap the row clock was
+fixed for (advance(): "never retroactively rescales the elapsed timeline"; steps `_nextRowFrame +=
+samplesPerRow`). Free-run (Hz) LFOs are unaffected (period has no bpm; songSec stays continuous).
+Constant-BPM songs (incl. La Mesa) unaffected — latent until BPM automation + a synced LFO coincide.
+Deterministic but wrong at the seam (so "deterministic for export" was true-but-oversold).
+
+**FIX:** accumulate phase in BEATS (integrate tempo per block), like the row clock:
+- Add `this._songBeats` (number), reset to 0 in `play()` (next to the other resets).
+- In `_applyLfos`, AFTER processing this block's routings, advance once per block:
+  `this._songBeats += (BLOCK / this.sampleRate) * (this.bpm / 60);` (uses the post-automation bpm;
+  block-granular tempo application is fine + deterministic).
+- For SYNCED sources: `cyclePos = this._songBeats / Math.max(1e-3, src.rateBeats);`
+  For FREE (Hz) sources: keep `cyclePos = songSec * src.rateHz` (or songSec / (1/rateHz)).
+- So split the per-routing phase calc by `src.sync` instead of dividing songSec by lfoPeriodSec.
+- **Test (headless esbuild+node):** play a song with a synced LFO on an inst param, render blocks,
+  flip `engine.bpm` mid-render, assert the LFO offset has NO discontinuity at the seam (delta between
+  adjacent blocks stays within the smooth per-block step). Build green; no shader/GPU change.
+
 ### Roadmap / next-steps (prioritized, agreed 2026-06-08) — `project`
 Honest assessment of what the project most needs (beyond the parked plans below). Suggested order:
 1. **Undo/redo** — the biggest UX gap. None today (only a "can't be undone" confirm dialog). A

@@ -70,6 +70,7 @@ export class Engine {
   songMaster = DEFAULT_MASTER;   // the loaded song's base global volume; VOL automation overrides vd.master transiently
   lfos: LfoConfig[];             // song-wide LFO sources (waveform generators)
   modRoutings: ModRouting[];     // modulation matrix: source→target assignments
+  _songBeats = 0;                // beats elapsed since play(); integrates BPM so synced-LFO phase stays continuous across tempo changes
   // Snapshot of fx-param values an LFO is transiently overriding, keyed
   // `${instIdx}:${key}`. fx params are read by reference + persist, so the LFO
   // must restore them on play/stop (inst/chan/global overrides self-heal via
@@ -284,6 +285,7 @@ export class Engine {
     this.panAuto.fill(NaN);
     this.vd.master = this.songMaster;   // drop any VOL automation override
     this._restoreLfoFx();               // fresh run → drop any prior fx-LFO override
+    this._songBeats = 0;                // restart the LFO beat clock
   }
   // Pause: hold the current song position (so resume() continues from here) and
   // silence the voices. The transport clock keeps running while paused; the
@@ -743,7 +745,13 @@ export class Engine {
       if (!src) continue;
       const t = targetById(r.targetParamId);
       if (!t) continue;
-      const cyclePos = songSec / lfoPeriodSec(src, this.bpm);
+      // Synced LFOs advance in BEATS (this._songBeats integrates tempo), so a mid-song
+      // BPM change only changes the future rate of accrual — it never retroactively
+      // rescales the elapsed timeline (which made the synced phase jump). Free-run LFOs
+      // stay in seconds (their period has no bpm dependence). Mirrors the row clock.
+      const cyclePos = src.sync
+        ? this._songBeats / Math.max(1e-3, src.rateBeats)
+        : songSec / lfoPeriodSec(src, this.bpm);
       const cycle = Math.floor(cyclePos);
       const offset = lfoOffset(src, r.depth, r.bipolar, cyclePos - cycle, cycle);
 
@@ -776,5 +784,8 @@ export class Engine {
         }
       }
     }
+    // Advance the beat clock once per block, using the post-automation bpm — so synced
+    // LFOs accrue phase smoothly through tempo changes. Deterministic for export.
+    this._songBeats += (BLOCK / this.sampleRate) * (this.bpm / 60);
   }
 }
