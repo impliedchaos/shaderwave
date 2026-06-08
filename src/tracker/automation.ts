@@ -32,6 +32,23 @@ const FX: RawTarget[] = [
   { code: 'RVD', label: 'Reverb Decay',  key: 'reverbDecay',   min: 0,     max: 0.97,  curve: 'lin' },
   { code: 'CHM', label: 'Chorus Mix',    key: 'chorusMix',     min: 0,     max: 1,     curve: 'lin' },
   { code: 'WID', label: 'Width',         key: 'width',         min: 0,     max: 2,     curve: 'lin' },
+  { code: 'BCB', label: 'Crush Bits',    key: 'bitcrushBits',  min: 2,     max: 33,    curve: 'lin' },
+  { code: 'BCR', label: 'Crush Rate',    key: 'bitcrushRate',  min: 100,   max: 48000, curve: 'log', unit: 'Hz' },
+  { code: 'BCM', label: 'Crush Mix',     key: 'bitcrushMix',   min: 0,     max: 1,     curve: 'lin' },
+];
+
+// fx on/off "stomp box" toggles (one per effect enable flag). byte 0 = off, any
+// other value = on; the apply paths write a real boolean (works with both _on
+// semantics — bitcrushOn truthy vs the others' !== false). Appended at the END of
+// TARGETS so adding them never shifts existing ids.
+const TOGGLES: RawTarget[] = [
+  { code: 'DSO', label: 'Distortion On', key: 'distOn',     min: 0, max: 1, curve: 'lin', toggle: true },
+  { code: 'CHO', label: 'Chorus On',     key: 'chorusOn',   min: 0, max: 1, curve: 'lin', toggle: true },
+  { code: 'TRO', label: 'Tremolo On',    key: 'tremoloOn',  min: 0, max: 1, curve: 'lin', toggle: true },
+  { code: 'DLO', label: 'Delay On',      key: 'delayOn',    min: 0, max: 1, curve: 'lin', toggle: true },
+  { code: 'RVO', label: 'Reverb On',     key: 'reverbOn',   min: 0, max: 1, curve: 'lin', toggle: true },
+  { code: 'WDO', label: 'Width On',      key: 'widthOn',    min: 0, max: 1, curve: 'lin', toggle: true },
+  { code: 'BCO', label: 'Bitcrush On',   key: 'bitcrushOn', min: 0, max: 1, curve: 'lin', toggle: true },
 ];
 
 // chan-scope targets. Per-channel mix params, engine-agnostic (offered on every
@@ -70,6 +87,8 @@ for (const type of autoTypes) {
 for (const t of FX) TARGETS.push({ ...t, scope: 'fx', type: '*', id: TARGETS.length });
 for (const t of CHAN) TARGETS.push({ ...t, scope: 'chan', type: '*', id: TARGETS.length });
 for (const t of GLOBAL) TARGETS.push({ ...t, scope: 'global', type: '*', id: TARGETS.length });
+// fx on/off toggles — appended LAST so ids stay stable when this group grows.
+for (const t of TOGGLES) TARGETS.push({ ...t, scope: 'fx', type: '*', id: TARGETS.length });
 
 export function targetById(id: number): ParamTarget | null {
   return (id >= 0 && id < TARGETS.length) ? TARGETS[id] : null;
@@ -88,6 +107,7 @@ export function targetByCode(type: InstrumentType, code: string): ParamTarget | 
 
 // Normalized byte (0..255) → real engine value.
 export function denorm(t: ParamTarget, byte: number): number {
+  if (t.toggle) return byte > 0 ? 1 : 0;   // stomp box: 0 = off, anything else = on
   const x = Math.max(0, Math.min(255, byte)) / 255;
   if (t.curve === 'log') {
     const lo = Math.max(1e-4, t.min);
@@ -122,6 +142,7 @@ export function denormUnit(t: ParamTarget, x: number): number {
 
 // Real engine value → normalized byte (for song authoring / future MIDI learn).
 export function normByte(t: ParamTarget, value: number): number {
+  if (t.toggle) return value > 0 ? 255 : 0;
   let x;
   if (t.curve === 'log') {
     const lo = Math.max(1e-4, t.min);
@@ -136,6 +157,7 @@ export function normByte(t: ParamTarget, value: number): number {
 
 // Human-readable value, for tooltips/picker (e.g. "2.1kHz", "0.62").
 export function fmtValue(t: ParamTarget, byte: number): string {
+  if (t.toggle) return byte > 0 ? 'On' : 'Off';
   const v = denorm(t, byte);
   if (t.curve === 'enum') return String(v);
   if (t.unit === 'pan') {

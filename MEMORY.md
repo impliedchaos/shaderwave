@@ -42,6 +42,69 @@ to audition songs themselves in their own browser.
 
 ## Current work
 
+### Bitcrusher rework + per-effect on/off automation — IMPLEMENTED (1.9.0) — `project`
+Built 2026-06-08. Verified: build + glsl-check + render-check + headless (toggles coerce to
+real booleans off→false/on→true; all 20 songs load; format reset round-trips at v1; bitcrushMix
+default 1.0; 7 toggle targets). New bitcrush params + all 7 on/off toggles are fx-scope targets,
+so they show up in the automation picker AND the LFO routing dropdown automatically (no new UI).
+Bit-exactness (mid-tread keeps 0) + the cross-block hold glitch-fix are GPU — confirm by ear.
+Plan details below (kept for reference).
+
+**A. Bitcrusher (`fx-bitcrush.glsl` + `effects.ts` fxBitcrush):**
+1. **Bit depth → true mid-tread bit count.** Replace `round(v·2^bits)/2^bits` with
+   `q = exp2(bits-1.0) - 1.0; s = clamp(floor(v*q+0.5)/q, -1, 1);` → exactly `2^N−1`
+   evenly-spaced levels over [−1,1], keeps **0 as a level** (silence preserved), symmetric
+   rails, one code unused. Range `bitcrushBits` **2..33 (linear)**; floor at 2 (1-bit
+   degenerates to {0}); **max (33) = explicit bypass** (skip quantize — don't rely on float
+   transparency). Clamp matters: float signal can exceed ±1 between stages.
+2. **Sample rate → fix the cross-block hold + range.** Current ZOH decimator reads the held
+   sample from the input texture but `heldI = holdIdx − blockStart` goes NEGATIVE when the
+   window started in the previous block → falls back to the *undecimated* current sample →
+   ~93 Hz block-rate glitch. **Fix:** carry the held value across blocks via a 1-texel stereo
+   ping-pong state + a tiny update pass (mirror chorus/delay), with a `reset()` cleared on
+   play/stop. Range `bitcrushRate` **100..SR (LOG)**, top tied to `ctx.sampleRate`; top = off
+   (natural: `holdPeriod=1`). **KEY DECISION:** integer ZOH only yields rates `SR/N` → stepped
+   (SR, SR/2, SR/3…), so smooth/subtle rate sweeps near the top need **fractional holdPeriod +
+   interpolation** (more code, smoother & less-aliased). **DECIDED: Option 1 — keep integer ZOH,
+   crunchy/gritty; NO interpolation.** Rate stays stepped (SR/N) near the top; accepted. (The
+   BIT side IS smooth for subtle "creep-in" via LFO/automation.)
+3. **Keep `bitcrushOn`** as master enable (now also an automation toggle — see B). Stage runs
+   iff `bitcrushOn`; within it each half is off at its max.
+4. **DECIDED: add real dry/wet `bitcrushMix`** (0..1, default **1.0** = current fully-wet so
+   existing songs are unchanged). Shader `outColor = mix(dry, crushed, uBitcrushMix)`, dry = the
+   current input sample. `defaultFxParams` gains `bitcrushMix: 1.0`.
+5. Add `bitcrushBits`/`bitcrushRate`/`bitcrushMix` as fx-scope automation + LFO targets.
+6. Fix song **"Two-Fingered Typing (FOB)"**: dead keys `bitcrushDepth:6`/`bitcrushMix:0.35`
+   become real `bitcrushBits:6` + `bitcrushMix:0.35` (intent restored now that mix exists).
+
+**FORMAT RESET (decided 2026-06-08): collapse song format back to v1.** No songs have ever been
+saved (unreleased personal project), so drop the whole migrate ladder (v1→v2→v3→v4) and make the
+CURRENT schema the one-and-only **v1** (`SONG_FORMAT_VERSION = 1`, `migrate()` removed/no-op,
+deserialize requires v1). This MOOTS the id-stability caveat below — but still append new targets
+at the end out of habit (demo songs resolve targets by code via `tgt()` anyway, so internal
+reordering wouldn't break them either).
+
+**B. Per-effect on/off automation ("stomp box"), ALL effects:**
+- Add `toggle?: boolean` to `ParamTarget`. New TOGGLE target group, ONE per enableFlag
+  (`distOn,chorusOn,tremoloOn,delayOn,reverbOn,widthOn,bitcrushOn`, maybe master `enabled`).
+- **Semantics:** byte 0 = off, ≥1 = on. `denorm(toggle,byte)=byte>0?1:0`; `normByte`→0/255;
+  `fmtValue`→"On"/"Off".
+- **Apply (all three fx-write sites: `_applyAutomation`, `applyAutomationLive`, LFO `_applyLfos`
+  fx branch):** `instr.fx[key] = t.toggle ? (value > 0) : value`. Writing a real BOOLEAN works
+  with BOTH `_on` semantics (bitcrushOn truthy vs others `!==false`) — no `_on` change needed.
+- **Bonus:** an LFO on a toggle = rhythmic effect gating (square LFO stutters the effect).
+
+**CRITICAL id-stability rule:** automation `paramId`s are persisted, so new targets (bits/rate +
+all toggles) MUST be appended at the VERY END of the `TARGETS` flat array (after GLOBAL), never
+inserted into the FX block (that shifts CHAN/GLOBAL ids). ⚠️ Pre-existing caveat to verify:
+adding an engine's inst-targets ALSO shifts FX/CHAN/GLOBAL ids (they're built last), so saved
+songs predating an engine may mis-resolve fx/chan/global automation — check whether a migration
+is warranted.
+
+**Verify:** build + glsl-check + render-check + song-load loop + headless checks (no block-rate
+glitch — render a held tone with decimation across block boundaries, assert sample continuity;
+toggle automation flips an effect on/off; mid-tread quantizer keeps 0).
+
 ### LFO MOD MATRIX + WVT Env→Pos (1.8.0) — `project`
 Updated 2026-06-07. **Inverted LFO routing into a mod matrix** so one LFO drives many
 targets. `LfoConfig` is now just a SOURCE (shape/sync/rate/wt — no target/depth). New

@@ -83,6 +83,7 @@ export interface ParamTarget {
   bank?: 'p0' | 'p1';
   index?: number;
   key?: string;
+  toggle?: boolean;   // fx on/off "stomp box": byte 0 = off, anything else = on (written as a bool)
 }
 
 // ── Effects ─────────────────────────────────────────────────────────────────
@@ -117,6 +118,7 @@ export interface FxParams {
   tremoloRate: number;
   bitcrushBits: number;
   bitcrushRate: number;
+  bitcrushMix: number;
   /** Legacy authoring field, migrated to `dist` by makeFx. */
   drive?: number;
   [key: string]: number | boolean | undefined;

@@ -1520,7 +1520,7 @@ export const DEMO_SONGS: SongDef[] = [
     author: "AI Slop",
     note: "76 BPM lo-fi \u2014 a Satie-esque 303 lead over warm sub bass and a downtempo kit, dusted with the Locked Groove vinyl-noise engine.",
     bpm: 76,
-    master: DEFAULT_MASTER * 0.65,
+    master: DEFAULT_MASTER * 0.55,
     params: [
       { name: "Satie Lead", type: "303", p0: [600, 0.1, 0.4, 0.2], p1: [2.0, 0.3, 0.4, 0] },
       {
@@ -1773,7 +1773,7 @@ export const DEMO_SONGS: SongDef[] = [
     fxParams: {
       '303': Object.assign(defaultFxParams(), { distOn: true, dist: 15.0, tone: 0.45, chorusMix: 0.4, delayMix: 0.35, delayTime: 0.375, reverbMix: 0.4 }),
       'dx7': Object.assign(defaultFxParams(), { chorusMix: 0.55, chorusRate: 1.2, delayMix: 0.4, delayTime: 0.5, delayFeedback: 0.45, reverbMix: 0.5, reverbDecay: 0.9 }),
-      '808': Object.assign(defaultFxParams(), { distOn: true, dist: 8.0, tone: 0.35, master: 0.9, bitcrushOn: true, bitcrushMix: 0.35, bitcrushRate: 6000, bitcrushDepth: 6 }),
+      '808': Object.assign(defaultFxParams(), { distOn: true, dist: 8.0, tone: 0.35, master: 0.9, bitcrushOn: true, bitcrushBits: 6, bitcrushRate: 6000, bitcrushMix: 0.35 }),
       'moog': Object.assign(defaultFxParams(), { distOn: true, dist: 12.0, tone: 0.4, level: 1.0, master: 0.85, delayMix: 0.2, reverbMix: 0.35 })
     },
     data: () => {

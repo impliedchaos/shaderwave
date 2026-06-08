@@ -20,7 +20,7 @@ import { defaultLfos, normalizeLfo, normalizeRouting, LFO_COUNT, defaultLfo } fr
 import type { AutoTrack, DX7Op, FxParams, InstrumentInstance, InstrumentSpec, LfoConfig, ModRouting } from '../types.js';
 
 export const SONG_FORMAT = 'shaderwave-song';
-export const SONG_FORMAT_VERSION = 4;   // v4: LFO mod matrix · v3: global LFOs · v2: per-inst fx
+export const SONG_FORMAT_VERSION = 1;   // reset: single current schema (unreleased; no legacy saves)
 
 export interface SerializedPattern {
   rows: number;
@@ -127,36 +127,11 @@ export function serializeSong(s: SongIOInput): SerializedSong {
   };
 }
 
-// Upgrade an older document in place to the current schema.
-//   v1 → v2: fx moved from a top-level per-engine-TYPE map onto each instrument
-//   instance. Assign every v1 instrument its type's fx (so the chains still match),
-//   then drop the obsolete top-level map.
+// No legacy migration ladder: this is an unreleased project and no songs were ever
+// saved at an older format, so the current schema simply IS v1 (the version was
+// reset). We still normalise the LFO sources + routing matrix so a hand-edited or
+// partial file can't throw downstream.
 function migrate(d: SerializedSong): SerializedSong {
-  if (d.version < 2) {
-    const byType = (d as { fxParams?: Record<string, FxParams> }).fxParams || {};
-    for (const inst of d.instruments) {
-      if (!inst.fx && byType[inst.type]) inst.fx = { ...byType[inst.type] };
-    }
-    delete (d as { fxParams?: unknown }).fxParams;
-    d.version = 2;
-  }
-  if (d.version < 3) {
-    // v2 → v3: songs gain two global LFOs. Older files simply default to off.
-    d.version = 3;
-  }
-  if (d.version < 4) {
-    // v3 → v4: LFOs embedded a single target; split into sources + a routing matrix.
-    // Each v3 LFO with a real target becomes one routing onto that same source.
-    const old = Array.isArray(d.lfos) ? (d.lfos as unknown as Array<Record<string, unknown>>) : [];
-    if (!Array.isArray(d.modRoutings)) {
-      d.modRoutings = old.flatMap((l, i) => (l && typeof l.targetParamId === 'number' && (l.targetParamId as number) >= 0)
-        ? [{ source: i, targetParamId: l.targetParamId as number, targetInstIdx: (l.targetInstIdx ?? null) as number | null, depth: (l.depth ?? 0) as number, bipolar: (l.bipolar ?? true) as boolean }]
-        : []);
-    }
-    d.version = 4;
-  }
-  // Always normalise sources (pad to LFO_COUNT) + routings so a hand-edited or
-  // partial file can't throw downstream.
   const rawL = Array.isArray(d.lfos) ? d.lfos : [];
   const lfos = defaultLfos();
   for (let i = 0; i < LFO_COUNT; i++) lfos[i] = normalizeLfo(rawL[i] ?? defaultLfo());

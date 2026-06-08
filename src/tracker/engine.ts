@@ -622,8 +622,9 @@ export class Engine {
             }
           }
         } else if (t.scope === 'fx') {
-          // fx-scope automation targets THIS instance's own effect chain.
-          if (instr.fx) instr.fx[t.key!] = value;
+          // fx-scope automation targets THIS instance's own effect chain. Toggle
+          // targets (effect on/off) write a real boolean (0 = off, else on).
+          if (instr.fx) instr.fx[t.key!] = t.toggle ? (value > 0) : value;
         }
       }
     }
@@ -641,9 +642,9 @@ export class Engine {
     } else if (target.scope === 'chan') {
       this.panAuto[ch] = value;
     } else {
-      // fx scope → this instance's own chain.
+      // fx scope → this instance's own chain (toggle → boolean).
       const instr = this.instruments[instIdx];
-      if (instr?.fx) instr.fx[target.key!] = value;
+      if (instr?.fx) instr.fx[target.key!] = target.toggle ? (value > 0) : value;
     }
   }
 
@@ -770,7 +771,8 @@ export class Engine {
           const sk = `${r.targetInstIdx}:${t.key}`;
           let base = this._lfoFxBase.get(sk);          // snapshot once; restored on play/stop
           if (base === undefined) { base = instr.fx[t.key] as number; this._lfoFxBase.set(sk, base); }
-          instr.fx[t.key] = denormUnit(t, normUnit(t, base) + offset);
+          const nv = denormUnit(t, normUnit(t, base) + offset);
+          instr.fx[t.key] = t.toggle ? (nv > 0.5) : nv;   // toggle → boolean (rhythmic gating)
         }
       }
     }

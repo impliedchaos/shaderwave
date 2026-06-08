@@ -23,6 +23,7 @@ import FX_DELAY_TAP from './shaders/fx-delay-tap.glsl?raw';
 import FX_FDN_UPDATE from './shaders/fx-fdn-update.glsl?raw';
 import FX_FDN_TAP from './shaders/fx-fdn-tap.glsl?raw';
 import FX_BITCRUSH from './shaders/fx-bitcrush.glsl?raw';
+import FX_BITCRUSH_UPDATE from './shaders/fx-bitcrush-update.glsl?raw';
 import FX_WIDTH from './shaders/fx-width.glsl?raw';
 import FX_MASTER from './shaders/fx-master.glsl?raw';
 
@@ -230,21 +231,44 @@ const fxReverb: FxEffectDef = {
 
 const fxBitcrush: FxEffectDef = {
   key: 'bitcrush', name: 'Bitcrusher', enableFlag: 'bitcrushOn',
-  defaults: { bitcrushOn: false, bitcrushBits: 8.0, bitcrushRate: 4000.0 },
+  defaults: { bitcrushOn: false, bitcrushBits: 8.0, bitcrushRate: 4000.0, bitcrushMix: 1.0 },
   init(gl) {
-    const prog = createProgram(gl, FX_BITCRUSH);
-    gl.useProgram(prog); gl.uniform1i(prog.u('uIn'), 0);
+    const main = createProgram(gl, FX_BITCRUSH);
+    const upd = createProgram(gl, FX_BITCRUSH_UPDATE);
+    gl.useProgram(main); gl.uniform1i(main.u('uIn'), 0); gl.uniform1i(main.u('uPrevHold'), 1);
+    gl.useProgram(upd); gl.uniform1i(upd.u('uIn'), 0);
+    // 1-texel ping-pong carrying the held sample across block boundaries.
+    let read = makeTex(gl, 1, 1), write = makeTex(gl, 1, 1);
     return {
+      reset(clear) { clear(read); clear(write); },
       process(ctx, inTex, outFbo) {
         const g = ctx.gl, p = ctx.params, on = ctx.on('bitcrushOn');
-        ctx.stereoPass(prog, inTex, outFbo);
-        g.uniform1i(prog.u('uBitcrushOn'), on ? 1 : 0);
-        g.uniform1i(prog.u('uBlockStart'), ctx.blockStart);
-        g.uniform1i(prog.u('uBlock'), BLOCK);
-        g.uniform1f(prog.u('uBitcrushBits'), p.bitcrushBits !== undefined ? p.bitcrushBits : 8.0);
-        g.uniform1f(prog.u('uBitcrushRate'), p.bitcrushRate !== undefined ? p.bitcrushRate : 4000.0);
-        g.uniform1f(prog.u('uSampleRate'), ctx.sampleRate);
-        drawQuad(g);
+        const rate = p.bitcrushRate !== undefined ? p.bitcrushRate : 4000.0;
+        // 1. Update the carry = held source value at this block's last sample.
+        g.useProgram(upd);
+        g.bindFramebuffer(g.FRAMEBUFFER, ctx.ringFbo);
+        g.framebufferTexture2D(g.FRAMEBUFFER, g.COLOR_ATTACHMENT0, g.TEXTURE_2D, write, 0);
+        g.drawBuffers([g.COLOR_ATTACHMENT0]);
+        ctx.bind(0, inTex);
+        g.uniform1i(upd.u('uBlockStart'), ctx.blockStart);
+        g.uniform1i(upd.u('uBlock'), BLOCK);
+        g.uniform1f(upd.u('uBitcrushRate'), rate);
+        g.uniform1f(upd.u('uSampleRate'), ctx.sampleRate);
+        g.viewport(0, 0, 1, 1); drawQuad(g);
+        // 2. Crush, reading the PREVIOUS block's carry for the boundary region.
+        g.useProgram(main);
+        g.bindFramebuffer(g.FRAMEBUFFER, outFbo);
+        g.drawBuffers([g.COLOR_ATTACHMENT0]);
+        ctx.bind(0, inTex); ctx.bind(1, read);
+        g.uniform1i(main.u('uBitcrushOn'), on ? 1 : 0);
+        g.uniform1i(main.u('uBlockStart'), ctx.blockStart);
+        g.uniform1i(main.u('uBlock'), BLOCK);
+        g.uniform1f(main.u('uBitcrushBits'), p.bitcrushBits !== undefined ? p.bitcrushBits : 8.0);
+        g.uniform1f(main.u('uBitcrushRate'), rate);
+        g.uniform1f(main.u('uBitcrushMix'), p.bitcrushMix !== undefined ? p.bitcrushMix : 1.0);
+        g.uniform1f(main.u('uSampleRate'), ctx.sampleRate);
+        g.viewport(0, 0, BLOCK, 1); drawQuad(g);
+        [read, write] = [write, read];
       },
     };
   },
