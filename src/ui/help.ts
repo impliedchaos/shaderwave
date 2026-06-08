@@ -45,8 +45,14 @@ const EFFECTS = [
   ['Tremolo', 'Auto-pan amplitude modulation — Mix, Rate'],
   ['Delay', 'Stereo feedback delay, ~2.7 s max — Time, Feedback, Mix'],
   ['Reverb', '4-line FDN with Householder feedback + damping — Decay, Damp, Send, Mix'],
-  ['Bitcrusher', 'Bit-depth + sample-rate decimation — Bits, Rate'],
+  ['Bitcrusher', 'Bit-depth + sample-rate decimation, with dry/wet — Bits, Hz, Mix'],
   ['Width', 'Mid/side stereo width — >1 widens, <1 narrows toward mono'],
+];
+
+const MODULATION = [
+  ['Automation tracks', 'Per-pattern lanes sequencing one parameter over the rows (2-hex bytes). Add with the + Auto Track button; scope is inst / fx / channel / global.'],
+  ['Global LFOs', 'Two song-wide LFO sources (Sine/Tri/Square/Saw/S&H/Ramp/Wavetable, tempo-synced or free Hz). Set in the Song Editor.'],
+  ['Mod matrix', 'Routings aim a target at an LFO source, each with its own depth/polarity — so one LFO can drive many parameters. Add rows in the Song Editor.'],
 ];
 
 const STYLE = `
@@ -147,6 +153,7 @@ function build() {
   section('Instruments', INSTRUMENTS, 'name');
   section('Effect column  ·  per-cell command + 2-hex value', PATTERN_FX, 'kbd');
   section('Effects chain  ·  Dist → OD → Chorus → Tremolo → Delay → Reverb → Bitcrush → Width', EFFECTS, 'name');
+  section('Modulation', MODULATION, 'name');
 
   // Backdrop click (outside the panel) and the Close button both dismiss.
   overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) closeHelp(); });

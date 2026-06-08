@@ -181,6 +181,19 @@ electric overdrive/crunch (on top of the per-instrument fx chain). Parameters: *
 ↔ let-ring). Presets: Steel Acoustic, Nylon Classical, Clean Electric, Overdrive, Crunch
 Rock, Muted Funk.
 
+### Wavewright — Wavetable Synth (short name **WVT**)
+
+Two oscillators sweep a continuous **Position** through one of **16 morph banks**
+(Classic, Harmonic, PWM, Formant, Resonant, Metallic, Wavefolder, Digital, Organ,
+Sync, Saturate, Comb, Skew, Noise, Power, Glass), mixed with a sine **sub** and an
+optional **cross-FM** (osc 2 phase-modulates osc 1). It is **band-limited** (per-octave
+mips → no aliasing) and **phase-accumulating** (click-free detune/pitch). The 16 banks
+are baked once into a shared GPU texture (also drawn by the sidebar oscilloscopes).
+Parameters: **Attack/Decay/Sustain/Release**, **Pos1/Pos2** (the morph axes — ideal
+LFO/automation targets), **Detune2**, **FM**, **Bank1/Bank2**, **Sub**, **SubOct**,
+**Level1/Level2**, **EnvPos1/EnvPos2** (ADSR → morph Position). Presets: Classic Sweep,
+PWM Strings, Vowel Pad, Metallic FM, Sub Bass.
+
 ## Effect column
 
 Each pattern cell has a fourth sub-column — a classic tracker **effect command**
@@ -214,7 +227,7 @@ A second shader stage runs between the synth mix and the audio readback. All
 effects are editable from the **Instrument FX** panel.
 
 ```
-input → Distortion → Chorus → Tremolo → Delay → Reverb → Bitcrusher → Width → Master Out
+input → Distortion → Overdrive → Chorus → Tremolo → Delay → Reverb → Bitcrusher → Width → Master Out
 ```
 
 Each effect is its own GPU pass over a `BLOCK × 1` stereo buffer; the chain runs
@@ -225,8 +238,17 @@ applies the output gain and additively accumulates each instrument's result.
 ### Distortion — Boss DS-1 Emulation
 
 Modelled after the Boss DS-1 diode hard-clipping circuit:
-- **Dist** — drive amount (gain into the clipping stage)
+- **Drive** — drive amount (gain into the clipping stage)
 - **Tone** — post-clip tilt EQ (dark ↔ bright)
+- **Level** — output volume
+
+### Overdrive — Ibanez TS9 Tube Screamer
+
+A softer, warmer dirt box than the DS-1, placed right after it. Models the TS9's three
+signatures: a **bass cut before the clipper** (keeps lows tight), **soft asymmetric**
+clipping (even harmonics), and the **mid-hump** that emerges from the bass-cut + treble-roll.
+- **Drive** — gain into the soft clipper
+- **Tone** — post-clip treble roll
 - **Level** — output volume
 
 ### Chorus
@@ -260,13 +282,27 @@ per-line damping lowpass:
 
 ### Bitcrusher
 
-8-bit/16-bit digital downsampler/decimator:
-- **Bits** — bit depth reduction (1–16 bits)
-- **Rate** — sample rate decimation factor in Hz (100–22000 Hz)
+Digital bit-depth quantizer + sample-rate decimator (zero-order sample-and-hold, carried
+across blocks) with a dry/wet mix:
+- **Bits** — true bit depth, `2^N−1` mid-tread levels that keep silence (4–33; **33 = off**)
+- **Hz** — decimation rate, logarithmic (100 Hz – sample rate; **max = off**)
+- **Mix** — dry/wet blend
 
 ### Stereo Width
 
 Mid/side stereo width control. Values > 1.0 widen; < 1.0 narrow toward mono.
+
+## Modulation — Automation, LFOs & Mod Matrix
+
+Beyond the per-cell effect column, parameters can be modulated three ways:
+- **Automation tracks** — per-pattern lanes that sequence one parameter (inst / fx / channel /
+  global scope) over the rows as normalized 2-hex bytes. Add via the **+ Auto Track** button.
+- **Global LFOs** — two song-wide LFO **sources** (Sine / Triangle / Square / Saw / S&H / Ramp /
+  Wavetable shapes, tempo-synced in beats or free-running in Hz). Configured in the Song Editor.
+- **Mod matrix** — a list of **routings**, each aiming a target at an LFO source with its own depth
+  and polarity. Because routings reference a source, **one LFO can drive many parameters** at once.
+
+LFO phase derives from song time, so modulated playback renders **deterministically** for export.
 
 ## Volume
 

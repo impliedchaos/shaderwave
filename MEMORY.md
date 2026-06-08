@@ -42,6 +42,72 @@ to audition songs themselves in their own browser.
 
 ## Current work
 
+### Roadmap / next-steps (prioritized, agreed 2026-06-08) — `project`
+Honest assessment of what the project most needs (beyond the parked plans below). Suggested order:
+1. **Undo/redo** — the biggest UX gap. None today (only a "can't be undone" confirm dialog). A
+   creative tool others will use needs it; even coarse per-pattern / whole-song snapshot stack is
+   enough to start. Top priority for "a toy others use".
+2. **Per-sample recursive processing in the FX chain** — the LINCHPIN. The FX chain is stateless /
+   ring-buffer only; a filter, a true compressor, AND the transparent limiter ALL need sample-to-
+   sample state (only the SYNTH renderer has it today, via strip rendering + MRT carry). Build that
+   capability into `EffectsChain` ONCE → unlocks all three. Then ship a **resonant multimode filter
+   FX** (LP/HP/BP) — the most obvious missing effect, and the LFOs/mod-matrix were built to sweep it.
+3. **Committed test suite** — there is NONE (only GPU compile/render HTML harnesses). Convert the
+   throwaway esbuild+node checks we keep re-writing (LFO invariants, mod matrix, song-io round-trip,
+   bitcrush, new-instrument defaults, demo-song load loop) into PERMANENT committed tests. Highest
+   reliability-per-hour; the interacting state (automation/mod-matrix/song-io/wavetable) has no net.
+4. Then the parked **compressor/limiter** + **reorderable per-instrument chain**.
+5. **Async readback** (PBO + `fenceSync`) — `gl.readPixels` is a SYNCHRONOUS GPU→CPU stall every
+   block on the main thread → the portability ceiling on weaker/integrated GPUs. Decides "runs
+   everywhere" vs "runs on Dave's machine". Not urgent, but real.
+6. **EQ** + **sidechain/pumping compression** — genre-relevant effect gaps.
+Push-back to honor: resist adding more synth engines / demo songs until undo + tests exist — the
+synth palette is already wide; forgiving (undo) + not-breaking (tests) matter more than a 12th engine.
+
+### GPU sample / granular engine — PLANNED — `project`
+A sampler is NOT contradictory to "synthesized on the GPU" (I was wrong; user corrected me): WVT
+already binds a `sampler2D` and reads a texture by playhead → a sample is the same path with a
+different texture source, still all GPU computation. The real new problem is **asset management**.
+- **FIRST FORK — decide before any code: how samples persist with a song.** Options: embed raw PCM
+  (huge) / **store the user's ORIGINAL encoded file bytes + `decodeAudioData` on load** (cheap, no
+  encoder needed — see format notes; my lean) / external library + references (fragile). Shapes all.
+- **Texture layout:** long samples exceed 1D → tile across a `≤16384 × N` R32F texture, index→(x,y).
+- **Pitch:** rate = noteFreq / rootFreq; resample with interp (bilinear already done); pitch-up
+  aliasing → reuse the WVT per-octave band-limited mip machinery (or embrace grit).
+- **MVP:** load file → pitched one-shot / looped playback (loop start/end) + ADSR.
+- **The wow (why GPU makes this special, not me-too):** GRANULAR (many windowed grains per output
+  sample — GPU is built for it, brutal on CPU); read-head as an LFO/automation TARGET (rhythmic
+  scrubbing — mod matrix already there); freeze / time-stretch (playhead decoupled from pitch);
+  sample→Wavewright bank (slice into single-cycle frames, shares WVT machinery). Frame it as a
+  distinctive GPU-granular instrument.
+
+### Playback library extraction — future goal — `project`
+Goal: a headless PLAYBACK LIB so a song composed/saved in ShaderWave plays in another project (npm
+package). The audio CORE (engine, synth-renderer, effects, instruments, audio/pipeline, song-io +
+shaders) is already largely separable from the EDITOR (main.ts, ui/, tracker-view, controls). Implies:
+- **Formalize the core↔editor boundary** (core must never import `ui/`). Define a small public API:
+  `createPlayer(gl|canvas, songData) → { play, stop, renderBlock, seek, … }`.
+- **GL/audio-context ownership:** decide whether the lib creates its own offscreen WebGL2 +
+  AudioWorklet or accepts them from the host (offscreen-owned is friendlier to embed).
+- **Stable, portable song format** (see format notes) + the append-only automation-id concern
+  matters again once the format is shared across projects/versions (consider stable string keys).
+- **Packaging:** importable without the editor (tree-shakeable); shaders bundled via the same
+  `?raw`→text path; verify headless.
+
+### Save/load format evolution — notes — `project`
+JSON was chosen for ease, NOT committed to (user is open to changing it). Guidance for when we
+revisit (esp. with samples + the playback lib needing compact, portable files):
+- **Binary layout** for structural data — patterns/automation are Int16Array; pack them directly
+  (far smaller than JSON number arrays). Versioned header + sections.
+- **Free, broadly-supported size win:** wrap the blob with `CompressionStream('gzip')` on save /
+  `DecompressionStream` on load — no codec, big savings on repetitive pattern/automation data.
+- **Samples:** browsers DECODE mp3/ogg/opus/flac (`decodeAudioData`) but have **no universal built-in
+  ENCODER** → DON'T re-encode; **store the user's original compressed file bytes** + decode on load.
+  Sidesteps the encoder problem and keeps files small.
+- **NOT GPU texture compression for audio:** ASTC/ETC/S3TC are lossy in ways perceptually tuned for
+  IMAGES, not waveform precision — they'd mangle audio. Wrong tool. (A WASM Opus/FLAC encoder is the
+  only path if we ever must re-encode raw PCM, but storing original bytes avoids needing one.)
+
 ### Compressor + transparent Limiter (two effects, shared envelope core) — PLANNED — `project`
 Agreed 2026-06-08, build later. Decided to make them **two SEPARATE effects** (separate chain
 slots/toggles/params) — different roles + different ideal placement (comp early-ish for glue,

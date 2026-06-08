@@ -7,7 +7,10 @@ modules bundled by Vite.
 
 For the deep architecture, instrument/effect descriptions, and the file-by-file
 layout, read **`README.md`** (kept current) and **`design.md`**. This file is the
-quick operational guide + the non-obvious gotchas.
+quick operational guide + the non-obvious gotchas. **To create songs** (demo tracks
+or loadable files) read **`COMPOSING.md`** — a self-contained authoring guide (the
+`SongDef`/`Pattern` API, per-engine param banks, automation/LFO codes, gotchas) so
+you don't have to read the engine source; keep it current as instruments/effects grow.
 
 ## Memory
 
@@ -157,9 +160,10 @@ and `git status` before committing** so they don't get swept into a commit.
 - **Presets** live in `src/ui/presets.ts` (keyed by engine type). Preset matching compares
   `p0`/`p1` only; `loadPreset` applies `p2`/`p3` for moog (defaulting to classic when
   absent). DX7 patches come from SysEx ROMs, not presets.
-- **Adding/removing a demo song**: edit the `DEMO_SONGS` array in `demo-songs.ts`. Default
-  song is "Antiseptik USA" (`src/main.ts`); songs are referenced by name/dynamic index, so
-  removal is safe. Verify all songs still `loadSongInstruments` after edits.
+- **Adding/removing a demo song**: edit the `DEMO_SONGS` array in `demo-songs.ts` (see
+  **`COMPOSING.md`** for the full authoring guide — `SongDef`/`Pattern` API, param banks,
+  automation/LFO codes). Default song is "Antiseptik USA" (`src/main.ts`); songs are referenced
+  by name/dynamic index, so removal is safe. Verify all songs still `loadSongInstruments` after edits.
 
 ## Git
 
