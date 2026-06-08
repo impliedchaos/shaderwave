@@ -86,8 +86,9 @@ const FX_DEFS: FxDef[] = [
   { label: 'Rev Mix', key: 'reverbMix', min: 0, max: 1, step: 0.01 },
 
   { category: 'Bitcrusher', enableKey: 'bitcrushOn' },
-  { label: 'Crush Bits', key: 'bitcrushBits', min: 1, max: 16, step: 1 },
-  { label: 'Crush Hz', key: 'bitcrushRate', min: 100, max: 22000, step: 100 },
+  { label: 'Crush Bits', key: 'bitcrushBits', min: 2, max: 33, step: 1 },
+  { label: 'Crush Hz', key: 'bitcrushRate', min: 100, max: 48000, step: 100 },
+  { label: 'Crush Mix', key: 'bitcrushMix', min: 0, max: 1, step: 0.01 },
 
   { category: 'Stereo Field & Output', enableKey: 'widthOn' },
   { label: 'Width', key: 'width', min: 0, max: 2, step: 0.01 },
