@@ -42,6 +42,51 @@ to audition songs themselves in their own browser.
 
 ## Current work
 
+### Compressor + transparent Limiter (two effects, shared envelope core) — PLANNED — `project`
+Agreed 2026-06-08, build later. Decided to make them **two SEPARATE effects** (separate chain
+slots/toggles/params) — different roles + different ideal placement (comp early-ish for glue,
+limiter dead last as an output ceiling), which the reorderable-chain feature (below) unlocks.
+**Transparent limiter** chosen (not a clipper), because this is meant as a toy others will use.
+
+**The hard part (new to the FX chain):** a compressor/limiter needs a RECURSIVE envelope
+follower (attack/release one-pole) — sample-to-sample feedback the FX chain has never done
+(only the synth ladder does, via strip rendering + MRT state). Build a **shared envelope-core
+helper**: stereo-LINKED detection (`max(|L|,|R|)` or summed RMS → ONE gain applied equally to
+both channels, for stereo integrity), attack/release smoothing, gain-ramped WITHIN the block
+(prev→current) to avoid zipper, 1-texel state carry (the bitcrush ping-pong pattern), cleared
+on play/stop → deterministic for export.
+
+- **Compressor:** params Threshold, Ratio, Attack, Release, Makeup (+ optional Knee). **Block-
+  rate envelope is adequate** (comp time-constants are ≥10 ms anyway) → fits today cheaply.
+- **Limiter (transparent):** shares the core, defaults to ∞ ratio + fast attack + Ceiling +
+  Release. **CRUX/OPEN DECISION:** a transparent brick-wall needs FAST attack, but block rate
+  is ~11 ms → peaks leak for up to a block. Two ways to fix, decide at build time:
+  (a) **lookahead** — delay the audio a few ms via a small ring buffer (FX chain already does
+  rings for delay/chorus) so a block-rate envelope ducks BEFORE the peak; or
+  (b) **per-sample strip rendering** in the FX chain (port the synth ladder's strip+MRT
+  approach) — "proper" sample-accurate, bigger lift. **Lean: (a) lookahead first** (reuses
+  existing ring + state patterns), upgrade to (b) later if it's not tight enough.
+- Both: automation/LFO targets + stomp-box toggles for free (registry); placement comp-early /
+  limiter-last by default, fully movable once the chain is reorderable.
+- **Gotcha reminder:** add the new enable flags (`compOn`,`limitOn`) to the `_on()` truthy group
+  in effects.ts so they default OFF for partial-fx songs (see Overdrive entry).
+
+### Reorderable per-instrument effect chain — PLANNED ("feature c") — `project`
+Agreed 2026-06-08, build later. Make the FX chain ORDER editable + per-instrument-instance
+(currently `EffectsChain.order = DEFAULT_FX_ORDER.slice()`, fixed + identical for all).
+- **Data model:** add `fxOrder?: string[]` to `InstrumentInstance` (effect keys, e.g.
+  `['distortion','overdrive',...]`); default = DEFAULT_FX_ORDER. Persisted per instrument in
+  song-io (additive v1 field; absent → default).
+- **Runtime:** each instance already owns its own `EffectsChain` (`SynthRenderer.instFx[k]`);
+  set that chain's `.order` from the instance's `fxOrder` (fed alongside `setInstrumentFx`).
+- **UI:** drag-to-reorder the FX category blocks in the FX panel → writes the instance's
+  `fxOrder` + updates the chain. (Bulk of the work is here.)
+- **ROBUSTNESS GOTCHA:** when a NEW effect is later added to the registry, existing saved
+  `fxOrder`s won't list it → on load, **append any registry keys missing from `fxOrder`** (and
+  drop unknown keys) so new effects never silently vanish from a saved song's chain.
+- Unlocks "comp early, limiter last" and per-instrument routing (e.g. crush-then-reverb on a
+  pad vs reverb-then-crush on drums).
+
 ### Overdrive (TS9 Tube Screamer) effect — added (1.10.0) — `project`
 New FX-chain effect `fxOverdrive` (`fx-overdrive.glsl`), slotted right AFTER distortion
 (chain: dist → overdrive → chorus → …). TS9 voicing = pre-clip **bass cut** (the FIR

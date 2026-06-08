@@ -62,45 +62,50 @@ interface FxDef {
   fmt?: (v: number) => string;      // custom value label (e.g. "Off" at the max)
 }
 
+// Knob labels intentionally drop the effect-name prefix — they sit under their
+// category header, so "Mix"/"Rate"/etc. are unambiguous (and repeat per effect).
 const FX_DEFS: FxDef[] = [
   { category: 'Distortion', enableKey: 'distOn' },
+  { label: 'Drive', key: 'dist', min: 0.001, max: 20, step: 0.1 },
   { label: 'Tone', key: 'tone', min: 0, max: 1, step: 0.01 },
   { label: 'Level', key: 'level', min: 0, max: 2, step: 0.01 },
-  { label: 'Dist', key: 'dist', min: 0.001, max: 20, step: 0.1 },
 
-  { category: 'Overdrive (Tube Screamer)', enableKey: 'odOn' },
-  { label: 'OD Drive', key: 'odDrive', min: 1, max: 30, step: 0.1, log: true },
-  { label: 'OD Tone', key: 'odTone', min: 0, max: 1, step: 0.01 },
-  { label: 'OD Level', key: 'odLevel', min: 0, max: 1.5, step: 0.01 },
+  { category: 'Overdrive', enableKey: 'odOn' },
+  { label: 'Drive', key: 'odDrive', min: 1, max: 30, step: 0.1, log: true },
+  { label: 'Tone', key: 'odTone', min: 0, max: 1, step: 0.01 },
+  { label: 'Level', key: 'odLevel', min: 0, max: 1.5, step: 0.01 },
 
   { category: 'Stereo Chorus', enableKey: 'chorusOn' },
-  { label: 'Cho Mix', key: 'chorusMix', min: 0, max: 1, step: 0.01 },
-  { label: 'Cho Rate', key: 'chorusRate', min: 0.1, max: 5.0, step: 0.05 },
-  { label: 'Cho Depth', key: 'chorusDepth', min: 0.5, max: 5.0, step: 0.1 },
+  { label: 'Mix', key: 'chorusMix', min: 0, max: 1, step: 0.01 },
+  { label: 'Rate', key: 'chorusRate', min: 0.1, max: 5.0, step: 0.05 },
+  { label: 'Depth', key: 'chorusDepth', min: 0.5, max: 5.0, step: 0.1 },
 
   { category: 'Stereo Tremolo (Auto-Pan)', enableKey: 'tremoloOn' },
-  { label: 'Trem Mix', key: 'tremoloMix', min: 0, max: 1, step: 0.01 },
-  { label: 'Trem Rate', key: 'tremoloRate', min: 0.5, max: 15.0, step: 0.1 },
+  { label: 'Mix', key: 'tremoloMix', min: 0, max: 1, step: 0.01 },
+  { label: 'Rate', key: 'tremoloRate', min: 0.5, max: 15.0, step: 0.1 },
 
   { category: 'Delay', enableKey: 'delayOn' },
-  { label: 'Dly Time', key: 'delayTime', min: 0.02, max: 1.2, step: 0.01 },
-  { label: 'Dly FB', key: 'delayFeedback', min: 0, max: 0.9, step: 0.01 },
-  { label: 'Dly Mix', key: 'delayMix', min: 0, max: 1, step: 0.01 },
+  { label: 'Time', key: 'delayTime', min: 0.02, max: 1.2, step: 0.01 },
+  { label: 'Feedback', key: 'delayFeedback', min: 0, max: 0.9, step: 0.01 },
+  { label: 'Mix', key: 'delayMix', min: 0, max: 1, step: 0.01 },
 
   { category: 'Reverb', enableKey: 'reverbOn' },
-  { label: 'Rev Decay', key: 'reverbDecay', min: 0, max: 0.97, step: 0.01 },
-  { label: 'Rev Damp', key: 'reverbDamp', min: 0, max: 0.95, step: 0.01 },
-  { label: 'Rev Mix', key: 'reverbMix', min: 0, max: 1, step: 0.01 },
+  { label: 'Decay', key: 'reverbDecay', min: 0, max: 0.97, step: 0.01 },
+  { label: 'Damp', key: 'reverbDamp', min: 0, max: 0.95, step: 0.01 },
+  { label: 'Mix', key: 'reverbMix', min: 0, max: 1, step: 0.01 },
 
   { category: 'Bitcrusher', enableKey: 'bitcrushOn' },
-  { label: 'Crush Bits', key: 'bitcrushBits', min: 4, max: 33, step: 1, fmt: (v) => v >= 33 ? 'Off' : String(Math.round(v)) },
-  { label: 'Crush Hz', key: 'bitcrushRate', min: 100, max: 48000, step: 100, log: true,
+  { label: 'Bits', key: 'bitcrushBits', min: 4, max: 33, step: 1, fmt: (v) => v >= 33 ? 'Off' : String(Math.round(v)) },
+  { label: 'Hz', key: 'bitcrushRate', min: 100, max: 48000, step: 100, log: true,
     fmt: (v) => v >= 48000 ? 'Off' : (v >= 1000 ? (v / 1000).toFixed(1) + 'k' : Math.round(v) + '') },
-  { label: 'Crush Mix', key: 'bitcrushMix', min: 0, max: 1, step: 0.01 },
+  { label: 'Mix', key: 'bitcrushMix', min: 0, max: 1, step: 0.01 },
 
-  { category: 'Stereo Field & Output', enableKey: 'widthOn' },
+  { category: 'Stereo Field', enableKey: 'widthOn' },
   { label: 'Width', key: 'width', min: 0, max: 2, step: 0.01 },
-  { label: 'Level', key: 'master', min: 0, max: 1.5, step: 0.01 },
+
+  // No enableKey → always shown (the FX-chain output level isn't a bypassable effect).
+  { category: 'Output' },
+  { label: 'Level', key: 'master', min: 0, max: 2, step: 0.01 },
 ];
 
 // A knob <div> the UI loop drives externally (see bindKnob in controls.ts).
@@ -362,29 +367,38 @@ export class App {
     const instr = this.engine.instruments[idx];
     if (!instr) return;                       // nothing selected (e.g. blank New song)
     const params = instr.fx as unknown as Record<string, number | boolean>;
+
+    // Master FX bypass (#fx-toggle lives outside #fx). When off, collapse the whole
+    // panel — just the master toggle remains. Toggling re-renders so it expands again.
+    const toggle = $('fx-toggle');
+    toggle.className = params.enabled ? 'on' : '';
+    toggle.textContent = params.enabled ? 'on' : 'off';
+    toggle.onclick = () => { params.enabled = !params.enabled; this._buildFxPanel(); };
+    if (!params.enabled) return;
+
+    let catOn = true;   // is the current effect category enabled? (its knobs hide when off)
     for (const d of FX_DEFS) {
       if (d.category) {
         const cat = document.createElement('h3');
         cat.textContent = d.category;
+        catOn = true;
         if (d.enableKey) {
           const ek = d.enableKey;
           if (params[ek] === undefined) {
-            params[ek] = (ek === 'bitcrushOn') ? false : true;
+            params[ek] = (ek === 'bitcrushOn' || ek === 'odOn') ? false : true;
           }
+          catOn = params[ek] !== false;
           const btn = document.createElement('button');
-          btn.className = 'fx-cat-toggle';
-          const sync = () => {
-            const isOn = params[ek] !== false;
-            btn.className = 'fx-cat-toggle' + (isOn ? ' on' : '');
-            btn.textContent = isOn ? 'on' : 'off';
-          };
-          sync();
-          btn.onclick = () => { params[ek] = (params[ek] === false); sync(); };
+          btn.className = 'fx-cat-toggle' + (catOn ? ' on' : '');
+          btn.textContent = catOn ? 'on' : 'off';
+          // Re-render so the category's knobs collapse/expand with its switch.
+          btn.onclick = () => { params[ek] = (params[ek] === false); this._buildFxPanel(); };
           cat.appendChild(btn);
         }
         host.appendChild(cat);
         continue;
       }
+      if (!catOn) continue;   // effect off → hide its knobs (the header/toggle stays)
       const key = d.key!, min = d.min!, max = d.max!, step = d.step!;
       if (params[key] === undefined) {
         if (key === 'bitcrushBits') params[key] = 8.0;
@@ -419,14 +433,6 @@ export class App {
       }, d.fmt ?? null, undefined, d.log ?? false);
       this._fxKnobs.push({ el: knob, key });
     }
-    const toggle = $('fx-toggle');
-    toggle.className = params.enabled ? 'on' : '';
-    toggle.textContent = params.enabled ? 'on' : 'off';
-    toggle.onclick = () => {
-      params.enabled = !params.enabled;
-      toggle.className = params.enabled ? 'on' : '';
-      toggle.textContent = params.enabled ? 'on' : 'off';
-    };
   }
 
   _bindTransport() {
