@@ -690,11 +690,19 @@ export function bindKnob(
   onChange: (v: number) => void,
   formatFn?: ((v: number) => string) | null,
   onCommit?: (v: number) => void,
+  log = false,
 ) {
   let val = initialVal;
 
+  // Position↔value mapping. Linear by default; logarithmic (equal travel per octave)
+  // when `log` and min > 0. Both the rotation and the drag work in this [0,1] ratio
+  // space, so linear behaviour is unchanged.
+  const lg = log && min > 0;
+  const toRatio = (v: number) => lg ? Math.log(v / min) / Math.log(max / min) : (v - min) / (max - min);
+  const fromRatio = (r: number) => lg ? min * Math.pow(max / min, r) : min + r * (max - min);
+
   const updateUI = (v: number) => {
-    const ratio = (v - min) / (max - min);
+    const ratio = Math.max(0, Math.min(1, toRatio(v)));
     const deg = -135 + ratio * 270;
     knobEl.style.transform = `rotate(${deg}deg)`;
     if (formatFn) {
@@ -722,18 +730,18 @@ export function bindKnob(
   const onStart = (e: MouseEvent | TouchEvent) => {
     e.preventDefault();
     const startY = eventY(e);
-    const startVal = val;
-    const range = max - min;
-    const pixelsPerRange = 150;
+    const startRatio = toRatio(val);
+    const pixelsPerRange = 150;   // full sweep (ratio 0→1) per 150 px
 
     const onMove = (moveEv: MouseEvent | TouchEvent) => {
       const currentY = eventY(moveEv);
       const deltaY = startY - currentY;
-      let newVal = startVal + (deltaY / pixelsPerRange) * range;
-      newVal = Math.max(min, Math.min(max, newVal));
+      const r = Math.max(0, Math.min(1, startRatio + deltaY / pixelsPerRange));
+      let newVal = fromRatio(r);
       if (step) {
         newVal = Math.round(newVal / step) * step;
       }
+      newVal = Math.max(min, Math.min(max, newVal));
       val = newVal;
       updateUI(newVal);
       onChange(newVal);

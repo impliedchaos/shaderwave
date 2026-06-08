@@ -32,7 +32,7 @@ const FX: RawTarget[] = [
   { code: 'RVD', label: 'Reverb Decay',  key: 'reverbDecay',   min: 0,     max: 0.97,  curve: 'lin' },
   { code: 'CHM', label: 'Chorus Mix',    key: 'chorusMix',     min: 0,     max: 1,     curve: 'lin' },
   { code: 'WID', label: 'Width',         key: 'width',         min: 0,     max: 2,     curve: 'lin' },
-  { code: 'BCB', label: 'Crush Bits',    key: 'bitcrushBits',  min: 2,     max: 33,    curve: 'lin' },
+  { code: 'BCB', label: 'Crush Bits',    key: 'bitcrushBits',  min: 4,     max: 33,    curve: 'lin' },
   { code: 'BCR', label: 'Crush Rate',    key: 'bitcrushRate',  min: 100,   max: 48000, curve: 'log', unit: 'Hz' },
   { code: 'BCM', label: 'Crush Mix',     key: 'bitcrushMix',   min: 0,     max: 1,     curve: 'lin' },
 ];

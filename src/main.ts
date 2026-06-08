@@ -58,6 +58,8 @@ interface FxDef {
   min?: number;
   max?: number;
   step?: number;
+  log?: boolean;                    // logarithmic knob (e.g. Crush Hz)
+  fmt?: (v: number) => string;      // custom value label (e.g. "Off" at the max)
 }
 
 const FX_DEFS: FxDef[] = [
@@ -86,8 +88,9 @@ const FX_DEFS: FxDef[] = [
   { label: 'Rev Mix', key: 'reverbMix', min: 0, max: 1, step: 0.01 },
 
   { category: 'Bitcrusher', enableKey: 'bitcrushOn' },
-  { label: 'Crush Bits', key: 'bitcrushBits', min: 2, max: 33, step: 1 },
-  { label: 'Crush Hz', key: 'bitcrushRate', min: 100, max: 48000, step: 100 },
+  { label: 'Crush Bits', key: 'bitcrushBits', min: 4, max: 33, step: 1, fmt: (v) => v >= 33 ? 'Off' : String(Math.round(v)) },
+  { label: 'Crush Hz', key: 'bitcrushRate', min: 100, max: 48000, step: 100, log: true,
+    fmt: (v) => v >= 48000 ? 'Off' : (v >= 1000 ? (v / 1000).toFixed(1) + 'k' : Math.round(v) + '') },
   { label: 'Crush Mix', key: 'bitcrushMix', min: 0, max: 1, step: 0.01 },
 
   { category: 'Stereo Field & Output', enableKey: 'widthOn' },
@@ -408,7 +411,7 @@ export class App {
 
       bindKnob(knob, valSpan, min, max, step, params[key] as number, isPercent, (v) => {
         params[key] = v;
-      });
+      }, d.fmt ?? null, undefined, d.log ?? false);
       this._fxKnobs.push({ el: knob, key });
     }
     const toggle = $('fx-toggle');
