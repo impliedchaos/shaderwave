@@ -76,6 +76,11 @@ export class Engine {
   // must restore them on play/stop (inst/chan/global overrides self-heal via
   // autoLive/panAuto/vd.master, but fx does not).
   _lfoFxBase: Map<string, number>;
+  // What an fx-scope LFO last WROTE to each fx field. Lets us notice when the user
+  // (or a preset/automation) edits that field live — if it no longer matches what we
+  // wrote, we re-baseline `_lfoFxBase` to the new value so the LFO re-centres on it
+  // (otherwise the frozen play-start snapshot clobbers live volume/cutoff edits).
+  _lfoFxLast: Map<string, number>;
   vd: VoiceData;
   _preview: number;
 
@@ -138,6 +143,7 @@ export class Engine {
     this.lfos = defaultLfos();
     this.modRoutings = [];
     this._lfoFxBase = new Map();
+    this._lfoFxLast = new Map();
 
     // GPU-facing buffers, updated in place every block.
     this.vd = {
@@ -213,6 +219,7 @@ export class Engine {
       if (instr?.fx) instr.fx[fxKey] = base;
     }
     this._lfoFxBase.clear();
+    this._lfoFxLast.clear();
   }
 
   // Set the song's base global volume from the UI (the Song Editor's Volume knob).
@@ -782,10 +789,23 @@ export class Engine {
           }
         } else if (t.scope === 'fx' && t.key && instr.fx) {
           const sk = `${r.targetInstIdx}:${t.key}`;
-          let base = this._lfoFxBase.get(sk);          // snapshot once; restored on play/stop
-          if (base === undefined) { base = instr.fx[t.key] as number; this._lfoFxBase.set(sk, base); }
+          // The LFO writes back into instr.fx[key], so it can't read it as the centre
+          // (it'd modulate its own output and drift) — hence a stored base. But that
+          // base must track LIVE edits: if the field no longer equals what we last
+          // wrote, the user/preset/automation changed it → re-baseline to the new
+          // value. (Without this, a frozen play-start snapshot clobbers a volume/
+          // cutoff knob dragged during playback, so the LFO stays centred on the old
+          // value — see the FX-Level-while-playing bug.)
+          const last = this._lfoFxLast.get(sk);
+          let base = this._lfoFxBase.get(sk);
+          if (base === undefined || last === undefined || (instr.fx[t.key] as number) !== last) {
+            base = instr.fx[t.key] as number;
+            this._lfoFxBase.set(sk, base);
+          }
           const nv = denormUnit(t, normUnit(t, base) + offset);
-          instr.fx[t.key] = t.toggle ? (nv > 0.5) : nv;   // toggle → boolean (rhythmic gating)
+          const out = t.toggle ? (nv > 0.5) : nv;          // toggle → boolean (rhythmic gating)
+          instr.fx[t.key] = out;
+          this._lfoFxLast.set(sk, out as number);
         }
       }
     }

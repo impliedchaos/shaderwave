@@ -356,6 +356,18 @@ and bit-**deterministic** across runs (export-safe). `npm run build` green.
 - **Key semantic:** LFO reads a STABLE store, writes a DIFFERENT one → no drift. inst-scope
   STACKS with automation (center = autoLive ?? base); chan/global/fx modulate around base/
   snapshot and the LFO wins if both target the same param. BPM excluded as a target.
+- **fx-scope is the ODD ONE OUT (and had a bug — FIXED 1.13.1):** inst/chan/global read a pristine
+  base and write a SEPARATE live store (vd / panAuto / vd.master), so they always centre on the live
+  value. fx-scope has no separate store — the LFO writes back into the same `instr.fx[key]` it must
+  read as the centre, so it kept a `_lfoFxBase` snapshot. That snapshot was FROZEN at play-start, so
+  editing the targeted fx knob (e.g. FX Level / filter Cutoff) WHILE PLAYING did nothing — the LFO
+  clobbered the edit every block, staying centred on the old value (looked like "centre is always 0").
+  FIX: `_lfoFxLast` records what the LFO last wrote; if `instr.fx[key]` no longer equals it, the
+  user/preset/automation edited it → re-baseline `_lfoFxBase` to the new value. Re-baselining also
+  means an fx-scope LFO now rides ON TOP of fx-scope automation (re-centres on the automated value
+  each block) instead of fighting it. Static renders/exports are unaffected (no external edits →
+  byte-identical; golden checksum unchanged). Regression test: mod-matrix.test.ts "re-centres on a
+  live edit".
 - **Left to do / polish:** UI is functional native controls (not styled knobs); pause/resume
   restarts LFO phase; no live LFO scope viz. Needs real-ears audition.
 
