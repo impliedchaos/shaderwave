@@ -260,6 +260,48 @@
     font-weight: bold;
     font-family: var(--font-ui);
   }
+
+  /* Custom song picker (replaces the native <select> so rows can carry colours +
+     an inline delete; native option styling is unreliable across browsers). */
+  .song-picker { position: relative; display: inline-block; }
+  .song-picker-btn {
+    background: transparent; border: none; cursor: pointer; outline: none;
+    color: var(--accent); text-shadow: 0 0 6px var(--accent-glow);
+    font-size: 15px; font-weight: 700; font-family: var(--font-heading);
+    display: inline-flex; align-items: center; gap: 6px; padding: 0;
+    max-width: 320px; transition: color 0.5s ease;
+  }
+  #song-picker-current { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 290px; }
+  .song-picker-caret { font-size: 10px; opacity: 0.7; }
+  .song-picker-menu {
+    /* fixed (not absolute) so it escapes the LCD panel's overflow:hidden clip;
+       its top/left are set in JS from the trigger's bounding box on open. */
+    position: fixed; z-index: 200;
+    min-width: 260px; max-width: 360px; max-height: 60vh; overflow-y: auto;
+    background: var(--panel-solid); border: 1px solid rgba(45, 60, 85, 0.9);
+    border-radius: 8px; padding: 6px; box-shadow: 0 8px 28px rgba(0, 0, 0, 0.6);
+  }
+  .song-picker-menu[hidden] { display: none; }
+  .song-grp {
+    font-family: var(--font-heading); font-size: 10px; font-weight: 700;
+    letter-spacing: 1.2px; color: var(--dim); padding: 8px 8px 4px; text-transform: uppercase;
+  }
+  .song-grp:first-child { padding-top: 2px; }
+  .song-row {
+    display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 5px;
+    cursor: pointer; font-family: var(--font-ui); font-size: 13px; color: var(--text);
+  }
+  .song-row:hover { background: rgba(120, 140, 175, 0.12); }
+  .song-row.active { background: rgba(120, 140, 175, 0.18); }
+  .song-row.active .song-row-name { color: var(--accent); text-shadow: 0 0 6px var(--accent-glow); }
+  .song-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; box-shadow: 0 0 6px currentColor; }
+  .song-row-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .song-del {
+    background: transparent; border: none; cursor: pointer; opacity: 0; padding: 2px 4px;
+    font-size: 12px; line-height: 1; border-radius: 4px; flex-shrink: 0; transition: opacity 0.12s;
+  }
+  .song-row:hover .song-del { opacity: 0.55; }
+  .song-del:hover { opacity: 1; background: rgba(255, 80, 80, 0.18); }
   
   .lcd-display input[type="number"]:focus {
     outline: none;
@@ -1307,9 +1349,13 @@
     <div class="header-break"></div>
     <div class="lcd-display">
       <label>SONG
-        <select id="song-select">
-          <option>Loading songs...</option>
-        </select>
+        <div id="song-picker" class="song-picker">
+          <button id="song-picker-btn" class="song-picker-btn" type="button" aria-haspopup="listbox" aria-expanded="false">
+            <span id="song-picker-current">Loading…</span>
+            <span class="song-picker-caret">▾</span>
+          </button>
+          <div id="song-picker-menu" class="song-picker-menu" role="listbox" hidden></div>
+        </div>
       </label>
       <div class="lcd-divider"></div>
       <label>BPM <input id="bpm" type="number" value="174" min="40" max="300" /></label>

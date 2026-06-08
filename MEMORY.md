@@ -42,11 +42,34 @@ to audition songs themselves in their own browser.
 
 ## Current work
 
-### Undo/redo + localStorage song persistence — Phase 0–2 DONE; 3–4 pending — `project`
-**STATUS (2026-06-08):** Phase 0 (snapshot/restore + markDirty chokepoint) + Phase 1
-(whole-document undo/redo) shipped in 1.15.0 (commit 291d03b). Phase 2 (the localStorage
-store module) is IMPLEMENTED + tested, NOT yet wired into the app. Build green, 44/44 logic
-tests. Phases 3–4 (autosave + demo-fork lifecycle, custom song-list panel) still pending.
+### Undo/redo + localStorage song persistence — ALL PHASES DONE — `project`
+**STATUS (2026-06-08):** COMPLETE. Phase 0+1 (undo/redo) in 1.15.0; Phase 2 (store) in
+0762a7a; Phase 3+4 (lifecycle + custom song-list panel) in 1.16.0. Build green, 44/44 logic
+tests, headless smoke-load clean (picker builds all demo rows, no console errors).
+- **Phase 3+4 shipped (1.16.0):** `currentSong: {kind:'demo',demoIdx} | {kind:'user',id}`
+  replaced `currentSongIdx`/`customSongName`-as-identity/magic `-1` `<option>`. `songDisplayName()`
+  is the one name resolver (used by snapshot, song-info field, export). **Autosave:** debounced
+  1.5 s off the markDirty chokepoint, USER songs only; flushed on `beforeunload` +
+  `visibilitychange:hidden`; one-time console warn + `#audio-status` title on quota failure.
+  **Demo→fork:** first CONTENT-tagged edit on a demo mints `"<name> (edit)"` (honours a typed
+  rename instead of appending), switches identity to a user record, persists, refreshes picker;
+  tweaks on a demo are undoable but DON'T fork/persist (they ride along once a content edit forks).
+  **New** mints a fresh user record (`_uniqueUntitled()` → "Untitled"/"Untitled N"), never replaces.
+  **File load** (`_loadSongFile`) now mints a user record too (imports join the library + autosave).
+  `_applySerializedSong` is identity-agnostic (caller sets currentSong first).
+- **Custom song-list panel** replaced the native `<select id="song-select">` (Safari/macOS can't
+  colour options or host inline buttons). `#song-picker` = trigger button (`#song-picker-current`
+  label) + a `position:FIXED` menu (`#song-picker-menu`) — fixed, NOT absolute, because the
+  `.lcd-display` ancestor is `overflow:hidden` and would clip an absolute dropdown; JS positions it
+  from the trigger's bounding box on open. Rows: MY SONGS group (vivid first-instrument colour dot +
+  inline 🗑 delete-with-confirm, active-song fallback→default demo) then DEMOS group (uniform muted
+  `#5a6b86` dot). All picker/lifecycle methods live on `App` (`_initSongPicker`/`_buildSongPicker`/
+  `_toggleSongMenu`/`_closeSongMenu`/`_loadDemo`/`_loadUserSong`/`_deleteUserSong`/`_forkDemo`/
+  `_scheduleAutosave`/`_autosaveNow`/`_uniqueUntitled`). GOTCHA fixed: deleting the OPEN song must
+  switch currentSong OFF it BEFORE the fallback `_loadDemo` (whose opening `_autosaveNow` would else
+  resurrect the just-deleted song).
+- **Store kept from Phase 2:** `src/tracker/song-store.ts` (`SongStore`, injectable `KVStore` backend).
+  The file Save button stays as the .json export path alongside the new implicit persistence.
 - **Phase 2 shipped:** `src/tracker/song-store.ts` — `SongStore` class with an INJECTABLE
   backend (`KVStore`; defaults to `localStorage`, guarded for sandboxed contexts; tests pass an
   in-memory stand-in → runs under node). Layout: `shaderwave:songs:index` = `UserSongMeta[]`

@@ -12,6 +12,7 @@ import { DEMO_SONGS, loadSongInstruments, instrumentsFromParams } from './tracke
 import { serializeSong, deserializeSong, patternFromSerialized, instrumentSpecs } from './tracker/song-io.js';
 import type { SerializedSong } from './tracker/song-io.js';
 import { History } from './tracker/history.js';
+import { SongStore } from './tracker/song-store.js';
 import { instGlow, DEFAULT_MASTER } from './constants.js';
 import { byType } from './instruments/index.js';
 import { EMPTY, OFF, Pattern } from './tracker/pattern.js';
@@ -142,10 +143,25 @@ type KnobEl = HTMLElement & { _extSet?: (v: number) => void };
 // cell (`auto` = the row's Int16 value). `auto === undefined` discriminates.
 type ClipCell = { note: number; inst: number; vol: number; fxCmd?: number; fxVal?: number; auto?: number };
 
+// Which document is open: a built-in demo (by index) or a saved user song (by id).
+type CurrentSong = { kind: 'demo'; demoIdx: number } | { kind: 'user'; id: string };
+
+// markDirty tags that count as a "content" edit (touch patterns / the instrument set
+// / order / metadata) — the trigger for forking a demo into an editable user copy.
+// Everything else is a "tweak" (knobs, fx params, bpm, master, pan, LFO) which is
+// undoable but doesn't, on its own, fork a demo or persist.
+const CONTENT_TAGS = new Set([
+  'note', 'clear', 'volnudge', 'autocell', 'editval', 'fx', 'cut', 'paste',
+  'pattern', 'order', 'resize', 'autotrack', 'instrument', 'midicc', 'meta',
+]);
+
 export class App {
   gl: WebGL2RenderingContext;
   engine: Engine;
-  currentSongIdx: number;
+  currentSong: CurrentSong;
+  store = new SongStore();
+  _autosaveTimer?: ReturnType<typeof setTimeout>;
+  _storageWarned = false;
   pipeline: AudioPipeline;
   renderer: SynthRenderer | null;
   audioReady: boolean;
@@ -192,9 +208,10 @@ export class App {
     // Sort indices alphabetically to determine the default song index
     const sortedIndices = DEMO_SONGS.map((s, i) => ({ s, i }))
       .sort((a, b) => a.s.name.localeCompare(b.s.name));
-    const defaultIdx = DEMO_SONGS.findIndex(s => s.name === "Antiseptik USA");
-    this.currentSongIdx = defaultIdx !== -1 ? defaultIdx : sortedIndices[0].i;
-    const initialSong = DEMO_SONGS[this.currentSongIdx];
+    const found = DEMO_SONGS.findIndex(s => s.name === "Antiseptik USA");
+    const defaultIdx = found !== -1 ? found : sortedIndices[0].i;
+    this.currentSong = { kind: 'demo', demoIdx: defaultIdx };
+    const initialSong = DEMO_SONGS[defaultIdx];
     this.songAuthor = initialSong.author ?? '';
     this.songNote = initialSong.note ?? '';
     const init = loadSongInstruments(initialSong);
@@ -268,6 +285,13 @@ export class App {
     this.view.onEdit = (tag = 'edit') => this.markDirty(tag);
     // Seed undo history with the initial document.
     this._seedHistory();
+
+    // Flush a pending autosave when the tab is hidden or closed (so the last edits
+    // to a user song survive even if the debounce timer hasn't fired yet).
+    window.addEventListener('beforeunload', () => this._autosaveNow());
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') this._autosaveNow();
+    });
 
     this.pipeline.onStats = (s) => { this.underruns = s.underruns; };
     setInterval(() => { if (this.audioReady) this.pipeline.requestStats(); }, 500);
@@ -556,10 +580,6 @@ export class App {
     $<HTMLInputElement>('bpm').oninput = (e) => {
       const val = Math.max(40, Math.min(300, +(e.target as HTMLInputElement).value || 125));
       this.engine.bpm = val;
-      const songDef = DEMO_SONGS[this.currentSongIdx];
-      if (songDef) {
-        songDef.bpm = val;
-      }
     };
     $<HTMLInputElement>('bpm').onchange = () => this.markDirty('bpm');   // one undo step per commit
     const lenInput = $<HTMLInputElement>('pattern-len');
@@ -606,68 +626,7 @@ export class App {
         () => this.markDirty('master'));
     }
     this._buildLfoUI();
-    const songSelect = $<HTMLSelectElement>('song-select');
-    if (songSelect) {
-      // Populate from DEMO_SONGS so the list never drifts out of sync.
-      songSelect.innerHTML = '';
-      const sortedSongs = DEMO_SONGS.map((s, i) => ({ s, i }))
-        .sort((a, b) => a.s.name.localeCompare(b.s.name));
-      sortedSongs.forEach(({ s, i }) => {
-        const o = document.createElement('option');
-        o.value = String(i); o.textContent = s.name;
-        songSelect.appendChild(o);
-      });
-      songSelect.value = String(this.currentSongIdx);
-      songSelect.onchange = (e) => {
-        const idx = parseInt((e.target as HTMLSelectElement).value);
-        if (idx === -1) return;
-        const untitledOpt = songSelect.querySelector('option[value="-1"]');
-        if (untitledOpt) {
-          untitledOpt.remove();
-        }
-        this.customSongName = null;
-        const songDef = DEMO_SONGS[idx];
-        if (songDef) {
-          this.currentSongIdx = idx;
-          this.songAuthor = songDef.author ?? '';
-          this.songNote = songDef.note ?? '';
-          const bpmInput = $<HTMLInputElement>('bpm');
-          if (bpmInput) {
-            bpmInput.value = String(songDef.bpm);
-          }
-          this.engine.bpm = songDef.bpm;
-          // Build the instrument table for this song, pruned to the engines it
-          // actually uses (also discards any user-added instances).
-          const loaded = loadSongInstruments(songDef);
-          this.engine.instruments = loaded.instruments;   // each instance carries its own .fx
-          this._syncRendererFx();
-
-          const wasPlaying = this.engine.playing;
-          this.engine.stop();
-          this.engine.loadSong(loaded.data);
-          this.engine.currentPatternIdx = 0;
-
-          // Reset to a valid instance and rebuild the selector + all panels.
-          this.controls.selected = 0;
-          this.controls.select(0);
-
-          this.view.cursor.row = 0;
-          this.view.cursor.ch = 0;
-          this.view.selection = null;
-          this.view.scroll = 0;
-          const lenInput = $<HTMLInputElement>('pattern-len');
-          if (lenInput) lenInput.value = String(this.view.pattern.rows);
-          this.view.draw();
-          this._renderSongEditor();
-          this._updatePatternSelector();
-
-          if (wasPlaying) {
-            this.engine.play();
-          }
-          this._seedHistory();   // fresh document → new undo baseline
-        }
-      };
-    }
+    this._initSongPicker();
 
     // Bind Play Pattern
     const playPatBtn = $('play-pattern');
@@ -721,16 +680,10 @@ export class App {
     const titleInput = $<HTMLInputElement>('song-title');
     if (titleInput) titleInput.oninput = () => {
       this.customSongName = titleInput.value || 'Untitled';
-      // Editing the title makes this a custom song → reflect in the song selector.
-      const sel = $<HTMLSelectElement>('song-select');
-      if (sel) {
-        let opt = sel.querySelector<HTMLOptionElement>('option[value="-1"]');
-        if (!opt) { opt = document.createElement('option'); opt.value = '-1'; sel.appendChild(opt); }
-        opt.textContent = this.customSongName;
-        sel.value = '-1';
-      }
+      const label = $('song-picker-current');   // reflect the rename in the picker trigger live
+      if (label) label.textContent = this.customSongName;
     };
-    if (titleInput) titleInput.onchange = () => this.markDirty('meta');   // commit → one undo step
+    if (titleInput) titleInput.onchange = () => { this.markDirty('meta'); this._buildSongPicker(); };   // commit → one undo step + relabel
     const authorInput = $<HTMLInputElement>('song-author');
     if (authorInput) {
       authorInput.oninput = () => { this.songAuthor = authorInput.value; };
@@ -784,29 +737,17 @@ export class App {
     const newSongBtn = $('new-song-btn');
     if (newSongBtn) {
       newSongBtn.onclick = () => {
+        this._autosaveNow();              // flush any pending edit on the outgoing song
         this.engine.stop();
-        this.customSongName = 'Untitled';
+        // A blank song is its own user record from the start (so it never replaces
+        // another, even after repeated News, and autosaves immediately).
+        this.customSongName = this._uniqueUntitled();
+        this.currentSong = { kind: 'user', id: this.store.createId() };
         this.songAuthor = '';
         this.songNote = '';
-        const songSelect = $<HTMLSelectElement>('song-select');
-        if (songSelect) {
-          let untitledOpt = songSelect.querySelector<HTMLOptionElement>('option[value="-1"]');
-          if (!untitledOpt) {
-            untitledOpt = document.createElement('option');
-            untitledOpt.value = "-1";
-            untitledOpt.textContent = "Untitled";
-            songSelect.appendChild(untitledOpt);
-          }
-          songSelect.value = "-1";
-        }
 
         const newPat = new Pattern(32, 8);
-        const songData = {
-          patterns: [newPat],
-          order: [0],
-          rowsPerBeat: 4
-        };
-        this.engine.loadSong(songData);
+        this.engine.loadSong({ patterns: [newPat], order: [0], rowsPerBeat: 4 });
         this.engine.currentPatternIdx = 0;
 
         this.engine.instruments = [];   // blank song → no instruments, no fx chains
@@ -823,7 +764,9 @@ export class App {
         this.view.draw();
         this._renderSongEditor();
         this._updatePatternSelector();
-        this._seedHistory();   // fresh blank document → new undo baseline
+        this._seedHistory();              // fresh blank document → new undo baseline
+        this._autosaveNow();              // persist the new record + add it to the picker
+        this._buildSongPicker();
       };
     }
 
@@ -852,13 +795,20 @@ export class App {
     }
   }
 
+  // The current song's display name: an explicit user title, else the demo's name.
+  songDisplayName(): string {
+    if (this.customSongName) return this.customSongName;
+    if (this.currentSong.kind === 'demo') return DEMO_SONGS[this.currentSong.demoIdx]?.name ?? 'Untitled';
+    return 'Untitled';
+  }
+
   // Capture the WHOLE editable document as a portable, self-contained object — the
-  // single source of truth for Save (→ file), undo/redo (→ history) and, later,
-  // autosave (→ localStorage). Returns null when there's no song loaded.
+  // single source of truth for Save (→ file), undo/redo (→ history) and autosave
+  // (→ localStorage). Returns null when there's no song loaded.
   _snapshot(): SerializedSong | null {
     const eng = this.engine;
     if (!eng.song) return null;
-    const name = this.customSongName ?? DEMO_SONGS[this.currentSongIdx]?.name ?? 'Untitled';
+    const name = this.songDisplayName();
     return serializeSong({
       name,
       author: this.songAuthor,
@@ -902,7 +852,199 @@ export class App {
     this._histTag = tag;
     this._histTime = now;
     this._refreshUndoUI();
-    // Phase 3 hook: demo→fork on first content edit + debounced autosave go here.
+
+    // Persistence lifecycle. A user song autosaves; a demo forks into an editable
+    // user copy on the FIRST content edit (tweaks alone don't fork or persist).
+    if (this.currentSong.kind === 'user') {
+      this._scheduleAutosave();
+    } else if (CONTENT_TAGS.has(tag)) {
+      this._forkDemo();
+    }
+  }
+
+  // Demo → "<name> (edit)" user song on first content edit. Mints a record, switches
+  // identity to it, persists immediately, and refreshes the picker. The original demo
+  // stays in the list; undo history (already recorded) is unaffected.
+  _forkDemo() {
+    if (this.currentSong.kind === 'demo') {
+      const demoName = DEMO_SONGS[this.currentSong.demoIdx]?.name ?? 'Untitled';
+      // Honour a title the user typed; otherwise tag the copy "(edit)".
+      if (!this.customSongName || this.customSongName === demoName) {
+        this.customSongName = `${demoName} (edit)`;
+      }
+      this.currentSong = { kind: 'user', id: this.store.createId() };
+    }
+    this._autosaveNow();
+    this._buildSongPicker();
+  }
+
+  // Debounced autosave for the active user song (coalesces a burst of edits).
+  _scheduleAutosave() {
+    if (this._autosaveTimer) clearTimeout(this._autosaveTimer);
+    this._autosaveTimer = setTimeout(() => { this._autosaveTimer = undefined; this._autosaveNow(); }, 1500);
+  }
+
+  // Write the active user song to storage now (also called on fork + page hide).
+  _autosaveNow() {
+    if (this._autosaveTimer) { clearTimeout(this._autosaveTimer); this._autosaveTimer = undefined; }
+    if (this.currentSong.kind !== 'user') return;
+    const snap = this._snapshot();
+    if (!snap) return;
+    const res = this.store.save(this.currentSong.id, snap);
+    if (!res.ok && !this._storageWarned) {
+      this._storageWarned = true;
+      console.warn('Autosave failed:', res.error);
+      const status = $('audio-status');
+      if (status && res.error) status.title = `Autosave: ${res.error}`;
+    }
+  }
+
+  // ── Song picker (custom dropdown: saved user songs + demos, colours + delete) ──
+  _initSongPicker() {
+    const btn = $('song-picker-btn');
+    if (btn) btn.onclick = (e) => { e.stopPropagation(); this._toggleSongMenu(); };
+    // Dismiss on an outside click or Escape.
+    document.addEventListener('mousedown', (e) => {
+      const root = $('song-picker'), menu = $('song-picker-menu');
+      if (menu && !menu.hidden && root && !root.contains(e.target as Node)) this._closeSongMenu();
+    });
+    document.addEventListener('keydown', (e) => { if (e.code === 'Escape') this._closeSongMenu(); });
+    this._buildSongPicker();
+  }
+
+  _toggleSongMenu() {
+    const menu = $('song-picker-menu');
+    const btn = $('song-picker-btn');
+    if (!menu) return;
+    if (menu.hidden) {
+      this._buildSongPicker();
+      // Position the fixed menu under the trigger (it's fixed so the LCD panel's
+      // overflow:hidden can't clip it).
+      if (btn) { const r = btn.getBoundingClientRect(); menu.style.left = `${Math.round(r.left - 8)}px`; menu.style.top = `${Math.round(r.bottom + 8)}px`; }
+      menu.hidden = false;
+      btn?.setAttribute('aria-expanded', 'true');
+    } else this._closeSongMenu();
+  }
+
+  _closeSongMenu() {
+    const menu = $('song-picker-menu');
+    if (menu) menu.hidden = true;
+    $('song-picker-btn')?.setAttribute('aria-expanded', 'false');
+  }
+
+  // Refresh the trigger label + rebuild the menu rows (user songs first, then demos).
+  _buildSongPicker() {
+    const label = $('song-picker-current');
+    if (label) label.textContent = this.songDisplayName();
+    const menu = $('song-picker-menu');
+    if (!menu) return;
+    menu.innerHTML = '';
+
+    const group = (title: string) => {
+      const h = document.createElement('div');
+      h.className = 'song-grp'; h.textContent = title;
+      menu.appendChild(h);
+    };
+    const row = (o: { name: string; color: string; active: boolean; onClick: () => void; onDelete?: () => void }) => {
+      const r = document.createElement('div');
+      r.className = 'song-row' + (o.active ? ' active' : '');
+      const dot = document.createElement('span'); dot.className = 'song-dot'; dot.style.background = o.color;
+      const nm = document.createElement('span'); nm.className = 'song-row-name'; nm.textContent = o.name;
+      r.append(dot, nm);
+      r.onclick = () => { this._closeSongMenu(); o.onClick(); };
+      if (o.onDelete) {
+        const del = document.createElement('button');
+        del.className = 'song-del'; del.textContent = '🗑'; del.title = 'Delete this saved song';
+        del.onclick = (e) => { e.stopPropagation(); o.onDelete!(); };
+        r.appendChild(del);
+      }
+      menu.appendChild(r);
+    };
+
+    const users = this.store.list();
+    if (users.length) {
+      group('MY SONGS');
+      for (const m of users) row({
+        name: m.name, color: m.color || '#7d8aa0',
+        active: this.currentSong.kind === 'user' && this.currentSong.id === m.id,
+        onClick: () => this._loadUserSong(m.id),
+        onDelete: () => this._deleteUserSong(m.id, m.name),
+      });
+    }
+    group('DEMOS');
+    const demos = DEMO_SONGS.map((s, i) => ({ s, i })).sort((a, b) => a.s.name.localeCompare(b.s.name));
+    for (const { s, i } of demos) row({
+      name: s.name, color: '#5a6b86',   // a uniform muted dot marks demos vs. vivid user colours
+      active: this.currentSong.kind === 'demo' && this.currentSong.demoIdx === i,
+      onClick: () => this._loadDemo(i),
+    });
+  }
+
+  // Load a built-in demo (resets to a fresh, pruned instrument table).
+  _loadDemo(idx: number) {
+    const songDef = DEMO_SONGS[idx];
+    if (!songDef) return;
+    this._autosaveNow();                 // flush any pending edit on the outgoing song
+    this.customSongName = null;
+    this.currentSong = { kind: 'demo', demoIdx: idx };
+    this.songAuthor = songDef.author ?? '';
+    this.songNote = songDef.note ?? '';
+    const bpmInput = $<HTMLInputElement>('bpm');
+    if (bpmInput) bpmInput.value = String(songDef.bpm);
+    this.engine.bpm = songDef.bpm;
+    const loaded = loadSongInstruments(songDef);
+    this.engine.instruments = loaded.instruments;
+    this._syncRendererFx();
+
+    const wasPlaying = this.engine.playing;
+    this.engine.stop();
+    this.engine.loadSong(loaded.data);
+    this.engine.currentPatternIdx = 0;
+
+    this.controls.selected = 0;
+    this.controls.select(0);
+    this.view.cursor.row = 0; this.view.cursor.ch = 0; this.view.selection = null; this.view.scroll = 0;
+    const lenInput = $<HTMLInputElement>('pattern-len');
+    if (lenInput) lenInput.value = String(this.view.pattern.rows);
+    this.view.draw();
+    this._renderSongEditor();
+    this._updatePatternSelector();
+    if (wasPlaying) this.engine.play();
+    this._seedHistory();
+    this._buildSongPicker();
+  }
+
+  // Open a saved user song from storage.
+  _loadUserSong(id: string) {
+    const doc = this.store.load(id);
+    if (!doc) { this._buildSongPicker(); return; }   // vanished/corrupt → just refresh the list
+    this._autosaveNow();                             // flush the outgoing song first
+    this.currentSong = { kind: 'user', id };
+    this._applySerializedSong(doc);
+  }
+
+  // Delete a saved user song; if it's the one open, fall back to the default demo.
+  _deleteUserSong(id: string, name: string) {
+    if (!confirm(`Delete saved song "${name}"? This can't be undone.`)) return;
+    const isOpen = this.currentSong.kind === 'user' && this.currentSong.id === id;
+    if (isOpen && this._autosaveTimer) { clearTimeout(this._autosaveTimer); this._autosaveTimer = undefined; }
+    this.store.delete(id);
+    if (isOpen) {
+      // Switch identity OFF the deleted song BEFORE the fallback load, so its
+      // autosave-flush can't resurrect what we just removed.
+      this.currentSong = { kind: 'demo', demoIdx: 0 };
+      const found = DEMO_SONGS.findIndex((s) => s.name === 'Antiseptik USA');
+      this._loadDemo(found !== -1 ? found : 0);
+    } else {
+      this._buildSongPicker();
+    }
+  }
+
+  // A non-colliding "Untitled" / "Untitled N" name for a freshly created song.
+  _uniqueUntitled(): string {
+    const taken = new Set(this.store.list().map((m) => m.name));
+    if (!taken.has('Untitled')) return 'Untitled';
+    for (let n = 2; ; n++) { const c = `Untitled ${n}`; if (!taken.has(c)) return c; }
   }
 
   _undo() {
@@ -1005,13 +1147,18 @@ export class App {
     URL.revokeObjectURL(url);
   }
 
-  // Read a .json song file, validate/parse it, and load it into the app.
+  // Read a .json song file, validate/parse it, and load it as a new user song
+  // (so an imported file joins the library and autosaves from then on).
   _loadSongFile(file: File) {
     const reader = new FileReader();
     reader.onload = () => {
       try {
         const doc = deserializeSong(JSON.parse(String(reader.result)));
+        this._autosaveNow();                 // flush the outgoing song first
+        this.currentSong = { kind: 'user', id: this.store.createId() };
         this._applySerializedSong(doc);
+        this._autosaveNow();                 // persist the import + add it to the picker
+        this._buildSongPicker();
       } catch (err) {
         alert(`Couldn't load song: ${err instanceof Error ? err.message : String(err)}`);
       }
@@ -1020,23 +1167,12 @@ export class App {
     reader.readAsText(file);
   }
 
-  // Apply a deserialized song to the engine + UI (mirrors the demo-song switch).
+  // Apply a deserialized song to the engine + UI. Identity-agnostic: the CALLER sets
+  // `currentSong` (a saved-song open, a file import) before invoking.
   _applySerializedSong(doc: SerializedSong) {
     this.customSongName = doc.name || 'Untitled';
     this.songAuthor = doc.author ?? '';
     this.songNote = doc.note ?? '';
-    // Mark the song selector as a custom (non-demo) entry.
-    const songSelect = $<HTMLSelectElement>('song-select');
-    if (songSelect) {
-      let opt = songSelect.querySelector<HTMLOptionElement>('option[value="-1"]');
-      if (!opt) {
-        opt = document.createElement('option');
-        opt.value = '-1';
-        songSelect.appendChild(opt);
-      }
-      opt.textContent = this.customSongName;
-      songSelect.value = '-1';
-    }
 
     this.engine.stop();
     this.engine.bpm = doc.bpm;
@@ -1076,6 +1212,7 @@ export class App {
     this._renderSongEditor();
     this._updatePatternSelector();
     this._seedHistory();   // loaded document → new undo baseline
+    this._buildSongPicker();
   }
 
   _openAutoTrackPicker() {
@@ -1960,7 +2097,7 @@ export class App {
     const title = $<HTMLInputElement>('song-title');
     const author = $<HTMLInputElement>('song-author');
     const note = $<HTMLTextAreaElement>('song-note');
-    const titleVal = this.customSongName ?? DEMO_SONGS[this.currentSongIdx]?.name ?? '';
+    const titleVal = this.songDisplayName();
     if (title && document.activeElement !== title) title.value = titleVal;
     if (author && document.activeElement !== author) author.value = this.songAuthor;
     if (note && document.activeElement !== note) note.value = this.songNote;

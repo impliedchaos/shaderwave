@@ -4,7 +4,6 @@
 // engine, renderer, and audio pipeline.
 import { BLOCK } from '../constants.js';
 import { HELD } from '../tracker/engine.js';
-import { DEMO_SONGS } from '../tracker/song.js';
 import { GLVisualizer } from '../ui/visualizer.js';
 import { el as $ } from '../ui/dom.js';
 import type { App } from '../main.js';
@@ -63,8 +62,7 @@ function writeWav(samples: Float32Array, sampleRate: number): Blob {
 }
 
 export function showExportDialog(app: App) {
-  const song = DEMO_SONGS[app.currentSongIdx];
-  const defaultTitle = app.customSongName || (song ? song.name : 'Untitled');
+  const defaultTitle = app.songDisplayName();
   const defaultFilename = sanitizeFilename(defaultTitle);
 
   $<HTMLInputElement>('export-song-title').value = defaultTitle;
