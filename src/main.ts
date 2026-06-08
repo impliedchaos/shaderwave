@@ -11,6 +11,7 @@ import { Controls, bindKnob } from './ui/controls.js';
 import { DEMO_SONGS, loadSongInstruments, instrumentsFromParams } from './tracker/song.js';
 import { serializeSong, deserializeSong, patternFromSerialized, instrumentSpecs } from './tracker/song-io.js';
 import type { SerializedSong } from './tracker/song-io.js';
+import { History } from './tracker/history.js';
 import { instGlow, DEFAULT_MASTER } from './constants.js';
 import { byType } from './instruments/index.js';
 import { EMPTY, OFF, Pattern } from './tracker/pattern.js';
@@ -169,6 +170,12 @@ export class App {
   _freqData?: Uint8Array<ArrayBuffer>;
   _waveData?: Uint8Array<ArrayBuffer>;
   _recordEnabled = false;
+  // Undo/redo: whole-document snapshot history. `_histTag`/`_histTime` drive the
+  // coalescing of a continuing gesture (knob drag, two-digit entry) into one step.
+  history = new History();
+  _histTag = '';
+  _histTime = 0;
+  _restoring = false;        // guards against markDirty re-entrancy during a restore
 
   constructor() {
     // GL renders audio entirely into FBOs (read back via readPixels), so its
@@ -236,6 +243,7 @@ export class App {
         const instr = this.engine.instruments[this.controls.selected];
         if (instr && !byType(instName)?.customControls && fx) {
           instr.fx = Object.assign(defaultFxParams(), fx);
+          // (markDirty for the whole preset load is recorded by Controls.loadPreset)
           this._buildFxPanel();
           this._syncRendererFx();
         }
@@ -254,6 +262,12 @@ export class App {
     initHelp();
     this._initMidi();
     this._loop();
+
+    // Grid gestures that commit an edit (pan drag, auto-track removal) live in the
+    // view, not a handler here — route them through markDirty.
+    this.view.onEdit = (tag = 'edit') => this.markDirty(tag);
+    // Seed undo history with the initial document.
+    this._seedHistory();
 
     this.pipeline.onStats = (s) => { this.underruns = s.underruns; };
     setInterval(() => { if (this.audioReady) this.pipeline.requestStats(); }, 500);
@@ -343,6 +357,7 @@ export class App {
           const before = p.autoTracks.length;
           const data = p.getOrCreateAutoTrack(trackInst, target.id);
           if (row >= 0 && row < data.length) data[row] = val255;
+          this.markDirty('midicc', true);   // streamed CC → coalesce into one step
           if (p.autoTracks.length !== before) this.view._resize();  // new track widens the grid
           this.view.draw();
         }
@@ -364,6 +379,7 @@ export class App {
         if (p) {
           if (curCh < p.channels) {
             p.set(row, curCh, note, instIdx, data2 / 127.0);
+            this.markDirty('note');
             if (!this.engine.playing) {
                this._advanceCursorRow();
             }
@@ -420,7 +436,8 @@ export class App {
       block.appendChild(wrapper);
       outHost.appendChild(block);
       if (params.master === undefined) params.master = 1.0;
-      bindKnob(knob, valSpan, 0, 2, 0.01, params.master as number, false, (v) => { params.master = v; });
+      bindKnob(knob, valSpan, 0, 2, 0.01, params.master as number, false, (v) => { params.master = v; },
+        null, () => this.markDirty('fxknob'));
       this._fxKnobs.push({ el: knob, key: 'master' });
     }
 
@@ -429,7 +446,7 @@ export class App {
     const toggle = $('fx-toggle');
     toggle.className = params.enabled ? 'on' : '';
     toggle.textContent = params.enabled ? 'on' : 'off';
-    toggle.onclick = () => { params.enabled = !params.enabled; this._buildFxPanel(); };
+    toggle.onclick = () => { params.enabled = !params.enabled; this.markDirty('fx-enable'); this._buildFxPanel(); };
     if (!params.enabled) return;
 
     // Render the chain in the INSTANCE's order (normalized against the registry), so
@@ -440,6 +457,7 @@ export class App {
       const next = order.slice();
       const [m] = next.splice(from, 1); next.splice(to, 0, m);
       instr.fxOrder = next;            // persist on the instance
+      this.markDirty('fx-order');
       this._buildFxPanel();
       this._syncRendererFx();          // push the new order to the renderer
     };
@@ -469,7 +487,7 @@ export class App {
       const isPercent = min === 0 && max === 1 && step < 1;
       bindKnob(knob, valSpan, min, max, step, params[key] as number, isPercent, (v) => {
         params[key] = v;
-      }, d.fmt ?? null, undefined, d.log ?? false);
+      }, d.fmt ?? null, () => this.markDirty('fxknob'), d.log ?? false);
       this._fxKnobs.push({ el: knob, key });
     };
 
@@ -503,7 +521,7 @@ export class App {
         const btn = document.createElement('button');
         btn.className = 'fx-cat-toggle' + (catOn ? ' on' : '');
         btn.textContent = catOn ? 'on' : 'off';
-        btn.onclick = () => { params[ek] = (params[ek] === false); this._buildFxPanel(); };
+        btn.onclick = () => { params[ek] = (params[ek] === false); this.markDirty('fx-enable'); this._buildFxPanel(); };
         cat.appendChild(btn);
       }
       host.appendChild(cat);
@@ -543,6 +561,7 @@ export class App {
         songDef.bpm = val;
       }
     };
+    $<HTMLInputElement>('bpm').onchange = () => this.markDirty('bpm');   // one undo step per commit
     const lenInput = $<HTMLInputElement>('pattern-len');
     if (lenInput) {
       lenInput.value = String(this.view.pattern.rows);
@@ -552,6 +571,7 @@ export class App {
         t.value = String(val);
         this.view.pattern.resize(val);
         if (this.view.cursor.row >= val) this.view.cursor.row = val - 1;
+        this.markDirty('resize');
         this.view.draw();
         this._renderSongEditor();
       };
@@ -582,7 +602,8 @@ export class App {
       const max = DEFAULT_MASTER * 255 / 128;
       bindKnob(volKnob, volKnobVal, 0, max, max / 255, this.engine.songMaster, false,
         (v) => this.engine.setMaster(v),
-        (v) => `${Math.round((v / DEFAULT_MASTER) * 100)}%`);
+        (v) => `${Math.round((v / DEFAULT_MASTER) * 100)}%`,
+        () => this.markDirty('master'));
     }
     this._buildLfoUI();
     const songSelect = $<HTMLSelectElement>('song-select');
@@ -643,6 +664,7 @@ export class App {
           if (wasPlaying) {
             this.engine.play();
           }
+          this._seedHistory();   // fresh document → new undo baseline
         }
       };
     }
@@ -690,7 +712,7 @@ export class App {
     if (patDelBtn) patDelBtn.onclick = () => {
       const song = this.engine.song;
       if (!song || song.patterns.length <= 1) return;   // never delete the last pattern
-      if (confirm(`Delete pattern ${this.engine.currentPatternIdx}? This can't be undone.`)) {
+      if (confirm(`Delete pattern ${this.engine.currentPatternIdx}? (Ctrl+Z to undo)`)) {
         this._deletePattern(this.engine.currentPatternIdx);
       }
     };
@@ -708,16 +730,24 @@ export class App {
         sel.value = '-1';
       }
     };
+    if (titleInput) titleInput.onchange = () => this.markDirty('meta');   // commit → one undo step
     const authorInput = $<HTMLInputElement>('song-author');
-    if (authorInput) authorInput.oninput = () => { this.songAuthor = authorInput.value; };
+    if (authorInput) {
+      authorInput.oninput = () => { this.songAuthor = authorInput.value; };
+      authorInput.onchange = () => this.markDirty('meta');
+    }
     const noteInput = $<HTMLTextAreaElement>('song-note');
-    if (noteInput) noteInput.oninput = () => { this.songNote = noteInput.value; };
+    if (noteInput) {
+      noteInput.oninput = () => { this.songNote = noteInput.value; };
+      noteInput.onchange = () => this.markDirty('meta');
+    }
 
     const addOrdBtn = $('add-order-btn');
     if (addOrdBtn) {
       addOrdBtn.onclick = () => {
         if (!this.engine.song) return;
         this.engine.song.order.push(this.engine.currentPatternIdx);
+        this.markDirty('order');
         this._renderSongEditor();
       };
     }
@@ -793,8 +823,14 @@ export class App {
         this.view.draw();
         this._renderSongEditor();
         this._updatePatternSelector();
+        this._seedHistory();   // fresh blank document → new undo baseline
       };
     }
+
+    const undoBtn = $('undo-btn');
+    if (undoBtn) undoBtn.onclick = () => this._undo();
+    const redoBtn = $('redo-btn');
+    if (redoBtn) redoBtn.onclick = () => this._redo();
 
     const saveSongBtn = $('save-song-btn');
     if (saveSongBtn) saveSongBtn.onclick = () => this._saveSong();
@@ -816,12 +852,14 @@ export class App {
     }
   }
 
-  // Serialize the current song to a versioned JSON file and download it.
-  _saveSong() {
+  // Capture the WHOLE editable document as a portable, self-contained object — the
+  // single source of truth for Save (→ file), undo/redo (→ history) and, later,
+  // autosave (→ localStorage). Returns null when there's no song loaded.
+  _snapshot(): SerializedSong | null {
     const eng = this.engine;
-    if (!eng.song) return;
+    if (!eng.song) return null;
     const name = this.customSongName ?? DEMO_SONGS[this.currentSongIdx]?.name ?? 'Untitled';
-    const doc = serializeSong({
+    return serializeSong({
       name,
       author: this.songAuthor,
       note: this.songNote,
@@ -835,6 +873,128 @@ export class App {
       lfos: eng.lfos,
       modRoutings: eng.modRoutings,
     });
+  }
+
+  // Reset undo history to the current document as the baseline (no undo step).
+  // Called on every full document load (initial, song switch, New, file load).
+  _seedHistory() {
+    const snap = this._snapshot();
+    if (snap) this.history.reset(snap);
+    this._histTag = '';
+    this._histTime = 0;
+    this._refreshUndoUI();
+  }
+
+  // Record that the document changed. `tag` names the gesture; pass `coalesce` for
+  // streaming gestures (knob drag, two-digit entry) so a burst folds into one undo
+  // step rather than dozens. No-ops while a restore is applying (its mutations are
+  // the undo itself, not new edits).
+  markDirty(tag = 'edit', coalesce = false) {
+    if (this._restoring) return;
+    const snap = this._snapshot();
+    if (!snap) return;
+    const now = performance.now();
+    if (coalesce && this._histTag === tag && now - this._histTime < 450) {
+      this.history.replacePresent(snap);
+    } else {
+      this.history.push(snap);
+    }
+    this._histTag = tag;
+    this._histTime = now;
+    this._refreshUndoUI();
+    // Phase 3 hook: demo→fork on first content edit + debounced autosave go here.
+  }
+
+  _undo() {
+    const doc = this.history.undo();
+    if (doc) this._restoreSnapshot(doc);
+    this._refreshUndoUI();
+  }
+
+  _redo() {
+    const doc = this.history.redo();
+    if (doc) this._restoreSnapshot(doc);
+    this._refreshUndoUI();
+  }
+
+  // Enable/disable the Undo/Redo buttons to match availability.
+  _refreshUndoUI() {
+    const u = $<HTMLButtonElement>('undo-btn');
+    const r = $<HTMLButtonElement>('redo-btn');
+    if (u) u.disabled = !this.history.canUndo();
+    if (r) r.disabled = !this.history.canRedo();
+  }
+
+  // Restore a snapshot into the engine + UI WITHOUT pruning the instrument table
+  // (so a just-added, note-less instrument survives undo) and WITHOUT moving the
+  // editing position (cursor / pattern / selected instrument are preserved, clamped).
+  // Routes through the same load path as a file open, so all transient engine state
+  // (autoLive / panAuto / vd.master / LFO bases) is reset deterministically.
+  _restoreSnapshot(doc: SerializedSong) {
+    const eng = this.engine;
+    this._restoring = true;
+    try {
+      const prevPat = eng.currentPatternIdx;
+      const prevSel = this.controls.selected;
+      const prevCur = { ...this.view.cursor };
+      const prevScroll = this.view.scroll;
+
+      this.customSongName = doc.name;
+      this.songAuthor = doc.author ?? '';
+      this.songNote = doc.note ?? '';
+
+      eng.stop();
+      eng.bpm = doc.bpm;
+      const bpmInput = $<HTMLInputElement>('bpm');
+      if (bpmInput) bpmInput.value = String(doc.bpm);
+
+      eng.instruments = instrumentsFromParams(instrumentSpecs(doc));
+      this._syncRendererFx();
+
+      let patterns = doc.patterns.map(patternFromSerialized);
+      if (!patterns.length) patterns = [new Pattern(32, 8)];
+      eng.loadSong({
+        patterns,
+        order: doc.order.length ? [...doc.order] : [0],
+        rowsPerBeat: doc.rowsPerBeat,
+        bpm: doc.bpm,
+        pan: doc.pan,
+        master: doc.master,
+        lfos: doc.lfos,
+        modRoutings: doc.modRoutings,
+      });
+
+      eng.currentPatternIdx = Math.min(prevPat, patterns.length - 1);
+      this.controls.selected = eng.instruments.length
+        ? Math.min(prevSel < 0 ? 0 : prevSel, eng.instruments.length - 1) : -1;
+      this.controls.select(this.controls.selected);
+
+      const p = this.view.pattern;
+      this.view.cursor.row = p ? Math.min(prevCur.row, p.rows - 1) : 0;
+      this.view.cursor.ch = prevCur.ch;
+      this.view.cursor.col = prevCur.col;
+      this.view.selection = null;
+      this.view.scroll = prevScroll;
+      this.view.clampCursor();
+      const lenInput = $<HTMLInputElement>('pattern-len');
+      if (lenInput && this.view.pattern) lenInput.value = String(this.view.pattern.rows);
+
+      this.view._resize();
+      this.view.draw();
+      this._renderSongEditor();
+      this._updatePatternSelector();
+      // Playback is left stopped (like a file load): the rebuilt patterns reset the
+      // row clock, so resuming would jump to the top anyway.
+    } finally {
+      this._restoring = false;
+    }
+  }
+
+  // Serialize the current song to a versioned JSON file and download it.
+  _saveSong() {
+    const doc = this._snapshot();
+    if (!doc) return;
+    const name = doc.name;
     const blob = new Blob([JSON.stringify(doc, null, 1)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -915,6 +1075,7 @@ export class App {
     this.view.draw();
     this._renderSongEditor();
     this._updatePatternSelector();
+    this._seedHistory();   // loaded document → new undo baseline
   }
 
   _openAutoTrackPicker() {
@@ -968,6 +1129,7 @@ export class App {
         targetParamId: entry.target.id,
         data: new Int16Array(p.rows).fill(-1)
       });
+      this.markDirty('autotrack');
       this._closeFxPicker();
       this.view._resize();
       this.view.draw();
@@ -1021,6 +1183,9 @@ export class App {
       // Copy / cut / paste of a selected block (intercept before note entry,
       // since C/X/V are also piano keys).
       if ((e.ctrlKey || e.metaKey) && !e.altKey) {
+        // Undo/redo (intercept before note entry — Z is also a piano key).
+        if (e.code === 'KeyZ') { e.preventDefault(); if (e.shiftKey) this._redo(); else this._undo(); return; }
+        if (e.code === 'KeyY') { e.preventDefault(); this._redo(); return; }
         if (e.code === 'KeyC') { e.preventDefault(); this._copyBlock(false); return; }
         if (e.code === 'KeyX') { e.preventDefault(); this._copyBlock(true); return; }
         if (e.code === 'KeyV') { e.preventDefault(); this._pasteBlock(); return; }
@@ -1069,6 +1234,7 @@ export class App {
       const p = this.view.pattern;
       const { row, ch } = this.view.cursor;
       p.set(row, ch, note, inst, 0.9);
+      this.markDirty('note');
       this._advanceCursorRow();
 
       this.ensureAudio().then(() => {
@@ -1104,6 +1270,7 @@ export class App {
       if (p.notes[idx] >= 0) {
         const d = e.code === 'ArrowUp' ? 0.05 : -0.05;
         p.vol[idx] = Math.min(1.0, Math.max(0.0, p.vol[idx] + d));
+        this.markDirty('volnudge', true);
       }
       return true;
     }
@@ -1163,8 +1330,9 @@ export class App {
           p.clear(c.row, c.ch);
           this._advanceCursorRow();
         }
+        this.markDirty('clear');
         return true;
-      case 'Equal': p.set(c.row, c.ch, OFF, this.controls.selected); this._advanceCursorRow(); return true;
+      case 'Equal': p.set(c.row, c.ch, OFF, this.controls.selected); this.markDirty('note'); this._advanceCursorRow(); return true;
       default: return false;
     }
   }
@@ -1191,7 +1359,8 @@ export class App {
     
     track.data[c.row] = (same ? ((this._hexEntry!.first << 4) | nyb) : nyb) & 0xff;
     this._hexEntry = same ? null : { ch: c.ch, row: c.row, first: nyb };
-    
+    this.markDirty('autocell', true);
+
     // Automatically advance cursor on second digit
     if (same) this._advanceCursorRow();
     return true;
@@ -1214,6 +1383,7 @@ export class App {
     this._digitEntry = same ? null : { idx, col: c.col, first: d };
     if (c.col === 1) p.inst[idx] = Math.min(val, this.engine.instruments.length - 1);
     else p.vol[idx] = Math.min(99, val) / 99;
+    this.markDirty('editval', true);
     return true;
   }
 
@@ -1235,6 +1405,7 @@ export class App {
       e.preventDefault();
       if (def) {
         p.setFx(c.row, c.ch, def.code, 0);
+        this.markDirty('fx', true);
         this._hexEntry = { col: 3, ch: c.ch, row: c.row, first: -1 };  // awaiting value
       }
       return true;
@@ -1252,6 +1423,7 @@ export class App {
       this._hexEntry = null;
       this._advanceCursorRow();
     }
+    this.markDirty('fx', true);
     return true;
   }
 
@@ -1360,7 +1532,7 @@ export class App {
       cells.push(rowCells);
     }
     this._clipboard = { rows: r1 - r0 + 1, chans: c1 - c0 + 1, cells };
-    if (cut) this.view.draw();
+    if (cut) { this.markDirty('cut'); this.view.draw(); }
   }
 
   // Paste the clipboard block with its top-left at the cursor, clipped to bounds.
@@ -1385,6 +1557,7 @@ export class App {
         }
       }
     }
+    this.markDirty('paste');
     this.view.draw();
   }
 
@@ -1647,7 +1820,8 @@ export class App {
     if (this.engine.currentPatternIdx >= song.patterns.length) {
       this.engine.currentPatternIdx = song.patterns.length - 1;
     }
-    
+
+    this.markDirty('pattern');
     this._renderSongEditor();
     this._updatePatternSelector();
     this.view.draw();
@@ -1727,12 +1901,14 @@ export class App {
           el.style.display = (w === 'sync' ? cfg.sync : w === 'free' ? !cfg.sync : w === 'wt' ? isWt : true) ? '' : 'none';
         });
       };
-      shape.onchange = () => { cfg.shape = +shape.value; refresh(); };
-      sync.onchange = () => { cfg.sync = sync.checked; refresh(); };
-      beats.onchange = () => { cfg.rateBeats = +beats.value; };
+      shape.onchange = () => { cfg.shape = +shape.value; refresh(); this.markDirty('lfo'); };
+      sync.onchange = () => { cfg.sync = sync.checked; refresh(); this.markDirty('lfo'); };
+      beats.onchange = () => { cfg.rateBeats = +beats.value; this.markDirty('lfo'); };
       hz.oninput = () => { cfg.rateHz = +hz.value; hzv.textContent = cfg.rateHz.toFixed(2) + 'Hz'; };
-      wtbank.onchange = () => { cfg.wtBank = +wtbank.value; };
+      hz.onchange = () => this.markDirty('lfo');         // commit (drag end) → one undo step
+      wtbank.onchange = () => { cfg.wtBank = +wtbank.value; this.markDirty('lfo'); };
       wtpos.oninput = () => { cfg.wtPos = +wtpos.value; wtposv.textContent = cfg.wtPos.toFixed(2); };
+      wtpos.onchange = () => this.markDirty('lfo');
       refresh();
     });
 
@@ -1765,15 +1941,16 @@ export class App {
       tgt.value = String(ti >= 0 ? ti : 0);
       depth.value = String(r.depth);
       bip.checked = r.bipolar;
-      src.onchange = () => { r.source = +src.value; };
-      tgt.onchange = () => { const o = opts[+tgt.value]; r.targetParamId = o.paramId; r.targetInstIdx = o.instIdx; };
+      src.onchange = () => { r.source = +src.value; this.markDirty('lfo'); };
+      tgt.onchange = () => { const o = opts[+tgt.value]; r.targetParamId = o.paramId; r.targetInstIdx = o.instIdx; this.markDirty('lfo'); };
       depth.oninput = () => { r.depth = +depth.value; };
-      bip.onchange = () => { r.bipolar = bip.checked; };
-      del.onclick = () => { eng.modRoutings.splice(ri, 1); this._buildLfoUI(); };
+      depth.onchange = () => this.markDirty('lfo');      // commit (drag end) → one undo step
+      bip.onchange = () => { r.bipolar = bip.checked; this.markDirty('lfo'); };
+      del.onclick = () => { eng.modRoutings.splice(ri, 1); this.markDirty('lfo'); this._buildLfoUI(); };
     });
 
     const add = q<HTMLButtonElement>(matrix, 'add');
-    if (add) add.onclick = () => { eng.modRoutings.push(defaultRouting()); this._buildLfoUI(); };
+    if (add) add.onclick = () => { eng.modRoutings.push(defaultRouting()); this.markDirty('lfo'); this._buildLfoUI(); };
     host.appendChild(matrix);
   }
 
@@ -1796,6 +1973,7 @@ export class App {
     const cur = this.view.pattern;
     song.patterns.push(new Pattern(cur ? cur.rows : 64, cur ? cur.channels : 8));
     this.engine.currentPatternIdx = song.patterns.length - 1;
+    this.markDirty('pattern');
     this._renderSongEditor();
     this._updatePatternSelector();
     this.view.draw();
@@ -1821,6 +1999,7 @@ export class App {
     }));
     song.patterns.push(dup);
     this.engine.currentPatternIdx = song.patterns.length - 1;
+    this.markDirty('pattern');
     this._renderSongEditor();
     this._updatePatternSelector();
     this.view.draw();

@@ -50,6 +50,7 @@ export class TrackerView {
   _dragAnchor: { row: number; ch: number } | null;
   scroll: number;
   dpr: number;
+  onEdit?: (tag?: string) => void;   // fired when a grid gesture commits an edit (undo step)
 
   constructor(canvas: HTMLCanvasElement, engine: Engine) {
     this.canvas = canvas;
@@ -162,6 +163,7 @@ export class TrackerView {
           if (this.cursor.ch >= p.channels + p.autoTracks.length) {
             this.cursor.ch = Math.max(0, p.channels + p.autoTracks.length - 1);
           }
+          this.onEdit?.('autotrack');   // record an undo step
         }
       }
       return;
@@ -231,6 +233,7 @@ export class TrackerView {
     const up = () => {
       window.removeEventListener('mousemove', move);
       window.removeEventListener('mouseup', up);
+      this.onEdit?.('pan');   // pan committed → record an undo step
     };
     window.addEventListener('mousemove', move);
     window.addEventListener('mouseup', up);

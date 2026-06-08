@@ -166,6 +166,7 @@ export class Controls {
       }
       this.app?._syncRendererFx();
       this.select(idx);   // select() rebuilds the list
+      this.app?.markDirty('instrument');
     };
   }
 
@@ -199,6 +200,8 @@ export class Controls {
             this.selected = this.engine.instruments.length - 1;
           }
           this.select(this.selected);   // select() rebuilds the list
+          this.app?._syncRendererFx();  // table shrank → re-map fx by instance index
+          this.app?.markDirty('instrument');
         }
       };
       this.instEl.appendChild(b);
@@ -386,6 +389,7 @@ export class Controls {
       }
     }
     this._buildParams();
+    this.app?.markDirty('preset');
     const presetSelect = document.getElementById('instrument-preset') as HTMLSelectElement | null;
     if (presetSelect) {
       presetSelect.value = String(presetIdx);
@@ -602,8 +606,8 @@ export class Controls {
         }
       }, formatFn,
       // Preset matching scans every cached ROM bank, so run it once on drag-end
-      // rather than on every pointer-move.
-      () => this._refreshPresetSelection());
+      // rather than on every pointer-move; the drag-end is also one undo step.
+      () => { this._refreshPresetSelection(); this.app?.markDirty('knob'); });
 
       // Per-operator dx7 knobs have no automation target; p0/p1 knobs do.
       if (d.type !== 'op') this.paramKnobs.push({ el: knob, bank: d.bank, i: d.i });

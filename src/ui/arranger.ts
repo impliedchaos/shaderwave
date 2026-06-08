@@ -37,6 +37,7 @@ export function renderArranger(app: App) {
       });
       select.onchange = (e) => {
         song.order[i] = parseInt((e.target as HTMLSelectElement).value, 10);
+        app.markDirty('order');
         app._renderSongEditor();
       };
 
@@ -57,6 +58,7 @@ export function renderArranger(app: App) {
           const temp = song.order[i];
           song.order[i] = song.order[i - 1];
           song.order[i - 1] = temp;
+          app.markDirty('order');
           app._renderSongEditor();
         }
       };
@@ -72,6 +74,7 @@ export function renderArranger(app: App) {
           const temp = song.order[i];
           song.order[i] = song.order[i + 1];
           song.order[i + 1] = temp;
+          app.markDirty('order');
           app._renderSongEditor();
         }
       };
@@ -84,6 +87,7 @@ export function renderArranger(app: App) {
         rmBtn.onclick = (e) => {
           e.stopPropagation();
           song.order.splice(i, 1);
+          app.markDirty('order');
           app._renderSongEditor();
         };
         actions.appendChild(rmBtn);

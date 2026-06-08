@@ -42,6 +42,73 @@ to audition songs themselves in their own browser.
 
 ## Current work
 
+### Undo/redo + localStorage song persistence — Phase 0+1 DONE; 2–4 pending — `project`
+**STATUS (2026-06-08):** Phase 0 (snapshot/restore + markDirty chokepoint) and Phase 1
+(whole-document undo/redo) are IMPLEMENTED + committed. Build green, 36/36 logic tests
+(6 new in `test/logic/history.test.ts`). Phases 2–4 (localStorage store, autosave +
+demo-fork, custom song-list panel) still pending — see the build sequence below.
+- **Shipped:** `src/tracker/history.ts` (`History`: past/future snapshot stacks, `reset`/
+  `push`/`replacePresent`/`undo`/`redo`, cap 60). App gained `_snapshot()` (factored out of
+  `_saveSong`, the single source of truth), `markDirty(tag, coalesce)`, `_seedHistory()`,
+  `_undo/_redo`, `_restoreSnapshot()` (NON-pruning: rebuilds via `instrumentsFromParams` +
+  `patternFromSerialized` + `loadSong`, preserves cursor/scroll/pattern/selected-inst clamped,
+  leaves playback STOPPED like a file load). Ctrl/Cmd+Z, Ctrl+Shift+Z / Ctrl+Y; Undo/Redo
+  buttons in the header (`#undo-btn`/`#redo-btn`, disabled-state synced). `_seedHistory()` on all
+  4 full-load paths (initial ctor, song switch, New, file load). markDirty wired into EVERY
+  mutation site (note/OFF/clear/vol-nudge/auto-cell/inst-vol-digit/fx-col/cut/paste, pattern
+  add-dup-del-resize, order add + arranger up/down/remove/select, bpm/master/meta on COMMIT,
+  fx knobs+toggles+reorder on commit, LFO source+routing on commit, preset, add/remove instrument,
+  param knobs via bindKnob onCommit, pan + auto-track-remove via new `TrackerView.onEdit(tag)`,
+  MIDI note/CC record). Streaming gestures pass `coalesce:true` (450 ms window, same tag) so a
+  knob drag / two-digit entry / CC stream = ONE step; discrete edits push immediately. A
+  `_restoring` guard makes markDirty a no-op while a restore applies. Pattern-delete confirm text
+  changed from "can't be undone" → "(Ctrl+Z to undo)".
+- **Continuous controls markDirty on COMMIT, not per-move** (knob `onCommit`, range-input
+  `change`, text-input `change`) — never on `input`/pointermove — so we don't serialize the whole
+  song 60×/s. Discrete keystroke edits serialize per keystroke (cheap enough at human speed).
+- **DEFERRED to Phase 3 (intentional):** the `currentSong = {kind,id?,demoIdx?}` model. Undo
+  needs none of it; it only matters for the fork/persistence/list, so it's introduced there to
+  avoid building unused fields now. `currentSongIdx`/`customSongName`/magic `-1` option still stand.
+
+Agreed 2026-06-08 with the user. The #1 roadmap gap (undo) plus a real persistence layer.
+**Linchpin:** `serializeSong(SongIOInput)` already captures the WHOLE editable document and
+`_applySerializedSong()` already restores it (today only to/from a downloaded file) — so both
+undo and persistence reuse that one round-trip as snapshot/restore. No new serialization needed.
+Today there is NO dirty flag, NO change events, and NO localStorage use anywhere (verified).
+
+**Decisions locked:**
+- **Whole-document undo** (snapshot-based, with COALESCING so a knob drag / held-key run is one
+  step, not 200). Cap stack (~50). Store lightweight cursor/scroll/selected-inst alongside.
+- **Custom dropdown panel** for the song list (NOT native `<select>` — Safari/macOS ignore option
+  colours and it can't host inline delete). Colored rows: demo vs user tint + inline 🗑 on user rows.
+- **Only CONTENT edits fork a demo** into a `"<demo> (edit)"` user song. *content* = touches patterns
+  or the instrument set/order (note/fx-col/automation entry, clear, pattern add/dup/del/resize,
+  copy-paste, add/remove instrument, order edit, metadata rename). *tweak* = param knobs, fx params,
+  fx-order, bpm, master, pan, LFO/mod-routing. A tweak on a demo is undoable in memory but does NOT
+  fork or persist on its own; once a content edit forks (or you're on a user song) tweaks ride along.
+
+**Build sequence:**
+0. Foundation (no behavior change): extract `snapshot()`/`restore()` from `_saveSong`/
+   `_applySerializedSong` (main.ts:820/864); replace `currentSongIdx`/`customSongName`/magic `-1`
+   option with `currentSong = {kind:'demo'|'user', id?, demoIdx?}`; add ONE `markDirty(kind)`
+   chokepoint and wire EVERY mutation site (tag content vs tweak). Mutation sites enumerated:
+   pattern.set/clear/setFx + autoTracks (main.ts ~1067/1150/1192/1237), pattern add/dup/del/resize
+   (~1797/1810/1629/553), copy-paste (~1356), knob onChange (controls.ts:747 / main.ts fx knobs ~423),
+   add/removeInstrument (engine.ts:381/398), bpm/master/pan/order/lfo/metadata (main.ts ~540/584/720).
+1. Undo/redo on markDirty+snapshot. CRUX: restore via the NON-PRUNING serialized path (NOT
+   `loadSongInstruments`, which prunes unused instruments → a just-added note-less instrument would
+   vanish on undo), and through the existing transient reset (autoLive/panAuto/vd.master/LFO bases).
+   Ctrl/Cmd+Z, Shift+Z. Retires the "can't be undone" pattern-delete confirm.
+2. `src/tracker/song-store.ts` localStorage CRUD: cheap index key `shaderwave:songs:index`
+   (`{id,name,color,updatedAt}` read on boot) + per-song body `shaderwave:song:<id>` (minified
+   SerializedSong). Quota-safe (try/catch QuotaExceededError). Song ≈250–320 KB → ~15 fit in 5 MB;
+   IndexedDB is the escape hatch.
+3. Lifecycle: debounced autosave (~1.5 s, USER songs only) off the markDirty chokepoint + flush on
+   beforeunload/visibilitychange; demo→`(edit)` fork on first CONTENT edit; "New" ALWAYS mints a fresh
+   record (multiple News = multiple records — replaces today's single reused `-1` option).
+4. Custom song-list panel: boot-load DEMO_SONGS + listUserSongs(); colored demo/user rows; inline
+   delete + confirm with active-song fallback (blank/New). Keep the file Save button as "Export".
+
 ### ✅ LFO tempo-sync phase bug under BPM changes — FIXED + committed (1.10.4, e83f6e4) — `project`
 FIXED: `engine._songBeats` accumulator (reset in `play()`, advanced per block at the end of
 `_applyLfos` by `(BLOCK/sampleRate)*(bpm/60)`); synced sources now use `cyclePos = _songBeats /
