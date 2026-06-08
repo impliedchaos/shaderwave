@@ -15,6 +15,7 @@ import type { GLProgram } from './program.js';
 import { BLOCK } from '../constants.js';
 import type { FxParams } from '../types.js';
 import FX_DISTORTION from './shaders/fx-distortion.glsl?raw';
+import FX_OVERDRIVE from './shaders/fx-overdrive.glsl?raw';
 import FX_CHORUS_UPDATE from './shaders/fx-chorus-update.glsl?raw';
 import FX_CHORUS_TAP from './shaders/fx-chorus-tap.glsl?raw';
 import FX_TREMOLO from './shaders/fx-tremolo.glsl?raw';
@@ -83,6 +84,26 @@ const fxDistortion: FxEffectDef = {
         g.uniform1f(prog.u('uDist'), on ? p.dist : 0.001);
         g.uniform1f(prog.u('uTone'), on ? p.tone : 0.5);
         g.uniform1f(prog.u('uDistLevel'), on ? p.level : 1.0);
+        drawQuad(g);
+      },
+    };
+  },
+};
+
+const fxOverdrive: FxEffectDef = {
+  key: 'overdrive', name: 'Overdrive', enableFlag: 'odOn',
+  defaults: { odOn: false, odDrive: 4.0, odTone: 0.55, odLevel: 1.0 },
+  init(gl) {
+    const prog = createProgram(gl, FX_OVERDRIVE);
+    gl.useProgram(prog); gl.uniform1i(prog.u('uIn'), 0);
+    return {
+      process(ctx, inTex, outFbo) {
+        const g = ctx.gl, p = ctx.params, on = ctx.on('odOn');
+        ctx.stereoPass(prog, inTex, outFbo);
+        g.uniform1i(prog.u('uOdOn'), on ? 1 : 0);
+        g.uniform1f(prog.u('uOdDrive'), p.odDrive ?? 4.0);
+        g.uniform1f(prog.u('uOdTone'), p.odTone ?? 0.55);
+        g.uniform1f(prog.u('uOdLevel'), p.odLevel ?? 1.0);
         drawQuad(g);
       },
     };
@@ -294,7 +315,7 @@ const fxWidth: FxEffectDef = {
 // Signal-flow order matches the README chain; the master accumulate always runs
 // after it. Reorder this array to rearrange the chain.
 export const FX_EFFECTS: FxEffectDef[] = [
-  fxDistortion, fxChorus, fxTremolo, fxDelay, fxReverb, fxBitcrush, fxWidth,
+  fxDistortion, fxOverdrive, fxChorus, fxTremolo, fxDelay, fxReverb, fxBitcrush, fxWidth,
 ];
 
 export const DEFAULT_FX_ORDER = FX_EFFECTS.map((e) => e.key);
@@ -369,7 +390,9 @@ export class EffectsChain {
   // A missing per-effect flag (older songs) counts as on, except bitcrush.
   _on(flag: string): boolean {
     const p = this.params as Record<string, number | boolean>;
-    return !!this.params.enabled && (flag === 'bitcrushOn' ? !!p[flag] : p[flag] !== false);
+    // Newer opt-in effects (bitcrush, overdrive) default OFF when the flag is
+    // absent (truthy test); the original effects default ON (!== false).
+    return !!this.params.enabled && ((flag === 'bitcrushOn' || flag === 'odOn') ? !!p[flag] : p[flag] !== false);
   }
 
   _stereoPass(prog: GLProgram, inTex: WebGLTexture, outFbo: WebGLFramebuffer | null): GLProgram {

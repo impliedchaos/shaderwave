@@ -102,6 +102,10 @@ export interface FxParams {
   dist: number;
   tone: number;
   level: number;
+  odOn: boolean;
+  odDrive: number;
+  odTone: number;
+  odLevel: number;
   delayTime: number;
   delayFeedback: number;
   delayMix: number;

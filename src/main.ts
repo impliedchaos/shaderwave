@@ -68,6 +68,11 @@ const FX_DEFS: FxDef[] = [
   { label: 'Level', key: 'level', min: 0, max: 2, step: 0.01 },
   { label: 'Dist', key: 'dist', min: 0.001, max: 20, step: 0.1 },
 
+  { category: 'Overdrive (Tube Screamer)', enableKey: 'odOn' },
+  { label: 'OD Drive', key: 'odDrive', min: 1, max: 30, step: 0.1, log: true },
+  { label: 'OD Tone', key: 'odTone', min: 0, max: 1, step: 0.01 },
+  { label: 'OD Level', key: 'odLevel', min: 0, max: 1.5, step: 0.01 },
+
   { category: 'Stereo Chorus', enableKey: 'chorusOn' },
   { label: 'Cho Mix', key: 'chorusMix', min: 0, max: 1, step: 0.01 },
   { label: 'Cho Rate', key: 'chorusRate', min: 0.1, max: 5.0, step: 0.05 },

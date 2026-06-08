@@ -42,6 +42,18 @@ to audition songs themselves in their own browser.
 
 ## Current work
 
+### Overdrive (TS9 Tube Screamer) effect — added (1.10.0) — `project`
+New FX-chain effect `fxOverdrive` (`fx-overdrive.glsl`), slotted right AFTER distortion
+(chain: dist → overdrive → chorus → …). TS9 voicing = pre-clip **bass cut** (the FIR
+`x − 0.45·lp` tightens lows) → **soft asymmetric** tanh clip (`tanh(g+bias)−tanh(bias)`,
+even harmonics) → post **tone** treble-roll; the mid-hump falls out of bass-cut + treble-roll.
+Params `odOn/odDrive/odTone/odLevel` (FxParams fields + defaults via FX_EFFECTS, default OFF).
+Automation targets OVD/OVT/OVL + toggle OVO; FX-panel knobs (OD Drive is log). Stateless
+2-tap FIR like fx-distortion. **GOTCHA:** `_on()` defaults an ABSENT flag to ON (`!== false`)
+for the original effects; new opt-in effects (bitcrush, overdrive) must be added to the
+truthy group `(flag==='bitcrushOn'||flag==='odOn') ? !!p[flag] : …` so they default OFF for
+songs with partial fx objects. Add future opt-in effects there too.
+
 ### Bitcrusher rework + per-effect on/off automation — IMPLEMENTED (1.9.0) — `project`
 Built 2026-06-08. Verified: build + glsl-check + render-check + headless (toggles coerce to
 real booleans off→false/on→true; all 20 songs load; format reset round-trips at v1; bitcrushMix

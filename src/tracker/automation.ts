@@ -26,6 +26,9 @@ import { REGISTRY, byType } from '../instruments/index.js';
 const FX: RawTarget[] = [
   { code: 'LVL', label: 'FX Level',      key: 'master',        min: 0,     max: 1.5,   curve: 'lin' },
   { code: 'DRV', label: 'Distortion',    key: 'dist',          min: 0.001, max: 20,    curve: 'log' },
+  { code: 'OVD', label: 'Overdrive',     key: 'odDrive',       min: 1,     max: 30,    curve: 'log' },
+  { code: 'OVT', label: 'OD Tone',       key: 'odTone',        min: 0,     max: 1,     curve: 'lin' },
+  { code: 'OVL', label: 'OD Level',      key: 'odLevel',       min: 0,     max: 1.5,   curve: 'lin' },
   { code: 'DLM', label: 'Delay Mix',     key: 'delayMix',      min: 0,     max: 1,     curve: 'lin' },
   { code: 'DLF', label: 'Delay Fbk',     key: 'delayFeedback', min: 0,     max: 0.9,   curve: 'lin' },
   { code: 'RVM', label: 'Reverb Mix',    key: 'reverbMix',     min: 0,     max: 1,     curve: 'lin' },
@@ -43,6 +46,7 @@ const FX: RawTarget[] = [
 // TARGETS so adding them never shifts existing ids.
 const TOGGLES: RawTarget[] = [
   { code: 'DSO', label: 'Distortion On', key: 'distOn',     min: 0, max: 1, curve: 'lin', toggle: true },
+  { code: 'OVO', label: 'Overdrive On',  key: 'odOn',       min: 0, max: 1, curve: 'lin', toggle: true },
   { code: 'CHO', label: 'Chorus On',     key: 'chorusOn',   min: 0, max: 1, curve: 'lin', toggle: true },
   { code: 'TRO', label: 'Tremolo On',    key: 'tremoloOn',  min: 0, max: 1, curve: 'lin', toggle: true },
   { code: 'DLO', label: 'Delay On',      key: 'delayOn',    min: 0, max: 1, curve: 'lin', toggle: true },
