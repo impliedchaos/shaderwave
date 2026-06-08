@@ -16,7 +16,7 @@
 //   - fxParams is re-completed through the App's cloneFx (fills any engine type a
 //     file omits, e.g. engines added in a later version).
 import { Pattern } from './pattern.js';
-import { defaultLfos, normalizeLfo, normalizeRouting, LFO_COUNT, defaultLfo } from './lfo.js';
+import { defaultLfos, normalizeLfo, normalizeRouting, LFO_COUNT } from './lfo.js';
 import type { AutoTrack, DX7Op, FxParams, InstrumentInstance, InstrumentSpec, LfoConfig, ModRouting } from '../types.js';
 
 export const SONG_FORMAT = 'shaderwave-song';
@@ -133,8 +133,8 @@ export function serializeSong(s: SongIOInput): SerializedSong {
 // partial file can't throw downstream.
 function migrate(d: SerializedSong): SerializedSong {
   const rawL = Array.isArray(d.lfos) ? d.lfos : [];
-  const lfos = defaultLfos();
-  for (let i = 0; i < LFO_COUNT; i++) lfos[i] = normalizeLfo(rawL[i] ?? defaultLfo());
+  const lfos = defaultLfos();   // seeds the pump in the last slot
+  for (let i = 0; i < LFO_COUNT; i++) lfos[i] = normalizeLfo(rawL[i] ?? lfos[i]);
   d.lfos = lfos;
   d.modRoutings = (Array.isArray(d.modRoutings) ? d.modRoutings : []).map(normalizeRouting);
   return d;

@@ -137,7 +137,7 @@ export type FxParamsByType = Record<InstrumentType, FxParams>;
 // multiple params. Each routing adds a transient offset layered above the param's
 // center (never the instrument base). See src/tracker/lfo.ts.
 export interface LfoConfig {
-  shape: number;                 // 0 sine 1 tri 2 square 3 saw 4 S&H 5 ramp 6 wavetable
+  shape: number;                 // 0 sine 1 tri 2 square 3 saw 4 S&H 5 ramp 6 wavetable 7 pump
   sync: boolean;                 // true → tempo-synced (rateBeats); false → free Hz (rateHz)
   rateBeats: number;             // cycle length in beats when synced
   rateHz: number;                // cycle frequency in Hz when free-running

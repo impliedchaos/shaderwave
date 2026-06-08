@@ -10,7 +10,7 @@ import type { Pattern } from './pattern.js';
 import { defaultParams, instrumentsFromParams, DRUM_MAP } from './song.js';
 import { neutralFxParams } from '../gl/effects.js';
 import { targetById, denorm, normUnit, denormUnit } from './automation.js';
-import { defaultLfos, lfoOffset, lfoPeriodSec } from './lfo.js';
+import { defaultLfos, lfoOffset, lfoPeriodSec, LFO_COUNT } from './lfo.js';
 import { byType } from '../instruments/index.js';
 import type {
   FxParamsByType, InstrumentInstance, InstrumentType, LfoConfig, ModRouting, SongData, VoiceData,
@@ -193,7 +193,12 @@ export class Engine {
     // Global LFO sources + matrix saved with the song. Restore any fx the old
     // song's routings were driving before swapping (so we don't leak overrides).
     this._restoreLfoFx();
-    this.lfos = (song.lfos && song.lfos.length) ? song.lfos : defaultLfos();
+    // Always expose exactly LFO_COUNT sources: pad a song that defines fewer (older
+    // songs / demos predating LFO 3 & 4) with the defaults — so LFO 3 and the
+    // dedicated pump (LFO 4) appear even for songs that never set them.
+    const lfos = defaultLfos();
+    if (song.lfos) for (let i = 0; i < LFO_COUNT; i++) if (song.lfos[i]) lfos[i] = song.lfos[i];
+    this.lfos = lfos;
     this.modRoutings = song.modRoutings ?? [];
   }
 

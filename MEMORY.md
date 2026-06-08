@@ -100,7 +100,10 @@ Honest assessment of what the project most needs (beyond the parked plans below)
    (~10.7ms @48k) of constant output latency; first call returns silence (priming); `resetState()`
    drops pending fences so the next async call re-primes. Could claw the block back via a -1 prebuffer
    trim (not done — left as an underrun-safety judgment call). Verified bit-identical via golden-render.
-6. **EQ** + **sidechain/pumping compression** — genre-relevant effect gaps.
+6. **EQ** + **sidechain/pumping compression** — genre-relevant effect gaps. NOTE: the "pump
+   aesthetic" half is now covered by the Pump LFO shape + LFO 4 (1.12.0); what's still missing is a
+   TRUE detector-keyed sidechain (responds to a key source's real dynamics) — that's the planned
+   compressor + a key-input/source-routing, best done after the compressor lands.
 Push-back to honor: resist adding more synth engines / demo songs until undo + tests exist — the
 synth palette is already wide; forgiving (undo) + not-breaking (tests) matter more than a 12th engine.
 
@@ -267,6 +270,25 @@ is warranted.
 **Verify:** build + glsl-check + render-check + song-load loop + headless checks (no block-rate
 glitch — render a held tone with decimation across block boundaries, assert sample continuity;
 toggle automation flips an effect on/off; mid-tread quantizer keeps 0).
+
+### 4 LFOs + Pump (ducking) shape (1.12.0) — `project`
+Added 2026-06-08. `LFO_COUNT` 2→4 (`MAX_ROUTINGS` 8→12). The UI is fully data-driven
+(`_buildLfoUI` iterates `eng.lfos`; shape dropdown from `LFO_SHAPES`; matrix source dropdown from
+`eng.lfos`), so LFO 3 & 4 panels + source options cascade for free. LFOs 1–3 are generic; **LFO 4
+defaults to the new Pump shape** (`defaultLfos()` sets the last slot to `defaultPumpLfo()` — shape 7,
+synced, `rateBeats:1`). NO default routing (user wires the pump per-instrument: route PUMP → each
+non-kick instrument's `LVL`, leave the kick unrouted = sidechain pump without a compressor).
+- **Pump shape (`LFO_SHAPE_PUMP=7`):** one-sided DOWNWARD duck, raw `p²−1` ∈ [−1,0] — full duck (−1)
+  at the beat (p=0), swelling back to 0 by cycle end (stays ducked through the first half = slow
+  recover). Because the mod matrix is ADDITIVE (`center+offset`), a downward-only offset is what makes
+  it duck instead of boost. `lfoOffset` SPECIAL-CASES the pump to ignore the `bipolar`/± toggle (always
+  returns `raw*depth`, downward) so flipping ± can't turn it into a boost. Block-rate stepping (~93 Hz)
+  means the attack is a ~1-block ramp — punchy, not a hard click.
+- **Padding:** a song defining <4 LFOs is padded to 4 in BOTH load paths — `engine.loadSong` (demos via
+  `data()`) and `song-io.migrate` (saved files) — seeding LFO 4 = pump. So LFO 3/4 appear even for songs
+  predating them; no format-version bump needed (lfos is variable-length + normalized on load).
+- Verified: 24/24 logic tests (incl. pump one-sidedness + ± independence + engine padding), golden-render
+  determinism checksum UNCHANGED (0x5fc60c89 — adding unrouted LFOs doesn't alter existing audio) + async≡sync.
 
 ### LFO MOD MATRIX + WVT Env→Pos (1.8.0) — `project`
 Updated 2026-06-07. **Inverted LFO routing into a mod matrix** so one LFO drives many

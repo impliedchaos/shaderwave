@@ -297,8 +297,12 @@ Mid/side stereo width control. Values > 1.0 widen; < 1.0 narrow toward mono.
 Beyond the per-cell effect column, parameters can be modulated three ways:
 - **Automation tracks** — per-pattern lanes that sequence one parameter (inst / fx / channel /
   global scope) over the rows as normalized 2-hex bytes. Add via the **+ Auto Track** button.
-- **Global LFOs** — two song-wide LFO **sources** (Sine / Triangle / Square / Saw / S&H / Ramp /
-  Wavetable shapes, tempo-synced in beats or free-running in Hz). Configured in the Song Editor.
+- **Global LFOs** — four song-wide LFO **sources** (Sine / Triangle / Square / Saw / S&H / Ramp /
+  Wavetable / **Pump** shapes, tempo-synced in beats or free-running in Hz). Configured in the Song
+  Editor. LFOs 1–3 are general; **LFO 4 defaults to the Pump**.
+- **Pump (sidechain ducking)** — the Pump shape is a one-sided downward ducking envelope: a full duck
+  on the beat that swells back before the next. Route it to instruments' **Level** via the matrix to
+  pump them in lockstep (leave the kick unrouted) — the classic sidechain pump without a compressor.
 - **Mod matrix** — a list of **routings**, each aiming a target at an LFO source with its own depth
   and polarity. Because routings reference a source, **one LFO can drive many parameters** at once.
 

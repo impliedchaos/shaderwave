@@ -196,26 +196,36 @@ for (let r = 0; r < N; r++) track[r] = normByte(CUT, 400 + r * 30);   // sweep c
 
 ## 8. Global LFOs & the mod matrix
 
-Two song-wide LFO **sources** + a list of **routings** (a source → a target, with depth). One source
-can drive many targets. Return them from `data()`.
+**Four** song-wide LFO **sources** + a list of **routings** (a source → a target, with depth). One
+source can drive many targets. Return them from `data()`. If you return fewer than 4 LFOs they're
+padded to 4 (LFO 4 = the pump); you only need to specify the ones you use.
 
 ```ts
 const PS1 = tgt('wvt', 'PS1'), RVM = tgt('wvt', 'RVM');
+const LVL_BASS = tgt('303', 'LVL'), LVL_PAD = tgt('wvt', 'LVL');
 return {
   patterns: [...], order: [...], rowsPerBeat: 4,
   lfos: [
     { ...defaultLfo(), shape: 0, sync: true, rateBeats: 16 },                         // LFO 1: slow sine, 4 bars
     { ...defaultLfo(), shape: 6, sync: true, rateBeats: 2, wtBank: 2, wtPos: 0.5 },   // LFO 2: wavetable (PWM), 1/2 bar
+    { ...defaultLfo(), shape: 3, sync: true, rateBeats: 1 },                          // LFO 3: 1-beat saw (general source)
+    { ...defaultPumpLfo() },                                                          // LFO 4: the ducking pump (1 beat)
   ],
   modRoutings: [
     { source: 0, targetParamId: PS1.id, targetInstIdx: I_LEAD, depth: 0.45, bipolar: true },  // LFO1 → lead Pos1
     { source: 0, targetParamId: RVM.id, targetInstIdx: I_LEAD, depth: 0.30, bipolar: false }, // LFO1 → lead reverb mix (fx)
+    { source: 3, targetParamId: LVL_BASS.id, targetInstIdx: I_BASS, depth: 0.7, bipolar: true }, // PUMP → bass Level
+    { source: 3, targetParamId: LVL_PAD.id,  targetInstIdx: I_PAD,  depth: 0.6, bipolar: true }, // PUMP → pad Level
   ],
 };
 ```
-- LFO source fields: `shape` (0 sine, 1 tri, 2 square, 3 saw, 4 S&H, 5 ramp, 6 wavetable),
+- LFO source fields: `shape` (0 sine, 1 tri, 2 square, 3 saw, 4 S&H, 5 ramp, 6 wavetable, **7 pump**),
   `sync` (true = `rateBeats`, false = `rateHz`), `rateBeats`, `rateHz`, `wtBank`, `wtPos` (shape 6).
-- Routing fields: `source` (index into `lfos`), `targetParamId` (a `tgt(...).id`), `targetInstIdx`
+- **Pump (shape 7 / `defaultPumpLfo()`):** a one-sided DOWNWARD ducking envelope — full duck on the
+  beat, swelling back to no-duck by the cycle's end. Route it to instruments' **`LVL`** (or any
+  Level/amp) to sidechain them to the beat; leave the kick/drum unrouted so it punches through. It
+  always ducks down regardless of the routing's `bipolar` flag. `rateBeats: 1` = one duck per beat.
+- Routing fields: `source` (index into `lfos`, 0–3), `targetParamId` (a `tgt(...).id`), `targetInstIdx`
   (instrument index for inst/fx, channel for chan/PAN, `null` for global), `depth` 0..1, `bipolar`.
 - BPM is excluded as an LFO target (keeps export length exact).
 

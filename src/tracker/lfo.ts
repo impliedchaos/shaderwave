@@ -12,16 +12,25 @@ import { wtShape } from '../instruments/wavetables.js';
 
 const TAU = Math.PI * 2;
 
-export const LFO_COUNT = 2;        // number of LFO sources
-export const MAX_ROUTINGS = 8;     // cap on matrix rows (UI/sanity)
-export const LFO_SHAPES = ['Sine', 'Triangle', 'Square', 'Saw', 'S&H', 'Ramp', 'Wavetable'];
+export const LFO_COUNT = 4;        // number of LFO sources (LFO 4 defaults to the pump)
+export const MAX_ROUTINGS = 12;    // cap on matrix rows (UI/sanity) — 4 LFOs want more rows
+export const LFO_SHAPES = ['Sine', 'Triangle', 'Square', 'Saw', 'S&H', 'Ramp', 'Wavetable', 'Pump'];
 export const LFO_SHAPE_WAVETABLE = 6;
+export const LFO_SHAPE_PUMP = 7;   // sidechain-style ducking envelope (one-sided downward)
 
 export function defaultLfo(): LfoConfig {
   return { shape: 0, sync: true, rateBeats: 4, rateHz: 1, wtBank: 0, wtPos: 0 };
 }
+// The dedicated ducking-pump source: the Pump shape, tempo-synced, one duck per
+// beat (rateBeats 1) — route it to instruments' Level via the matrix to sidechain
+// them to the beat (leave the kick unrouted). LFO 4 ships pre-set to this.
+export function defaultPumpLfo(): LfoConfig {
+  return { shape: LFO_SHAPE_PUMP, sync: true, rateBeats: 1, rateHz: 1, wtBank: 0, wtPos: 0 };
+}
 export function defaultLfos(): LfoConfig[] {
-  return Array.from({ length: LFO_COUNT }, defaultLfo);
+  const arr = Array.from({ length: LFO_COUNT }, defaultLfo);
+  arr[LFO_COUNT - 1] = defaultPumpLfo();   // last slot is the dedicated pump
+  return arr;
 }
 export function defaultRouting(): ModRouting {
   return { source: 0, targetParamId: -1, targetInstIdx: null, depth: 0, bipolar: true };
@@ -71,6 +80,12 @@ function lfoWaveRaw(cfg: LfoConfig, phase: number, cycle: number): number {
     case 4: return hash01(cycle) * 2 - 1;                              // sample & hold
     case 5: return 1 - 2 * p;                                          // ramp (falling)
     case LFO_SHAPE_WAVETABLE: return wtShape(cfg.wtBank, cfg.wtPos, p);// wavetable bank
+    // Pump (ducking): one-sided DOWNWARD envelope in [-1,0]. Full duck (-1) at the
+    // start of the cycle (the "kick"), swelling back to 0 (no duck) by the cycle's
+    // end. p²−1 keeps it ducked through the first half then eases the level back in
+    // (slow recover) — the classic sidechain breath. Routed to a Level/amp target it
+    // dips that signal on the beat. (lfoOffset keeps it one-sided regardless of ±.)
+    case LFO_SHAPE_PUMP: return p * p - 1;
     default: return Math.sin(TAU * p);
   }
 }
@@ -80,6 +95,9 @@ function lfoWaveRaw(cfg: LfoConfig, phase: number, cycle: number): number {
 // then clamped to [0,1] and denormed by the engine.
 export function lfoOffset(src: LfoConfig, depth: number, bipolar: boolean, phase: number, cycle: number): number {
   let v = lfoWaveRaw(src, phase, cycle);
+  // Pump is inherently a one-sided downward duck ([-1,0]); the ±/unipolar toggle
+  // would otherwise flip it into a boost, so ignore it for this shape.
+  if (src.shape === LFO_SHAPE_PUMP) return v * depth;
   if (!bipolar) v = v * 0.5 + 0.5;
   return v * depth;
 }

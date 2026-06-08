@@ -7,10 +7,14 @@
 // change only alters the FUTURE rate of accrual. These tests drive the real
 // `engine._applyLfos` and assert the modulated value stays continuous across a
 // mid-render tempo change.
-import { test, assert, assertClose, maxStep } from './_harness.js';
+import { test, assert, assertEq, assertClose, maxStep } from './_harness.js';
 import { Engine } from '../../src/tracker/engine.js';
 import { TARGETS, normUnit, denormUnit } from '../../src/tracker/automation.js';
-import { defaultLfo, lfoOffset, lfoPeriodSec } from '../../src/tracker/lfo.js';
+import {
+  defaultLfo, defaultLfos, defaultPumpLfo, lfoOffset, lfoPeriodSec,
+  LFO_COUNT, LFO_SHAPE_PUMP,
+} from '../../src/tracker/lfo.js';
+import type { SongData } from '../../src/types.js';
 import { BLOCK } from '../../src/constants.js';
 import type { LfoConfig, ModRouting } from '../../src/types.js';
 
@@ -103,4 +107,38 @@ test('LFO modulation is deterministic (export-safe)', () => {
   const a = runOffsets({ sync: true, rateBeats: 4, bpm0: 140, blocks: 64 });
   const b = runOffsets({ sync: true, rateBeats: 4, bpm0: 140, blocks: 64 });
   for (let i = 0; i < a.length; i++) assertClose(a[i], b[i], 0, `block ${i} identical across runs`);
+});
+
+test('there are four LFOs and the last is the dedicated pump', () => {
+  assertEq(LFO_COUNT, 4, 'LFO_COUNT');
+  const lfos = defaultLfos();
+  assertEq(lfos.length, 4, 'defaultLfos length');
+  for (let i = 0; i < 3; i++) assertEq(lfos[i].shape, 0, `LFO ${i + 1} defaults to sine`);
+  assertEq(lfos[3].shape, LFO_SHAPE_PUMP, 'LFO 4 defaults to the pump shape');
+  assertEq(lfos[3].sync, true, 'pump is tempo-synced');
+  assertEq(lfos[3].rateBeats, 1, 'pump ducks once per beat by default');
+  assertEq(defaultPumpLfo().shape, LFO_SHAPE_PUMP, 'defaultPumpLfo is a pump');
+});
+
+test('pump shape is a one-sided downward duck, ignoring the ± toggle', () => {
+  const pump = defaultPumpLfo();
+  // Full duck at the start of the cycle, recovering to ~0 by the end. Never boosts.
+  assertClose(lfoOffset(pump, 1, true, 0, 0), -1, 1e-9, 'full duck (-depth) at phase 0');
+  assert(lfoOffset(pump, 1, true, 0.99, 0) > -0.05, 'recovered to ~0 near cycle end');
+  for (const ph of [0, 0.2, 0.5, 0.8, 1]) {
+    assert(lfoOffset(pump, 1, true, ph, 0) <= 1e-9, `offset stays ≤ 0 at phase ${ph} (never boosts)`);
+    // ± toggle must not flip the pump into a boost — bipolar and unipolar agree.
+    assertClose(lfoOffset(pump, 1, false, ph, 0), lfoOffset(pump, 1, true, ph, 0), 1e-9,
+      `pump ignores polarity at phase ${ph}`);
+  }
+  // It actually dips (the swell stays ducked through the first half).
+  assert(lfoOffset(pump, 1, true, 0.5, 0) < -0.5, 'still ducked at mid-cycle (slow recover)');
+});
+
+test('engine pads a song with fewer LFOs up to four (pump in slot 4)', () => {
+  const eng = new Engine(48000);
+  const song = { bpm: 120, rowsPerBeat: 4, order: [], patterns: [], lfos: [defaultLfo(), defaultLfo()] } as unknown as SongData;
+  eng.loadSong(song);
+  assertEq(eng.lfos.length, 4, 'padded to LFO_COUNT');
+  assertEq(eng.lfos[3].shape, LFO_SHAPE_PUMP, 'slot 4 filled with the pump default');
 });
