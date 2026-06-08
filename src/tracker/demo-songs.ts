@@ -4076,7 +4076,7 @@ export const DEMO_SONGS: SongDef[] = [
       { name: "Sync Pluck", type: "wvt", p0: [0.002, 0.16, 0.0, 0.07],  p1: [0.0, 0.4, 0.04, 0.0],  p2: [9, 7, 0.0, 0],    p3: [0.8, 0.45, 0, 0] },
     ],
     fxParams: {
-      '808': Object.assign(defaultFxParams(), { dist: 4.0, tone: 0.5, level: 1.0, master: 0.9 }),
+      '808': Object.assign(defaultFxParams(), { distOn: false, tone: 0.5, level: 1.0, master: 0.9 }),
       'wvt': Object.assign(defaultFxParams(), { level: 1.0, master: 0.8, reverbMix: 0.35, reverbDecay: 0.85, delayMix: 0.18, delayFeedback: 0.35, width: 1.3 }),
     },
     data: () => {
