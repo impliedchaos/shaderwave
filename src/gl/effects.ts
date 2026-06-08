@@ -327,6 +327,19 @@ export function defaultFxParams(): FxParams {
   return p as unknown as FxParams;
 }
 
+// FX for a freshly-added instrument: a clean slate. Every effect switched OFF and
+// its knobs at neutral/unity, so toggling one on starts transparent. (defaultFxParams
+// stays the song-authoring baseline; only `+ Add` uses this.)
+export function neutralFxParams(): FxParams {
+  const p = defaultFxParams();
+  p.distOn = p.odOn = p.chorusOn = p.tremoloOn = p.delayOn = p.reverbOn = p.widthOn = p.bitcrushOn = false;
+  p.dist = 0;                         // distortion drive → transparent
+  p.odDrive = 1; p.odTone = 0.5;      // overdrive: unity drive, centre tone
+  p.delayMix = 0; p.reverbMix = 0; p.bitcrushMix = 0;
+  p.width = 1.0;                      // unity stereo width
+  return p;
+}
+
 // ── Generic runner ───────────────────────────────────────────────────────────
 
 export class EffectsChain {

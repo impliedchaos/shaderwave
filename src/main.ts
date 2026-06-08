@@ -102,10 +102,6 @@ const FX_DEFS: FxDef[] = [
 
   { category: 'Stereo Field', enableKey: 'widthOn' },
   { label: 'Width', key: 'width', min: 0, max: 2, step: 0.01 },
-
-  // No enableKey → always shown (the FX-chain output level isn't a bypassable effect).
-  { category: 'Output' },
-  { label: 'Level', key: 'master', min: 0, max: 2, step: 0.01 },
 ];
 
 // A knob <div> the UI loop drives externally (see bindKnob in controls.ts).
@@ -367,6 +363,31 @@ export class App {
     const instr = this.engine.instruments[idx];
     if (!instr) return;                       // nothing selected (e.g. blank New song)
     const params = instr.fx as unknown as Record<string, number | boolean>;
+
+    // Output level — its own section above the (collapsible) effects chain, since it
+    // isn't a bypassable effect. Always shown, regardless of the master FX toggle.
+    const outHost = $('fx-output');
+    outHost.innerHTML = '';
+    {
+      const block = document.createElement('div');
+      block.className = 'param-control-block';
+      const label = document.createElement('label');
+      label.textContent = 'Level';
+      block.appendChild(label);
+      const wrapper = document.createElement('div');
+      wrapper.className = 'knob-wrapper';
+      const knob = document.createElement('div');
+      knob.className = 'knob';
+      wrapper.appendChild(knob);
+      const valSpan = document.createElement('span');
+      valSpan.className = 'knob-value';
+      wrapper.appendChild(valSpan);
+      block.appendChild(wrapper);
+      outHost.appendChild(block);
+      if (params.master === undefined) params.master = 1.0;
+      bindKnob(knob, valSpan, 0, 2, 0.01, params.master as number, false, (v) => { params.master = v; });
+      this._fxKnobs.push({ el: knob, key: 'master' });
+    }
 
     // Master FX bypass (#fx-toggle lives outside #fx). When off, collapse the whole
     // panel — just the master toggle remains. Toggling re-renders so it expands again.

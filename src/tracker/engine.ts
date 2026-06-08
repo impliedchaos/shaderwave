@@ -8,7 +8,7 @@ import { VOICES, INSTRUMENTS, INSTRUMENT_COLORS, noteToFreq, BLOCK, DEFAULT_MAST
 import { EMPTY, OFF } from './pattern.js';
 import type { Pattern } from './pattern.js';
 import { defaultParams, instrumentsFromParams, DRUM_MAP } from './song.js';
-import { defaultFxParams } from '../gl/effects.js';
+import { neutralFxParams } from '../gl/effects.js';
 import { targetById, denorm, normUnit, denormUnit } from './automation.js';
 import { defaultLfos, lfoOffset, lfoPeriodSec } from './lfo.js';
 import { byType } from '../instruments/index.js';
@@ -369,7 +369,7 @@ export class Engine {
     const used = new Set(this.instruments.map((i) => i.color));
     const color = INSTRUMENT_COLORS.find((c) => !used.has(c))
       || INSTRUMENT_COLORS[this.instruments.length % INSTRUMENT_COLORS.length];
-    const e: InstrumentInstance = { name: byType(type)?.name ?? type.toUpperCase(), type, color, p0: [...dp.p0], p1: [...dp.p1], fx: defaultFxParams() };
+    const e: InstrumentInstance = { name: byType(type)?.name ?? type.toUpperCase(), type, color, p0: [...dp.p0], p1: [...dp.p1], fx: neutralFxParams() };
     if (dp.ops) e.ops = dp.ops.map((o) => ({ ...o }));
     // defaultParams() already deep-clones the engine's extra banks (p2/p3) when
     // its descriptor declares them, so just carry whatever it produced.
