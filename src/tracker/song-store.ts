@@ -1,25 +1,17 @@
-// User-song persistence in localStorage. A small CRUD layer the app uses to keep
-// a library of saved songs across reloads (Phase 2 of the undo/persistence work).
+// User-song persistence in IndexedDB. A small CRUD layer the app uses to keep a
+// library of saved songs across reloads.
 //
-// Layout — two kinds of key so the boot path is cheap:
-//   shaderwave:songs:index  → JSON array of UserSongMeta (id/name/color/timestamps),
-//                             read once on startup to populate the song list.
-//   shaderwave:song:<id>    → the full SerializedSong (minified) for one song,
-//                             read only when that song is actually opened.
-// Keeping bodies out of the index means listing N songs doesn't parse N×~300 KB.
+// Why IndexedDB (not localStorage): disk-scale capacity (vs ~5 MB), async writes
+// off the main thread, and native binary storage — so song bodies are stored
+// gzip-compressed (CompressionStream) and the future sampler can store audio bytes
+// here too.
 //
-// The backend is injectable (defaults to window.localStorage) so this module is
-// testable under plain node, and so a future swap to IndexedDB is localized here.
+// The async/sync split that keeps callers simple: the tiny per-song METADATA
+// (id/name/colour/timestamps) is loaded into an in-memory cache once at init(), so
+// `list()`/`has()` stay SYNCHRONOUS for the UI; only the full bodies — `load`/
+// `save`/`delete` — touch IndexedDB asynchronously.
 import { deserializeSong } from './song-io.js';
 import type { SerializedSong } from './song-io.js';
-
-// The slice of the Storage API we use (localStorage satisfies it structurally;
-// a test can pass a tiny in-memory stand-in).
-export interface KVStore {
-  getItem(key: string): string | null;
-  setItem(key: string, value: string): void;
-  removeItem(key: string): void;
-}
 
 export interface UserSongMeta {
   id: string;
@@ -34,105 +26,161 @@ export interface SaveResult {
   error?: string;      // human-readable reason on failure (e.g. quota exceeded)
 }
 
-const INDEX_KEY = 'shaderwave:songs:index';
-const BODY_PREFIX = 'shaderwave:song:';
+const DB_NAME = 'shaderwave';
+const DB_VERSION = 1;
+const META_STORE = 'meta';     // small {id,name,color,…} records — all read at init
+const BODY_STORE = 'bodies';   // { id, gz, data } — one gzipped song each, read on open
 const DEFAULT_COLOR = '#7d8aa0';
 
-function defaultBackend(): KVStore | null {
-  try {
-    // `localStorage` access can throw in sandboxed/privacy contexts — guard it.
-    return typeof localStorage !== 'undefined' ? localStorage : null;
-  } catch {
-    return null;
-  }
+// A stored body: gzipped bytes (ArrayBuffer) when CompressionStream is available,
+// else raw text. Both are structured-cloneable, so IndexedDB stores them directly.
+interface BodyRecord { id: string; gz: boolean; data: ArrayBuffer | string }
+
+const CAN_GZIP = typeof CompressionStream !== 'undefined';
+
+// Promise-wrap a one-shot IDBRequest (used for readonly gets).
+function req<T>(r: IDBRequest<T>): Promise<T> {
+  return new Promise((res, rej) => { r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+}
+
+async function packBody(id: string, json: string): Promise<BodyRecord> {
+  if (!CAN_GZIP) return { id, gz: false, data: json };
+  const data = await new Response(new Blob([json]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer();
+  return { id, gz: true, data };
+}
+
+async function unpackBody(rec: BodyRecord): Promise<string> {
+  if (!rec.gz) return typeof rec.data === 'string' ? rec.data : new TextDecoder().decode(rec.data);
+  const buf = rec.data as ArrayBuffer;
+  return await new Response(new Blob([buf]).stream().pipeThrough(new DecompressionStream('gzip'))).text();
 }
 
 export class SongStore {
-  private store: KVStore | null;
+  private db: IDBDatabase | null = null;
+  private cache = new Map<string, UserSongMeta>();   // id → metadata, loaded at init
+  private ready = false;
 
-  constructor(store: KVStore | null = defaultBackend()) {
-    this.store = store;
+  // Open the database and load the metadata index into memory. Degrades to a no-op
+  // store (sandboxed/private contexts) rather than throwing. Idempotent.
+  async init(): Promise<void> {
+    if (this.ready) return;
+    try {
+      this.db = await this._open();
+      const all = await req(this.db.transaction(META_STORE, 'readonly').objectStore(META_STORE).getAll());
+      this.cache.clear();
+      for (const m of all as UserSongMeta[]) this.cache.set(m.id, m);
+    } catch (e) {
+      this.db = null;   // unavailable — list() empty, save() reports failure, etc.
+      console.warn('Song storage unavailable:', e);
+    }
+    this.ready = true;
   }
 
-  // Is persistence usable at all? (false in sandboxed contexts / when storage is off.)
-  available(): boolean { return !!this.store; }
+  private _open(): Promise<IDBDatabase> {
+    return new Promise((res, rej) => {
+      if (typeof indexedDB === 'undefined') { rej(new Error('indexedDB unavailable')); return; }
+      const open = indexedDB.open(DB_NAME, DB_VERSION);
+      open.onupgradeneeded = () => {
+        const db = open.result;
+        if (!db.objectStoreNames.contains(META_STORE)) db.createObjectStore(META_STORE, { keyPath: 'id' });
+        if (!db.objectStoreNames.contains(BODY_STORE)) db.createObjectStore(BODY_STORE, { keyPath: 'id' });
+      };
+      open.onsuccess = () => res(open.result);
+      open.onerror = () => rej(open.error);
+    });
+  }
 
-  // A short, collision-resistant id for a new user song.
+  available(): boolean { return !!this.db; }
+
+  // Close the connection + drop the cache (lets a fresh init() reopen). Mainly for
+  // tests/teardown; the app keeps one store open for its lifetime.
+  close() {
+    if (this.db) { this.db.close(); this.db = null; }
+    this.cache.clear();
+    this.ready = false;
+  }
+
   createId(): string {
     return `u_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
   }
 
-  // The saved-song index, newest first. Tolerates a missing/corrupt index (→ []).
+  // The saved-song index, newest first (synchronous — reads the in-memory cache).
   list(): UserSongMeta[] {
-    if (!this.store) return [];
-    let arr: unknown;
-    try { arr = JSON.parse(this.store.getItem(INDEX_KEY) || '[]'); } catch { return []; }
-    if (!Array.isArray(arr)) return [];
-    const out = arr.filter((m): m is UserSongMeta =>
-      !!m && typeof m === 'object' && typeof (m as UserSongMeta).id === 'string');
-    out.sort((a, b) => b.updatedAt - a.updatedAt);
-    return out;
+    return [...this.cache.values()].sort((a, b) => b.updatedAt - a.updatedAt);
   }
 
-  has(id: string): boolean { return this.list().some((m) => m.id === id); }
+  has(id: string): boolean { return this.cache.has(id); }
 
-  // Load + validate one song body. Returns null if absent or unparseable (and, if
-  // the index still references a now-missing body, prunes that stale entry).
-  load(id: string): SerializedSong | null {
-    if (!this.store) return null;
-    const raw = this.store.getItem(BODY_PREFIX + id);
-    if (raw == null) { this._removeFromIndex(id); return null; }
+  // Load + validate one song body. Returns null if absent/unparseable (and prunes a
+  // stale metadata entry whose body has vanished).
+  async load(id: string): Promise<SerializedSong | null> {
+    if (!this.db) return null;
     try {
-      return deserializeSong(JSON.parse(raw));
-    } catch {
+      const rec = await req(this.db.transaction(BODY_STORE, 'readonly').objectStore(BODY_STORE).get(id)) as BodyRecord | undefined;
+      if (!rec) { this._forgetMeta(id); return null; }
+      return deserializeSong(JSON.parse(await unpackBody(rec)));
+    } catch (e) {
+      console.warn('Song load failed:', e);
       return null;
     }
   }
 
-  // Write a song body + upsert its index entry. createdAt is preserved across
-  // re-saves; updatedAt is bumped. Quota/again-throwing failures are caught and
-  // reported (and the half-written body rolled back) rather than thrown.
-  save(id: string, doc: SerializedSong): SaveResult {
-    if (!this.store) return { ok: false, error: 'Storage is unavailable.' };
-    const bodyKey = BODY_PREFIX + id;
-    const hadBody = this.store.getItem(bodyKey);
+  // Write a song body (gzipped) + upsert its metadata. createdAt is preserved across
+  // re-saves; updatedAt is bumped. The cache updates synchronously (so list() is
+  // immediate); a failed write reverts the cache and reports the reason.
+  async save(id: string, doc: SerializedSong): Promise<SaveResult> {
+    if (!this.db) return { ok: false, error: 'Storage is unavailable.' };
+    const prev = this.cache.get(id);
+    const now = Date.now();
+    const meta: UserSongMeta = {
+      id,
+      name: doc.name || 'Untitled',
+      color: doc.instruments?.[0]?.color || DEFAULT_COLOR,
+      createdAt: prev?.createdAt ?? now,
+      updatedAt: now,
+    };
+    this.cache.set(id, meta);   // reflect immediately for the UI
     try {
-      this.store.setItem(bodyKey, JSON.stringify(doc));
-      const index = this.list();
-      const now = Date.now();
-      const prev = index.find((m) => m.id === id);
-      const meta: UserSongMeta = {
-        id,
-        name: doc.name || 'Untitled',
-        color: doc.instruments?.[0]?.color || DEFAULT_COLOR,
-        createdAt: prev?.createdAt ?? now,
-        updatedAt: now,
-      };
-      const next = index.filter((m) => m.id !== id);
-      next.push(meta);
-      this.store.setItem(INDEX_KEY, JSON.stringify(next));
+      const body = await packBody(id, JSON.stringify(doc));
+      await this._tx([META_STORE, BODY_STORE], 'readwrite', (tx) => {
+        tx.objectStore(META_STORE).put(meta);
+        tx.objectStore(BODY_STORE).put(body);
+      });
       return { ok: true };
-    } catch (err) {
-      // Roll back so a quota failure can't leave an orphaned/partial body.
-      try {
-        if (hadBody == null) this.store.removeItem(bodyKey);
-        else this.store.setItem(bodyKey, hadBody);
-      } catch { /* nothing more we can do */ }
-      const quota = err instanceof Error && /quota/i.test(err.name + err.message);
+    } catch (e) {
+      if (prev) this.cache.set(id, prev); else this.cache.delete(id);   // roll back the cache
+      const quota = e instanceof Error && /quota/i.test(e.name + e.message);
       return { ok: false, error: quota ? 'Out of browser storage space.' : 'Could not save the song.' };
     }
   }
 
-  // Remove a song body + its index entry.
-  delete(id: string): void {
-    if (!this.store) return;
-    try { this.store.removeItem(BODY_PREFIX + id); } catch { /* ignore */ }
-    this._removeFromIndex(id);
+  // Remove a song (cache updates synchronously; the IDB delete completes in the bg).
+  async delete(id: string): Promise<void> {
+    this.cache.delete(id);
+    if (!this.db) return;
+    try {
+      await this._tx([META_STORE, BODY_STORE], 'readwrite', (tx) => {
+        tx.objectStore(META_STORE).delete(id);
+        tx.objectStore(BODY_STORE).delete(id);
+      });
+    } catch (e) { console.warn('Song delete failed:', e); }
   }
 
-  private _removeFromIndex(id: string) {
-    if (!this.store) return;
-    const next = this.list().filter((m) => m.id !== id);
-    try { this.store.setItem(INDEX_KEY, JSON.stringify(next)); } catch { /* ignore */ }
+  // Drop a metadata entry whose body turned out to be missing (best-effort).
+  private _forgetMeta(id: string) {
+    if (!this.cache.has(id)) return;
+    this.cache.delete(id);
+    if (this.db) this._tx([META_STORE], 'readwrite', (tx) => tx.objectStore(META_STORE).delete(id)).catch(() => {});
+  }
+
+  // Run a transaction to completion (puts/deletes are issued synchronously in `fn`).
+  private _tx(stores: string[], mode: IDBTransactionMode, fn: (tx: IDBTransaction) => void): Promise<void> {
+    return new Promise((res, rej) => {
+      const tx = this.db!.transaction(stores, mode);
+      tx.oncomplete = () => res();
+      tx.onerror = () => rej(tx.error);
+      tx.onabort = () => rej(tx.error);
+      fn(tx);
+    });
   }
 }

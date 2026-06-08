@@ -42,10 +42,10 @@ to audition songs themselves in their own browser.
 
 ## Current work
 
-### Undo/redo + localStorage song persistence — ALL PHASES DONE — `project`
-**STATUS (2026-06-08):** COMPLETE. Phase 0+1 (undo/redo) in 1.15.0; Phase 2 (store) in
-0762a7a; Phase 3+4 (lifecycle + custom song-list panel) in 1.16.0. Build green, 44/44 logic
-tests, headless smoke-load clean (picker builds all demo rows, no console errors).
+### Undo/redo + IndexedDB song persistence — ALL PHASES DONE — `project`
+**STATUS (2026-06-08):** COMPLETE. Phase 0+1 (undo/redo) in 1.15.0; Phase 3+4 (lifecycle + custom
+song-list panel) in 1.16.0; storage backend migrated localStorage→IndexedDB+gzip in 1.17.0. Build
+green, 44/44 logic tests, headless smoke-load clean (picker builds all demo rows, no console errors).
 - **Phase 3+4 shipped (1.16.0):** `currentSong: {kind:'demo',demoIdx} | {kind:'user',id}`
   replaced `currentSongIdx`/`customSongName`-as-identity/magic `-1` `<option>`. `songDisplayName()`
   is the one name resolver (used by snapshot, song-info field, export). **Autosave:** debounced
@@ -68,8 +68,33 @@ tests, headless smoke-load clean (picker builds all demo rows, no console errors
   `_scheduleAutosave`/`_autosaveNow`/`_uniqueUntitled`). GOTCHA fixed: deleting the OPEN song must
   switch currentSong OFF it BEFORE the fallback `_loadDemo` (whose opening `_autosaveNow` would else
   resurrect the just-deleted song).
-- **Store kept from Phase 2:** `src/tracker/song-store.ts` (`SongStore`, injectable `KVStore` backend).
-  The file Save button stays as the .json export path alongside the new implicit persistence.
+- **Storage backend = IndexedDB + gzip (1.17.0).** `src/tracker/song-store.ts` rewritten from the
+  Phase-2 localStorage version to IndexedDB. Rationale: disk-scale capacity (vs ~5 MB), async writes
+  off the main thread, native binary storage (so bodies are gzipped + the future sampler can store
+  audio Blobs here). Design: two object stores — `meta` (tiny {id,name,color,createdAt,updatedAt},
+  ALL read into an in-memory `Map` at `init()`) and `bodies` ({id,gz,data}; data = a gzipped
+  `ArrayBuffer` via CompressionStream, or raw string if unavailable). The key async/sync split:
+  `list()/has()/createId()` stay SYNCHRONOUS (read the cache) so the picker/`_uniqueUntitled` didn't
+  change; only `init()/load()/save()/delete()` are async. `save()` updates the cache synchronously
+  (immediate UI) then writes IDB (rolls the cache back on failure). `load()` prunes a stale meta
+  entry whose body vanished. `close()` added for test teardown. Degrades to a no-op store (init
+  catches a failed open → `db=null`) in sandboxed/private contexts. NO localStorage migration (user
+  was the only user, nothing to migrate — explicitly skipped).
+  - **App wiring for async:** `store.init().then(() => _buildSongPicker())` in the ctor (picker first
+    renders demos-only, then the MY SONGS group appears a tick later). `_loadUserSong` is now `async`
+    (`await store.load`). `_autosaveNow` captures id+snapshot synchronously then fires `store.save(...)
+    .then(...)` (so a background write is correct even if currentSong changes first). `_deleteUserSong`
+    relies on `delete()` updating the cache synchronously.
+  - **GOTCHA — `beforeunload` can't await an async IDB write.** The reliable flush is
+    `visibilitychange:hidden` (fires on tab-switch/close and CAN complete); the `beforeunload` call is
+    a best-effort backstop. Worst case ~1.5 s (the debounce) of edits lost on a hard kill — accepted.
+  - **TS note:** store gzipped bodies as `ArrayBuffer` (clean `BlobPart` + structured-cloneable), NOT
+    `Uint8Array` — the latter trips the newer lib's `Uint8Array<ArrayBufferLike>` ≠ `BlobPart` check.
+  - **Tests:** `fake-indexeddb` (devDep) polyfills global indexedDB for the node suite; `import
+    'fake-indexeddb/auto'` at the top of `song-store.test.ts`. Node 24 has CompressionStream so the
+    gzip path runs for real. 8 store tests (round-trip-through-gzip, sync-cache, re-save, newest-first,
+    persist-across-reopen, delete, stale-body prune, unavailable-degrade). 44/44 total.
+  - The file Save button stays as the .json export path alongside the implicit IDB persistence.
 - **Phase 2 shipped:** `src/tracker/song-store.ts` — `SongStore` class with an INJECTABLE
   backend (`KVStore`; defaults to `localStorage`, guarded for sandboxed contexts; tests pass an
   in-memory stand-in → runs under node). Layout: `shaderwave:songs:index` = `UserSongMeta[]`

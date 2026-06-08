@@ -287,11 +287,18 @@ export class App {
     this._seedHistory();
 
     // Flush a pending autosave when the tab is hidden or closed (so the last edits
-    // to a user song survive even if the debounce timer hasn't fired yet).
+    // to a user song survive even if the debounce timer hasn't fired yet). NB: an
+    // IndexedDB write can't be awaited in `beforeunload` — `visibilitychange:hidden`
+    // (which fires on tab-switch/close and CAN complete) is the reliable path; the
+    // beforeunload call is a best-effort backstop.
     window.addEventListener('beforeunload', () => this._autosaveNow());
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'hidden') this._autosaveNow();
     });
+
+    // Open the song library and fill the picker once its metadata is loaded (async;
+    // the picker already rendered with demos, this adds the MY SONGS group).
+    this.store.init().then(() => this._buildSongPicker());
 
     this.pipeline.onStats = (s) => { this.underruns = s.underruns; };
     setInterval(() => { if (this.audioReady) this.pipeline.requestStats(); }, 500);
@@ -885,18 +892,21 @@ export class App {
   }
 
   // Write the active user song to storage now (also called on fork + page hide).
+  // The id + snapshot are captured synchronously, so the async write is correct even
+  // if `currentSong` changes (e.g. switching songs) before it commits.
   _autosaveNow() {
     if (this._autosaveTimer) { clearTimeout(this._autosaveTimer); this._autosaveTimer = undefined; }
     if (this.currentSong.kind !== 'user') return;
     const snap = this._snapshot();
     if (!snap) return;
-    const res = this.store.save(this.currentSong.id, snap);
-    if (!res.ok && !this._storageWarned) {
-      this._storageWarned = true;
-      console.warn('Autosave failed:', res.error);
-      const status = $('audio-status');
-      if (status && res.error) status.title = `Autosave: ${res.error}`;
-    }
+    this.store.save(this.currentSong.id, snap).then((res) => {
+      if (!res.ok && !this._storageWarned) {
+        this._storageWarned = true;
+        console.warn('Autosave failed:', res.error);
+        const status = $('audio-status');
+        if (status && res.error) status.title = `Autosave: ${res.error}`;
+      }
+    });
   }
 
   // ── Song picker (custom dropdown: saved user songs + demos, colours + delete) ──
@@ -1015,10 +1025,10 @@ export class App {
   }
 
   // Open a saved user song from storage.
-  _loadUserSong(id: string) {
-    const doc = this.store.load(id);
-    if (!doc) { this._buildSongPicker(); return; }   // vanished/corrupt → just refresh the list
+  async _loadUserSong(id: string) {
     this._autosaveNow();                             // flush the outgoing song first
+    const doc = await this.store.load(id);
+    if (!doc) { this._buildSongPicker(); return; }   // vanished/corrupt → just refresh the list
     this.currentSong = { kind: 'user', id };
     this._applySerializedSong(doc);
   }
