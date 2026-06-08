@@ -1,0 +1,121 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>pending</title></head>
+<body><pre id="out">running…</pre>
+<script type="module">
+// Golden-render regression guard — the safety net for the async-readback refactor.
+//
+//  1. DETERMINISM: rendering a fixed demo song twice (fresh renderer+engine each
+//     pass) must produce BIT-IDENTICAL output. This is the property exports depend
+//     on, and the property async readback must not break.
+//  2. ASYNC ≡ SYNC (only if renderBlockAsync exists): the pipelined PBO path is a
+//     "render N, read N-1" design, so its output is the sync output delayed by
+//     exactly one block. We assert asyncOut[n] === syncOut[n-1] bit-for-bit — same
+//     GPU computation, only the readback timing differs.
+//
+// Run headless (engine/renderer change → render-check class, justified):
+//   google-chrome --headless=new --disable-gpu --enable-unsafe-swiftshader \
+//     --virtual-time-budget=20000 --dump-dom http://localhost:5173/test/golden-render.html
+import { createGL } from '../src/gl/context.js';
+import { SynthRenderer } from '../src/gl/synth-renderer.js';
+import { Engine } from '../src/tracker/engine.js';
+import { demoSong } from '../src/tracker/song.js';
+import { BLOCK } from '../src/constants.js';
+
+const out = document.getElementById('out');
+const lines = [];
+const log = (s) => { lines.push(s); out.textContent = lines.join('\n'); console.log(s); };
+
+const NBLOCKS = 140;   // ~1.5s @48k — long enough to exercise notes + FX tails
+
+// Render the song into an array of per-block stereo buffers (copies) via `method`.
+function renderPass(gl, method) {
+  const r = new SynthRenderer(gl, 48000);
+  const eng = new Engine(48000);
+  eng.loadSong(demoSong());
+  eng.play();
+  const blocks = [];
+  for (let b = 0; b < NBLOCKS; b++) {
+    const bs = b * BLOCK;
+    const vd = eng.advance(bs);
+    const o = r[method](vd, bs);
+    blocks.push(Float32Array.from(o));   // copy — renderer reuses its outBuf
+  }
+  return blocks;
+}
+
+// 32-bit FNV-ish checksum over a block list (for a human-readable fingerprint).
+function checksum(blocks) {
+  let h = 0x811c9dc5 >>> 0;
+  for (const blk of blocks) {
+    for (let i = 0; i < blk.length; i++) {
+      const v = Math.fround(blk[i]);
+      const bits = new Uint32Array(new Float32Array([v]).buffer)[0];
+      h = (h ^ (bits & 0xff)) >>> 0; h = Math.imul(h, 0x01000193) >>> 0;
+      h = (h ^ ((bits >>> 8) & 0xff)) >>> 0; h = Math.imul(h, 0x01000193) >>> 0;
+      h = (h ^ ((bits >>> 16) & 0xff)) >>> 0; h = Math.imul(h, 0x01000193) >>> 0;
+      h = (h ^ ((bits >>> 24) & 0xff)) >>> 0; h = Math.imul(h, 0x01000193) >>> 0;
+    }
+  }
+  return h >>> 0;
+}
+
+function stats(blocks) {
+  let peak = 0, nan = 0;
+  for (const blk of blocks) for (let i = 0; i < blk.length; i++) {
+    const v = blk[i];
+    if (!Number.isFinite(v)) nan++; else peak = Math.max(peak, Math.abs(v));
+  }
+  return { peak, nan };
+}
+
+// First index where two block lists differ (NaN-aware), or -1 if identical.
+function firstDiff(a, b, fromBlock = 0, shift = 0) {
+  for (let bi = fromBlock; bi < a.length; bi++) {
+    const A = a[bi], B = b[bi - shift];
+    if (!B) continue;
+    for (let i = 0; i < A.length; i++) if (A[i] !== B[i]) return bi * A.length + i;
+  }
+  return -1;
+}
+
+try {
+  const gl = createGL(document.createElement('canvas'));
+  let ok = true;
+
+  // 1. Determinism.
+  log('--- determinism (sync × 2) ---');
+  const sync1 = renderPass(gl, 'renderBlock');
+  const sync2 = renderPass(gl, 'renderBlock');
+  const s = stats(sync1);
+  const detDiff = firstDiff(sync1, sync2);
+  const detOk = detDiff === -1 && s.nan === 0 && s.peak > 1e-4;
+  ok = ok && detOk;
+  log(`blocks=${NBLOCKS} peak=${s.peak.toFixed(4)} NaN=${s.nan} checksum=0x${checksum(sync1).toString(16)} ` +
+      `${detDiff === -1 ? 'identical' : 'DIFFER@' + detDiff} ${detOk ? 'OK' : 'FAIL'}`);
+
+  // 2. Async ≡ sync (1-block shift), only if the async path exists yet.
+  const r = new SynthRenderer(gl, 48000);
+  if (typeof r.renderBlockAsync === 'function') {
+    log('\n--- async ≡ sync (render N, read N-1) ---');
+    const asyncBlocks = renderPass(gl, 'renderBlockAsync');
+    // asyncBlocks[0] is the priming block (no prior frame ready) → expect silence.
+    let prime = 0; for (const v of asyncBlocks[0]) prime = Math.max(prime, Math.abs(v));
+    // For n>=1: asyncBlocks[n] must equal sync1[n-1].
+    const shiftDiff = firstDiff(asyncBlocks, sync1, 1, 1);
+    const as = stats(asyncBlocks);
+    const asyncOk = shiftDiff === -1 && as.nan === 0 && prime < 1e-9;
+    ok = ok && asyncOk;
+    log(`primingBlock peak=${prime.toExponential(2)} (want ~0)  NaN=${as.nan}  ` +
+        `${shiftDiff === -1 ? 'async[n]==sync[n-1] for all n' : 'MISMATCH@' + shiftDiff} ${asyncOk ? 'OK' : 'FAIL'}`);
+  } else {
+    log('\n(async path not implemented yet — skipping async≡sync check)');
+  }
+
+  document.title = ok ? 'ALL_OK' : 'FAILED';
+  log(ok ? '\n=== GOLDEN OK ===' : '\n=== GOLDEN FAILED ===');
+} catch (e) {
+  document.title = 'ERROR';
+  log('FATAL: ' + e.message + '\n' + (e.stack || ''));
+}
+</script>
+</body></html>

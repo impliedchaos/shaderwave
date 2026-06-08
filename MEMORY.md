@@ -42,13 +42,12 @@ to audition songs themselves in their own browser.
 
 ## Current work
 
-### ✅ LFO tempo-sync phase bug under BPM changes — FIXED (2026-06-08, uncommitted) — `project`
+### ✅ LFO tempo-sync phase bug under BPM changes — FIXED + committed (1.10.4, e83f6e4) — `project`
 FIXED: `engine._songBeats` accumulator (reset in `play()`, advanced per block at the end of
 `_applyLfos` by `(BLOCK/sampleRate)*(bpm/60)`); synced sources now use `cyclePos = _songBeats /
-rateBeats`, free-run keeps `songSec / lfoPeriodSec`. Verified by a headless continuity test (synced
-sine LFO on 303 CUT, tempo doubled 120→240 mid-render → seam delta 0.0027 < normal step 0.0268, no
-jump). Build green. NOTE: the continuity test was run ad-hoc (esbuild+node) and NOT committed — fold
-it into the future committed test suite (roadmap #3). Original analysis below.
+rateBeats`, free-run keeps `songSec / lfoPeriodSec`. The continuity test is now COMMITTED in the
+logic suite (`test/logic/lfo.test.ts` — drives `_applyLfos`, doubles BPM mid-render, asserts no
+phase jump; verified it fails on the pre-fix form). Original analysis below.
 
 Found 2026-06-08 (user spotted it). **Tempo-synced LFOs glitch when BPM changes mid-song.**
 `engine._applyLfos` computes phase as `songSec / lfoPeriodSec(src, this.bpm)` where
@@ -82,14 +81,25 @@ Honest assessment of what the project most needs (beyond the parked plans below)
    sample state (only the SYNTH renderer has it today, via strip rendering + MRT carry). Build that
    capability into `EffectsChain` ONCE → unlocks all three. Then ship a **resonant multimode filter
    FX** (LP/HP/BP) — the most obvious missing effect, and the LFOs/mod-matrix were built to sweep it.
-3. **Committed test suite** — there is NONE (only GPU compile/render HTML harnesses). Convert the
-   throwaway esbuild+node checks we keep re-writing (LFO invariants, mod matrix, song-io round-trip,
-   bitcrush, new-instrument defaults, demo-song load loop) into PERMANENT committed tests. Highest
-   reliability-per-hour; the interacting state (automation/mod-matrix/song-io/wavetable) has no net.
+3. **Committed test suite** — ✅ SEEDED (1.11.0). `npm run test` bundles `test/logic/index.ts`
+   (esbuild+node) and runs the harness in `test/logic/_harness.ts`: LFO invariants incl. the BPM
+   continuity regression, mod matrix, automation id-stability + norm/denorm, song-io round-trip +
+   version gate, demo-song load loop + target-range/type audit (21 tests). PLUS `test/golden-render.html`
+   (headless GPU) — renders a fixed song twice for bit-identical determinism (checksum 0x5fc60c89)
+   AND, when `renderBlockAsync` exists, asserts `async[n]==sync[n-1]` bit-for-bit (the async-readback
+   guard). STILL TODO to fold in: bitcrush continuity, new-instrument fx defaults. The HTML harnesses
+   (glsl/render/onset/instance/drum) remain the GPU-correctness net.
 4. Then the parked **compressor/limiter** + **reorderable per-instrument chain**.
-5. **Async readback** (PBO + `fenceSync`) — `gl.readPixels` is a SYNCHRONOUS GPU→CPU stall every
-   block on the main thread → the portability ceiling on weaker/integrated GPUs. Decides "runs
-   everywhere" vs "runs on Dave's machine". Not urgent, but real.
+5. **Async readback** (PBO + `fenceSync`) — ✅ DONE (1.11.0). `SynthRenderer._renderToMix()` does the
+   synth+mix passes; `renderBlock()` keeps the SYNCHRONOUS readPixels (offline WAV export + all test
+   harnesses use it as ground truth — offline wants exact full-length output, no main-thread-stall
+   concern). NEW `renderBlockAsync()` is a pipelined "render N, read N-1": readPixels into a ping-pong
+   PBO (offset 0 → async DMA) + `fenceSync`, then `getBufferSubData` the PBO filled LAST call (its DMA
+   had a full block to finish → no stall). The realtime producer (`main.ts` ensureAudio) uses it; this
+   is what removes the per-block GPU→CPU main-thread stall (the portability ceiling). COST: +1 block
+   (~10.7ms @48k) of constant output latency; first call returns silence (priming); `resetState()`
+   drops pending fences so the next async call re-primes. Could claw the block back via a -1 prebuffer
+   trim (not done — left as an underrun-safety judgment call). Verified bit-identical via golden-render.
 6. **EQ** + **sidechain/pumping compression** — genre-relevant effect gaps.
 Push-back to honor: resist adding more synth engines / demo songs until undo + tests exist — the
 synth palette is already wide; forgiving (undo) + not-breaking (tests) matter more than a 12th engine.

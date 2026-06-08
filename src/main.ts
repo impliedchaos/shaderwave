@@ -236,7 +236,11 @@ export class App {
     this._updateLatencyDisplay();   // now reflects the real sample rate
     this.renderer = new SynthRenderer(this.gl, sr);
     this._syncRendererFx();   // hand the renderer this song's per-instance fx
-    const produce = (blockStart: number) => this.renderer!.renderBlock(this.engine.advance(blockStart), blockStart);
+    // Realtime path: pipelined async readback (read block N-1 while N's DMA is in
+    // flight) so the GPU→CPU copy never stalls the producer's main thread. Offline
+    // WAV export keeps using the synchronous renderBlock (it wants exact, full-length
+    // output and has no main-thread-stall concern).
+    const produce = (blockStart: number) => this.renderer!.renderBlockAsync(this.engine.advance(blockStart), blockStart);
     await this.pipeline.start(produce);
     this.pipeline.setVolume(this._playbackVolume ?? 1.0); // apply the slider's monitor gain
     this.audioReady = true;

@@ -1,6 +1,6 @@
 {
   "name": "shaderwave",
-  "version": "1.10.4",
+  "version": "1.11.0",
   "private": true,
   "type": "module",
   "description": "WebGL2 synthesizer & tracker — instruments synthesized entirely on the GPU.",
@@ -8,6 +8,7 @@
     "dev": "vite",
     "typecheck": "tsc --noEmit",
     "build": "tsc --noEmit && vite build",
+    "test": "esbuild test/logic/index.ts --bundle --format=esm --loader:.glsl=text --outfile=/tmp/shaderwave-logic-tests.mjs && node /tmp/shaderwave-logic-tests.mjs",
     "preview": "vite preview",
     "deploy": "npm run build && ssh dmaez@dataphile \"/usr/bin/rm -rf /home/tug/fun/shaderwave/*\" && scp -r dist/* dmaez@dataphile:/home/tug/fun/shaderwave/"
   },

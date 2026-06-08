@@ -52,6 +52,13 @@ export class SynthRenderer {
   readBuf: Float32Array;
   outBuf: Float32Array;
   wavetableTex: WebGLTexture;   // shared Wavewright wavetable atlas (bound to unit 3)
+  // Async readback state (used only by the realtime producer via renderBlockAsync):
+  // two pixel-pack buffers, ping-ponged so we map block N-1's result while block N's
+  // readback DMA is still in flight — removing the synchronous readPixels main-thread
+  // stall. Lazily allocated on first async use; null means "sync-only so far".
+  _pbo: WebGLBuffer[] | null;
+  _pboFence: (WebGLSync | null)[];
+  _pboIdx: number;
 
   constructor(gl: WebGL2RenderingContext, sampleRate: number, _fxParams?: FxParamsByType | null) {
     this.gl = gl;
@@ -101,6 +108,9 @@ export class SynthRenderer {
 
     this.readBuf = new Float32Array(BLOCK * 4);     // RGBA readback
     this.outBuf = new Float32Array(BLOCK * 2);      // interleaved stereo result
+    this._pbo = null;
+    this._pboFence = [null, null];
+    this._pboIdx = 0;
 
     // Wavewright wavetable atlas: one R32F texture (width = samples, height =
     // mips × banks × frames) holding every band-limited frame, sampled by the wvt
@@ -160,6 +170,12 @@ export class SynthRenderer {
     }
     for (const fx of this.instFx) if (fx) fx.reset();
     gl.deleteFramebuffer(fbo);
+    // Drop any pending async readback so the next renderBlockAsync re-primes (its
+    // first call returns silence) instead of leaking the previous run's last block.
+    for (let i = 0; i < this._pboFence.length; i++) {
+      if (this._pboFence[i]) { gl.deleteSync(this._pboFence[i]!); this._pboFence[i] = null; }
+    }
+    this._pboIdx = 0;
   }
 
   // Per-instance fx params (instruments.map(i => i.fx)), set by the app whenever the
@@ -174,9 +190,11 @@ export class SynthRenderer {
     return this.instFx[k];
   }
 
+  // Run the synth + per-instance FX + mix passes for one block, leaving the final
+  // stereo result in mixFbo (R = left, G = right). Both the sync and async readback
+  // paths call this; only the readback step differs.
   // vd: voice data with typed arrays (see tracker engine). blockStart: absolute frame.
-  // Returns the shared interleaved-stereo output buffer (BLOCK*2 floats).
-  renderBlock(vd: VoiceData, blockStart: number): Float32Array {
+  _renderToMix(vd: VoiceData, blockStart: number): void {
     const gl = this.gl;
     gl.disable(gl.BLEND);
 
@@ -289,16 +307,79 @@ export class SynthRenderer {
       if (params) fx.params = params;
       fx.process(this.chanDryTex, this.mixFbo, blockStart, vd.master);
     }
+  }
 
-    // 3. Readback + deinterleave from the final combined mixFbo
-    gl.bindFramebuffer(gl.FRAMEBUFFER, this.mixFbo);
-    gl.readPixels(0, 0, BLOCK, 1, gl.RGBA, gl.FLOAT, this.readBuf);
-    
+  // Deinterleave the RGBA readback (readBuf) into the stereo outBuf and return it.
+  _deinterleave(): Float32Array {
     const out = this.outBuf, rb = this.readBuf;
     for (let i = 0; i < BLOCK; i++) {
       out[i * 2]     = rb[i * 4];      // R = left
       out[i * 2 + 1] = rb[i * 4 + 1];  // G = right
     }
     return out;
+  }
+
+  // Render one block and read it back SYNCHRONOUSLY. readPixels into client memory
+  // flushes the GPU and stalls until the pixels are ready — exact and simple, which
+  // is what the offline WAV export and the test harnesses want. The realtime
+  // producer should use renderBlockAsync instead to avoid that main-thread stall.
+  renderBlock(vd: VoiceData, blockStart: number): Float32Array {
+    const gl = this.gl;
+    this._renderToMix(vd, blockStart);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.mixFbo);
+    gl.readPixels(0, 0, BLOCK, 1, gl.RGBA, gl.FLOAT, this.readBuf);
+    return this._deinterleave();
+  }
+
+  // Render block N and read back block N-1. The current block's mix is copied into
+  // a pixel-pack buffer (PBO) with a non-blocking readPixels (DMA into GPU-side
+  // memory), and we map the PBO we filled on the PREVIOUS call — whose DMA has had a
+  // full block of wall-clock time to finish — so getBufferSubData doesn't stall.
+  // This removes the synchronous readPixels block from the audio producer's main
+  // thread (the portability ceiling on weak GPUs). Cost: one block (~10.7ms @48k)
+  // of constant output latency; the first call returns silence (priming).
+  renderBlockAsync(vd: VoiceData, blockStart: number): Float32Array {
+    const gl = this.gl;
+    if (!this._pbo) {
+      this._pbo = [gl.createBuffer()!, gl.createBuffer()!];
+      for (const b of this._pbo) {
+        gl.bindBuffer(gl.PIXEL_PACK_BUFFER, b);
+        gl.bufferData(gl.PIXEL_PACK_BUFFER, this.readBuf.byteLength, gl.STREAM_READ);
+      }
+      gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
+    }
+
+    this._renderToMix(vd, blockStart);
+
+    const cur = this._pboIdx;
+    const prev = cur ^ 1;
+
+    // Issue this block's readback into PBO[cur] without blocking (offset 0 into the
+    // bound PIXEL_PACK_BUFFER → the driver DMAs asynchronously), then fence it so we
+    // can tell when it's done.
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.mixFbo);
+    gl.bindBuffer(gl.PIXEL_PACK_BUFFER, this._pbo[cur]);
+    gl.readPixels(0, 0, BLOCK, 1, gl.RGBA, gl.FLOAT, 0);
+    if (this._pboFence[cur]) gl.deleteSync(this._pboFence[cur]!);
+    this._pboFence[cur] = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
+
+    let result: Float32Array;
+    if (this._pboFence[prev]) {
+      // Flush the queue so the previous block's DMA actually progresses (timeout 0:
+      // don't spin here — getBufferSubData below provides the real synchronization).
+      // In realtime a full block has elapsed, so it's already complete; back-to-back
+      // (offline/headless) getBufferSubData briefly blocks — still correct.
+      gl.clientWaitSync(this._pboFence[prev]!, gl.SYNC_FLUSH_COMMANDS_BIT, 0);
+      gl.bindBuffer(gl.PIXEL_PACK_BUFFER, this._pbo[prev]);
+      gl.getBufferSubData(gl.PIXEL_PACK_BUFFER, 0, this.readBuf);
+      result = this._deinterleave();
+    } else {
+      this.outBuf.fill(0);      // priming: no prior block ready yet
+      result = this.outBuf;
+    }
+
+    gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
+    this._pboIdx = prev;        // next call writes the buffer we just consumed
+    return result;
   }
 }
