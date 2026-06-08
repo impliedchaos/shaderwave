@@ -106,6 +106,20 @@ const FX_FILTER_TARGETS: RawTarget[] = [
 ];
 for (const t of FX_FILTER_TARGETS) TARGETS.push({ ...t, scope: 'fx', type: '*', id: TARGETS.length });
 
+// Dynamics (compressor + limiter) fx targets — appended at the very end (id-stable).
+const FX_DYN_TARGETS: RawTarget[] = [
+  { code: 'CMO', label: 'Comp On',       key: 'compOn',       min: 0,   max: 1,   curve: 'lin', toggle: true },
+  { code: 'CMT', label: 'Comp Thresh',   key: 'compThresh',   min: -60, max: 0,   curve: 'lin', unit: 'dB' },
+  { code: 'CMR', label: 'Comp Ratio',    key: 'compRatio',    min: 1,   max: 20,  curve: 'log' },
+  { code: 'CMA', label: 'Comp Attack',   key: 'compAttack',   min: 0.1, max: 100, curve: 'log', unit: 'ms' },
+  { code: 'CML', label: 'Comp Release',  key: 'compRelease',  min: 5,   max: 500, curve: 'log', unit: 'ms' },
+  { code: 'CMK', label: 'Comp Makeup',   key: 'compMakeup',   min: 0,   max: 24,  curve: 'lin', unit: 'dB' },
+  { code: 'LMO', label: 'Limiter On',    key: 'limitOn',      min: 0,   max: 1,   curve: 'lin', toggle: true },
+  { code: 'LMC', label: 'Limiter Ceil',  key: 'limitCeil',    min: -24, max: 0,   curve: 'lin', unit: 'dB' },
+  { code: 'LMR', label: 'Limiter Rel',   key: 'limitRelease', min: 5,   max: 500, curve: 'log', unit: 'ms' },
+];
+for (const t of FX_DYN_TARGETS) TARGETS.push({ ...t, scope: 'fx', type: '*', id: TARGETS.length });
+
 export function targetById(id: number): ParamTarget | null {
   return (id >= 0 && id < TARGETS.length) ? TARGETS[id] : null;
 }

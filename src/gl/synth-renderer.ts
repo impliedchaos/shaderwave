@@ -9,7 +9,7 @@
 // renders only its own rows and writes silence elsewhere.
 import { createProgram, drawQuad, makeTex } from './program.js';
 import type { GLProgram } from './program.js';
-import { EffectsChain } from './effects.js';
+import { EffectsChain, normalizeFxOrder } from './effects.js';
 import { BLOCK, VOICES } from '../constants.js';
 import { REGISTRY } from '../instruments/index.js';
 import { bakeWavetableAtlas, WT_SAMPLES } from '../instruments/wavetables.js';
@@ -43,6 +43,7 @@ export class SynthRenderer {
   inst: InstRender[];
   instFx: EffectsChain[];               // lazily-built effects chain per instrument INSTANCE
   instFxParams: FxParams[];             // per-instance fx params (set by the app)
+  instFxOrder: string[][];              // per-instance effect-chain order (normalized)
   chanDryTex: WebGLTexture;
   chanDryFbo: WebGLFramebuffer | null;
   _maskGain: Float32Array;              // scratch: mix gains masked to one instance's voices
@@ -92,6 +93,7 @@ export class SynthRenderer {
     // app supplies per-instance fx via setInstrumentFx. One reusable dry-mix target.
     this.instFx = [];
     this.instFxParams = [];
+    this.instFxOrder = [];
     this.chanDryTex = makeTex(gl, BLOCK, 1);
     this.chanDryFbo = gl.createFramebuffer();
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.chanDryFbo);
@@ -182,6 +184,13 @@ export class SynthRenderer {
   // instrument table or its fx changes. Each instance's chain reads instFxParams[k].
   setInstrumentFx(fx: FxParams[]) {
     this.instFxParams = fx;
+  }
+
+  // Per-instance effect-chain order (instruments.map(i => i.fxOrder)). Each entry is
+  // normalized against the registry (unknown keys dropped, missing ones appended) so
+  // a new effect never silently vanishes from a saved/older chain.
+  setInstrumentFxOrder(orders: (string[] | undefined)[]) {
+    this.instFxOrder = orders.map((o) => normalizeFxOrder(o));
   }
 
   // Lazily build the effects chain for instrument-instance k.
@@ -305,6 +314,7 @@ export class SynthRenderer {
       const fx = this._instChain(k);
       const params = this.instFxParams[k];
       if (params) fx.params = params;
+      if (this.instFxOrder[k]) fx.order = this.instFxOrder[k];   // per-instance chain order
       fx.process(this.chanDryTex, this.mixFbo, blockStart, vd.master);
     }
   }

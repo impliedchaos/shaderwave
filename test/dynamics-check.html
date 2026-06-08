@@ -1,0 +1,124 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>pending</title></head>
+<body><pre id="out">running…</pre>
+<script type="module">
+// Dynamics (Compressor + Limiter) correctness — the second per-sample recursive
+// FX (shared fx-dynamics.glsl envelope follower). Compares the GPU output to a CPU
+// reference across the same continuous stream (validates the strip + state carry
+// for the envelope), confirms the compressor actually reduces gain above
+// threshold, the limiter brick-walls peaks to its ceiling, and bypass is clean.
+import { createGL } from '../src/gl/context.js';
+import { EffectsChain, neutralFxParams } from '../src/gl/effects.js';
+import { makeTex } from '../src/gl/program.js';
+import { BLOCK } from '../src/constants.js';
+
+const out = document.getElementById('out');
+const lines = [];
+const log = (s) => { lines.push(s); out.textContent = lines.join('\n'); console.log(s); };
+const SR = 48000;
+const dbToLin = (db) => Math.pow(10, db / 20);
+const msCoef = (ms, sr) => 1 - Math.exp(-1 / (Math.max(0.05, ms) / 1000 * sr));
+
+// CPU reference — identical math + coefficients to fx-dynamics.glsl / effects.ts.
+function dynRef(input, { threshLin, slope, atkCoef, relCoef, makeup }) {
+  let env = 0; const o = new Float32Array(input.length);
+  for (let n = 0; n < input.length; n++) {
+    const x = input[n], d = Math.abs(x);
+    env += (d > env ? atkCoef : relCoef) * (d - env);
+    const g = env > threshLin ? Math.pow(env / threshLin, -slope) : 1;
+    o[n] = x * g * makeup;
+  }
+  return o;
+}
+
+function renderChain(input, set) {
+  const gl = createGL(document.createElement('canvas'));
+  const params = neutralFxParams();
+  params.enabled = true; params.master = 1.0;
+  set(params);
+  const chain = new EffectsChain(gl, SR, params);
+  const inTex = makeTex(gl, BLOCK, 1), tgtTex = makeTex(gl, BLOCK, 1);
+  const tgtFbo = gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, tgtFbo);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tgtTex, 0);
+  const rgba = new Float32Array(BLOCK * 4), readBuf = new Float32Array(BLOCK * 4);
+  const o = new Float32Array(input.length);
+  for (let b = 0; b < input.length / BLOCK; b++) {
+    const bs = b * BLOCK;
+    for (let i = 0; i < BLOCK; i++) { const s = input[bs + i]; rgba[i * 4] = s; rgba[i * 4 + 1] = s; rgba[i * 4 + 2] = 0; rgba[i * 4 + 3] = 1; }
+    gl.bindTexture(gl.TEXTURE_2D, inTex);
+    gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, BLOCK, 1, gl.RGBA, gl.FLOAT, rgba);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, tgtFbo); gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
+    chain.process(inTex, tgtFbo, bs, 1.0);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, tgtFbo);
+    gl.readPixels(0, 0, BLOCK, 1, gl.RGBA, gl.FLOAT, readBuf);
+    for (let i = 0; i < BLOCK; i++) o[bs + i] = readBuf[i * 4];
+  }
+  return o;
+}
+
+function maxDiff(a, b) { let m = 0, at = -1; for (let i = 0; i < a.length; i++) { const d = Math.abs(a[i] - b[i]); if (d > m) { m = d; at = i; } } return { m, at }; }
+function peak(a, from = 0) { let p = 0; for (let i = from; i < a.length; i++) p = Math.max(p, Math.abs(a[i])); return p; }
+function anyNaN(a) { for (const v of a) if (!Number.isFinite(v)) return true; return false; }
+
+// 8 blocks: a quiet half then a loud half (drives the detector through attack+release).
+function makeInput(nBlocks, amp) {
+  const N = nBlocks * BLOCK, x = new Float32Array(N);
+  for (let n = 0; n < N; n++) {
+    const env = n < N / 2 ? 0.15 : amp;
+    x[n] = env * Math.sin(2 * Math.PI * 220 * n / SR);
+  }
+  return x;
+}
+
+try {
+  let ok = true;
+  const NB = 16;
+
+  // 1. Compressor matches the CPU reference across strips + blocks.
+  const inp = makeInput(NB, 0.9);
+  const cParams = { compThresh: -18, compRatio: 4, compAttack: 5, compRelease: 80, compMakeup: 6 };
+  const gpu = renderChain(inp, (p) => { Object.assign(p, cParams); p.compOn = true; });
+  const ref = dynRef(inp, {
+    threshLin: dbToLin(cParams.compThresh), slope: 1 - 1 / cParams.compRatio,
+    atkCoef: msCoef(cParams.compAttack, SR), relCoef: msCoef(cParams.compRelease, SR), makeup: dbToLin(cParams.compMakeup),
+  });
+  const cd = maxDiff(gpu, ref);
+  const cOk = cd.m < 3e-3 && !anyNaN(gpu);
+  ok = ok && cOk;
+  log(`Compressor vs CPU ref: maxDiff=${cd.m.toExponential(2)} @${cd.at} ${cOk ? 'OK' : 'FAIL'}`);
+
+  // 2. Gain reduction: the loud half is pulled down vs its dry level (allowing makeup).
+  //    With thresh -18dB, ratio 4, a 0.9 input (~ -0.9dB) should be reduced well below
+  //    its makeup'd level. Compare loud-half peak with comp on vs off.
+  const off = renderChain(inp, (p) => { p.compOn = false; });
+  const loudOn = peak(gpu, NB * BLOCK / 2 + 2000);   // settle past the attack
+  const loudOff = peak(off, NB * BLOCK / 2 + 2000);
+  const grOk = loudOn < loudOff * 0.85;             // audibly compressed
+  ok = ok && grOk;
+  log(`Comp gain reduction: loud peak on=${loudOn.toFixed(3)} off=${loudOff.toFixed(3)} (on<0.85*off) ${grOk ? 'OK' : 'FAIL'}`);
+
+  // 3. Limiter brick-walls peaks to its ceiling. Full-scale input, ceiling -6dB.
+  const hot = makeInput(NB, 1.0);
+  const ceilDb = -6, ceilLin = dbToLin(ceilDb);
+  const lim = renderChain(hot, (p) => { p.limitOn = true; p.limitCeil = ceilDb; p.limitRelease = 80; });
+  const lpk = peak(lim, NB * BLOCK / 2 + 2000);     // sustained loud region, past attack
+  const limOk = lpk <= ceilLin * 1.06 && !anyNaN(lim);   // ≤ ceiling (+6% for the fast-attack edge)
+  ok = ok && limOk;
+  log(`Limiter ceiling: sustained peak=${lpk.toFixed(4)} ceiling=${ceilLin.toFixed(4)} (peak≤1.06*ceil) ${limOk ? 'OK' : 'FAIL'}`);
+
+  // 4. Bypass transparency (both off).
+  const byp = renderChain(inp, (p) => { p.compOn = false; p.limitOn = false; });
+  const bd = maxDiff(byp, inp);
+  const bypOk = bd.m < 1e-5;
+  ok = ok && bypOk;
+  log(`Bypass transparency: maxDiff vs dry=${bd.m.toExponential(2)} ${bypOk ? 'OK' : 'FAIL'}`);
+
+  document.title = ok ? 'ALL_OK' : 'FAILED';
+  log(ok ? '\n=== DYNAMICS OK ===' : '\n=== DYNAMICS FAILED ===');
+} catch (e) {
+  document.title = 'ERROR';
+  log('FATAL: ' + e.message + '\n' + (e.stack || ''));
+}
+</script>
+</body></html>

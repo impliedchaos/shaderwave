@@ -227,12 +227,14 @@ A second shader stage runs between the synth mix and the audio readback. All
 effects are editable from the **Instrument FX** panel.
 
 ```
-input → Distortion → Overdrive → Filter → Chorus → Tremolo → Delay → Reverb → Bitcrusher → Width → Master Out
+input → Compressor → Filter → Overdrive → Distortion → Chorus → Tremolo → Delay → Reverb → Bitcrusher → Width → Limiter → Master Out
 ```
 
-Each effect is its own GPU pass over a `BLOCK × 1` stereo buffer; the chain runs
-in a data-driven order (`DEFAULT_FX_ORDER` in `src/gl/effects.ts`), so the signal
-flow can be rearranged just by reordering that list. A terminal master pass
+Each effect is its own GPU pass over a `BLOCK × 1` stereo buffer. The order above is
+the default (`DEFAULT_FX_ORDER` in `src/gl/effects.ts`), but the chain is
+**reorderable per instrument instance** — the ▲▼ controls on each FX category header
+move that effect earlier/later, stored as `fxOrder` on the instance (so e.g. a pad
+can compress-then-reverb while drums reverb-then-compress). A terminal master pass
 applies the output gain and additively accumulates each instrument's result.
 
 Most effects are pointwise or ring-buffer-based, but the **Filter** is **per-sample
@@ -266,6 +268,23 @@ primary target the LFOs / mod matrix were built to sweep.
 - **Reso** — resonance / Q (→ self-oscillation near the top)
 - **Mode** — LP (low-pass) · HP (high-pass) · BP (band-pass)
 - **Mix** — wet/dry blend
+
+### Compressor
+
+A per-sample envelope follower (the same strip + MRT state-carry as the filter),
+stereo-LINKED: one peak detector on `max(|L|,|R|)` drives one gain applied to both
+channels (preserving the stereo image). Defaults first in the chain.
+- **Thresh** — level above which compression starts (dB)
+- **Ratio** — amount of reduction (`gain = (env/thresh)^-(1-1/ratio)`)
+- **Attack / Release** — envelope time constants (ms)
+- **Makeup** — output gain to recover the lost level (dB)
+
+### Limiter — Transparent
+
+Shares the compressor's envelope core with ∞ ratio (a brick wall to the ceiling) and
+a fixed fast attack. Defaults dead last as the output ceiling.
+- **Ceiling** — peak the output is pinned below (dB)
+- **Release** — recovery time (ms)
 
 ### Chorus
 

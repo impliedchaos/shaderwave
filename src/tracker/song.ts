@@ -42,6 +42,7 @@ export function instrumentsFromParams(
         fx: pr.fx ? { ...pr.fx } : defaultFxParams(),    // per-instance fx (spec carries it, else default)
       };
       if (pr.ops) e.ops = pr.ops.map((o) => ({ ...o }));
+      if (pr.fxOrder) e.fxOrder = [...pr.fxOrder];     // per-instance chain order (saved songs)
       return addExtraBanks(e, pr);
     });
   }

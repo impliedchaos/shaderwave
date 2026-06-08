@@ -42,12 +42,15 @@ const EFFECTS = [
   ['Distortion', 'Boss DS-1 style diode hard-clip — Dist, Tone, Level'],
   ['Overdrive', 'Ibanez TS9 Tube Screamer — bass-cut soft asymmetric clip + mid-hump — Drive, Tone, Level'],
   ['Filter', 'Resonant state-variable filter (per-sample) — Cutoff, Reso, Mode (LP/HP/BP), Mix. The marquee LFO/automation sweep target.'],
+  ['Compressor', 'Per-sample envelope follower, stereo-linked — Thresh, Ratio, Attack, Release, Makeup'],
   ['Chorus', 'Modulated stereo delay line — Mix, Rate, Depth'],
   ['Tremolo', 'Auto-pan amplitude modulation — Mix, Rate'],
   ['Delay', 'Stereo feedback delay, ~2.7 s max — Time, Feedback, Mix'],
   ['Reverb', '4-line FDN with Householder feedback + damping — Decay, Damp, Send, Mix'],
   ['Bitcrusher', 'Bit-depth + sample-rate decimation, with dry/wet — Bits, Hz, Mix'],
   ['Width', 'Mid/side stereo width — >1 widens, <1 narrows toward mono'],
+  ['Limiter', 'Transparent brick-wall (per-sample, ∞ ratio) — Ceiling, Release. Defaults dead last.'],
+  ['Reorder', 'Each FX category header has ▲▼ to move that effect earlier/later in the chain — per instrument instance (e.g. comp before reverb on a pad, after on drums).'],
 ];
 
 const MODULATION = [
@@ -154,7 +157,7 @@ function build() {
   section('Mouse', MOUSE, 'kbd');
   section('Instruments', INSTRUMENTS, 'name');
   section('Effect column  ·  per-cell command + 2-hex value', PATTERN_FX, 'kbd');
-  section('Effects chain  ·  Dist → OD → Filter → Chorus → Tremolo → Delay → Reverb → Bitcrush → Width', EFFECTS, 'name');
+  section('Effects chain (reorderable per instrument)  ·  Comp → Filter → OD → Dist → Chorus → Tremolo → Delay → Reverb → Bitcrush → Width → Limiter', EFFECTS, 'name');
   section('Modulation', MODULATION, 'name');
 
   // Backdrop click (outside the panel) and the Close button both dismiss.

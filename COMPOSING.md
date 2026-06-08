@@ -154,16 +154,22 @@ For the exact, current truth on any engine see its descriptor `paramDefs` + `pre
 ## 6. fxParams (per engine type)
 
 Each engine **type** used in the song gets one fx entry. Start from `defaultFxParams()` and override.
-The chain is: Distortion → Overdrive → Filter → Chorus → Tremolo → Delay → Reverb → Bitcrusher → Width → Output.
+The chain is: Compressor → Filter → Overdrive → Distortion → Chorus → Tremolo → Delay → Reverb → Bitcrusher → Width → Limiter → Output.
+The order is **reorderable per instrument instance** (each instance can carry an `fxOrder: string[]` of
+effect keys; absent → default; unknown keys dropped + missing ones appended on load).
 
 Common fields (booleans + scalars):
 `enabled` (master), `distOn`/`dist`/`tone`/`level`, `odOn`/`odDrive`/`odTone`/`odLevel`,
 `filterOn`/`filterCutoff` (Hz)/`filterReso` (0..1 Q)/`filterMode` (0 LP·1 HP·2 BP)/`filterMix`,
 `chorusOn`/`chorusMix`/`chorusRate`/`chorusDepth`, `tremoloOn`/`tremoloMix`/`tremoloRate`,
 `delayOn`/`delayTime`/`delayFeedback`/`delayMix`, `reverbOn`/`reverbDecay`/`reverbDamp`/`reverbMix`,
-`bitcrushOn`/`bitcrushBits`/`bitcrushRate`/`bitcrushMix`, `widthOn`/`width`, `master` (fx output level).
+`bitcrushOn`/`bitcrushBits`/`bitcrushRate`/`bitcrushMix`, `widthOn`/`width`, `master` (fx output level),
+`compOn`/`compThresh` (dB)/`compRatio`/`compAttack` (ms)/`compRelease` (ms)/`compMakeup` (dB),
+`limitOn`/`limitCeil` (dB)/`limitRelease` (ms).
 The resonant **Filter** is per-sample recursive (LP/HP/BP); its `filterCutoff` (target code `FLC`, log)
-is the marquee LFO sweep target — pair it with a synced LFO for filter-sweep risers/wobbles.
+is the marquee LFO sweep target — pair it with a synced LFO for filter-sweep risers/wobbles. The
+**Compressor** + **Limiter** are also per-sample (stereo-linked envelope follower); all their params are
+fx-scope automation/LFO targets too (codes `CMT`/`CMR`/`CMA`/`CML`/`CMK` + `CMO`; `LMC`/`LMR` + `LMO`).
 
 ```ts
 '303': Object.assign(defaultFxParams(), { distOn: true, dist: 10, delayOn: true, delayMix: 0.3, master: 0.85 }),

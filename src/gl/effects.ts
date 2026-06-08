@@ -26,6 +26,7 @@ import FX_FDN_TAP from './shaders/fx-fdn-tap.glsl?raw';
 import FX_BITCRUSH from './shaders/fx-bitcrush.glsl?raw';
 import FX_BITCRUSH_UPDATE from './shaders/fx-bitcrush-update.glsl?raw';
 import FX_FILTER from './shaders/fx-filter.glsl?raw';
+import FX_DYNAMICS from './shaders/fx-dynamics.glsl?raw';
 import FX_WIDTH from './shaders/fx-width.glsl?raw';
 import FX_MASTER from './shaders/fx-master.glsl?raw';
 
@@ -348,6 +349,80 @@ const fxFilter: FxEffectDef = {
   },
 };
 
+// Compressor + Limiter share one per-sample recursive envelope follower
+// (fx-dynamics.glsl via ctx.recursive). They differ only in how their params map
+// to the shader's threshold/slope/coefficients, so a small factory builds both.
+// `coeffs(p, sr)` returns the per-block uniforms; `on` is the live enable flag.
+type DynCoeffs = { threshLin: number; slope: number; atkCoef: number; relCoef: number; makeup: number };
+function makeDynamics(def: {
+  key: string; name: string; enableFlag: string; defaults: Partial<FxParams>;
+  coeffs: (p: FxParams, sr: number) => DynCoeffs;
+}): FxEffectDef {
+  return {
+    key: def.key, name: def.name, enableFlag: def.enableFlag, defaults: def.defaults,
+    init(gl) {
+      const prog = createProgram(gl, FX_DYNAMICS);
+      gl.useProgram(prog); gl.uniform1i(prog.u('uIn'), 0); gl.uniform1i(prog.u('uPrevState'), 1);
+      let read = makeTex(gl, BLOCK, 1), write = makeTex(gl, BLOCK, 1);   // envelope carry
+      return {
+        reset(clear) { clear(read); clear(write); },
+        process(ctx, inTex, outFbo) {
+          const g = ctx.gl;
+          g.useProgram(prog);
+          if (!ctx.on(def.enableFlag)) {
+            g.bindFramebuffer(g.FRAMEBUFFER, outFbo);
+            g.drawBuffers([g.COLOR_ATTACHMENT0]);
+            ctx.bind(0, inTex);
+            g.uniform1i(prog.u('uBypass'), 1);
+            g.viewport(0, 0, BLOCK, 1); drawQuad(g);
+            return;
+          }
+          const c = def.coeffs(ctx.params, ctx.sampleRate);
+          g.uniform1i(prog.u('uBypass'), 0);
+          g.uniform1f(prog.u('uAtkCoef'), c.atkCoef);
+          g.uniform1f(prog.u('uRelCoef'), c.relCoef);
+          g.uniform1f(prog.u('uThreshLin'), c.threshLin);
+          g.uniform1f(prog.u('uSlope'), c.slope);
+          g.uniform1f(prog.u('uMakeup'), c.makeup);
+          [read, write] = ctx.recursive(prog, inTex, outFbo, read, write);
+        },
+      };
+    },
+  };
+}
+
+// One-pole smoothing coefficient for a time constant in milliseconds.
+const msCoef = (ms: number, sr: number) => 1 - Math.exp(-1 / (Math.max(0.05, ms) / 1000 * sr));
+const dbToLin = (db: number) => Math.pow(10, db / 20);
+
+const fxCompressor = makeDynamics({
+  key: 'compressor', name: 'Compressor', enableFlag: 'compOn',
+  defaults: { compOn: false, compThresh: -18, compRatio: 3, compAttack: 10, compRelease: 120, compMakeup: 0 },
+  coeffs(p, sr) {
+    return {
+      threshLin: dbToLin((p.compThresh as number) ?? -18),
+      slope: 1 - 1 / Math.max(1, (p.compRatio as number) ?? 3),
+      atkCoef: msCoef((p.compAttack as number) ?? 10, sr),
+      relCoef: msCoef((p.compRelease as number) ?? 120, sr),
+      makeup: dbToLin((p.compMakeup as number) ?? 0),
+    };
+  },
+});
+
+const fxLimiter = makeDynamics({
+  key: 'limiter', name: 'Limiter', enableFlag: 'limitOn',
+  defaults: { limitOn: false, limitCeil: -1, limitRelease: 80 },
+  coeffs(p, sr) {
+    return {
+      threshLin: dbToLin((p.limitCeil as number) ?? -1),
+      slope: 1.0,                       // ∞ ratio → brick wall to the ceiling
+      atkCoef: msCoef(0.3, sr),         // fixed fast attack (transparent peak catch)
+      relCoef: msCoef((p.limitRelease as number) ?? 80, sr),
+      makeup: 1.0,
+    };
+  },
+});
+
 const fxWidth: FxEffectDef = {
   key: 'width', name: 'Stereo Width', enableFlag: 'widthOn',
   defaults: { widthOn: true, width: 1.15 },
@@ -368,10 +443,26 @@ const fxWidth: FxEffectDef = {
 // Signal-flow order matches the README chain; the master accumulate always runs
 // after it. Reorder this array to rearrange the chain.
 export const FX_EFFECTS: FxEffectDef[] = [
-  fxDistortion, fxOverdrive, fxFilter, fxChorus, fxTremolo, fxDelay, fxReverb, fxBitcrush, fxWidth,
+  fxCompressor, fxFilter, fxOverdrive, fxDistortion, fxChorus, fxTremolo, fxDelay, fxReverb, fxBitcrush, fxWidth, fxLimiter,
 ];
 
 export const DEFAULT_FX_ORDER = FX_EFFECTS.map((e) => e.key);
+
+// Reconcile a (possibly stale / hand-edited) per-instance chain order with the
+// current registry: keep the listed known keys in their given order, drop unknown
+// ones, then APPEND any registry keys the list is missing (in DEFAULT order). This
+// is what keeps a newly-added effect from silently vanishing from a saved song's
+// chain — every effect always runs, just maybe at the end.
+export function normalizeFxOrder(order: string[] | undefined): string[] {
+  const known = new Set(DEFAULT_FX_ORDER);
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const k of order ?? []) {
+    if (known.has(k) && !seen.has(k)) { out.push(k); seen.add(k); }
+  }
+  for (const k of DEFAULT_FX_ORDER) if (!seen.has(k)) out.push(k);
+  return out;
+}
 
 // The full default param set, derived from the registry (+ chain-level fields).
 export function defaultFxParams(): FxParams {
@@ -385,7 +476,7 @@ export function defaultFxParams(): FxParams {
 // stays the song-authoring baseline; only `+ Add` uses this.)
 export function neutralFxParams(): FxParams {
   const p = defaultFxParams();
-  p.distOn = p.odOn = p.filterOn = p.chorusOn = p.tremoloOn = p.delayOn = p.reverbOn = p.widthOn = p.bitcrushOn = false;
+  p.distOn = p.odOn = p.filterOn = p.compOn = p.limitOn = p.chorusOn = p.tremoloOn = p.delayOn = p.reverbOn = p.widthOn = p.bitcrushOn = false;
   p.dist = 0;                         // distortion drive → transparent
   p.odDrive = 1; p.odTone = 0.5;      // overdrive: unity drive, centre tone
   p.delayMix = 0; p.reverbMix = 0; p.bitcrushMix = 0;
@@ -458,7 +549,8 @@ export class EffectsChain {
     const p = this.params as Record<string, number | boolean>;
     // Newer opt-in effects (bitcrush, overdrive) default OFF when the flag is
     // absent (truthy test); the original effects default ON (!== false).
-    return !!this.params.enabled && ((flag === 'bitcrushOn' || flag === 'odOn') ? !!p[flag] : p[flag] !== false);
+    const optIn = flag === 'bitcrushOn' || flag === 'odOn' || flag === 'filterOn' || flag === 'compOn' || flag === 'limitOn';
+    return !!this.params.enabled && (optIn ? !!p[flag] : p[flag] !== false);
   }
 
   _stereoPass(prog: GLProgram, inTex: WebGLTexture, outFbo: WebGLFramebuffer | null): GLProgram {

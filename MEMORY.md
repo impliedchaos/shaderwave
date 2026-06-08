@@ -88,7 +88,9 @@ Honest assessment of what the project most needs (beyond the parked plans below)
    AND, when `renderBlockAsync` exists, asserts `async[n]==sync[n-1]` bit-for-bit (the async-readback
    guard). STILL TODO to fold in: bitcrush continuity, new-instrument fx defaults. The HTML harnesses
    (glsl/render/onset/instance/drum) remain the GPU-correctness net.
-4. Then the parked **compressor/limiter** + **reorderable per-instrument chain**.
+4. ✅ DONE (1.14.0) — **compressor + transparent limiter** (shared per-sample envelope follower via
+   `_recursive`) + **reorderable per-instrument chain** (▲▼ in the FX panel, `fxOrder` per instance).
+   See the dedicated entry below.
 5. **Async readback** (PBO + `fenceSync`) — ✅ DONE (1.11.0). `SynthRenderer._renderToMix()` does the
    synth+mix passes; `renderBlock()` keeps the SYNCHRONOUS readPixels (offline WAV export + all test
    harnesses use it as ground truth — offline wants exact full-length output, no main-thread-stall
@@ -150,7 +152,8 @@ revisit (esp. with samples + the playback lib needing compact, portable files):
   IMAGES, not waveform precision — they'd mangle audio. Wrong tool. (A WASM Opus/FLAC encoder is the
   only path if we ever must re-encode raw PCM, but storing original bytes avoids needing one.)
 
-### Compressor + transparent Limiter (two effects, shared envelope core) — PLANNED — `project`
+### Compressor + transparent Limiter (two effects, shared envelope core) — ✅ DONE (1.14.0) — `project`
+(Implemented — see "Compressor + Limiter + reorderable chain (1.14.0)" above. Design notes kept below.)
 Agreed 2026-06-08, build later. Decided to make them **two SEPARATE effects** (separate chain
 slots/toggles/params) — different roles + different ideal placement (comp early-ish for glue,
 limiter dead last as an output ceiling), which the reorderable-chain feature (below) unlocks.
@@ -180,7 +183,8 @@ on play/stop → deterministic for export.
 - **Gotcha reminder:** add the new enable flags (`compOn`,`limitOn`) to the `_on()` truthy group
   in effects.ts so they default OFF for partial-fx songs (see Overdrive entry).
 
-### Reorderable per-instrument effect chain — PLANNED ("feature c") — `project`
+### Reorderable per-instrument effect chain — ✅ DONE (1.14.0, "feature c") — `project`
+(Implemented — see the 1.14.0 entry above. Design notes kept below.)
 Agreed 2026-06-08, build later. Make the FX chain ORDER editable + per-instrument-instance
 (currently `EffectsChain.order = DEFAULT_FX_ORDER.slice()`, fixed + identical for all).
 - **Data model:** add `fxOrder?: string[]` to `InstrumentInstance` (effect keys, e.g.
@@ -270,6 +274,35 @@ is warranted.
 **Verify:** build + glsl-check + render-check + song-load loop + headless checks (no block-rate
 glitch — render a held tone with decimation across block boundaries, assert sample continuity;
 toggle automation flips an effect on/off; mid-tread quantizer keeps 0).
+
+### Compressor + Limiter + reorderable chain (1.14.0) — `project`
+Added 2026-06-08. Built on the 1.13.0 `_recursive` infra.
+- **Shared dynamics core (`fx-dynamics.glsl`):** one per-sample recursive envelope follower drives BOTH
+  the Compressor and Limiter. STEREO-LINKED: peak detector on `max(|L|,|R|)` → one gain on both channels
+  (stereo image preserved). One-pole attack/release (coefs computed per block on CPU). Gain law in closed
+  form: `gain = (env/thresh)^(-slope)` when `env>thresh`, `slope = 1 - 1/ratio` → ratio 4 = 0.75 (comp),
+  ratio ∞ → slope 1 → `gain = thresh/env` (brick-wall limiter). State = env in texel `.r`. Cheap O(BLOCK)
+  bypass when off. A `makeDynamics({coeffs})` factory in effects.ts builds both defs from one shader.
+- **Compressor** (`fxCompressor`, `compOn`): Thresh(dB)/Ratio/Attack(ms)/Release(ms)/Makeup(dB).
+  **Limiter** (`fxLimiter`, `limitOn`): Ceiling(dB)/Release(ms), fixed 0.3ms attack, ∞ ratio.
+  Default chain order (per user request): **Comp → Filter → OD → Dist → Chorus → Tremolo → Delay →
+  Reverb → Bitcrush → Width → Limiter** (comp first, filter second, overdrive before distortion,
+  limiter dead last). Order = `FX_EFFECTS` array → `DEFAULT_FX_ORDER`; reorderable per instance at runtime.
+- **Targets** (appended at the very end of TARGETS, id-stable): `CMO`/`CMT`/`CMR`/`CMA`/`CML`/`CMK`,
+  `LMO`/`LMC`/`LMR`. Added `compOn`/`limitOn` (and `filterOn`, which was missing!) to the `_on()` opt-in
+  truthy group so they default OFF for partial-fx songs.
+- **Reorderable per-instrument chain:** `InstrumentInstance.fxOrder?: string[]`; `normalizeFxOrder()` in
+  effects.ts reconciles a saved/edited order with the registry (drop unknown, append missing in DEFAULT
+  order, dedupe) — so a newly-added effect never silently vanishes. `SynthRenderer.setInstrumentFxOrder()`
+  feeds normalized orders; the per-instance loop sets `chain.order` before process. Persisted per
+  instrument in song-io (additive `fxOrder` field; absent → default). UI: the FX panel now renders
+  category blocks in the instance's order (FX_DEFS grouped into `FX_GROUPS` by `fxKey`), with ▲▼ on each
+  header to move it; reorder writes `instr.fxOrder` + re-syncs the renderer.
+- **Verified:** `test/dynamics-check.html` (NEW) matches a CPU envelope-follower reference to ~1e-6 across
+  strip/block boundaries, confirms gain reduction (loud peak 0.45 vs 0.90) + limiter brick-wall (peak
+  0.509 vs ceiling 0.501) + transparent bypass. glsl-check covers fx-dynamics. `effects.test.ts` covers
+  normalizeFxOrder. golden checksum UNCHANGED (0x5fc60c89 — new effects off + default order → existing
+  songs byte-identical). 30/30 logic, filter/render/golden all green.
 
 ### Per-sample recursive FX + resonant filter (1.13.0) — `project`
 Added 2026-06-08. The FX chain can now do PER-SAMPLE RECURSION (the linchpin for filter/compressor/

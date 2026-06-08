@@ -43,6 +43,7 @@ export interface SerializedInstrument {
   p3?: number[];
   ops?: DX7Op[];
   fx?: FxParams;          // v2+: this instance's own effect chain
+  fxOrder?: string[];     // optional per-instance chain order (absent → default)
 }
 
 export interface SerializedSong {
@@ -119,6 +120,7 @@ export function serializeSong(s: SongIOInput): SerializedSong {
       ...(i.p3 ? { p3: [...i.p3] } : {}),
       ...(i.ops ? { ops: i.ops.map((o) => ({ ...o })) } : {}),
       fx: { ...i.fx },                     // v2+: per-instance effect chain
+      ...(i.fxOrder ? { fxOrder: [...i.fxOrder] } : {}),   // per-instance chain order
     })),
     order: [...s.order],
     patterns: s.patterns.map(serializePattern),

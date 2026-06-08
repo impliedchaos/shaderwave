@@ -3,7 +3,7 @@
 // (browser autoplay policy), so the grid is interactive before any sound.
 import { createGL } from './gl/context.js';
 import { SynthRenderer } from './gl/synth-renderer.js';
-import { defaultFxParams } from './gl/effects.js';
+import { defaultFxParams, normalizeFxOrder } from './gl/effects.js';
 import { AudioPipeline } from './audio/pipeline.js';
 import { Engine } from './tracker/engine.js';
 import { TrackerView } from './ui/tracker-view.js';
@@ -52,6 +52,7 @@ const DRUM_KEYS = [36, 38, 42, 46, 39, 41, 45, 48, 56];
 // effects.js). Static, so it lives at module scope rather than rebuilt per call.
 interface FxDef {
   category?: string;
+  fxKey?: string;                   // registry effect key (category rows) — for reordering
   enableKey?: string;
   label?: string;
   key?: string;
@@ -65,51 +66,73 @@ interface FxDef {
 // Knob labels intentionally drop the effect-name prefix — they sit under their
 // category header, so "Mix"/"Rate"/etc. are unambiguous (and repeat per effect).
 const FX_DEFS: FxDef[] = [
-  { category: 'Distortion', enableKey: 'distOn' },
+  { category: 'Distortion', fxKey: 'distortion', enableKey: 'distOn' },
   { label: 'Drive', key: 'dist', min: 0.001, max: 20, step: 0.1 },
   { label: 'Tone', key: 'tone', min: 0, max: 1, step: 0.01 },
   { label: 'Level', key: 'level', min: 0, max: 2, step: 0.01 },
 
-  { category: 'Overdrive', enableKey: 'odOn' },
+  { category: 'Overdrive', fxKey: 'overdrive', enableKey: 'odOn' },
   { label: 'Drive', key: 'odDrive', min: 1, max: 30, step: 0.1, log: true },
   { label: 'Tone', key: 'odTone', min: 0, max: 1, step: 0.01 },
   { label: 'Level', key: 'odLevel', min: 0, max: 1.5, step: 0.01 },
 
-  { category: 'Filter', enableKey: 'filterOn' },
+  { category: 'Filter', fxKey: 'filter', enableKey: 'filterOn' },
   { label: 'Cutoff', key: 'filterCutoff', min: 20, max: 18000, step: 1, log: true,
     fmt: (v) => v >= 1000 ? (v / 1000).toFixed(1) + 'k' : Math.round(v) + '' },
   { label: 'Reso', key: 'filterReso', min: 0, max: 1, step: 0.01 },
   { label: 'Mode', key: 'filterMode', min: 0, max: 2, step: 1, fmt: (v) => ['LP', 'HP', 'BP'][Math.round(v)] ?? 'LP' },
   { label: 'Mix', key: 'filterMix', min: 0, max: 1, step: 0.01 },
 
-  { category: 'Stereo Chorus', enableKey: 'chorusOn' },
+  { category: 'Compressor', fxKey: 'compressor', enableKey: 'compOn' },
+  { label: 'Thresh', key: 'compThresh', min: -60, max: 0, step: 0.5, fmt: (v) => v.toFixed(1) + 'dB' },
+  { label: 'Ratio', key: 'compRatio', min: 1, max: 20, step: 0.1, log: true, fmt: (v) => v.toFixed(1) + ':1' },
+  { label: 'Attack', key: 'compAttack', min: 0.1, max: 100, step: 0.1, log: true, fmt: (v) => v.toFixed(1) + 'ms' },
+  { label: 'Release', key: 'compRelease', min: 5, max: 500, step: 1, log: true, fmt: (v) => Math.round(v) + 'ms' },
+  { label: 'Makeup', key: 'compMakeup', min: 0, max: 24, step: 0.5, fmt: (v) => v.toFixed(1) + 'dB' },
+
+  { category: 'Stereo Chorus', fxKey: 'chorus', enableKey: 'chorusOn' },
   { label: 'Mix', key: 'chorusMix', min: 0, max: 1, step: 0.01 },
   { label: 'Rate', key: 'chorusRate', min: 0.1, max: 5.0, step: 0.05 },
   { label: 'Depth', key: 'chorusDepth', min: 0.5, max: 5.0, step: 0.1 },
 
-  { category: 'Stereo Tremolo (Auto-Pan)', enableKey: 'tremoloOn' },
+  { category: 'Stereo Tremolo (Auto-Pan)', fxKey: 'tremolo', enableKey: 'tremoloOn' },
   { label: 'Mix', key: 'tremoloMix', min: 0, max: 1, step: 0.01 },
   { label: 'Rate', key: 'tremoloRate', min: 0.5, max: 15.0, step: 0.1 },
 
-  { category: 'Delay', enableKey: 'delayOn' },
+  { category: 'Delay', fxKey: 'delay', enableKey: 'delayOn' },
   { label: 'Time', key: 'delayTime', min: 0.02, max: 1.2, step: 0.01 },
   { label: 'Feedback', key: 'delayFeedback', min: 0, max: 0.9, step: 0.01 },
   { label: 'Mix', key: 'delayMix', min: 0, max: 1, step: 0.01 },
 
-  { category: 'Reverb', enableKey: 'reverbOn' },
+  { category: 'Reverb', fxKey: 'reverb', enableKey: 'reverbOn' },
   { label: 'Decay', key: 'reverbDecay', min: 0, max: 0.97, step: 0.01 },
   { label: 'Damp', key: 'reverbDamp', min: 0, max: 0.95, step: 0.01 },
   { label: 'Mix', key: 'reverbMix', min: 0, max: 1, step: 0.01 },
 
-  { category: 'Bitcrusher', enableKey: 'bitcrushOn' },
+  { category: 'Bitcrusher', fxKey: 'bitcrush', enableKey: 'bitcrushOn' },
   { label: 'Bits', key: 'bitcrushBits', min: 4, max: 33, step: 1, fmt: (v) => v >= 33 ? 'Off' : String(Math.round(v)) },
   { label: 'Hz', key: 'bitcrushRate', min: 100, max: 48000, step: 100, log: true,
     fmt: (v) => v >= 48000 ? 'Off' : (v >= 1000 ? (v / 1000).toFixed(1) + 'k' : Math.round(v) + '') },
   { label: 'Mix', key: 'bitcrushMix', min: 0, max: 1, step: 0.01 },
 
-  { category: 'Stereo Field', enableKey: 'widthOn' },
+  { category: 'Stereo Field', fxKey: 'width', enableKey: 'widthOn' },
   { label: 'Width', key: 'width', min: 0, max: 2, step: 0.01 },
+
+  { category: 'Limiter', fxKey: 'limiter', enableKey: 'limitOn' },
+  { label: 'Ceiling', key: 'limitCeil', min: -24, max: 0, step: 0.1, fmt: (v) => v.toFixed(1) + 'dB' },
+  { label: 'Release', key: 'limitRelease', min: 5, max: 500, step: 1, log: true, fmt: (v) => Math.round(v) + 'ms' },
 ];
+
+// One reorderable chain block: a category header + its knob rows, keyed by the
+// registry effect key. Derived once from FX_DEFS; the FX panel renders these in the
+// selected instance's fxOrder so the displayed chain matches the audio chain.
+interface FxGroup { fxKey: string; category: string; enableKey?: string; knobs: FxDef[] }
+const FX_GROUPS: FxGroup[] = [];
+for (const d of FX_DEFS) {
+  if (d.category) FX_GROUPS.push({ fxKey: d.fxKey!, category: d.category, enableKey: d.enableKey, knobs: [] });
+  else FX_GROUPS[FX_GROUPS.length - 1]?.knobs.push(d);
+}
+const FX_GROUP_BY_KEY: Record<string, FxGroup> = Object.fromEntries(FX_GROUPS.map((g) => [g.fxKey, g]));
 
 // A knob <div> the UI loop drives externally (see bindKnob in controls.ts).
 type KnobEl = HTMLElement & { _extSet?: (v: number) => void };
@@ -363,6 +386,7 @@ export class App {
   // reference, so live knob edits are picked up without re-calling this.
   _syncRendererFx() {
     this.renderer?.setInstrumentFx(this.engine.instruments.map((i) => i.fx));
+    this.renderer?.setInstrumentFxOrder(this.engine.instruments.map((i) => i.fxOrder));
   }
 
   _buildFxPanel() {
@@ -408,29 +432,19 @@ export class App {
     toggle.onclick = () => { params.enabled = !params.enabled; this._buildFxPanel(); };
     if (!params.enabled) return;
 
-    let catOn = true;   // is the current effect category enabled? (its knobs hide when off)
-    for (const d of FX_DEFS) {
-      if (d.category) {
-        const cat = document.createElement('h3');
-        cat.textContent = d.category;
-        catOn = true;
-        if (d.enableKey) {
-          const ek = d.enableKey;
-          if (params[ek] === undefined) {
-            params[ek] = (ek === 'bitcrushOn' || ek === 'odOn') ? false : true;
-          }
-          catOn = params[ek] !== false;
-          const btn = document.createElement('button');
-          btn.className = 'fx-cat-toggle' + (catOn ? ' on' : '');
-          btn.textContent = catOn ? 'on' : 'off';
-          // Re-render so the category's knobs collapse/expand with its switch.
-          btn.onclick = () => { params[ek] = (params[ek] === false); this._buildFxPanel(); };
-          cat.appendChild(btn);
-        }
-        host.appendChild(cat);
-        continue;
-      }
-      if (!catOn) continue;   // effect off → hide its knobs (the header/toggle stays)
+    // Render the chain in the INSTANCE's order (normalized against the registry), so
+    // the panel mirrors the audio chain. ▲▼ on each header reorders this instance.
+    const order = normalizeFxOrder(instr.fxOrder);
+    const reorder = (from: number, to: number) => {
+      if (to < 0 || to >= order.length) return;
+      const next = order.slice();
+      const [m] = next.splice(from, 1); next.splice(to, 0, m);
+      instr.fxOrder = next;            // persist on the instance
+      this._buildFxPanel();
+      this._syncRendererFx();          // push the new order to the renderer
+    };
+
+    const renderKnob = (d: FxDef) => {
       const key = d.key!, min = d.min!, max = d.max!, step = d.step!;
       if (params[key] === undefined) {
         if (key === 'bitcrushBits') params[key] = 8.0;
@@ -439,32 +453,62 @@ export class App {
       }
       const block = document.createElement('div');
       block.className = 'param-control-block';
-
       const label = document.createElement('label');
       label.textContent = d.label ?? '';
       block.appendChild(label);
-
       const wrapper = document.createElement('div');
       wrapper.className = 'knob-wrapper';
-
       const knob = document.createElement('div');
       knob.className = 'knob';
       wrapper.appendChild(knob);
-
       const valSpan = document.createElement('span');
       valSpan.className = 'knob-value';
       wrapper.appendChild(valSpan);
-
       block.appendChild(wrapper);
       host.appendChild(block);
-
       const isPercent = min === 0 && max === 1 && step < 1;
-
       bindKnob(knob, valSpan, min, max, step, params[key] as number, isPercent, (v) => {
         params[key] = v;
       }, d.fmt ?? null, undefined, d.log ?? false);
       this._fxKnobs.push({ el: knob, key });
-    }
+    };
+
+    order.forEach((fxKey, pos) => {
+      const g = FX_GROUP_BY_KEY[fxKey];
+      if (!g) return;
+      const cat = document.createElement('h3');
+      cat.textContent = g.category;
+
+      // Move up/down within the chain.
+      const moves = document.createElement('span');
+      moves.className = 'fx-cat-move';
+      const up = document.createElement('button');
+      up.className = 'fx-move-btn'; up.textContent = '▲'; up.title = 'move earlier in chain';
+      up.disabled = pos === 0;
+      up.onclick = () => reorder(pos, pos - 1);
+      const dn = document.createElement('button');
+      dn.className = 'fx-move-btn'; dn.textContent = '▼'; dn.title = 'move later in chain';
+      dn.disabled = pos === order.length - 1;
+      dn.onclick = () => reorder(pos, pos + 1);
+      moves.appendChild(up); moves.appendChild(dn);
+      cat.appendChild(moves);
+
+      let catOn = true;
+      if (g.enableKey) {
+        const ek = g.enableKey;
+        if (params[ek] === undefined) {
+          params[ek] = (ek === 'bitcrushOn' || ek === 'odOn' || ek === 'filterOn' || ek === 'compOn' || ek === 'limitOn') ? false : true;
+        }
+        catOn = params[ek] !== false;
+        const btn = document.createElement('button');
+        btn.className = 'fx-cat-toggle' + (catOn ? ' on' : '');
+        btn.textContent = catOn ? 'on' : 'off';
+        btn.onclick = () => { params[ek] = (params[ek] === false); this._buildFxPanel(); };
+        cat.appendChild(btn);
+      }
+      host.appendChild(cat);
+      if (catOn) for (const d of g.knobs) renderKnob(d);   // effect off → hide its knobs
+    });
   }
 
   _bindTransport() {

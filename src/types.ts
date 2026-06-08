@@ -51,6 +51,7 @@ export interface InstrumentInstance extends InstrumentParams {
   type: InstrumentType;
   color: string;
   fx: FxParams;          // this instance's OWN effect chain (per-instrument fx)
+  fxOrder?: string[];    // per-instance effect-chain order (effect keys); absent → default
 }
 
 // An instrument as *authored* in a song's `params` array: the engine type is
@@ -60,6 +61,7 @@ export interface InstrumentSpec extends InstrumentParams {
   name?: string;
   color?: string;
   fx?: FxParams;         // optional authored fx (saved songs carry it; demos author per-type)
+  fxOrder?: string[];    // optional per-instance effect-chain order
 }
 
 // ── Automation ────────────────────────────────────────────────────────────
@@ -128,6 +130,15 @@ export interface FxParams {
   filterReso: number;     // 0..1 → Q
   filterMode: number;     // 0 LP · 1 HP · 2 BP
   filterMix: number;      // dry/wet
+  compOn: boolean;
+  compThresh: number;     // dB
+  compRatio: number;      // :1
+  compAttack: number;     // ms
+  compRelease: number;    // ms
+  compMakeup: number;     // dB
+  limitOn: boolean;
+  limitCeil: number;      // dB (output ceiling)
+  limitRelease: number;   // ms
   /** Legacy authoring field, migrated to `dist` by makeFx. */
   drive?: number;
   [key: string]: number | boolean | undefined;
