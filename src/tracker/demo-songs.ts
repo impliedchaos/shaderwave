@@ -4166,5 +4166,213 @@ export const DEMO_SONGS: SongDef[] = [
         pan: [0.5, 0.5, 0.5, 0.5, 0.42, 0.58, 0.6, 0.4],
       };
     }
+  },
+  {
+    name: "Hervé's Fancy Dance",
+    author: "AI Slop",
+    note: "A ~4-min island story: turquoise-lagoon tanpura drone, a turbo-prop droning overhead (tremolo'd e8e panning across the field), the local tribe's tabla-and-steel-pan groove, then Tattoo's dance — graceful piano/string ballet that turns urban into an acid-303 b-boy break before Mr. Roarke's calm outro. C–Am–F–G, 102 BPM.",
+    bpm: 102,
+    master: DEFAULT_MASTER * 0.55,
+    params: [
+      { name: "Lagoon Tanpura", type: "tanpura", p0: [3.2, 0.6, 0.07, 0.13], p1: [48, 0.0001, 0.24, 0.005] },
+      { name: "Island Tabla",   type: "tabla",   p0: [0.6, 0.1, 0.5, 2.0],   p1: [6, 0.001, 0.07, 0.5] },
+      { name: "B-Boy Kit",      type: "808",     p0: [0, 0.5, 0.5, 0.6],     p1: [0, 0, 0, 0] },
+      { name: "Tattoo Piano",   type: "pipi",    p0: [4.0, 0.0005, 0.55, 0.35], p1: [26, 0.0014, 0.8, 0.16] },
+      { name: "Roarke Strings", type: "moog",    p0: [900, 0.2, 0.5, 0.2],   p1: [12, 0.95, 0.8, 1.1], p2: [1, 1, 2, 0.05], p3: [2, 2, 3, 0] },
+      { name: "Sub Bass",       type: "moog",    p0: [200, 0.4, 0.6, 0],     p1: [3, 0.7, 0.4, 0.5],  p2: [1, 1, 1, 0],    p3: [1, 1, 1, 0] },
+      { name: "Urban Acid",     type: "303",     p0: [520, 0.85, 0.7, 0.5],  p1: [1, 0.22, 0.3, 0] },
+      { name: "Steel-Pan Gtr",  type: "guitar",  p0: [2.2, 0.16, 0.7, 0.85], p1: [30, 0, 0.4, 0.14] },
+      { name: "Turbo-Prop",     type: "e8e",     p0: [0.3, 0.5, 0.9, 0.8],   p1: [0.18, -7, 6, 0.35], p2: [1, 1, 1, 3], p3: [1.0, 0.85, 0.6, 0.5] },
+    ],
+    fxParams: {
+      'tanpura': Object.assign(defaultFxParams(), { distOn: false, chorusOn: true, chorusMix: 0.2, chorusRate: 0.4, chorusDepth: 3, delayOn: false, reverbOn: true, reverbDecay: 0.9, reverbSend: 0.6, reverbMix: 0.32, widthOn: true, width: 1.3, master: 0.7 }),
+      'tabla':   Object.assign(defaultFxParams(), { distOn: true, dist: 1.2, tone: 0.5, delayOn: false, reverbOn: true, reverbDecay: 0.55, reverbSend: 0.32, reverbMix: 0.16, master: 0.85 }),
+      '808':     Object.assign(defaultFxParams(), { distOn: true, dist: 2.5, tone: 0.55, delayOn: false, reverbOn: true, reverbDecay: 0.4, reverbSend: 0.2, reverbMix: 0.08, master: 0.9 }),
+      'pipi':    Object.assign(defaultFxParams(), { distOn: false, chorusOn: true, chorusMix: 0.15, chorusRate: 0.5, chorusDepth: 4, delayOn: true, delayTime: 0.34, delayFeedback: 0.28, delayMix: 0.18, reverbOn: true, reverbDecay: 0.85, reverbSend: 0.45, reverbMix: 0.28, widthOn: true, width: 1.2, master: 0.75 }),
+      'moog':    Object.assign(defaultFxParams(), { distOn: true, dist: 1.5, tone: 0.5, chorusOn: true, chorusMix: 0.18, chorusRate: 0.3, chorusDepth: 5, delayOn: false, reverbOn: true, reverbDecay: 0.8, reverbSend: 0.4, reverbMix: 0.2, widthOn: true, width: 1.2, master: 0.78 }),
+      '303':     Object.assign(defaultFxParams(), { distOn: true, dist: 8.0, tone: 0.6, level: 1.0, delayOn: true, delayTime: 0.28, delayFeedback: 0.4, delayMix: 0.28, reverbOn: true, reverbDecay: 0.7, reverbSend: 0.35, reverbMix: 0.18, master: 0.8 }),
+      'guitar':  Object.assign(defaultFxParams(), { distOn: false, chorusOn: true, chorusMix: 0.3, chorusRate: 0.8, chorusDepth: 4, delayOn: true, delayTime: 0.3, delayFeedback: 0.3, delayMix: 0.22, reverbOn: true, reverbDecay: 0.7, reverbSend: 0.35, reverbMix: 0.2, widthOn: true, width: 1.3, master: 0.78 }),
+      'e8e':     Object.assign(defaultFxParams(), { distOn: true, dist: 3.0, tone: 0.45, tremoloOn: true, tremoloMix: 0.85, tremoloRate: 9.0, delayOn: false, reverbOn: true, reverbDecay: 0.6, reverbSend: 0.4, reverbMix: 0.22, master: 0.7 }),
+    },
+    data: () => {
+      const P = () => new Pattern(64, 8);
+      const pArrive = P(), pPlane = P(), pTribe = P(), pTribeB = P(), pBallet = P(),
+            pBalletB = P(), pTurn = P(), pBboy = P(), pBboyB = P(), pFreeze = P(), pRoarke = P();
+
+      const I_TAN = 0, I_TABLA = 1, I_808 = 2, I_PIANO = 3, I_STR = 4, I_BASS = 5, I_303 = 6, I_GTR = 7, I_PLANE = 8;
+      const BD = 36, SD = 38, HH = 42, OH = 46;       // 808 strokes
+      const BAYAN = 40, DAYAN = 64;                    // tabla low/high
+
+      // Harmony: C-Am-F-G, one chord per bar (16 rows). Bright island/A-minor field.
+      const ROOTS = [60, 57, 53, 55];
+      const root = (bar: number) => ROOTS[bar % 4];
+      // Absolute C-major pentatonic (= A-minor pentatonic notes) — consonant over all four chords.
+      const SCALE = [0, 2, 4, 7, 9];
+      const pent = (i: number, base: number) => { const o = Math.floor(i / 5); const s = ((i % 5) + 5) % 5; return base + o * 12 + SCALE[s]; };
+
+      // Plucked tanpura drone — re-articulated Sa/Pa/low-Sa so the long decays overlap.
+      const drone = (pat: Pattern, vol = 0.8) => {
+        for (let r = 0; r < 64; r++) {
+          if (r % 16 === 0)  pat.set(r, 4, 48, I_TAN, vol);          // Sa  (C3)
+          if (r % 32 === 8)  pat.set(r, 4, 55, I_TAN, vol * 0.85);   // Pa  (G3)
+          if (r % 32 === 24) pat.set(r, 4, 36, I_TAN, vol * 0.8);    // low Sa (C2)
+        }
+      };
+      // One lush, detuned moog "string" note per bar (held — the slow LFO sweeps its filter).
+      const strings = (pat: Pattern, vol = 0.55) => {
+        for (let bar = 0; bar < 4; bar++) { const r = bar * 16; pat.set(r, 5, root(bar), I_STR, vol); pat.set(r + 15, 5, OFF, I_STR); }
+      };
+      const bass = (pat: Pattern, vol = 0.8, busy = false) => {
+        for (let r = 0; r < 64; r++) {
+          const s = r % 16, bar = Math.floor(r / 16);
+          const hit = busy ? (s === 0 || s === 6 || s === 8 || s === 14) : (s === 0 || s === 8);
+          if (hit) { pat.set(r, 3, root(bar) - 24, I_BASS, vol); pat.set(r + 1, 3, OFF, I_BASS); }
+        }
+      };
+      // Tabla hand-drum groove: bayan (bass, ch0) + dayan na/ghost (ch1).
+      type Beat = { ghost?: boolean; fill?: boolean };
+      const tabla = (pat: Pattern, o: Beat = {}) => {
+        for (let r = 0; r < 64; r++) {
+          const s = r % 16;
+          if (s === 0 || s === 6 || s === 11) pat.set(r, 0, BAYAN, I_TABLA, 0.9);
+          if (s === 4 || s === 12) pat.set(r, 1, DAYAN, I_TABLA, 0.8);
+          if (o.ghost && (s === 7 || s === 10 || s === 14)) pat.set(r, 1, DAYAN, I_TABLA, 0.4);
+        }
+        if (o.fill) for (let r = 56; r < 64; r++) pat.set(r, 1, DAYAN, I_TABLA, 0.3 + (r - 56) * 0.06);
+      };
+      // Shaker/open-hat sway from the 808, for the tropical groove (ch2).
+      const shaker = (pat: Pattern, vol = 0.3) => {
+        for (let r = 0; r < 64; r++) { const s = r % 16; if (s % 2 === 1) pat.set(r, 2, HH, I_808, vol); if (s === 7 || s === 15) pat.set(r, 2, OH, I_808, vol * 1.2); }
+      };
+      // B-boy break: kick/snare/hats with optional ghosts (ch0/1/2).
+      const breakBeat = (pat: Pattern, busy = false) => {
+        for (let r = 0; r < 64; r++) {
+          const s = r % 16;
+          if (s === 0 || s === 10 || (busy && s === 14)) pat.set(r, 0, BD, I_808, 0.95);
+          if (s === 4 || s === 12) pat.set(r, 1, SD, I_808, 0.85);
+          if (busy && s === 7) pat.set(r, 1, SD, I_808, 0.5);
+          if (s % 2 === 1) pat.set(r, 2, HH, I_808, 0.42);
+          if (s === 14) pat.set(r, 2, OH, I_808, 0.5);
+        }
+      };
+      // Steel-pan / kalimba arpeggio (guitar, ch7) from a phrase of pentatonic indices.
+      const gtr = (pat: Pattern, phrase: (number | null)[], vol = 0.55, step = 2, base = 72) => {
+        for (let r = 0; r + step <= 64; r += step) {
+          const d = phrase[(r / step) % phrase.length];
+          if (d === null) continue;
+          pat.set(r, 7, pent(d, base), I_GTR, vol); pat.set(r + step - 1, 7, OFF, I_GTR);
+        }
+      };
+      // Ballet piano arpeggio (pipi, ch6) — rings on its own long decay (no OFF).
+      const piano = (pat: Pattern, phrase: (number | null)[], vol = 0.6, step = 2, base = 72) => {
+        for (let r = 0; r + step <= 64; r += step) {
+          const d = phrase[(r / step) % phrase.length];
+          if (d !== null) pat.set(r, 6, pent(d, base), I_PIANO, vol);
+        }
+      };
+      // Acid 303 riff (ch6) — 16-step, accent on the beat. null = rest.
+      const ACID: (number | null)[] = [45, null, 45, 52, null, 45, 48, null, 50, null, 45, 43, null, 45, 57, null];
+      const acid = (pat: Pattern, vol = 0.75) => {
+        for (let r = 0; r < 64; r++) { const n = ACID[r % 16]; if (n !== null) pat.set(r, 6, n, I_303, vol * (r % 4 === 0 ? 1 : 0.8)); }
+      };
+      // Faster 303 run for the b-boy peak (ch7).
+      const RUN = [57, 60, 62, 64, 67, 64, 62, 60, 64, 67, 69, 67, 64, 62, 60, 57];
+      const acidLead = (pat: Pattern, vol = 0.55) => { for (let r = 0; r < 64; r++) pat.set(r, 7, RUN[r % 16], I_303, vol); };
+
+      // ── sections ──
+      const TROP = [0, 2, 1, 4, 2, 1, 0, 2];
+      const TROP2 = [4, 2, 7, 4, 2, 1, 4, 2];
+      const BALLET1 = [0, 2, 4, 2, 1, 3, 5, 3, 2, 4, 6, 4, 1, 3, 5, 2];
+      const BALLET2 = [4, 2, 0, 2, 5, 3, 1, 3, 6, 4, 2, 4, 7, 5, 4, 2];
+
+      // p0 arrive: turquoise lagoon — drone + soft strings + distant sparkle.
+      drone(pArrive, 0.85); strings(pArrive, 0.45);
+      gtr(pArrive, [0, null, 4, null, 2, null, null, null], 0.35, 4, 84);
+
+      // p1 plane: the turbo-prop drones overhead (e8e on ch5, tremolo prop), panning past.
+      drone(pPlane, 0.7);
+      pPlane.set(0, 5, 40, I_PLANE, 0.7); pPlane.set(63, 5, OFF, I_PLANE);
+      gtr(pPlane, [0, null, null, null, 2, null, null, null], 0.3, 4, 84);
+
+      // p2 tribe: the island tribe's tabla-and-steel-pan song.
+      drone(pTribe, 0.8); tabla(pTribe, { ghost: true }); bass(pTribe, 0.55, false);
+      gtr(pTribe, TROP, 0.5, 2, 72);
+
+      // p3 tribe fuller: + shaker + busier bass + fill.
+      drone(pTribeB, 0.7); tabla(pTribeB, { ghost: true, fill: true }); shaker(pTribeB, 0.3); bass(pTribeB, 0.65, true);
+      gtr(pTribeB, TROP2, 0.55, 2, 72);
+
+      // p4 ballet: Tattoo begins — graceful piano over swelling strings, gentle pulse.
+      drone(pBallet, 0.5); strings(pBallet, 0.55); bass(pBallet, 0.6, false);
+      tabla(pBallet, {}); piano(pBallet, BALLET1, 0.6, 2, 72);
+
+      // p5 ballet develops: piano higher + guitar sparkle counter.
+      drone(pBalletB, 0.45); strings(pBalletB, 0.6); bass(pBalletB, 0.65, false);
+      tabla(pBalletB, { ghost: true }); piano(pBalletB, BALLET2, 0.62, 2, 72);
+      gtr(pBalletB, [4, null, 2, null, 1, null, 4, null], 0.4, 2, 84);
+
+      // p6 turn: the dance goes urban — piano fades, acid + kick creep in.
+      drone(pTurn, 0.4); strings(pTurn, 0.4); bass(pTurn, 0.75, true);
+      for (let r = 0; r < 64; r++) {
+        const s = r % 16;
+        if (s === 6 || s === 11) pTurn.set(r, 0, BAYAN, I_TABLA, 0.8);   // tabla keeps time
+        if (s === 4 || s === 12) pTurn.set(r, 1, DAYAN, I_TABLA, 0.7);
+        if (r >= 32 && (s === 0 || s === 10)) pTurn.set(r, 0, BD, I_808, 0.85);  // kick enters
+        if (r >= 32 && s % 2 === 1) pTurn.set(r, 2, HH, I_808, 0.35);
+      }
+      for (let r = 0; r < 32; r += 2) { const d = [0, 2, 4, 2, 1, 3, 2, 0][(r / 2) % 8]; pTurn.set(r, 6, pent(d, 72), I_PIANO, 0.5 - (r / 32) * 0.25); } // piano fades out
+      for (let r = 32; r < 64; r++) { const n = ACID[r % 16]; if (n !== null) pTurn.set(r, 6, n, I_303, 0.6); }                                          // acid takes over
+
+      // p7 b-boy: full break + acid riff + driving bass.
+      breakBeat(pBboy, false); bass(pBboy, 0.85, true); acid(pBboy, 0.78);
+
+      // p8 b-boy peak: busy break + acid lead runs + modern piano stabs (ch5).
+      breakBeat(pBboyB, true); bass(pBboyB, 0.9, true); acid(pBboyB, 0.78); acidLead(pBboyB, 0.55);
+      for (let bar = 0; bar < 4; bar++) { const r = bar * 16; pBboyB.set(r, 5, pent(4, 72), I_PIANO, 0.5); pBboyB.set(r + 8, 5, pent(2, 72), I_PIANO, 0.45); }
+
+      // p9 freeze: the pose — drums stutter out, lone acid lick, snare-roll riser back in.
+      for (let r = 0; r < 8; r++) if (r % 2 === 0) pFreeze.set(r, 0, BD, I_808, 0.7);
+      pFreeze.set(0, 6, 45, I_303, 0.85); pFreeze.set(2, 6, 48, I_303, 0.7); pFreeze.set(4, 6, 52, I_303, 0.75); pFreeze.set(6, 6, 57, I_303, 0.7);
+      strings(pFreeze, 0.4);
+      for (let r = 48; r < 64; r++) pFreeze.set(r, 1, SD, I_808, 0.25 + (r - 48) * 0.045);
+
+      // p10 Roarke: silent admiration — drone returns, strings, a final piano phrase, the plane departing right.
+      drone(pRoarke, 0.8); strings(pRoarke, 0.5);
+      piano(pRoarke, [7, 4, 2, 1, 0, null, 0, null], 0.5, 4, 72);
+      pRoarke.set(0, 7, 38, I_PLANE, 0.35); pRoarke.set(63, 7, OFF, I_PLANE);   // turbo-prop fading into the distance
+
+      // The turbo-prop flyover automation (only in p1): pan left→right + an approach/recede swell.
+      const PAN = tgt('moog', 'PAN'), LVLfx = tgt('e8e', 'LVL');
+      const panTrk = pPlane.getOrCreateAutoTrack(5, PAN.id);
+      const lvlTrk = pPlane.getOrCreateAutoTrack(I_PLANE, LVLfx.id);
+      for (let r = 0; r < 64; r++) {
+        const t = r / 63;
+        panTrk[r] = normByte(PAN, t);                                   // flies past, L → R
+        lvlTrk[r] = normByte(LVLfx, Math.min(1.15, 0.25 + Math.sin(Math.PI * t) * 0.95));  // Doppler swell
+      }
+
+      // Mod matrix: slow string-filter swell, a shimmer on the steel-pan, an acid wobble.
+      const CUT_STR = tgt('moog', 'CUT'), TON_GTR = tgt('guitar', 'TON'), CUT_303 = tgt('303', 'CUT');
+      const lfos = [
+        { ...defaultLfo(), shape: 0, sync: true, rateBeats: 16 },      // slow sine, 4 bars
+        { ...defaultLfo(), shape: 0, sync: false, rateHz: 5.5 },       // free shimmer
+        { ...defaultLfo(), shape: 0, sync: true, rateBeats: 1 },       // per-beat acid wobble
+      ];
+      const modRoutings = [
+        { source: 0, targetParamId: CUT_STR.id, targetInstIdx: I_STR, depth: 0.4, bipolar: true },   // strings breathe
+        { source: 1, targetParamId: TON_GTR.id, targetInstIdx: I_GTR, depth: 0.3, bipolar: true },   // steel-pan shimmer
+        { source: 2, targetParamId: CUT_303.id, targetInstIdx: I_303, depth: 0.5, bipolar: true },   // acid filter wobble
+      ];
+
+      return {
+        patterns: [pArrive, pPlane, pTribe, pTribeB, pBallet, pBalletB, pTurn, pBboy, pBboyB, pFreeze, pRoarke],
+        //       arrive  plane  ── tribe ──  ── ballet ──  turn  ──── b-boy ────  frz  reprise  outro
+        order: [0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 7, 8, 8, 8, 9, 7, 8, 10, 10],
+        rowsPerBeat: 4,
+        lfos,
+        modRoutings,
+        pan: [0.5, 0.5, 0.62, 0.5, 0.4, 0.6, 0.45, 0.58],
+      };
+    }
   }
 ];
