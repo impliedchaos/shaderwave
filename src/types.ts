@@ -40,6 +40,8 @@ export interface SampleData {
   loopStart: number;     // sample frames; 0 if none
   loopEnd: number;       // sample frames; pcm.length if none
   loopMode: number;      // 0 = one-shot, 1 = forward loop
+  url?: string;          // optional HTTP source; if set with empty pcm, hydrated on load
+                         // (lets presets/demo songs ship a sample by reference, not bytes)
 }
 
 // A per-engine-type param bank as authored in songs (defaultParams / makeParams).

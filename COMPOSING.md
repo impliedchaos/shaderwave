@@ -146,7 +146,11 @@ tabla              p0=[Decay, Damp, Strike, Bend]  p1=[Modes, Inharm, BendTime, 
 pipi  (Piano)      p0=[Decay, Inharm, Hardness, Hammer]  p1=[Partials, Detune, Damping, Release]  preset: p0=[4.5,0.0004,0.55,0.3] p1=[26,0.0015,0.8,0.15]
 guitar (Gigi)      p0=[Decay, PluckPos, Tone, Body]  p1=[Partials, Drive, Pick, Release]  preset: p0=[2.5,0.18,0.65,0.92] p1=[28,0,0.45,0.12]
 sampler (PCM)      p0=[Tune(st), Start, Gain, _]  p1=[Attack, Decay, Sustain, Release]  preset: p0=[0,0,1,0] p1=[0.001,1,1,0]
-                   (Authoring requires `sample` payload; best created via UI + Save)
+                   Author by URL: give the param a `sample` built with the `smp(name, slug, rootNote?)`
+                   helper — `slug` is a file in `public/samples/` (no extension); PCM is fetched/decoded
+                   on load (App._hydrateSampleUrls). One-shot vox: p1=[0.001,0.1,1,rel] (sustain=1, the
+                   sample ends itself). Melodic samples: set rootNote to the recorded pitch (e.g. 69=A4).
+                   See "Larynx Yard Sale" for a full example. (Or load a file in the UI + Save to embed PCM.)
 ```
 For the exact, current truth on any engine see its descriptor `paramDefs` + `presets` in
 `src/instruments/i<type>.ts`. New engines added later will appear there.

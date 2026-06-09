@@ -43,6 +43,7 @@ export function instrumentsFromParams(
       };
       if (pr.ops) e.ops = pr.ops.map((o) => ({ ...o }));
       if (pr.fxOrder) e.fxOrder = [...pr.fxOrder];     // per-instance chain order (saved songs)
+      if (pr.sample) e.sample = cloneSample(pr.sample);   // sampler PCM/URL (saved songs + demos)
       return addExtraBanks(e, pr);
     });
   }
@@ -51,8 +52,24 @@ export function instrumentsFromParams(
     if (!pr) throw new Error(`Song params missing engine type "${type}"`);
     const e: InstrumentInstance = { name: byType(type)?.name ?? type.toUpperCase(), type, color: INSTRUMENT_COLORS[i % INSTRUMENT_COLORS.length], p0: [...pr.p0], p1: [...pr.p1], fx: defaultFxParams() };
     if (pr.ops) e.ops = pr.ops.map((o) => ({ ...o }));
+    if (pr.sample) e.sample = cloneSample(pr.sample);
     return addExtraBanks(e, pr);
   });
+}
+
+// Copy a sample payload onto a fresh instance. pcm is shared by reference when
+// present (large, immutable); a URL-only sample (demo/preset) gets an empty pcm
+// buffer that App._hydrateSampleUrls fills in after fetch/decode.
+function cloneSample(s: import('../types.js').SampleData): import('../types.js').SampleData {
+  return {
+    name: s.name,
+    pcm: s.pcm ?? new Float32Array(0),
+    rootNote: s.rootNote,
+    loopStart: s.loopStart,
+    loopEnd: s.loopEnd,
+    loopMode: s.loopMode,
+    ...(s.url ? { url: s.url } : {}),
+  };
 }
 
 // Load a song's runtime state with its instrument table pruned to only the

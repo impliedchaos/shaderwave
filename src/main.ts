@@ -9,6 +9,7 @@ import { Engine } from './tracker/engine.js';
 import { TrackerView } from './ui/tracker-view.js';
 import { Controls, bindKnob } from './ui/controls.js';
 import { DEMO_SONGS, loadSongInstruments, instrumentsFromParams } from './tracker/song.js';
+import { decodeSampleUrl } from './audio/sample-loader.js';
 import { serializeSong, deserializeSong, patternFromSerialized, instrumentSpecs } from './tracker/song-io.js';
 import type { SerializedSong } from './tracker/song-io.js';
 import { History } from './tracker/history.js';
@@ -177,6 +178,7 @@ export class App {
   view: TrackerView;
   controls: Controls;
   held: Map<string, number>;
+  _samplesLoading = new Set<import('./types.js').InstrumentInstance>();
   customSongName: string | null = null;
   songAuthor = '';
   songNote = '';
@@ -319,6 +321,7 @@ export class App {
     this._updateLatencyDisplay();   // now reflects the real sample rate
     this.renderer = new SynthRenderer(this.gl, sr);
     this._syncRendererFx();   // hand the renderer this song's per-instance fx
+    this._hydrateSampleUrls(); // fetch any URL-referenced sampler PCM (e.g. demo vocals)
     // Realtime path: pipelined async readback (read block N-1 while N's DMA is in
     // flight) so the GPU→CPU copy never stalls the producer's main thread. Offline
     // WAV export keeps using the synchronous renderBlock (it wants exact, full-length
@@ -443,6 +446,27 @@ export class App {
     this.renderer?.setInstrumentFx(this.engine.instruments.map((i) => i.fx));
     this.renderer?.setInstrumentFxOrder(this.engine.instruments.map((i) => i.fxOrder));
     this.renderer?.syncSamplerSlots(this.engine.instruments);
+  }
+
+  // Fetch + decode any sampler instance that carries a sample URL but no PCM yet
+  // (presets/demo songs ship samples by reference). Async and idempotent: each
+  // instance is fetched at most once; the sound pops in when ready, then we
+  // re-sync the renderer's atlas. NOT a user edit, so it never marks the song dirty.
+  _hydrateSampleUrls() {
+    for (const inst of this.engine.instruments) {
+      const s = inst.sample;
+      if (!s || !s.url || s.pcm.length > 0 || this._samplesLoading.has(inst)) continue;
+      this._samplesLoading.add(inst);
+      decodeSampleUrl(s.url)
+        .then((pcm) => {
+          if (inst.sample !== s) return;          // song changed under us — drop
+          s.pcm = pcm;
+          if (!s.loopEnd) s.loopEnd = pcm.length;
+          this._syncRendererFx();                 // re-upload the now-filled slot
+        })
+        .catch((e) => console.error(`Failed to hydrate sample ${s.url}`, e))
+        .finally(() => this._samplesLoading.delete(inst));
+    }
   }
 
   _buildFxPanel() {
@@ -1119,6 +1143,7 @@ export class App {
     const loaded = loadSongInstruments(songDef);
     this.engine.instruments = loaded.instruments;
     this._syncRendererFx();
+    this._hydrateSampleUrls();
 
     const wasPlaying = this.engine.playing;
     this.engine.stop();
@@ -1307,6 +1332,7 @@ export class App {
     // per-type fxParams onto them), so instrumentsFromParams rebuilds per-instance fx.
     this.engine.instruments = instrumentsFromParams(instrumentSpecs(doc));
     this._syncRendererFx();
+    this._hydrateSampleUrls();
 
     let patterns = doc.patterns.map(patternFromSerialized);
     if (!patterns.length) patterns = [new Pattern(32, 8)];

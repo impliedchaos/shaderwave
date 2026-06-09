@@ -1,7 +1,7 @@
 import { Pattern, OFF } from './pattern.js';
 import { defaultFxParams } from '../gl/effects.js';
 import { targetByCode, normByte } from './automation.js';
-import { defaultLfo } from './lfo.js';
+import { defaultLfo, defaultPumpLfo } from './lfo.js';
 import { DEFAULT_MASTER } from '../constants.js';
 import { REGISTRY } from '../instruments/index.js';
 import type { FxParams, FxParamsByType, InstrumentParams, InstrumentType, ParamTarget, SongDef } from '../types.js';
@@ -12,6 +12,13 @@ function tgt(type: InstrumentType, code: string): ParamTarget {
   const t = targetByCode(type, code);
   if (!t) throw new Error(`Unknown automation target ${type}/${code}`);
   return t;
+}
+
+// A URL-referenced sampler sample for demo songs. The PCM is left empty here and
+// fetched/decoded on load by App._hydrateSampleUrls (slug = file in public/samples
+// without the .ogg extension). Lets a demo ship samples by reference, not bytes.
+function smp(name: string, slug: string, rootNote = 60) {
+  return { name, pcm: new Float32Array(0), rootNote, loopStart: 0, loopEnd: 0, loopMode: 0, url: `/samples/${slug}.ogg` };
 }
 
 // Default per-instrument param banks for every registered engine. Each engine's
@@ -4372,6 +4379,149 @@ export const DEMO_SONGS: SongDef[] = [
         lfos,
         modRoutings,
         pan: [0.5, 0.5, 0.62, 0.5, 0.4, 0.6, 0.45, 0.58],
+      };
+    }
+  },
+  {
+    name: "Larynx Yard Sale",
+    author: "AI Slop",
+    note: "Big-beat warehouse house built on the CC0 DVS vocal shouts + a melodic kalimba sampler — four-on-the-floor, acid bass, sidechain pump, and a Wilhelm scream for the door.",
+    bpm: 128,
+    master: DEFAULT_MASTER * 0.6,
+    params: [
+      { name: "808 Warehouse Kit", type: "808",  p0: [0, 0.5, 0.5, 0.6], p1: [0, 0, 0, 0] },
+      { name: "303 Acid Bass",     type: "303",  p0: [340, 0.85, 0.75, 0.5], p1: [1, 0.28, 0.32, 0] },
+      { name: "Moog Hoover Pad",   type: "moog", p0: [620, 0.35, 0.55, 0.15], p1: [9, 0.9, 0.7, 1.1], p2: [1, 1, 2, 0.05], p3: [2, 2, 3, 0] },
+      { name: "Kalimba Lead",      type: "sampler", p0: [0, 0, 1.1, 0], p1: [0.001, 0.1, 1.0, 0.3], sample: smp("Kalimba", "kalimba", 69) },
+      { name: "V: Here We Go",     type: "sampler", p0: [0, 0, 1.0, 0], p1: [0.001, 0.1, 1.0, 0.08], sample: smp("Here We Go", "dvs-here-we-go-1") },
+      { name: "V: Everybody",      type: "sampler", p0: [0, 0, 1.0, 0], p1: [0.001, 0.1, 1.0, 0.08], sample: smp("Everybody", "dvs-everybody-1") },
+      { name: "V: Check It Out",   type: "sampler", p0: [0, 0, 1.0, 0], p1: [0.001, 0.1, 1.0, 0.08], sample: smp("Check It Out", "dvs-check-it-out-1") },
+      { name: "V: Drop The Beat",  type: "sampler", p0: [0, 0, 1.0, 0], p1: [0.001, 0.1, 1.0, 0.08], sample: smp("Drop The Beat", "dvs-drop-the-beat-1") },
+      { name: "V: Yeah",           type: "sampler", p0: [0, 0, 1.1, 0], p1: [0.001, 0.1, 1.0, 0.08], sample: smp("Yeah", "dvs-yeah-1") },
+      { name: "V: Turn It Up",     type: "sampler", p0: [0, 0, 1.0, 0], p1: [0.001, 0.1, 1.0, 0.08], sample: smp("Turn It Up", "dvs-turn-it-up-1") },
+      { name: "FX: Slapstick",     type: "sampler", p0: [0, 0, 1.2, 0], p1: [0.001, 0.1, 1.0, 0.05], sample: smp("Slapstick", "slapstick") },
+      { name: "FX: Wilhelm",       type: "sampler", p0: [0, 0, 1.0, 0], p1: [0.001, 0.1, 1.0, 0.2], sample: smp("Wilhelm", "wilhelm") },
+    ],
+    fxParams: {
+      '808':     Object.assign(defaultFxParams(), { distOn: true, dist: 3, compOn: true, compThresh: -15, compRatio: 3, reverbMix: 0.06, master: 0.95 }),
+      '303':     Object.assign(defaultFxParams(), { distOn: true, dist: 8, delayOn: true, delayTime: 0.23, delayMix: 0.2, delayFeedback: 0.3, reverbOn: true, reverbMix: 0.16, master: 0.9 }),
+      'moog':    Object.assign(defaultFxParams(), { chorusOn: true, chorusMix: 0.4, reverbOn: true, reverbMix: 0.4, reverbDecay: 0.85, widthOn: true, width: 1.4, master: 0.8 }),
+      'sampler': Object.assign(defaultFxParams(), { delayOn: true, delayTime: 0.23, delayMix: 0.16, delayFeedback: 0.22, reverbOn: true, reverbMix: 0.14, master: 1.0 }),
+    },
+    data: () => {
+      const N = 64;
+      const mk = () => new Pattern(N, 8);
+      const BD = 36, SD = 38, HH = 42, CP = 39;
+      // instrument indices (into params[])
+      const KIT = 0, BASS = 1, PAD = 2, KAL = 3,
+            V_HWG = 4, V_EVB = 5, V_CIO = 6, V_DTB = 7, V_YEAH = 8, V_TIU = 9,
+            FX_SLAP = 10, FX_WIL = 11;
+      // channels (== voices)
+      const CH_KICK = 0, CH_CLAP = 1, CH_HAT = 2, CH_BASS = 3, CH_PAD = 4, CH_KAL = 5, CH_V1 = 6, CH_V2 = 7;
+      const VN = 60;   // vocals/one-shots play at natural pitch (rootNote 60)
+
+      const kick = (p: Pattern, to = N) => { for (let r = 0; r < to; r += 4) p.set(r, CH_KICK, BD, KIT, 0.97); };
+      const claps = (p: Pattern) => { for (let r = 0; r < N; r++) if (r % 16 === 4 || r % 16 === 12) p.set(r, CH_CLAP, CP, KIT, 0.72); };
+      const hats = (p: Pattern, step = 4, vel = 0.4) => { for (let r = 2; r < N; r += step) p.set(r, CH_HAT, HH, KIT, vel); };
+      // 303 rolling bass: 8th notes, one root per bar (4 bars), octave pop near bar end
+      const bass = (p: Pattern, roots: number[]) => {
+        for (let bar = 0; bar < 4; bar++) {
+          const root = roots[bar];
+          for (let s = 0; s < 16; s += 2) {
+            const r = bar * 16 + s;
+            p.set(r, CH_BASS, root + (s === 14 ? 12 : 0), BASS, s % 4 === 0 ? 0.9 : 0.6);
+          }
+          p.set(bar * 16 + 15, CH_BASS, OFF, BASS);
+        }
+      };
+      const padHold = (p: Pattern, note = 57) => { p.set(0, CH_PAD, note, PAD, 0.55); p.set(N - 1, CH_PAD, OFF, PAD); };
+      const kal = (p: Pattern, steps: [number, number][]) => { for (const [r, m] of steps) p.set(r, CH_KAL, m, KAL, 0.78); };
+      const vox = (p: Pattern, ch: number, inst: number, row: number, vel = 0.95) => p.set(row, ch, VN, inst, vel);
+
+      // A-minor kalimba motifs (root 69 = A4)
+      const riffA: [number, number][] = [[0, 69], [4, 72], [8, 76], [12, 72], [16, 69], [20, 76], [24, 81], [28, 76], [32, 69], [36, 72], [40, 76], [44, 79], [48, 77], [52, 76], [56, 72], [60, 69]];
+      const riffB: [number, number][] = [[0, 81], [6, 76], [12, 72], [16, 74], [22, 77], [28, 81], [32, 79], [38, 76], [44, 72], [48, 74], [54, 77], [60, 76]];
+      const bassRootsA = [33, 33, 36, 40];   // A1 A1 C2 E2
+      const bassRootsB = [33, 40, 41, 36];   // A1 E2 F2 C2
+
+      // ---- A: intro beat (kick + hats, sparse vocals) ----
+      const A = mk();
+      kick(A); hats(A, 4, 0.35);
+      vox(A, CH_V1, V_HWG, 0);          // "Here We Go"
+      vox(A, CH_V2, V_EVB, 32);         // "Everybody"
+
+      // ---- B: build (full drums + bass, acid filter opens, riser claps) ----
+      const B = mk();
+      kick(B); claps(B); hats(B, 2, 0.4); bass(B, bassRootsA);
+      vox(B, CH_V1, V_CIO, 0);          // "Check It Out"
+      vox(B, CH_V2, V_TIU, 48);         // "Turn It Up"
+      for (let r = 48; r < N; r++) if (r % 2 === 0 || r >= 56) B.set(r, CH_CLAP, SD, KIT, 0.4 + (r - 48) / 40);
+      {
+        const CUT = tgt('303', 'CUT');
+        const tk = B.getOrCreateAutoTrack(BASS, CUT.id);
+        for (let r = 0; r < N; r++) tk[r] = normByte(CUT, 280 + r * 55);   // open the filter over the build
+      }
+
+      // ---- C: main drop (everything in) ----
+      const C = mk();
+      kick(C); claps(C); hats(C, 2, 0.45); bass(C, bassRootsA); kal(C, riffA); padHold(C);
+      vox(C, CH_V1, V_DTB, 0);          // "Drop The Beat"
+      vox(C, CH_V2, V_YEAH, 16); vox(C, CH_V2, V_YEAH, 48);
+      C.set(24, CH_V1, VN, FX_SLAP, 0.8);   // whip accent
+
+      // ---- D: drop variation (call/response, 2nd riff) ----
+      const D = mk();
+      kick(D); claps(D); hats(D, 2, 0.45); bass(D, bassRootsB); kal(D, riffB); padHold(D);
+      vox(D, CH_V1, V_EVB, 0);          // "Everybody"
+      vox(D, CH_V2, V_CIO, 8); vox(D, CH_V1, V_YEAH, 32); vox(D, CH_V2, V_TIU, 40);
+      D.set(56, CH_V1, VN, FX_SLAP, 0.8);
+
+      // ---- E: breakdown (no kick; pad + kalimba + soaked vocal, filter rises) ----
+      const E = mk();
+      padHold(E); kal(E, riffB); hats(E, 8, 0.25);
+      vox(E, CH_V1, V_TIU, 0);          // "Turn It Up"
+      vox(E, CH_V2, V_HWG, 32);
+      {
+        const FLC = tgt('moog', 'CUT');
+        const tk = E.getOrCreateAutoTrack(PAD, FLC.id);
+        for (let r = 0; r < N; r++) tk[r] = normByte(FLC, 300 + r * 42);   // sweep the pad open
+      }
+
+      // ---- F: outro (winding down + the Wilhelm gag) ----
+      const F = mk();
+      kick(F, 48); claps(F); hats(F, 4, 0.3); bass(F, [33, 33, 33, 33]);
+      vox(F, CH_V1, V_YEAH, 0);
+      F.set(40, CH_V2, VN, FX_WIL, 1.0);    // someone gets thrown off the decks
+      F.set(60, CH_V1, VN, FX_SLAP, 0.9);
+
+      const A_ = 0, B_ = 1, C_ = 2, D_ = 3, E_ = 4, F_ = 5;
+      const order = [
+        A_, A_, B_, B_,
+        C_, C_, D_, C_,
+        E_,
+        C_, D_, C_, D_,
+        B_,
+        C_, C_, D_, D_, C_, C_, D_, D_,
+        E_,
+        C_, D_, C_, D_, C_, D_,
+        F_, F_,
+      ];
+
+      return {
+        patterns: [A, B, C, D, E, F],
+        order,
+        rowsPerBeat: 4,
+        pan: [0.5, 0.5, 0.55, 0.5, 0.42, 0.6, 0.4, 0.62],
+        lfos: [
+          { ...defaultLfo(), shape: 0, sync: true, rateBeats: 16 },
+          { ...defaultLfo(), shape: 3, sync: true, rateBeats: 1 },
+          { ...defaultLfo() },
+          { ...defaultPumpLfo() },
+        ],
+        modRoutings: [
+          { source: 3, targetParamId: tgt('303', 'LVL').id,  targetInstIdx: BASS, depth: 0.55, bipolar: true },
+          { source: 3, targetParamId: tgt('moog', 'LVL').id, targetInstIdx: PAD,  depth: 0.5,  bipolar: true },
+        ],
       };
     }
   }
