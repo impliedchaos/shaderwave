@@ -1,0 +1,95 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>pending</title></head>
+<body><pre id="out">running…</pre>
+<script type="module">
+// Renderer-level sidechain test: proves the compressor's key source works
+// regardless of the keyed instance's position in the instance loop. The dry
+// sidechain bus (instDryTex) is filled for ALL instances BEFORE any FX runs
+// (synth-renderer two-pass), so a low-index victim can be ducked by a high-index
+// key. Before that fix, keying off a not-yet-rendered (higher-index) instance
+// read silence and never ducked.
+//
+// Isolation trick: pan the victim hard RIGHT and the key hard LEFT (equal-power
+// pan → no cross-bleed), so the RIGHT channel is the victim's post-FX output and
+// we can measure its level directly.
+import { createGL } from '/src/gl/context.js';
+import { SynthRenderer } from '/src/gl/synth-renderer.js';
+import { Engine } from '/src/tracker/engine.js';
+import { defaultFxParams } from '/src/gl/effects.js';
+import { BLOCK } from '/src/constants.js';
+
+const out = document.getElementById('out');
+const log = (s) => { out.textContent += s + '\n'; console.log(s); };
+const SR = 48000;
+
+// RMS of the RIGHT channel (odd interleaved samples) across blocks 3..N (skip attack).
+function rightRms(eng, r, key) {
+  const SKIP = 3, N = 8;
+  let e = 0, n = 0;
+  for (let b = 0; b < N; b++) {
+    const bs = b * BLOCK;
+    const vd = eng.advance(bs);
+    const o = r.renderBlock(vd, bs);
+    if (b < SKIP) continue;
+    for (let i = 0; i < BLOCK; i++) { const v = o[i * 2 + 1]; e += v * v; n++; }
+  }
+  return Math.sqrt(e / n);
+}
+
+// Build the two-instance scene. `victimIdx`/`keyIdx` are the instance indices;
+// `keyActive` decides whether the key instance actually plays (loud) or is silent.
+function scene(victimIdx, keyIdx, keyActive) {
+  const eng = new Engine(SR);
+  const r = new SynthRenderer(gl, SR);
+  // Two 303 instances (instance 0 already exists). Higher of the two indices is added.
+  while (eng.instruments.length <= Math.max(victimIdx, keyIdx)) eng.addInstrument('303');
+
+  // Channel layout: victim on ch0 (hard right), key on ch1 (hard left).
+  eng.channelPan[0] = 1.0;   // victim → right
+  eng.channelPan[1] = 0.0;   // key    → left
+  eng.triggerNote(0, 45, victimIdx, 1, 0);
+  if (keyActive) eng.triggerNote(1, 45, keyIdx, 1, 0);
+
+  // Aggressive compressor on the VICTIM instance, keyed off the KEY instance.
+  const fx = [];
+  for (let i = 0; i < eng.instruments.length; i++) fx.push(defaultFxParams());
+  Object.assign(fx[victimIdx], {
+    compOn: true, compThresh: -40, compRatio: 20,
+    compAttack: 1, compRelease: 20, compMakeup: 0, compSource: keyIdx,
+  });
+  r.setInstrumentFx(fx);
+  return rightRms(eng, r, keyIdx);
+}
+
+try {
+  window.gl = createGL(document.createElement('canvas'));
+
+  let ok = true;
+  // Case 1 — the bug case: victim at LOW index 0, keyed from HIGH index 1.
+  const lowOpen = scene(0, 1, false);   // key silent → victim un-ducked (right ch full)
+  const lowDuck = scene(0, 1, true);    // key loud   → victim ducked
+  const lowRatio = lowDuck / (lowOpen || 1e-9);
+  const lowPass = lowRatio < 0.85;
+  ok = ok && lowPass;
+  log(`Victim@0 keyed from @1:  open=${lowOpen.toFixed(4)} ducked=${lowDuck.toFixed(4)} ratio=${lowRatio.toFixed(3)} (want <0.85) ${lowPass ? 'OK' : 'FAIL'}`);
+
+  // Case 2 — symmetric: victim at HIGH index 1, keyed from LOW index 0 (worked before too).
+  const hiOpen = scene(1, 0, false);
+  const hiDuck = scene(1, 0, true);
+  const hiRatio = hiDuck / (hiOpen || 1e-9);
+  const hiPass = hiRatio < 0.85;
+  ok = ok && hiPass;
+  log(`Victim@1 keyed from @0:  open=${hiOpen.toFixed(4)} ducked=${hiDuck.toFixed(4)} ratio=${hiRatio.toFixed(3)} (want <0.85) ${hiPass ? 'OK' : 'FAIL'}`);
+
+  // Order-independence: both arrangements should duck by a comparable amount.
+  const sym = Math.abs(lowRatio - hiRatio) < 0.1;
+  ok = ok && sym;
+  log(`Order independence:       |${lowRatio.toFixed(3)} - ${hiRatio.toFixed(3)}| = ${Math.abs(lowRatio - hiRatio).toFixed(3)} (want <0.10) ${sym ? 'OK' : 'FAIL'}`);
+
+  if (ok) { log('\n=== SIDECHAIN ORDER OK ==='); document.title = 'ALL_OK'; }
+  else { log('\n=== FAILED ==='); document.title = 'FAILED'; }
+} catch (e) {
+  document.title = 'ERROR';
+  log('FATAL: ' + e.message + '\n' + (e.stack || ''));
+}
+</script></body></html>

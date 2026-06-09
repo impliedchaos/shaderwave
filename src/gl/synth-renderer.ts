@@ -17,6 +17,11 @@ import type { FxParams, FxParamsByType, InstrumentDef, InstrumentType, VoiceData
 import COMMON from './shaders/common.glsl?raw';
 import MIX_FS from './shaders/mix.glsl?raw';
 
+// Height of the sidechain dry bus (instDryTex): instances 0..INST_DRY_ROWS-1 are
+// available as compressor key sources (compSource). Instances beyond this still
+// render — they just can't be keyed off. The UI's compSource max is INST_DRY_ROWS-1.
+const INST_DRY_ROWS = 16;
+
 // One instrument's GPU resources: its synth program + audio/state textures. `def`
 // is the registry descriptor — the source of its shader, recursion flag, and any
 // engine-specific uniforms. Effects are NOT per-instrument here: the chain runs
@@ -46,7 +51,7 @@ export class SynthRenderer {
   instFxOrder: string[][];              // per-instance effect-chain order (normalized)
   chanDryTex: WebGLTexture;
   chanDryFbo: WebGLFramebuffer | null;
-  instDryTex: WebGLTexture;             // all instances' mixed dry signals (BLOCK × 16)
+  instDryTex: WebGLTexture;             // sidechain dry bus (BLOCK × INST_DRY_ROWS)
   instDryFbo: WebGLFramebuffer | null;
   _maskGain: Float32Array;              // scratch: mix gains masked to one instance's voices
   mixProg: GLProgram;
@@ -100,7 +105,7 @@ export class SynthRenderer {
     this.chanDryFbo = gl.createFramebuffer();
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.chanDryFbo);
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.chanDryTex, 0);
-    this.instDryTex = makeTex(gl, BLOCK, 16);
+    this.instDryTex = makeTex(gl, BLOCK, INST_DRY_ROWS);
     this.instDryFbo = gl.createFramebuffer();
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.instDryFbo);
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.instDryTex, 0);
@@ -281,10 +286,10 @@ export class SynthRenderer {
       it.phase2Read = p2Read; it.phase2Write = p2Write;
     }
 
-    // Clear the dry mix buffer for all instances (16 rows)
+    // Clear the sidechain dry bus (all rows)
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.instDryFbo);
     gl.clearColor(0, 0, 0, 0);
-    gl.viewport(0, 0, BLOCK, 16);
+    gl.viewport(0, 0, BLOCK, INST_DRY_ROWS);
     gl.clear(gl.COLOR_BUFFER_BIT);
 
     // Clear the final mixed output buffer before accumulating instruments
@@ -303,36 +308,49 @@ export class SynthRenderer {
     for (let v = 0; v < VOICES; v++) if (vd.active[v]) nInst = Math.max(nInst, vd.instId[v] + 1);
     if (nInst < 1) nInst = 1;
 
-    for (let k = 0; k < nInst; k++) {
+    // Mask the mix gains to the voices playing instance k; returns its engine resources.
+    const maskInstance = (k: number): InstRender => {
       this._maskGain.fill(0);
       let typeId = 0;
       for (let v = 0; v < VOICES; v++) {
         if (vd.active[v] && vd.instId[v] === k) { this._maskGain[v] = vd.gain[v]; typeId = vd.inst[v]; }
       }
-      const src = this.inst[typeId] ?? this.inst[0];
+      return this.inst[typeId] ?? this.inst[0];
+    };
 
-      // 2a. Mix this instance's voices (silent if none active) into the dry buffer at row k.
+    // Mix instance k's masked voices (silent if none active) into the bound fbo at row `row`.
+    const mixInstance = (k: number, row: number) => {
+      const src = maskInstance(k);
       gl.useProgram(this.mixProg);
       gl.uniform1fv(this.mixProg.u('uGain[0]'), this._maskGain);
       gl.uniform1fv(this.mixProg.u('uPan[0]'), vd.pan);
-      gl.bindFramebuffer(gl.FRAMEBUFFER, this.instDryFbo);
       gl.drawBuffers([gl.COLOR_ATTACHMENT0]);
       gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(gl.TEXTURE_2D, src.audio);
-      gl.viewport(0, k, BLOCK, 1);
+      gl.viewport(0, row, BLOCK, 1);
       drawQuad(gl);
+    };
 
-      // Blit row k of the multi-instance dry texture to the 1-row channel dry texture
-      gl.bindFramebuffer(gl.READ_FRAMEBUFFER, this.instDryFbo);
-      gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, this.chanDryFbo);
-      gl.blitFramebuffer(
-        0, k, BLOCK, k + 1,
-        0, 0, BLOCK, 1,
-        gl.COLOR_BUFFER_BIT,
-        gl.NEAREST
-      );
+    // PASS A — fill the sidechain dry bus FIRST, so a compressor can key off ANY
+    // instance regardless of chain order (instances ≥ INST_DRY_ROWS don't fit the
+    // bus and so can't be key sources, but still render in pass B).
+    const nBus = Math.min(nInst, INST_DRY_ROWS);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.instDryFbo);
+    for (let k = 0; k < nBus; k++) mixInstance(k, k);
 
-      // 2b. This instance's own chain processes + accumulates into the shared mix.
+    // PASS B — each instance's own chain processes its dry signal + accumulates into the mix.
+    for (let k = 0; k < nInst; k++) {
+      if (k < INST_DRY_ROWS) {
+        // Reuse pass A's row: blit it into the 1-row channel dry texture.
+        gl.bindFramebuffer(gl.READ_FRAMEBUFFER, this.instDryFbo);
+        gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, this.chanDryFbo);
+        gl.blitFramebuffer(0, k, BLOCK, k + 1, 0, 0, BLOCK, 1, gl.COLOR_BUFFER_BIT, gl.NEAREST);
+      } else {
+        // Beyond the bus: mix this instance straight into the channel dry texture.
+        gl.bindFramebuffer(gl.FRAMEBUFFER, this.chanDryFbo);
+        mixInstance(k, 0);
+      }
+
       const fx = this._instChain(k);
       const params = this.instFxParams[k];
       if (params) fx.params = params;

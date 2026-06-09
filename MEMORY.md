@@ -408,16 +408,18 @@ Added 2026-06-09. Built Linkwitz-Riley 3-band EQ and sidechain dynamics.
   - Swept cutoff frequencies: Low crossover 50..1000 Hz, High crossover 1000..10000 Hz.
   - Stomp box bypass (`eqOn` flag defaults to off for partial-fx songs).
 - **Sidechain Compression:**
-  - `instDryTex` (size `BLOCK × 16`) added to `SynthRenderer` to save the dry mixed stereo audio of all 16 instrument instances.
-  - In `_renderToMix`, we clear `instDryFbo`, mix each instance `k`'s voices into row `k` of `instDryTex`, and then `blitFramebuffer` row `k` into `chanDryFbo` for the FX chain.
-  - Compressor `compSource` parameter (-1 = self/normal, 0..15 = sidechain key instrument instance index).
-  - Compressor binds `ctx.instDryTex` to Unit 2, passing `uKeyRow`. If `uKeyRow >= 0`, peak detector reads from `uKeyTex` row `uKeyRow`; otherwise detects from the insert signal `uIn`.
+  - `instDryTex` (size `BLOCK × INST_DRY_ROWS`, currently 16) is the **sidechain dry bus** on `SynthRenderer`: row `k` = instance `k`'s masked dry stereo mix.
+  - **Two-pass fill (fixed 1.18.2).** `_renderToMix` runs PASS A (mix instances `0..min(nInst,INST_DRY_ROWS)` into their bus rows) and only THEN PASS B (per-instance FX). The bus is fully populated before any FX, so a compressor can key off ANY instance regardless of chain order. Gemini's original code interleaved mix+FX per instance, so keying off a *higher-index* (not-yet-rendered) instance read the start-of-block zero-clear and never ducked — caught now by `test/sidechain-order-check.html`.
+  - **Cap semantics.** `INST_DRY_ROWS` (16) bounds only the sidechain *bus*: instances ≥16 still render (PASS B mixes them straight into `chanDryFbo`) but can't be used as a key SOURCE. UI `compSource` max is `INST_DRY_ROWS-1`. (Before the fix the 16-row texture silently muted any instance ≥16 — that regression is gone.)
+  - PASS B reuses each bus row via `blitFramebuffer` (row `k` → `chanDryFbo`) for `k<16`; for `k≥16` it mixes directly into `chanDryFbo`.
+  - Compressor `compSource` (-1 = self/normal, 0..INST_DRY_ROWS-1 = key instance index) binds `ctx.instDryTex` to unit 2 with `uKeyRow`. `uKeyRow >= 0` → peak detector reads `uKeyTex` row `uKeyRow`; else the insert signal `uIn`.
+  - NOTE: "Linkwitz-Riley" in the EQ is a slight misnomer — these are 1st-order *complementary* crossovers (LR proper is even-order Butterworth-squared). Functionally flat-summing at unity, so harmless.
 - **UI:**
   - Visual EQ UI: The EQ category in the FX panel renders as a unified visual card featuring 3 side-by-side vertical sliders for Low, Mid, High gains, and 2 knobs for frequency cutoffs. The sliders support direct track clicking, have an expanded hit zone for touch responsiveness, and display subtle horizontal tick marks with a highlighted zero-level (0 dB) line.
   - Compressor has a new "Source" knob which dynamically formats values to display names of the targeted instrument instances (e.g. `0:Kick` or `Self`).
 - **Automation / Tests:**
   - EQ targets (`EQO`, `EQL`, `EQM`, `EQH`, `EQC`, `EQD`) appended at the end of `TARGETS` (id-stable).
-  - Headless harnesses `test/eq-check.html` (new) and `test/dynamics-check.html` verify mathematical correctness, bypass transparency, and sidechain envelope mapping. `golden-render` checksum remains unchanged (0x5fc60c89).
+  - Headless harnesses `test/eq-check.html` (new) and `test/dynamics-check.html` verify mathematical correctness, bypass transparency, and sidechain envelope mapping (shader-level). `test/sidechain-order-check.html` (new, 1.18.2) is a RENDERER-level test: a low-index victim keyed off a high-index loud source must still duck — fails on the pre-fix interleaved code, passes two-pass. `golden-render` checksum remains unchanged (0x5fc60c89).
 
 ### Compressor + Limiter + reorderable chain (1.14.0) — `project`
 Added 2026-06-08. Built on the 1.13.0 `_recursive` infra.

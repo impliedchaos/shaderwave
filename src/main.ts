@@ -634,7 +634,7 @@ export class App {
       if (!g) return;
       const cat = document.createElement('h3');
       cat.textContent = g.category;
- 
+
       // Move up/down within the chain.
       const moves = document.createElement('span');
       moves.className = 'fx-cat-move';
@@ -648,7 +648,7 @@ export class App {
       dn.onclick = () => reorder(pos, pos + 1);
       moves.appendChild(up); moves.appendChild(dn);
       cat.appendChild(moves);
- 
+
       let catOn = true;
       if (g.enableKey) {
         const ek = g.enableKey;

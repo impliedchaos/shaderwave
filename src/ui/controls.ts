@@ -738,6 +738,9 @@ export function bindKnob(
 
   const onStart = (e: MouseEvent | TouchEvent) => {
     e.preventDefault();
+    // The handle sits inside the track; both bind onStart. Stop the handle's event
+    // bubbling to the track so a handle-grab doesn't spin up two drag sessions.
+    if (trackEl && e.currentTarget === knobEl) e.stopPropagation();
 
     if (trackEl) {
       const rect = trackEl.getBoundingClientRect();
