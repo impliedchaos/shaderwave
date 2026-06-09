@@ -709,32 +709,12 @@ integer-ratio FM (stays periodic) and Formant approximates vowels at a reference
   are first-draft recipes (tune by ear); mip blend can leak slight alias in the crossfade region
   (accept / bias up if needed).
 
-### Automation-tracks review + fix plan (`feature/automation-tracks`) — `project`
-Gemini migrated per-cell `fxCmd`/`fxVal` automation to dedicated per-pattern
-`AutoTrack[]`. Compiles clean, all 16 demo songs load. **Commit `fe40fc8` is only
-scaffolding** (types + new `global` BPM/MST scope) and still drives the engine off old
-`fxCmd`; the actual migration lives in the **uncommitted working tree** — that's where
-the bugs are. Reviewed 2026-06-05; user will request the fix later (usage-limit gated).
-
-**🔴 The fix that matters — inst-scope automation corrupts instrument base params:**
-`src/tracker/engine.ts:462-463` `_applyAutomation` writes `instr.p0/instr.p1` (the
-instance's BASE arrays) directly. `_writeParams` (engine.ts:243) snapshots note-on from
-those same arrays, and nothing restores them — `stop()` clears `panAuto`/`autoLive` but
-not base. Proven headlessly: a cutoff sweep moves instance cutoff 400→2999 and leaves it
-there after `stop()`. Corrupts sidebar display, compounds across plays, hits every
-channel using that instance.
-**Fix:** write the override to `autoLive` (already cleared on `play()`, already read by
-the sidebar at `main.ts:1017`) + live voices, and have `_writeParams` merge `autoLive` on
-note-on. Do NOT touch `instr.p0/p1`. Mirrors the old self-healing model (old code wrote
-transient `vd.p0`, re-snapshotted from pristine base). Infra already present; just remove
-the base write.
-
-**🟡 engine.ts:449-461** — Gemini's stream-of-consciousness comments ("Wait...", "Let's
-assume...") committed verbatim; logic works but make them real comments or delete.
-
-**🟢 minor:** `main.ts:281` stale "legacy FX column" comment (path gone);
-`pattern.ts:13` comment `vol // 0.0..1.0 byte 0..255` is wrong (float 0..1) and ctor
-default silently changed 1→0.8.
+### Automation tracks (`feature/automation-tracks`, merged) — `project`
+Per-cell `fxCmd`/`fxVal` automation was migrated to dedicated per-pattern `AutoTrack[]`.
+Key design invariant (now the live behavior, also in AGENTS.md): inst-scope automation
+writes the override to `autoLive` (cleared on play/stop, merged on note-on by
+`_writeParams`) and live voices — **never** the pristine `instr.p0/p1` base arrays.
+The durable demo-song / parallel-structure gotchas from that migration follow.
 
 **Systemic demo-song bug (FIXED 2026-06-05):** when the inst-automation model moved
 from per-cell/per-channel to per-instrument-instance, the demo songs were NOT updated —
