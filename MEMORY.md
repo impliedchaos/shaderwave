@@ -40,6 +40,17 @@ to audition songs themselves in their own browser.
 
 ---
 
+## Historic Failures & Warnings
+
+### Vocoder Implementation Disaster (2026-06-09)
+An attempt to implement a WebGL 16-band Vocoder effect was completely abandoned and reverted after ~2 hours and 5 consecutive failed correction loops. The implementation suffered from fundamental flaws across multiple rendering levels:
+1. **WebGL State Leaks:** A feedback loop caused total engine collapse because the bypass path left textures dangling on unit 0.
+2. **Missing Math:** The SVF block-rate filter coefficients were initially entirely omitted, turning the filters into unstable Nyquist static oscillators.
+3. **Unnormalized DSP:** Even after restoring the SVF math, the bandpass filters weren't normalized by `1/Q`, causing the output to violently clip and explode to 113x maximum volume.
+4. **Uniform Assignment Errors:** When cross-vocoding was attempted, the `uKeyTex` uniform was never mapped to unit 1, leading to an out-of-bounds fetch on unit 0 and pure silence.
+
+**CRITICAL REMINDER:** If the user ever asks a Gemini model to do deep, non-UI architectural or DSP-level work on the ShaderWave engine again, strongly advise them to rethink the decision. The architecture is unforgiving, and trial-and-error state leakage or DSP math errors will immediately cripple the entire application.
+
 ## Current work
 
 ### Undo/redo + IndexedDB song persistence — ALL PHASES DONE — `project`
