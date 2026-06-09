@@ -46,6 +46,8 @@ export class SynthRenderer {
   instFxOrder: string[][];              // per-instance effect-chain order (normalized)
   chanDryTex: WebGLTexture;
   chanDryFbo: WebGLFramebuffer | null;
+  instDryTex: WebGLTexture;             // all instances' mixed dry signals (BLOCK × 16)
+  instDryFbo: WebGLFramebuffer | null;
   _maskGain: Float32Array;              // scratch: mix gains masked to one instance's voices
   mixProg: GLProgram;
   mixTex: WebGLTexture;
@@ -98,6 +100,10 @@ export class SynthRenderer {
     this.chanDryFbo = gl.createFramebuffer();
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.chanDryFbo);
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.chanDryTex, 0);
+    this.instDryTex = makeTex(gl, BLOCK, 16);
+    this.instDryFbo = gl.createFramebuffer();
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.instDryFbo);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, this.instDryTex, 0);
     this._maskGain = new Float32Array(VOICES);
 
     this.mixProg = createProgram(gl, MIX_FS);
@@ -275,6 +281,12 @@ export class SynthRenderer {
       it.phase2Read = p2Read; it.phase2Write = p2Write;
     }
 
+    // Clear the dry mix buffer for all instances (16 rows)
+    gl.bindFramebuffer(gl.FRAMEBUFFER, this.instDryFbo);
+    gl.clearColor(0, 0, 0, 0);
+    gl.viewport(0, 0, BLOCK, 16);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+
     // Clear the final mixed output buffer before accumulating instruments
     gl.bindFramebuffer(gl.FRAMEBUFFER, this.mixFbo);
     gl.clearColor(0, 0, 0, 0);
@@ -299,23 +311,33 @@ export class SynthRenderer {
       }
       const src = this.inst[typeId] ?? this.inst[0];
 
-      // 2a. Mix this instance's voices (silent if none active) into the dry buffer.
+      // 2a. Mix this instance's voices (silent if none active) into the dry buffer at row k.
       gl.useProgram(this.mixProg);
       gl.uniform1fv(this.mixProg.u('uGain[0]'), this._maskGain);
       gl.uniform1fv(this.mixProg.u('uPan[0]'), vd.pan);
-      gl.bindFramebuffer(gl.FRAMEBUFFER, this.chanDryFbo);
+      gl.bindFramebuffer(gl.FRAMEBUFFER, this.instDryFbo);
       gl.drawBuffers([gl.COLOR_ATTACHMENT0]);
       gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(gl.TEXTURE_2D, src.audio);
-      gl.viewport(0, 0, BLOCK, 1);
+      gl.viewport(0, k, BLOCK, 1);
       drawQuad(gl);
+
+      // Blit row k of the multi-instance dry texture to the 1-row channel dry texture
+      gl.bindFramebuffer(gl.READ_FRAMEBUFFER, this.instDryFbo);
+      gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, this.chanDryFbo);
+      gl.blitFramebuffer(
+        0, k, BLOCK, k + 1,
+        0, 0, BLOCK, 1,
+        gl.COLOR_BUFFER_BIT,
+        gl.NEAREST
+      );
 
       // 2b. This instance's own chain processes + accumulates into the shared mix.
       const fx = this._instChain(k);
       const params = this.instFxParams[k];
       if (params) fx.params = params;
       if (this.instFxOrder[k]) fx.order = this.instFxOrder[k];   // per-instance chain order
-      fx.process(this.chanDryTex, this.mixFbo, blockStart, vd.master);
+      fx.process(this.chanDryTex, this.mixFbo, blockStart, vd.master, this.instDryTex, k);
     }
   }
 

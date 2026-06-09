@@ -695,6 +695,7 @@ export function bindKnob(
   formatFn?: ((v: number) => string) | null,
   onCommit?: (v: number) => void,
   log = false,
+  trackEl?: HTMLElement,
 ) {
   let val = initialVal;
 
@@ -707,8 +708,12 @@ export function bindKnob(
 
   const updateUI = (v: number) => {
     const ratio = Math.max(0, Math.min(1, toRatio(v)));
-    const deg = -135 + ratio * 270;
-    knobEl.style.transform = `rotate(${deg}deg)`;
+    if (knobEl.classList.contains('eq-slider-handle')) {
+      knobEl.style.top = `${(1 - ratio) * 100}%`;
+    } else {
+      const deg = -135 + ratio * 270;
+      knobEl.style.transform = `rotate(${deg}deg)`;
+    }
     if (formatFn) {
       valEl.textContent = formatFn(v);
     } else if (isPercent) {
@@ -733,38 +738,81 @@ export function bindKnob(
 
   const onStart = (e: MouseEvent | TouchEvent) => {
     e.preventDefault();
-    const startY = eventY(e);
-    const startRatio = toRatio(val);
-    const pixelsPerRange = 150;   // full sweep (ratio 0→1) per 150 px
 
-    const onMove = (moveEv: MouseEvent | TouchEvent) => {
-      const currentY = eventY(moveEv);
-      const deltaY = startY - currentY;
-      const r = Math.max(0, Math.min(1, startRatio + deltaY / pixelsPerRange));
-      let newVal = fromRatio(r);
-      if (step) {
-        newVal = Math.round(newVal / step) * step;
-      }
-      newVal = Math.max(min, Math.min(max, newVal));
-      val = newVal;
-      updateUI(newVal);
-      onChange(newVal);
-    };
+    if (trackEl) {
+      const rect = trackEl.getBoundingClientRect();
+      const updateFromEvent = (ev: MouseEvent | TouchEvent) => {
+        const currentY = eventY(ev);
+        const relativeY = (currentY - rect.top) / (rect.height || 1);
+        const r = Math.max(0, Math.min(1, 1 - relativeY));
+        let newVal = fromRatio(r);
+        if (step) {
+          newVal = Math.round(newVal / step) * step;
+        }
+        newVal = Math.max(min, Math.min(max, newVal));
+        if (newVal !== val) {
+          val = newVal;
+          updateUI(newVal);
+          onChange(newVal);
+        }
+      };
 
-    const onEnd = () => {
-      window.removeEventListener('mousemove', onMove);
-      window.removeEventListener('mouseup', onEnd);
-      window.removeEventListener('touchmove', onMove);
-      window.removeEventListener('touchend', onEnd);
-      if (onCommit) onCommit(val);
-    };
+      updateFromEvent(e);
 
-    window.addEventListener('mousemove', onMove);
-    window.addEventListener('mouseup', onEnd);
-    window.addEventListener('touchmove', onMove, { passive: false });
-    window.addEventListener('touchend', onEnd);
+      const onMove = (moveEv: MouseEvent | TouchEvent) => {
+        updateFromEvent(moveEv);
+      };
+
+      const onEnd = () => {
+        window.removeEventListener('mousemove', onMove);
+        window.removeEventListener('mouseup', onEnd);
+        window.removeEventListener('touchmove', onMove);
+        window.removeEventListener('touchend', onEnd);
+        if (onCommit) onCommit(val);
+      };
+
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onEnd);
+      window.addEventListener('touchmove', onMove, { passive: false });
+      window.addEventListener('touchend', onEnd);
+    } else {
+      const startY = eventY(e);
+      const startRatio = toRatio(val);
+      const pixelsPerRange = 150;   // full sweep (ratio 0→1) per 150 px
+
+      const onMove = (moveEv: MouseEvent | TouchEvent) => {
+        const currentY = eventY(moveEv);
+        const deltaY = startY - currentY;
+        const r = Math.max(0, Math.min(1, startRatio + deltaY / pixelsPerRange));
+        let newVal = fromRatio(r);
+        if (step) {
+          newVal = Math.round(newVal / step) * step;
+        }
+        newVal = Math.max(min, Math.min(max, newVal));
+        val = newVal;
+        updateUI(newVal);
+        onChange(newVal);
+      };
+
+      const onEnd = () => {
+        window.removeEventListener('mousemove', onMove);
+        window.removeEventListener('mouseup', onEnd);
+        window.removeEventListener('touchmove', onMove);
+        window.removeEventListener('touchend', onEnd);
+        if (onCommit) onCommit(val);
+      };
+
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onEnd);
+      window.addEventListener('touchmove', onMove, { passive: false });
+      window.addEventListener('touchend', onEnd);
+    }
   };
 
   knobEl.addEventListener('mousedown', onStart);
   knobEl.addEventListener('touchstart', onStart, { passive: false });
+  if (trackEl) {
+    trackEl.addEventListener('mousedown', onStart);
+    trackEl.addEventListener('touchstart', onStart, { passive: false });
+  }
 }

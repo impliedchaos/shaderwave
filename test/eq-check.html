@@ -1,0 +1,164 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>pending</title></head>
+<body><pre id="out">running…</pre>
+<script type="module">
+// Equalizer (EQ) correctness — compares the GPU 3-band EQ output to a CPU
+// reference across a continuous stream (validates the strip + state carry),
+// confirms that it is perfectly transparent at 0 dB, and checks low/high cuts.
+import { createGL } from '../src/gl/context.js';
+import { EffectsChain, neutralFxParams } from '../src/gl/effects.js';
+import { makeTex } from '../src/gl/program.js';
+import { BLOCK } from '../src/constants.js';
+
+const out = document.getElementById('out');
+const lines = [];
+const log = (s) => { lines.push(s); out.textContent = lines.join('\n'); console.log(s); };
+const SR = 48000;
+const dbToLin = (db) => Math.pow(10, db / 20);
+
+// CPU reference for the Linkwitz-Riley 1st-order crossover 3-band EQ
+function eqRef(input, fl, fh, lowDb, midDb, highDb) {
+  const lowGain = dbToLin(lowDb);
+  const midGain = dbToLin(midDb);
+  const highGain = dbToLin(highDb);
+
+  const gL = Math.tan(Math.PI * fl / SR);
+  const aL = 1 / (1 + gL);
+  const gH = Math.tan(Math.PI * fh / SR);
+  const aH = 1 / (1 + gH);
+
+  let s_low = 0, s_high = 0;
+  const o = new Float32Array(input.length);
+
+  for (let n = 0; n < input.length; n++) {
+    const x = input[n];
+    const y_low = (x * gL + s_low) * aL;
+    s_low = 2 * y_low - s_low;
+
+    const y_high = (x * gH + s_high) * aH;
+    s_high = 2 * y_high - s_high;
+
+    const low = y_low;
+    const mid = y_high - y_low;
+    const high = x - y_high;
+
+    o[n] = lowGain * low + midGain * mid + highGain * high;
+  }
+  return o;
+}
+
+function renderChain(input, set) {
+  const gl = createGL(document.createElement('canvas'));
+  const params = neutralFxParams();
+  params.enabled = true; params.master = 1.0;
+  set(params);
+  const chain = new EffectsChain(gl, SR, params);
+  const inTex = makeTex(gl, BLOCK, 1), tgtTex = makeTex(gl, BLOCK, 1);
+  const tgtFbo = gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, tgtFbo);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tgtTex, 0);
+  const rgba = new Float32Array(BLOCK * 4), readBuf = new Float32Array(BLOCK * 4);
+  const o = new Float32Array(input.length);
+  for (let b = 0; b < input.length / BLOCK; b++) {
+    const bs = b * BLOCK;
+    for (let i = 0; i < BLOCK; i++) { const s = input[bs + i]; rgba[i * 4] = s; rgba[i * 4 + 1] = s; rgba[i * 4 + 2] = 0; rgba[i * 4 + 3] = 1; }
+    gl.bindTexture(gl.TEXTURE_2D, inTex);
+    gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, BLOCK, 1, gl.RGBA, gl.FLOAT, rgba);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, tgtFbo); gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
+    chain.process(inTex, tgtFbo, bs, 1.0);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, tgtFbo);
+    gl.readPixels(0, 0, BLOCK, 1, gl.RGBA, gl.FLOAT, readBuf);
+    for (let i = 0; i < BLOCK; i++) o[bs + i] = readBuf[i * 4];
+  }
+  return o;
+}
+
+function maxDiff(a, b) { let m = 0, at = -1; for (let i = 0; i < a.length; i++) { const d = Math.abs(a[i] - b[i]); if (d > m) { m = d; at = i; } } return { m, at }; }
+function peak(a, from = 0) { let p = 0; for (let i = from; i < a.length; i++) p = Math.max(p, Math.abs(a[i])); return p; }
+function anyNaN(a) { for (const v of a) if (!Number.isFinite(v)) return true; return false; }
+
+function makeSinInput(nBlocks, freq) {
+  const N = nBlocks * BLOCK, x = new Float32Array(N);
+  for (let n = 0; n < N; n++) {
+    x[n] = 0.5 * Math.sin(2 * Math.PI * freq * n / SR);
+  }
+  return x;
+}
+
+try {
+  let ok = true;
+  const NB = 16;
+
+  // 1. EQ matches CPU reference for complex settings
+  const inp = makeSinInput(NB, 1000); // 1 kHz input
+  const eqLowFreq = 200, eqHighFreq = 3000;
+  const eqLow = -12.0, eqMid = 6.0, eqHigh = -8.0;
+  
+  const gpu = renderChain(inp, (p) => {
+    p.eqOn = true;
+    p.eqLow = eqLow; p.eqMid = eqMid; p.eqHigh = eqHigh;
+    p.eqLowFreq = eqLowFreq; p.eqHighFreq = eqHighFreq;
+  });
+
+  const ref = eqRef(inp, eqLowFreq, eqHighFreq, eqLow, eqMid, eqHigh);
+  const cd = maxDiff(gpu, ref);
+  const eqOk = cd.m < 1e-5 && !anyNaN(gpu);
+  ok = ok && eqOk;
+  log(`EQ vs CPU ref: maxDiff=${cd.m.toExponential(2)} @${cd.at} ${eqOk ? 'OK' : 'FAIL'}`);
+
+  // 2. Transparency at 0 dB (bypass/flat check)
+  const flat = renderChain(inp, (p) => {
+    p.eqOn = true;
+    p.eqLow = 0; p.eqMid = 0; p.eqHigh = 0;
+  });
+  const fd = maxDiff(flat, inp);
+  const flatOk = fd.m < 1e-6;
+  ok = ok && flatOk;
+  log(`EQ 0dB Flat Transparency: maxDiff=${fd.m.toExponential(2)} ${flatOk ? 'OK' : 'FAIL'}`);
+
+  // 3. Low Cut check (low freq input, low gain cut)
+  const lowInp = makeSinInput(NB, 80); // 80 Hz sine
+  const gpuLowCut = renderChain(lowInp, (p) => {
+    p.eqOn = true;
+    p.eqLow = -24; p.eqMid = 0; p.eqHigh = 0;
+    p.eqLowFreq = 800; p.eqHighFreq = 3000;
+  });
+  const dryLowPeak = peak(lowInp, NB * BLOCK / 2);
+  const wetLowPeak = peak(gpuLowCut, NB * BLOCK / 2);
+  const lowCutRatio = wetLowPeak / dryLowPeak;
+  const lowCutOk = lowCutRatio < 0.20; // with 800Hz crossover, 80Hz should be cut by >80%
+  ok = ok && lowCutOk;
+  log(`EQ Low Cut (-24dB at 80Hz): peakRatio=${lowCutRatio.toFixed(3)} (want < 0.20) ${lowCutOk ? 'OK' : 'FAIL'}`);
+
+  // 4. High Cut check (high freq input, high gain cut)
+  const highInp = makeSinInput(NB, 8000); // 8 kHz sine
+  const gpuHighCut = renderChain(highInp, (p) => {
+    p.eqOn = true;
+    p.eqLow = 0; p.eqMid = 0; p.eqHigh = -24;
+    p.eqLowFreq = 200; p.eqHighFreq = 1000;
+  });
+  const dryHighPeak = peak(highInp, NB * BLOCK / 2);
+  const wetHighPeak = peak(gpuHighCut, NB * BLOCK / 2);
+  const highCutRatio = wetHighPeak / dryHighPeak;
+  const highCutOk = highCutRatio < 0.20; // with 1000Hz crossover, 8kHz should be cut by >80%
+  ok = ok && highCutOk;
+  log(`EQ High Cut (-24dB at 8kHz): peakRatio=${highCutRatio.toFixed(3)} (want < 0.20) ${highCutOk ? 'OK' : 'FAIL'}`);
+
+  // 5. Bypass transparency (eqOn = false)
+  const bypass = renderChain(inp, (p) => {
+    p.eqOn = false;
+    p.eqLow = 12; p.eqMid = -24; p.eqHigh = 12;
+  });
+  const bd = maxDiff(bypass, inp);
+  const bypOk = bd.m < 1e-6;
+  ok = ok && bypOk;
+  log(`EQ Bypass transparency: maxDiff=${bd.m.toExponential(2)} ${bypOk ? 'OK' : 'FAIL'}`);
+
+  document.title = ok ? 'ALL_OK' : 'FAILED';
+  log(ok ? '\n=== EQ CHECK OK ===' : '\n=== EQ CHECK FAILED ===');
+} catch (e) {
+  document.title = 'ERROR';
+  log('FATAL: ' + e.message + '\n' + (e.stack || ''));
+}
+</script>
+</body></html>

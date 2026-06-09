@@ -136,6 +136,13 @@ export interface FxParams {
   compAttack: number;     // ms
   compRelease: number;    // ms
   compMakeup: number;     // dB
+  compSource: number;     // sidechain source instrument instance index (-1 = self)
+  eqOn: boolean;
+  eqLow: number;          // dB
+  eqMid: number;          // dB
+  eqHigh: number;         // dB
+  eqLowFreq: number;      // Hz
+  eqHighFreq: number;     // Hz
   limitOn: boolean;
   limitCeil: number;      // dB (output ceiling)
   limitRelease: number;   // ms

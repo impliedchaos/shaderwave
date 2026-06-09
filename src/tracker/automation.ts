@@ -120,6 +120,17 @@ const FX_DYN_TARGETS: RawTarget[] = [
 ];
 for (const t of FX_DYN_TARGETS) TARGETS.push({ ...t, scope: 'fx', type: '*', id: TARGETS.length });
 
+// Equalizer fx targets — appended at the very end (id-stable).
+const FX_EQ_TARGETS: RawTarget[] = [
+  { code: 'EQO', label: 'EQ On',        key: 'eqOn',       min: 0,    max: 1,     curve: 'lin', toggle: true },
+  { code: 'EQL', label: 'EQ Low',       key: 'eqLow',      min: -24,  max: 12,    curve: 'lin', unit: 'dB' },
+  { code: 'EQM', label: 'EQ Mid',       key: 'eqMid',      min: -24,  max: 12,    curve: 'lin', unit: 'dB' },
+  { code: 'EQH', label: 'EQ High',      key: 'eqHigh',     min: -24,  max: 12,    curve: 'lin', unit: 'dB' },
+  { code: 'EQC', label: 'EQ Low Cut',   key: 'eqLowFreq',  min: 50,   max: 1000,  curve: 'log', unit: 'Hz' },
+  { code: 'EQD', label: 'EQ High Cut',  key: 'eqHighFreq', min: 1000, max: 10000, curve: 'log', unit: 'Hz' },
+];
+for (const t of FX_EQ_TARGETS) TARGETS.push({ ...t, scope: 'fx', type: '*', id: TARGETS.length });
+
 export function targetById(id: number): ParamTarget | null {
   return (id >= 0 && id < TARGETS.length) ? TARGETS[id] : null;
 }

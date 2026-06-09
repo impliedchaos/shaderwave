@@ -85,12 +85,20 @@ const FX_DEFS: FxDef[] = [
   { label: 'Mode', key: 'filterMode', min: 0, max: 2, step: 1, fmt: (v) => ['LP', 'HP', 'BP'][Math.round(v)] ?? 'LP' },
   { label: 'Mix', key: 'filterMix', min: 0, max: 1, step: 0.01 },
 
+  { category: 'Equalizer', fxKey: 'eq', enableKey: 'eqOn' },
+  { label: 'Low', key: 'eqLow', min: -24, max: 12, step: 0.5, fmt: (v) => (v > 0 ? '+' : '') + v.toFixed(1) + 'dB' },
+  { label: 'Mid', key: 'eqMid', min: -24, max: 12, step: 0.5, fmt: (v) => (v > 0 ? '+' : '') + v.toFixed(1) + 'dB' },
+  { label: 'High', key: 'eqHigh', min: -24, max: 12, step: 0.5, fmt: (v) => (v > 0 ? '+' : '') + v.toFixed(1) + 'dB' },
+  { label: 'Low Cut', key: 'eqLowFreq', min: 50, max: 1000, step: 10, log: true, fmt: (v) => Math.round(v) + 'Hz' },
+  { label: 'High Cut', key: 'eqHighFreq', min: 1000, max: 10000, step: 100, log: true, fmt: (v) => v >= 1000 ? (v / 1000).toFixed(1) + 'k' : Math.round(v) + 'Hz' },
+
   { category: 'Compressor', fxKey: 'compressor', enableKey: 'compOn' },
   { label: 'Thresh', key: 'compThresh', min: -60, max: 0, step: 0.5, fmt: (v) => v.toFixed(1) + 'dB' },
   { label: 'Ratio', key: 'compRatio', min: 1, max: 20, step: 0.1, log: true, fmt: (v) => v.toFixed(1) + ':1' },
   { label: 'Attack', key: 'compAttack', min: 0.1, max: 100, step: 0.1, log: true, fmt: (v) => v.toFixed(1) + 'ms' },
   { label: 'Release', key: 'compRelease', min: 5, max: 500, step: 1, log: true, fmt: (v) => Math.round(v) + 'ms' },
   { label: 'Makeup', key: 'compMakeup', min: 0, max: 24, step: 0.5, fmt: (v) => v.toFixed(1) + 'dB' },
+  { label: 'Source', key: 'compSource', min: -1, max: 15, step: 1 },
 
   { category: 'Stereo Chorus', fxKey: 'chorus', enableKey: 'chorusOn' },
   { label: 'Mix', key: 'chorusMix', min: 0, max: 1, step: 0.01 },
@@ -498,6 +506,10 @@ export class App {
       if (params[key] === undefined) {
         if (key === 'bitcrushBits') params[key] = 8.0;
         else if (key === 'bitcrushRate') params[key] = 4000.0;
+        else if (key === 'eqLow' || key === 'eqMid' || key === 'eqHigh') params[key] = 0.0;
+        else if (key === 'eqLowFreq') params[key] = 200.0;
+        else if (key === 'eqHighFreq') params[key] = 3000.0;
+        else if (key === 'compSource') params[key] = -1;
         else params[key] = min;
       }
       const block = document.createElement('div');
@@ -516,10 +528,105 @@ export class App {
       block.appendChild(wrapper);
       host.appendChild(block);
       const isPercent = min === 0 && max === 1 && step < 1;
+      let fmtFn = d.fmt ?? null;
+      if (key === 'compSource') {
+        fmtFn = (v) => {
+          const idx = Math.round(v);
+          if (idx < 0) return 'Self';
+          const inst = this.engine.instruments[idx];
+          return inst ? `${idx}:${inst.name}` : `Inst ${idx}`;
+        };
+      }
       bindKnob(knob, valSpan, min, max, step, params[key] as number, isPercent, (v) => {
         params[key] = v;
-      }, d.fmt ?? null, () => this.markDirty('fxknob'), d.log ?? false);
+      }, fmtFn, () => this.markDirty('fxknob'), d.log ?? false);
       this._fxKnobs.push({ el: knob, key });
+    };
+
+    const renderVisualEq = (knobs: FxDef[]) => {
+      const eqContainer = document.createElement('div');
+      eqContainer.className = 'visual-eq-container';
+
+      const slidersSection = document.createElement('div');
+      slidersSection.className = 'visual-eq-sliders-section';
+
+      // 1. Render the three gain sliders (Low, Mid, High)
+      for (let i = 0; i < 3; i++) {
+        const d = knobs[i];
+        const key = d.key!, min = d.min!, max = d.max!, step = d.step!;
+        if (params[key] === undefined) params[key] = 0.0;
+
+        const block = document.createElement('div');
+        block.className = 'eq-slider-block';
+
+        const label = document.createElement('label');
+        label.textContent = d.label ?? '';
+        block.appendChild(label);
+
+        const track = document.createElement('div');
+        track.className = 'eq-slider-track';
+
+        const handle = document.createElement('div');
+        handle.className = 'eq-slider-handle';
+        track.appendChild(handle);
+        block.appendChild(track);
+
+        const valSpan = document.createElement('span');
+        valSpan.className = 'knob-value';
+        block.appendChild(valSpan);
+
+        slidersSection.appendChild(block);
+
+        bindKnob(handle, valSpan, min, max, step, params[key] as number, false, (v) => {
+          params[key] = v;
+        }, d.fmt ?? null, () => this.markDirty('fxknob'), d.log ?? false, track);
+        this._fxKnobs.push({ el: handle, key });
+      }
+
+      eqContainer.appendChild(slidersSection);
+
+      // 2. Render the two frequency knobs (Low Cut, High Cut)
+      const knobsSection = document.createElement('div');
+      knobsSection.className = 'visual-eq-knobs-section';
+
+      for (let i = 3; i < 5; i++) {
+        const d = knobs[i];
+        const key = d.key!, min = d.min!, max = d.max!, step = d.step!;
+        if (params[key] === undefined) {
+          if (key === 'eqLowFreq') params[key] = 200.0;
+          else if (key === 'eqHighFreq') params[key] = 3000.0;
+          else params[key] = min;
+        }
+
+        const block = document.createElement('div');
+        block.className = 'param-control-block';
+
+        const label = document.createElement('label');
+        label.textContent = d.label ?? '';
+        block.appendChild(label);
+
+        const wrapper = document.createElement('div');
+        wrapper.className = 'knob-wrapper';
+
+        const knob = document.createElement('div');
+        knob.className = 'knob';
+        wrapper.appendChild(knob);
+
+        const valSpan = document.createElement('span');
+        valSpan.className = 'knob-value';
+        wrapper.appendChild(valSpan);
+        block.appendChild(wrapper);
+
+        knobsSection.appendChild(block);
+
+        bindKnob(knob, valSpan, min, max, step, params[key] as number, false, (v) => {
+          params[key] = v;
+        }, d.fmt ?? null, () => this.markDirty('fxknob'), d.log ?? false);
+        this._fxKnobs.push({ el: knob, key });
+      }
+
+      eqContainer.appendChild(knobsSection);
+      host.appendChild(eqContainer);
     };
 
     order.forEach((fxKey, pos) => {
@@ -527,7 +634,7 @@ export class App {
       if (!g) return;
       const cat = document.createElement('h3');
       cat.textContent = g.category;
-
+ 
       // Move up/down within the chain.
       const moves = document.createElement('span');
       moves.className = 'fx-cat-move';
@@ -541,12 +648,12 @@ export class App {
       dn.onclick = () => reorder(pos, pos + 1);
       moves.appendChild(up); moves.appendChild(dn);
       cat.appendChild(moves);
-
+ 
       let catOn = true;
       if (g.enableKey) {
         const ek = g.enableKey;
         if (params[ek] === undefined) {
-          params[ek] = (ek === 'bitcrushOn' || ek === 'odOn' || ek === 'filterOn' || ek === 'compOn' || ek === 'limitOn') ? false : true;
+          params[ek] = (ek === 'bitcrushOn' || ek === 'odOn' || ek === 'filterOn' || ek === 'compOn' || ek === 'limitOn' || ek === 'eqOn') ? false : true;
         }
         catOn = params[ek] !== false;
         const btn = document.createElement('button');
@@ -556,7 +663,13 @@ export class App {
         cat.appendChild(btn);
       }
       host.appendChild(cat);
-      if (catOn) for (const d of g.knobs) renderKnob(d);   // effect off → hide its knobs
+      if (catOn) {
+        if (fxKey === 'eq') {
+          renderVisualEq(g.knobs);
+        } else {
+          for (const d of g.knobs) renderKnob(d);
+        }
+      }
     });
   }
 

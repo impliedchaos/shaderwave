@@ -31,7 +31,7 @@ function dynRef(input, { threshLin, slope, atkCoef, relCoef, makeup }) {
   return o;
 }
 
-function renderChain(input, set) {
+function renderChain(input, set, keyInput = null) {
   const gl = createGL(document.createElement('canvas'));
   const params = neutralFxParams();
   params.enabled = true; params.master = 1.0;
@@ -41,15 +41,37 @@ function renderChain(input, set) {
   const tgtFbo = gl.createFramebuffer();
   gl.bindFramebuffer(gl.FRAMEBUFFER, tgtFbo);
   gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tgtTex, 0);
+
+  let keyTex = null;
+  if (keyInput) {
+    keyTex = makeTex(gl, BLOCK, 16);
+  }
+
   const rgba = new Float32Array(BLOCK * 4), readBuf = new Float32Array(BLOCK * 4);
+  const keyRgba = new Float32Array(BLOCK * 4 * 16);
   const o = new Float32Array(input.length);
   for (let b = 0; b < input.length / BLOCK; b++) {
     const bs = b * BLOCK;
     for (let i = 0; i < BLOCK; i++) { const s = input[bs + i]; rgba[i * 4] = s; rgba[i * 4 + 1] = s; rgba[i * 4 + 2] = 0; rgba[i * 4 + 3] = 1; }
     gl.bindTexture(gl.TEXTURE_2D, inTex);
     gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, BLOCK, 1, gl.RGBA, gl.FLOAT, rgba);
+
+    if (keyInput && keyTex) {
+      const row = params.compSource >= 0 ? params.compSource : 0;
+      for (let i = 0; i < BLOCK; i++) {
+        const s = keyInput[bs + i];
+        const offset = (row * BLOCK + i) * 4;
+        keyRgba[offset] = s;
+        keyRgba[offset + 1] = s;
+        keyRgba[offset + 2] = 0;
+        keyRgba[offset + 3] = 1;
+      }
+      gl.bindTexture(gl.TEXTURE_2D, keyTex);
+      gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, BLOCK, 16, gl.RGBA, gl.FLOAT, keyRgba);
+    }
+
     gl.bindFramebuffer(gl.FRAMEBUFFER, tgtFbo); gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
-    chain.process(inTex, tgtFbo, bs, 1.0);
+    chain.process(inTex, tgtFbo, bs, 1.0, keyTex, params.compSource);
     gl.bindFramebuffer(gl.FRAMEBUFFER, tgtFbo);
     gl.readPixels(0, 0, BLOCK, 1, gl.RGBA, gl.FLOAT, readBuf);
     for (let i = 0; i < BLOCK; i++) o[bs + i] = readBuf[i * 4];
@@ -113,6 +135,28 @@ try {
   const bypOk = bd.m < 1e-5;
   ok = ok && bypOk;
   log(`Bypass transparency: maxDiff vs dry=${bd.m.toExponential(2)} ${bypOk ? 'OK' : 'FAIL'}`);
+
+  // 5. Sidechain compression: constant input, pulsing key input on instance row 3.
+  const constInp = new Float32Array(NB * BLOCK); constInp.fill(0.5);
+  const pulseKey = new Float32Array(NB * BLOCK);
+  // first half quiet (0.0), second half loud (1.0)
+  for (let i = NB * BLOCK / 2; i < NB * BLOCK; i++) pulseKey[i] = 1.0;
+
+  const scGpu = renderChain(constInp, (p) => {
+    p.compOn = true;
+    p.compThresh = -18;
+    p.compRatio = 4;
+    p.compAttack = 5;
+    p.compRelease = 80;
+    p.compMakeup = 0;
+    p.compSource = 3; // sidechain to row 3
+  }, pulseKey);
+
+  const quietHalfPeak = peak(scGpu.slice(0, NB * BLOCK / 2 - 100)); // check quiet region
+  const loudHalfPeak = peak(scGpu.slice(NB * BLOCK / 2 + 2000)); // check loud (ducked) region
+  const scOk = Math.abs(quietHalfPeak - 0.5) < 1e-4 && loudHalfPeak < 0.35 && !anyNaN(scGpu);
+  ok = ok && scOk;
+  log(`Sidechain compression (row 3 key): quietPeak=${quietHalfPeak.toFixed(3)} loudPeak=${loudHalfPeak.toFixed(3)} ${scOk ? 'OK' : 'FAIL'}`);
 
   document.title = ok ? 'ALL_OK' : 'FAILED';
   log(ok ? '\n=== DYNAMICS OK ===' : '\n=== DYNAMICS FAILED ===');

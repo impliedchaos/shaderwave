@@ -2,7 +2,7 @@
 // reorderable per-instrument chain: a saved/hand-edited order must never silently
 // drop an effect (missing keys are appended) or run an unknown one (dropped).
 import { test, assert, assertEq } from './_harness.js';
-import { normalizeFxOrder, DEFAULT_FX_ORDER } from '../../src/gl/effects.js';
+import { normalizeFxOrder, DEFAULT_FX_ORDER, defaultFxParams } from '../../src/gl/effects.js';
 
 test('normalizeFxOrder: undefined → the full default order', () => {
   const o = normalizeFxOrder(undefined);
@@ -32,5 +32,17 @@ test('every effect key has a stable place (compressor + limiter registered)', ()
   assert(DEFAULT_FX_ORDER.includes('compressor'), 'compressor in registry');
   assert(DEFAULT_FX_ORDER.includes('limiter'), 'limiter in registry');
   assert(DEFAULT_FX_ORDER.includes('filter'), 'filter in registry');
+  assert(DEFAULT_FX_ORDER.includes('eq'), 'eq in registry');
   assertEq(DEFAULT_FX_ORDER[DEFAULT_FX_ORDER.length - 1], 'limiter', 'limiter defaults to dead last');
+});
+
+test('equalizer and compressor sidechain parameters are in defaultFxParams()', () => {
+  const p = defaultFxParams();
+  assertEq(p.eqOn, false, 'EQ starts off');
+  assertEq(p.eqLow, 0, 'EQ low default is 0 dB');
+  assertEq(p.eqMid, 0, 'EQ mid default is 0 dB');
+  assertEq(p.eqHigh, 0, 'EQ high default is 0 dB');
+  assertEq(p.eqLowFreq, 200, 'EQ low cutoff default');
+  assertEq(p.eqHighFreq, 3000, 'EQ high cutoff default');
+  assertEq(p.compSource, -1, 'compressor sidechain source default is self');
 });

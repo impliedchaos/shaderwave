@@ -227,10 +227,7 @@ Honest assessment of what the project most needs (beyond the parked plans below)
    (~10.7ms @48k) of constant output latency; first call returns silence (priming); `resetState()`
    drops pending fences so the next async call re-primes. Could claw the block back via a -1 prebuffer
    trim (not done — left as an underrun-safety judgment call). Verified bit-identical via golden-render.
-6. **EQ** + **sidechain/pumping compression** — genre-relevant effect gaps. NOTE: the "pump
-   aesthetic" half is now covered by the Pump LFO shape + LFO 4 (1.12.0); what's still missing is a
-   TRUE detector-keyed sidechain (responds to a key source's real dynamics) — that's the planned
-   compressor + a key-input/source-routing, best done after the compressor lands.
+6. **EQ** + **sidechain/pumping compression** — ✅ DONE (1.18.0). Crossover Linkwitz-Riley 3-band EQ recursive shader (fx-eq.glsl) and multi-instance dry-buffer (instDryTex) sidechain routing to compressor (uKeyTex/uKeyRow) implemented and test verified.
 Push-back to honor: resist adding more synth engines / demo songs until undo + tests exist — the
 synth palette is already wide; forgiving (undo) + not-breaking (tests) matter more than a 12th engine.
 
@@ -400,6 +397,27 @@ is warranted.
 **Verify:** build + glsl-check + render-check + song-load loop + headless checks (no block-rate
 glitch — render a held tone with decimation across block boundaries, assert sample continuity;
 toggle automation flips an effect on/off; mid-tread quantizer keeps 0).
+
+### EQ + Sidechain/Pumping Compression (1.18.0) — `project`
+Added 2026-06-09. Built Linkwitz-Riley 3-band EQ and sidechain dynamics.
+- **3-band EQ (`fx-eq.glsl` + `fxEq`):**
+  - Uses two 1st-order Linkwitz-Riley crossover filters to split the signal into Low, Mid, and High bands.
+  - TPT (topology-preserving transform) zero-delay feedback form: `y = (x*g + s) / (1+g)`, `s_next = 2*y - s`.
+  - State (4 floats) fits in one RGBA texel: `(s_low_L, s_high_L, s_low_R, s_high_R)`.
+  - Perfectly transparent when gains are at 0 dB (1.0).
+  - Swept cutoff frequencies: Low crossover 50..1000 Hz, High crossover 1000..10000 Hz.
+  - Stomp box bypass (`eqOn` flag defaults to off for partial-fx songs).
+- **Sidechain Compression:**
+  - `instDryTex` (size `BLOCK × 16`) added to `SynthRenderer` to save the dry mixed stereo audio of all 16 instrument instances.
+  - In `_renderToMix`, we clear `instDryFbo`, mix each instance `k`'s voices into row `k` of `instDryTex`, and then `blitFramebuffer` row `k` into `chanDryFbo` for the FX chain.
+  - Compressor `compSource` parameter (-1 = self/normal, 0..15 = sidechain key instrument instance index).
+  - Compressor binds `ctx.instDryTex` to Unit 2, passing `uKeyRow`. If `uKeyRow >= 0`, peak detector reads from `uKeyTex` row `uKeyRow`; otherwise detects from the insert signal `uIn`.
+- **UI:**
+  - Visual EQ UI: The EQ category in the FX panel renders as a unified visual card featuring 3 side-by-side vertical sliders for Low, Mid, High gains, and 2 knobs for frequency cutoffs. The sliders support direct track clicking, have an expanded hit zone for touch responsiveness, and display subtle horizontal tick marks with a highlighted zero-level (0 dB) line.
+  - Compressor has a new "Source" knob which dynamically formats values to display names of the targeted instrument instances (e.g. `0:Kick` or `Self`).
+- **Automation / Tests:**
+  - EQ targets (`EQO`, `EQL`, `EQM`, `EQH`, `EQC`, `EQD`) appended at the end of `TARGETS` (id-stable).
+  - Headless harnesses `test/eq-check.html` (new) and `test/dynamics-check.html` verify mathematical correctness, bypass transparency, and sidechain envelope mapping. `golden-render` checksum remains unchanged (0x5fc60c89).
 
 ### Compressor + Limiter + reorderable chain (1.14.0) — `project`
 Added 2026-06-08. Built on the 1.13.0 `_recursive` infra.

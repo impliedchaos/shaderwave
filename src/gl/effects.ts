@@ -26,6 +26,7 @@ import FX_FDN_TAP from './shaders/fx-fdn-tap.glsl?raw';
 import FX_BITCRUSH from './shaders/fx-bitcrush.glsl?raw';
 import FX_BITCRUSH_UPDATE from './shaders/fx-bitcrush-update.glsl?raw';
 import FX_FILTER from './shaders/fx-filter.glsl?raw';
+import FX_EQ from './shaders/fx-eq.glsl?raw';
 import FX_DYNAMICS from './shaders/fx-dynamics.glsl?raw';
 import FX_WIDTH from './shaders/fx-width.glsl?raw';
 import FX_MASTER from './shaders/fx-master.glsl?raw';
@@ -54,6 +55,8 @@ export interface FxCtx {
   wposF: number;                      // FDN ring write position
   wposC: number;                      // chorus ring write position
   delaySamples: number;               // clamped delay length in samples
+  instDryTex?: WebGLTexture | null;   // all instances' mixed dry signals
+  instIdx?: number;                   // current instrument instance index
   bind(unit: number, tex: WebGLTexture): void;
   stereoPass(prog: GLProgram, inTex: WebGLTexture, outFbo: WebGLFramebuffer | null): GLProgram;
   // Per-sample recursive strip pass (filter etc.). `prog` must already be in use
@@ -349,6 +352,51 @@ const fxFilter: FxEffectDef = {
   },
 };
 
+const fxEq: FxEffectDef = {
+  key: 'eq', name: 'Equalizer', enableFlag: 'eqOn',
+  defaults: { eqOn: false, eqLow: 0, eqMid: 0, eqHigh: 0, eqLowFreq: 200, eqHighFreq: 3000 },
+  init(gl) {
+    const prog = createProgram(gl, FX_EQ);
+    gl.useProgram(prog); gl.uniform1i(prog.u('uIn'), 0); gl.uniform1i(prog.u('uPrevState'), 1);
+    let read = makeTex(gl, BLOCK, 1), write = makeTex(gl, BLOCK, 1);
+    return {
+      reset(clear) { clear(read); clear(write); },
+      process(ctx, inTex, outFbo) {
+        const g = ctx.gl, p = ctx.params, on = ctx.on('eqOn');
+        g.useProgram(prog);
+        if (!on) {
+          g.bindFramebuffer(g.FRAMEBUFFER, outFbo);
+          g.drawBuffers([g.COLOR_ATTACHMENT0]);
+          ctx.bind(0, inTex);
+          g.uniform1i(prog.u('uBypass'), 1);
+          g.viewport(0, 0, BLOCK, 1); drawQuad(g);
+          return;
+        }
+
+        const fl = Math.max(20, Math.min(ctx.sampleRate * 0.45, (p.eqLowFreq as number) ?? 200));
+        const fh = Math.max(200, Math.min(ctx.sampleRate * 0.45, (p.eqHighFreq as number) ?? 3000));
+
+        const gL = Math.tan(Math.PI * fl / ctx.sampleRate);
+        const aL = 1 / (1 + gL);
+        const gH = Math.tan(Math.PI * fh / ctx.sampleRate);
+        const aH = 1 / (1 + gH);
+
+        g.uniform1i(prog.u('uBypass'), 0);
+        g.uniform1f(prog.u('uGLow'), gL);
+        g.uniform1f(prog.u('uALow'), aL);
+        g.uniform1f(prog.u('uGHigh'), gH);
+        g.uniform1f(prog.u('uAHigh'), aH);
+
+        g.uniform1f(prog.u('uLowGain'), dbToLin((p.eqLow as number) ?? 0));
+        g.uniform1f(prog.u('uMidGain'), dbToLin((p.eqMid as number) ?? 0));
+        g.uniform1f(prog.u('uHighGain'), dbToLin((p.eqHigh as number) ?? 0));
+
+        [read, write] = ctx.recursive(prog, inTex, outFbo, read, write);
+      },
+    };
+  },
+};
+
 // Compressor + Limiter share one per-sample recursive envelope follower
 // (fx-dynamics.glsl via ctx.recursive). They differ only in how their params map
 // to the shader's threshold/slope/coefficients, so a small factory builds both.
@@ -362,7 +410,11 @@ function makeDynamics(def: {
     key: def.key, name: def.name, enableFlag: def.enableFlag, defaults: def.defaults,
     init(gl) {
       const prog = createProgram(gl, FX_DYNAMICS);
-      gl.useProgram(prog); gl.uniform1i(prog.u('uIn'), 0); gl.uniform1i(prog.u('uPrevState'), 1);
+      gl.useProgram(prog);
+      gl.uniform1i(prog.u('uIn'), 0);
+      gl.uniform1i(prog.u('uPrevState'), 1);
+      const uKeyTex = prog.u('uKeyTex');
+      if (uKeyTex) gl.uniform1i(uKeyTex, 2);
       let read = makeTex(gl, BLOCK, 1), write = makeTex(gl, BLOCK, 1);   // envelope carry
       return {
         reset(clear) { clear(read); clear(write); },
@@ -384,6 +436,16 @@ function makeDynamics(def: {
           g.uniform1f(prog.u('uThreshLin'), c.threshLin);
           g.uniform1f(prog.u('uSlope'), c.slope);
           g.uniform1f(prog.u('uMakeup'), c.makeup);
+
+          // Sidechain uniform binding
+          const keySrc = (ctx.params.compSource !== undefined && def.key === 'compressor') ? ctx.params.compSource : -1;
+          if (keySrc >= 0 && ctx.instDryTex) {
+            ctx.bind(2, ctx.instDryTex);
+            g.uniform1i(prog.u('uKeyRow'), keySrc);
+          } else {
+            g.uniform1i(prog.u('uKeyRow'), -1);
+          }
+
           [read, write] = ctx.recursive(prog, inTex, outFbo, read, write);
         },
       };
@@ -397,7 +459,7 @@ const dbToLin = (db: number) => Math.pow(10, db / 20);
 
 const fxCompressor = makeDynamics({
   key: 'compressor', name: 'Compressor', enableFlag: 'compOn',
-  defaults: { compOn: false, compThresh: -18, compRatio: 3, compAttack: 10, compRelease: 120, compMakeup: 0 },
+  defaults: { compOn: false, compThresh: -18, compRatio: 3, compAttack: 10, compRelease: 120, compMakeup: 0, compSource: -1 },
   coeffs(p, sr) {
     return {
       threshLin: dbToLin((p.compThresh as number) ?? -18),
@@ -443,7 +505,7 @@ const fxWidth: FxEffectDef = {
 // Signal-flow order matches the README chain; the master accumulate always runs
 // after it. Reorder this array to rearrange the chain.
 export const FX_EFFECTS: FxEffectDef[] = [
-  fxCompressor, fxFilter, fxOverdrive, fxDistortion, fxChorus, fxTremolo, fxDelay, fxReverb, fxBitcrush, fxWidth, fxLimiter,
+  fxCompressor, fxFilter, fxEq, fxOverdrive, fxDistortion, fxChorus, fxTremolo, fxDelay, fxReverb, fxBitcrush, fxWidth, fxLimiter,
 ];
 
 export const DEFAULT_FX_ORDER = FX_EFFECTS.map((e) => e.key);
@@ -476,9 +538,10 @@ export function defaultFxParams(): FxParams {
 // stays the song-authoring baseline; only `+ Add` uses this.)
 export function neutralFxParams(): FxParams {
   const p = defaultFxParams();
-  p.distOn = p.odOn = p.filterOn = p.compOn = p.limitOn = p.chorusOn = p.tremoloOn = p.delayOn = p.reverbOn = p.widthOn = p.bitcrushOn = false;
+  p.distOn = p.odOn = p.filterOn = p.eqOn = p.compOn = p.limitOn = p.chorusOn = p.tremoloOn = p.delayOn = p.reverbOn = p.widthOn = p.bitcrushOn = false;
   p.dist = 0;                         // distortion drive → transparent
   p.odDrive = 1; p.odTone = 0.5;      // overdrive: unity drive, centre tone
+  p.eqLow = p.eqMid = p.eqHigh = 0;   // EQ gains → neutral 0 dB
   p.delayMix = 0; p.reverbMix = 0; p.bitcrushMix = 0;
   p.width = 1.0;                      // unity stereo width
   return p;
@@ -549,7 +612,7 @@ export class EffectsChain {
     const p = this.params as Record<string, number | boolean>;
     // Newer opt-in effects (bitcrush, overdrive) default OFF when the flag is
     // absent (truthy test); the original effects default ON (!== false).
-    const optIn = flag === 'bitcrushOn' || flag === 'odOn' || flag === 'filterOn' || flag === 'compOn' || flag === 'limitOn';
+    const optIn = flag === 'bitcrushOn' || flag === 'odOn' || flag === 'filterOn' || flag === 'compOn' || flag === 'limitOn' || flag === 'eqOn';
     return !!this.params.enabled && (optIn ? !!p[flag] : p[flag] !== false);
   }
 
@@ -594,7 +657,7 @@ export class EffectsChain {
 
   // Run the chain: dry stereo from mixTex flows through `this.order`, then the
   // master pass accumulates (additive) into targetFbo.
-  process(mixTex: WebGLTexture, targetFbo: WebGLFramebuffer | null, blockStart: number, masterScale = 1.0) {
+  process(mixTex: WebGLTexture, targetFbo: WebGLFramebuffer | null, blockStart: number, masterScale = 1.0, instDryTex: WebGLTexture | null = null, instIdx = -1) {
     const gl = this.gl, p = this.params;
     const D = Math.round(p.delayTime * this.sampleRate);
     const ctx: FxCtx = {
@@ -604,6 +667,8 @@ export class EffectsChain {
       wposF: ((blockStart % FDN_LEN) + FDN_LEN) % FDN_LEN,
       wposC: ((blockStart % CHORUS_LEN) + CHORUS_LEN) % CHORUS_LEN,
       delaySamples: Math.max(BLOCK, Math.min(DELAY_LEN - 1, D)),   // keep ≥ BLOCK for parallelism
+      instDryTex,
+      instIdx,
       bind: (u, t) => this._bind(u, t),
       stereoPass: (prog, inTex, outFbo) => this._stereoPass(prog, inTex, outFbo),
       recursive: (prog, inTex, outFbo, r, w) => this._recursive(prog, inTex, outFbo, r, w),
