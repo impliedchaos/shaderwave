@@ -231,22 +231,14 @@ Honest assessment of what the project most needs (beyond the parked plans below)
 Push-back to honor: resist adding more synth engines / demo songs until undo + tests exist — the
 synth palette is already wide; forgiving (undo) + not-breaking (tests) matter more than a 12th engine.
 
-### GPU sample / granular engine — PLANNED — `project`
-A sampler is NOT contradictory to "synthesized on the GPU" (I was wrong; user corrected me): WVT
-already binds a `sampler2D` and reads a texture by playhead → a sample is the same path with a
-different texture source, still all GPU computation. The real new problem is **asset management**.
-- **FIRST FORK — decide before any code: how samples persist with a song.** Options: embed raw PCM
-  (huge) / **store the user's ORIGINAL encoded file bytes + `decodeAudioData` on load** (cheap, no
-  encoder needed — see format notes; my lean) / external library + references (fragile). Shapes all.
-- **Texture layout:** long samples exceed 1D → tile across a `≤16384 × N` R32F texture, index→(x,y).
-- **Pitch:** rate = noteFreq / rootFreq; resample with interp (bilinear already done); pitch-up
-  aliasing → reuse the WVT per-octave band-limited mip machinery (or embrace grit).
-- **MVP:** load file → pitched one-shot / looped playback (loop start/end) + ADSR.
-- **The wow (why GPU makes this special, not me-too):** GRANULAR (many windowed grains per output
-  sample — GPU is built for it, brutal on CPU); read-head as an LFO/automation TARGET (rhythmic
-  scrubbing — mod matrix already there); freeze / time-stretch (playhead decoupled from pitch);
-  sample→Wavewright bank (slice into single-cycle frames, shares WVT machinery). Frame it as a
-  distinctive GPU-granular instrument.
+### GPU sampler engine (v1) — ✅ DONE (1.19.0) — `project`
+Built 2026-06-09. A GPU-based PCM sampler implemented using a shared `samplerTex` atlas (R32F, 4096×4096, unit 4).
+- **Atlas layout:** Supports up to 16 slots. A `syncSamplerSlots` method densely packs active sampler instances into the atlas before playback, uploading up to 1,048,576 frames (4096×256) per slot.
+- **Shader (`synth-sampler.glsl`):** Closed-form, non-recursive rendering. Calculates fractional playback position with rate = noteFreq / rootFreq, using bilinear interpolation across row bounds to read seamlessly from the 2D atlas.
+- **Features:** One-shot or forward loop modes, ADSR envelope (`p0`/`p1` params). Tiling boundary checks ensure cross-row interpolation is artifact-free.
+- **Persistence (`song-io.ts`):** Samples persist in the `SerializedInstrument` structure by encoding mono `Float32Array` PCM into an `Int16Array` and converting to Base64. Reconstructs and resamples automatically on load.
+- **UI (`controls.ts`):** Custom sampler panel triggers a native `<input type="file" accept="audio/*">`, decodes via `AudioContext` and truncates/resamples to `ENGINE_SR` if necessary. Exposes `rootNote`, `loopMode`, `loopStart`, and `loopEnd`.
+- **Future wow (Granular):** The foundational atlas and addressing math are now in place. Future iterations can add time-stretch, granular spray, and LFO mod-matrix integration for the playhead.
 
 ### Playback library extraction — future goal — `project`
 Goal: a headless PLAYBACK LIB so a song composed/saved in ShaderWave plays in another project (npm

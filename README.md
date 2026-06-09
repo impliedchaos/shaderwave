@@ -194,6 +194,12 @@ LFO/automation targets), **Detune2**, **FM**, **Bank1/Bank2**, **Sub**, **SubOct
 **Level1/Level2**, **EnvPos1/EnvPos2** (ADSR → morph Position). Presets: Classic Sweep,
 PWM Strings, Vowel Pad, Metallic FM, Sub Bass.
 
+### Sampler — GPU PCM Playback (short name **SMP**)
+
+A fully GPU-accelerated PCM sampler. Audio files loaded via the UI are decoded, resampled to the engine rate, and densely packed into a massive shared 2D atlas texture (`4096×4096`). The sampler shader reads this texture using fractional interpolated lookups driven by the note's pitch ratio.
+It supports **One-Shot** and **Forward Loop** modes.
+Parameters: **Tune(st)**, **Start**, **Gain**, **Attack**, **Decay**, **Sustain**, **Release**. Load a sample using the "Load Sample..." button in the instrument panel. Sample data is automatically persisted (base64 encoded) when saving songs to a file or IndexedDB.
+
 ## Effect column
 
 Each pattern cell has a fourth sub-column — a classic tracker **effect command**

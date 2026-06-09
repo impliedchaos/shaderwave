@@ -22,6 +22,10 @@ import MIX_FS from './shaders/mix.glsl?raw';
 // render — they just can't be keyed off. The UI's compSource max is INST_DRY_ROWS-1.
 const INST_DRY_ROWS = 16;
 
+export const SMP_ATLAS_W = 4096;          // MUST match SMP_W in synth-sampler.glsl
+export const SMP_ATLAS_H = 4096;
+export const SMP_MAX_SLOTS = 16;
+
 // One instrument's GPU resources: its synth program + audio/state textures. `def`
 // is the registry descriptor — the source of its shader, recursion flag, and any
 // engine-specific uniforms. Effects are NOT per-instrument here: the chain runs
@@ -60,6 +64,15 @@ export class SynthRenderer {
   readBuf: Float32Array;
   outBuf: Float32Array;
   wavetableTex: WebGLTexture;   // shared Wavewright wavetable atlas (bound to unit 3)
+  samplerTex: WebGLTexture;     // shared sampler PCM atlas (bound to unit 4)
+  _smpSlotByInstIdx: Int32Array;
+  _smpBaseRow: Float32Array;
+  _smpLen: Float32Array;
+  _smpRootFreq: Float32Array;
+  _smpLoopStart: Float32Array;
+  _smpLoopEnd: Float32Array;
+  _smpLoopMode: Float32Array;
+  _smpPcmRef: (Float32Array | null)[];
   // Async readback state (used only by the realtime producer via renderBlockAsync):
   // two pixel-pack buffers, ping-ponged so we map block N-1's result while block N's
   // readback DMA is still in flight — removing the synchronous readPixels main-thread
@@ -125,6 +138,26 @@ export class SynthRenderer {
     this._pboFence = [null, null];
     this._pboIdx = 0;
 
+    this._smpSlotByInstIdx = new Int32Array(0);
+    this._smpBaseRow = new Float32Array(SMP_MAX_SLOTS);
+    this._smpLen = new Float32Array(SMP_MAX_SLOTS);
+    this._smpRootFreq = new Float32Array(SMP_MAX_SLOTS);
+    this._smpLoopStart = new Float32Array(SMP_MAX_SLOTS);
+    this._smpLoopEnd = new Float32Array(SMP_MAX_SLOTS);
+    this._smpLoopMode = new Float32Array(SMP_MAX_SLOTS);
+    this._smpPcmRef = new Array(SMP_MAX_SLOTS).fill(null);
+
+    // Sampler atlas initialization
+    this.samplerTex = gl.createTexture()!;
+    gl.activeTexture(gl.TEXTURE4);
+    gl.bindTexture(gl.TEXTURE_2D, this.samplerTex);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.R32F, SMP_ATLAS_W, SMP_ATLAS_H, 0, gl.RED, gl.FLOAT, null);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.activeTexture(gl.TEXTURE0);
+
     // Wavewright wavetable atlas: one R32F texture (width = samples, height =
     // mips × banks × frames) holding every band-limited frame, sampled by the wvt
     // shader via texelFetch. Built once (the bake is the ~1 s mip synthesis),
@@ -153,11 +186,64 @@ export class SynthRenderer {
       gl.uniform1i(it.prog.u('uPrevPhase'), 1);
       gl.uniform1i(it.prog.u('uPrevPhase2'), 2);
       gl.uniform1i(it.prog.u('uWavetable'), 3);
+      gl.uniform1i(it.prog.u('uSamplePcm'), 4);
     }
     
     // Tell mixProg its uInstTex sampler lives on texture unit 0.
     gl.useProgram(this.mixProg);
     gl.uniform1i(this.mixProg.u('uInstTex'), 0);
+  }
+
+  syncSamplerSlots(instruments: import('../types.js').InstrumentInstance[]) {
+    const gl = this.gl;
+    if (this._smpSlotByInstIdx.length !== instruments.length) {
+      this._smpSlotByInstIdx = new Int32Array(instruments.length).fill(-1);
+    } else {
+      this._smpSlotByInstIdx.fill(-1);
+    }
+    let slot = 0;
+    let currentRow = 0;
+    
+    gl.activeTexture(gl.TEXTURE4);
+    gl.bindTexture(gl.TEXTURE_2D, this.samplerTex);
+    
+    for (let i = 0; i < instruments.length; i++) {
+      const inst = instruments[i];
+      if (inst && inst.type === 'sampler' && inst.sample && slot < SMP_MAX_SLOTS) {
+        this._smpSlotByInstIdx[i] = slot;
+        const s = inst.sample;
+        const len = s.pcm.length;
+        
+        this._smpBaseRow[slot] = currentRow;
+        this._smpLen[slot] = len;
+        this._smpRootFreq[slot] = 440.0 * Math.pow(2, (s.rootNote - 69) / 12);
+        this._smpLoopStart[slot] = s.loopStart;
+        this._smpLoopEnd[slot] = s.loopEnd;
+        this._smpLoopMode[slot] = s.loopMode;
+        
+        // Upload if changed
+        if (this._smpPcmRef[slot] !== s.pcm) {
+          this._smpPcmRef[slot] = s.pcm;
+          const rowsNeeded = Math.ceil(len / SMP_ATLAS_W);
+          if (currentRow + rowsNeeded <= SMP_ATLAS_H) {
+            // pad the last row if necessary to make a full rectangle
+            let uploadData = s.pcm;
+            const paddedLen = rowsNeeded * SMP_ATLAS_W;
+            if (len < paddedLen) {
+              uploadData = new Float32Array(paddedLen);
+              uploadData.set(s.pcm);
+            }
+            gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, currentRow, SMP_ATLAS_W, rowsNeeded, gl.RED, gl.FLOAT, uploadData);
+          } else {
+            console.warn("Sampler atlas out of space");
+          }
+        }
+        
+        currentRow += Math.ceil(len / SMP_ATLAS_W);
+        slot++;
+      }
+    }
+    gl.activeTexture(gl.TEXTURE0);
   }
 
   // Resets synth state textures and FX feedback buffers.
@@ -217,6 +303,23 @@ export class SynthRenderer {
   _renderToMix(vd: VoiceData, blockStart: number): void {
     const gl = this.gl;
     gl.disable(gl.BLEND);
+
+    if (vd.sampler) {
+      for (let v = 0; v < VOICES; v++) {
+        if (!vd.active[v]) continue;
+        const instId = vd.instId[v];
+        const slot = (instId >= 0 && instId < this._smpSlotByInstIdx.length) ? this._smpSlotByInstIdx[instId] : -1;
+        vd.sampler.slot[v] = slot;
+        if (slot >= 0) {
+          vd.sampler.baseRow[v] = this._smpBaseRow[slot];
+          vd.sampler.len[v] = this._smpLen[slot];
+          vd.sampler.rootFreq[v] = this._smpRootFreq[slot];
+          vd.sampler.loopStart[v] = this._smpLoopStart[slot];
+          vd.sampler.loopEnd[v] = this._smpLoopEnd[slot];
+          vd.sampler.loopMode[v] = this._smpLoopMode[slot];
+        }
+      }
+    }
 
     // 1. Synth voice pass for each instrument. The 303/Moog ladder is recursive,
     //    so each output sample must recompute the filter from a known state. We

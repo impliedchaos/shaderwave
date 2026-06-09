@@ -616,6 +616,138 @@ export class Controls {
     // Wavewright: live oscilloscopes showing each oscillator's morphed waveform.
     if (this._wtScopeRaf) { cancelAnimationFrame(this._wtScopeRaf); this._wtScopeRaf = 0; }
     if (name === 'wvt') this._buildWtScopes(pr);
+    if (name === 'sampler') this._buildSamplerUI(pr);
+  }
+
+  _buildSamplerUI(pr: InstrumentInstance) {
+    const wrap = document.createElement('div');
+    wrap.className = 'sampler-ui';
+    wrap.style.marginTop = '16px';
+    wrap.style.padding = '8px';
+    wrap.style.background = 'rgba(0,0,0,0.2)';
+    wrap.style.borderRadius = '4px';
+
+    const info = document.createElement('div');
+    info.style.marginBottom = '8px';
+    if (pr.sample) {
+      const sec = (pr.sample.pcm.length / 48000).toFixed(2);
+      info.textContent = `Loaded: ${pr.sample.name} (${sec}s)`;
+    } else {
+      info.textContent = 'No sample loaded';
+    }
+    wrap.appendChild(info);
+
+    const btn = document.createElement('button');
+    btn.textContent = 'Load Sample...';
+    btn.onclick = () => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'audio/*';
+      input.onchange = async (e) => {
+        const file = (e.target as HTMLInputElement).files?.[0];
+        if (!file) return;
+        try {
+          const buf = await file.arrayBuffer();
+          const ctx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 48000 });
+          const audio = await ctx.decodeAudioData(buf);
+          let pcm = audio.getChannelData(0);
+          
+          if (audio.sampleRate !== 48000) {
+            console.warn(`Browser ignored 48000 Hz context; manually resampling from ${audio.sampleRate} Hz`);
+            const ratio = audio.sampleRate / 48000;
+            const newLen = Math.floor(pcm.length / ratio);
+            const newPcm = new Float32Array(newLen);
+            for (let i = 0; i < newLen; i++) {
+              const pos = i * ratio;
+              const idx = Math.floor(pos);
+              const frac = pos - idx;
+              if (idx + 1 < pcm.length) {
+                newPcm[i] = pcm[idx] * (1 - frac) + pcm[idx + 1] * frac;
+              } else {
+                newPcm[i] = pcm[idx];
+              }
+            }
+            pcm = newPcm;
+          }
+
+          const maxLen = 4096 * (4096 / 16);
+          if (pcm.length > maxLen) {
+            console.warn(`Sample too long (${pcm.length} frames). Truncating to ${maxLen} frames.`);
+            pcm = pcm.slice(0, maxLen);
+          }
+
+          pr.sample = {
+            name: file.name,
+            pcm,
+            rootNote: 60,
+            loopStart: 0,
+            loopEnd: pcm.length,
+            loopMode: 0
+          };
+          this.app?._syncRendererFx();
+          this.app?.markDirty('instrument');
+          this._buildParams();
+        } catch (err) {
+          console.error("Failed to load sample", err);
+          alert("Failed to load sample: " + (err as Error).message);
+        }
+      };
+      input.click();
+    };
+    wrap.appendChild(btn);
+
+    if (pr.sample) {
+      const controls = document.createElement('div');
+      controls.style.marginTop = '8px';
+      controls.style.display = 'grid';
+      controls.style.gridTemplateColumns = '1fr 1fr';
+      controls.style.gap = '8px';
+
+      const addInput = (labelTxt: string, val: number, onChange: (v: number) => void) => {
+        const d = document.createElement('div');
+        d.style.display = 'flex'; d.style.flexDirection = 'column';
+        const l = document.createElement('label'); l.textContent = labelTxt;
+        l.style.fontSize = '10px'; l.style.color = '#888';
+        const inp = document.createElement('input');
+        inp.type = 'number';
+        inp.value = String(val);
+        inp.style.background = '#111'; inp.style.color = '#fff';
+        inp.style.border = '1px solid #333'; inp.style.padding = '2px 4px';
+        inp.onchange = (e) => {
+          onChange(Number((e.target as HTMLInputElement).value));
+          this.app?._syncRendererFx();
+          this.app?.markDirty('instrument');
+        };
+        d.append(l, inp);
+        controls.appendChild(d);
+      };
+
+      addInput('Root Note', pr.sample.rootNote, v => pr.sample!.rootNote = v);
+      
+      const modeDiv = document.createElement('div');
+      modeDiv.style.display = 'flex'; modeDiv.style.flexDirection = 'column';
+      const mLabel = document.createElement('label'); mLabel.textContent = 'Loop Mode';
+      mLabel.style.fontSize = '10px'; mLabel.style.color = '#888';
+      const sel = document.createElement('select');
+      sel.style.background = '#111'; sel.style.color = '#fff';
+      sel.style.border = '1px solid #333'; sel.style.padding = '2px 4px';
+      sel.innerHTML = `<option value="0">One-Shot</option><option value="1">Forward</option>`;
+      sel.value = String(pr.sample.loopMode);
+      sel.onchange = (e) => {
+        pr.sample!.loopMode = Number((e.target as HTMLSelectElement).value);
+        this.app?._syncRendererFx();
+        this.app?.markDirty('instrument');
+      };
+      modeDiv.append(mLabel, sel);
+      controls.appendChild(modeDiv);
+
+      addInput('Loop Start', pr.sample.loopStart, v => pr.sample!.loopStart = v);
+      addInput('Loop End', pr.sample.loopEnd, v => pr.sample!.loopEnd = v);
+
+      wrap.appendChild(controls);
+    }
+
+    this.paramEl.appendChild(wrap);
   }
 
   // Two small canvases under the WVT knobs, each drawing one oscillator's current

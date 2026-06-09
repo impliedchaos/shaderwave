@@ -33,6 +33,15 @@ export interface DX7Op {
   l4?: number;
 }
 
+export interface SampleData {
+  name: string;          // original filename, for UI
+  pcm: Float32Array;     // mono, at ENGINE sample rate (resample on load — see 4)
+  rootNote: number;      // MIDI note the sample plays back at unity rate (default 60)
+  loopStart: number;     // sample frames; 0 if none
+  loopEnd: number;       // sample frames; pcm.length if none
+  loopMode: number;      // 0 = one-shot, 1 = forward loop
+}
+
 // A per-engine-type param bank as authored in songs (defaultParams / makeParams).
 // p0/p1 are the universal banks; moog adds p2/p3; dx7 carries operator config.
 export interface InstrumentParams {
@@ -41,6 +50,7 @@ export interface InstrumentParams {
   p2?: number[];
   p3?: number[];
   ops?: DX7Op[];
+  sample?: SampleData;
 }
 
 // A concrete instrument *instance* in the engine's instrument table. Patterns
@@ -199,6 +209,15 @@ export interface VoiceData {
   master: number;
   // Per-voice DX7 operator config, packed [v*6 + op] into vec4 arrays.
   dx7Ops: { A: Float32Array; B: Float32Array; C: Float32Array; D: Float32Array };
+  sampler?: {
+    slot: Float32Array;
+    baseRow: Float32Array;
+    loopStart: Float32Array;
+    loopEnd: Float32Array;
+    len: Float32Array;
+    rootFreq: Float32Array;
+    loopMode: Float32Array;
+  };
 }
 
 // ── Dedicated Automation Tracks ─────────────────────────────────────────────

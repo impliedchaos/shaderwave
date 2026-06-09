@@ -42,6 +42,15 @@ export interface SerializedInstrument {
   p2?: number[];
   p3?: number[];
   ops?: DX7Op[];
+  sample?: {
+    name: string;
+    rootNote: number;
+    loopStart: number;
+    loopEnd: number;
+    loopMode: number;
+    sr: number;
+    pcm: string; // base64 Int16
+  };
   fx?: FxParams;          // v2+: this instance's own effect chain
   fxOrder?: string[];     // optional per-instance chain order (absent → default)
 }
@@ -110,18 +119,43 @@ export function serializeSong(s: SongIOInput): SerializedSong {
     rowsPerBeat: s.rowsPerBeat,
     master: r4(s.master),
     pan: s.pan.map(r4),
-    instruments: s.instruments.map((i) => ({
-      name: i.name,
-      type: i.type,
-      color: i.color,
-      p0: [...i.p0],
-      p1: [...i.p1],
-      ...(i.p2 ? { p2: [...i.p2] } : {}),
-      ...(i.p3 ? { p3: [...i.p3] } : {}),
-      ...(i.ops ? { ops: i.ops.map((o) => ({ ...o })) } : {}),
-      fx: { ...i.fx },                     // v2+: per-instance effect chain
-      ...(i.fxOrder ? { fxOrder: [...i.fxOrder] } : {}),   // per-instance chain order
-    })),
+    instruments: s.instruments.map((i) => {
+      let sample;
+      if (i.sample) {
+        const pcm = i.sample.pcm;
+        const i16 = new Int16Array(pcm.length);
+        for (let j = 0; j < pcm.length; j++) {
+          i16[j] = Math.max(-32768, Math.min(32767, Math.round(pcm[j] * 32767)));
+        }
+        const u8 = new Uint8Array(i16.buffer);
+        let binary = '';
+        for (let j = 0; j < u8.length; j++) {
+          binary += String.fromCharCode(u8[j]);
+        }
+        sample = {
+          name: i.sample.name,
+          rootNote: i.sample.rootNote,
+          loopStart: i.sample.loopStart,
+          loopEnd: i.sample.loopEnd,
+          loopMode: i.sample.loopMode,
+          sr: 48000,
+          pcm: btoa(binary)
+        };
+      }
+      return {
+        name: i.name,
+        type: i.type,
+        color: i.color,
+        p0: [...i.p0],
+        p1: [...i.p1],
+        ...(i.p2 ? { p2: [...i.p2] } : {}),
+        ...(i.p3 ? { p3: [...i.p3] } : {}),
+        ...(i.ops ? { ops: i.ops.map((o) => ({ ...o })) } : {}),
+        ...(sample ? { sample } : {}),
+        fx: { ...i.fx },                     // v2+: per-instance effect chain
+        ...(i.fxOrder ? { fxOrder: [...i.fxOrder] } : {}),   // per-instance chain order
+      };
+    }),
     order: [...s.order],
     patterns: s.patterns.map(serializePattern),
     lfos: s.lfos.map((l) => ({ ...l })),
@@ -183,5 +217,31 @@ export function patternFromSerialized(sp: SerializedPattern): Pattern {
 // The serialized instruments are exactly InstrumentSpec[] (type/name/color/p0/p1
 // /p2?/p3?/ops?), so the App can rebuild the live table via instrumentsFromParams.
 export function instrumentSpecs(d: SerializedSong): InstrumentSpec[] {
-  return d.instruments as InstrumentSpec[];
+  return d.instruments.map((si) => {
+    const spec = { ...si } as unknown as InstrumentSpec;
+    if (si.sample) {
+      const binary = atob(si.sample.pcm);
+      const u8 = new Uint8Array(binary.length);
+      for (let j = 0; j < binary.length; j++) {
+        u8[j] = binary.charCodeAt(j);
+      }
+      const i16 = new Int16Array(u8.buffer);
+      const pcm = new Float32Array(i16.length);
+      for (let j = 0; j < i16.length; j++) {
+        pcm[j] = i16[j] / 32768.0;
+      }
+      if (si.sample.sr !== 48000) {
+        console.warn(`Sampler instance ${si.name} has non-standard SR ${si.sample.sr}; skipping resample.`);
+      }
+      spec.sample = {
+        name: si.sample.name,
+        rootNote: si.sample.rootNote,
+        loopStart: si.sample.loopStart,
+        loopEnd: si.sample.loopEnd,
+        loopMode: si.sample.loopMode,
+        pcm
+      };
+    }
+    return spec;
+  });
 }

@@ -442,6 +442,7 @@ export class App {
   _syncRendererFx() {
     this.renderer?.setInstrumentFx(this.engine.instruments.map((i) => i.fx));
     this.renderer?.setInstrumentFxOrder(this.engine.instruments.map((i) => i.fxOrder));
+    this.renderer?.syncSamplerSlots(this.engine.instruments);
   }
 
   _buildFxPanel() {

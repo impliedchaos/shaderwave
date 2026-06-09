@@ -145,6 +145,8 @@ groove (Vinyl)     p0=[Hiss, Crackle, Pop, Wear]  p1=[Cycle, Tone, Rumble, Drift
 tabla              p0=[Decay, Damp, Strike, Bend]  p1=[Modes, Inharm, BendTime, Tone]
 pipi  (Piano)      p0=[Decay, Inharm, Hardness, Hammer]  p1=[Partials, Detune, Damping, Release]  preset: p0=[4.5,0.0004,0.55,0.3] p1=[26,0.0015,0.8,0.15]
 guitar (Gigi)      p0=[Decay, PluckPos, Tone, Body]  p1=[Partials, Drive, Pick, Release]  preset: p0=[2.5,0.18,0.65,0.92] p1=[28,0,0.45,0.12]
+sampler (PCM)      p0=[Tune(st), Start, Gain, _]  p1=[Attack, Decay, Sustain, Release]  preset: p0=[0,0,1,0] p1=[0.001,1,1,0]
+                   (Authoring requires `sample` payload; best created via UI + Save)
 ```
 For the exact, current truth on any engine see its descriptor `paramDefs` + `presets` in
 `src/instruments/i<type>.ts`. New engines added later will appear there.
@@ -196,7 +198,7 @@ for (let r = 0; r < N; r++) track[r] = normByte(CUT, 400 + r * 30);   // sweep c
 - **Codes by scope:**
   - `inst` (per engine, pass the matching instrument index): e.g. `303`: CUT RES ENV ACC WAV FDC ADC ·
     `moog`: CUT RES FEN DTC SUS FDC ADC · `wvt`: ATK DEC SUS REL PS1 PS2 DT2 FM · `808`: TON DEC SNP ·
-    `e8e`: ATK DEC SUS DT2 DT3 BIT DRV · (others in their descriptors).
+    `e8e`: ATK DEC SUS DT2 DT3 BIT DRV · `sampler`: TUN STA LVL ATK DEC SUS REL · (others in their descriptors).
   - `fx` (engine-agnostic): LVL DRV OVD OVT OVL DLM DLF RVM RVD CHM WID BCB BCR BCM, plus on/off
     **toggles** DSO OVO CHO TRO DLO RVO WDO BCO (byte 0 = off, anything else = on).
   - `chan`: PAN (pass the channel index). `global`: BPM, VOL.

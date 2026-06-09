@@ -3,11 +3,8 @@
 <body><pre id="out">running…</pre>
 <script type="module">
 import { createProgram } from '../src/gl/program.js';
+import { REGISTRY } from '../src/instruments/index.js';
 import COMMON from '../src/gl/shaders/common.glsl?raw';
-import SYNTH_303 from '../src/gl/shaders/synth-303.glsl?raw';
-import SYNTH_DX7 from '../src/gl/shaders/synth-dx7.glsl?raw';
-import SYNTH_808 from '../src/gl/shaders/synth-808.glsl?raw';
-import SYNTH_MOOG from '../src/gl/shaders/synth-moog.glsl?raw';
 import MIX_FS from '../src/gl/shaders/mix.glsl?raw';
 import FX_DISTORTION from '../src/gl/shaders/fx-distortion.glsl?raw';
 import FX_OVERDRIVE from '../src/gl/shaders/fx-overdrive.glsl?raw';
@@ -39,11 +36,10 @@ try {
   log('MAX_DRAW_BUFFERS: ' + gl.getParameter(gl.MAX_DRAW_BUFFERS));
   log('MAX_FRAGMENT_UNIFORM_VECTORS: ' + gl.getParameter(gl.MAX_FRAGMENT_UNIFORM_VECTORS));
 
-  const progs = { '303': SYNTH_303, dx7: SYNTH_DX7, '808': SYNTH_808, moog: SYNTH_MOOG };
   let fail = 0;
-  for (const [k, src] of Object.entries(progs)) {
-    try { createProgram(gl, COMMON + src); log('synth ' + k + ': OK'); }
-    catch (e) { fail++; log('synth ' + k + ': FAIL\n' + e.message); }
+  for (const def of REGISTRY) {
+    try { createProgram(gl, COMMON + def.shader); log('synth ' + def.type + ': OK'); }
+    catch (e) { fail++; log('synth ' + def.type + ': FAIL\n' + e.message); }
   }
   try { createProgram(gl, MIX_FS); log('mix: OK'); }
   catch (e) { fail++; log('mix: FAIL\n' + e.message); }

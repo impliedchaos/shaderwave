@@ -173,6 +173,15 @@ export class Engine {
         B: new Float32Array(VOICES * 6 * 4),
         C: new Float32Array(VOICES * 6 * 4),
         D: new Float32Array(VOICES * 6 * 4),
+      },
+      sampler: {
+        slot: new Float32Array(VOICES).fill(-1),
+        baseRow: new Float32Array(VOICES),
+        loopStart: new Float32Array(VOICES),
+        loopEnd: new Float32Array(VOICES),
+        len: new Float32Array(VOICES),
+        rootFreq: new Float32Array(VOICES),
+        loopMode: new Float32Array(VOICES),
       }
     };
 

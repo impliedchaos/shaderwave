@@ -1,0 +1,178 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>pending</title></head>
+<body><pre id="out">running…</pre>
+<script type="module">
+import { createGL } from '../src/gl/context.js';
+import { SynthRenderer, SMP_ATLAS_W } from '../src/gl/synth-renderer.js';
+import { BLOCK, VOICES } from '../src/constants.js';
+import { REGISTRY } from '../src/instruments/index.js';
+
+const out = document.getElementById('out');
+const lines = [];
+const log = (s) => { lines.push(s); out.textContent = lines.join('\n'); console.log(s); };
+
+function stats(buf, len = buf.length) {
+  let peak = 0, sum = 0, nan = 0;
+  for (let i = 0; i < len; i++) {
+    const v = buf[i];
+    if (!Number.isFinite(v)) { nan++; continue; }
+    peak = Math.max(peak, Math.abs(v));
+    sum += v * v;
+  }
+  return { peak, rms: Math.sqrt(sum / len), nan };
+}
+
+// Build a voice-data object for the sampler engine
+function makeSamplerVD(freq, blockStart, instId) {
+  const z4 = () => new Float32Array(VOICES * 4);
+  const p0 = z4(), p1 = z4(), p2 = z4(), p3 = z4();
+  
+  // Default sampler params: tune=0, start=0, gain=1; atk=0.001, dec=1, sus=1, rel=0
+  p0[0] = 0; p0[1] = 0; p0[2] = 1.0; 
+  p1[0] = 0.001; p1[1] = 1.0; p1[2] = 1.0; p1[3] = 0.0;
+  
+  return {
+    active: Int32Array.of(1, 0, 0, 0, 0, 0, 0, 0),
+    inst: Int32Array.of(instId, 0, 0, 0, 0, 0, 0, 0),
+    instId: Int32Array.of(0, 0, 0, 0, 0, 0, 0, 0),
+    freq: Float32Array.of(freq, 0, 0, 0, 0, 0, 0, 0),
+    vel: Float32Array.of(1, 0, 0, 0, 0, 0, 0, 0),
+    onRel: Float32Array.of(-blockStart, 0, 0, 0, 0, 0, 0, 0), // note-on at frame 0
+    offRel: Float32Array.of(1e9, 0, 0, 0, 0, 0, 0, 0),
+    p0, p1, p2, p3,
+    freqFrom: Float32Array.of(freq, 0, 0, 0, 0, 0, 0, 0),
+    gain: new Float32Array(VOICES).fill(1),
+    pan: new Float32Array(VOICES).fill(0.5),
+    master: 1.0,
+    sampler: {
+      slot: new Float32Array(VOICES).fill(-1),
+      baseRow: new Float32Array(VOICES),
+      loopStart: new Float32Array(VOICES),
+      loopEnd: new Float32Array(VOICES),
+      len: new Float32Array(VOICES),
+      rootFreq: new Float32Array(VOICES),
+      loopMode: new Float32Array(VOICES),
+    }
+  };
+}
+
+try {
+  const gl = createGL(document.createElement('canvas'));
+  const r = new SynthRenderer(gl, 48000);
+  let smpId = -1;
+  r.inst.forEach((prog, i) => { if (prog.def.type === 'sampler') smpId = i; });
+  
+  let fail = 0;
+  
+  // Generate a ramp PCM
+  const rampLen = SMP_ATLAS_W * 2 + 100; // longer than 1 row to test tiling
+  const rampPcm = new Float32Array(rampLen);
+  for(let i=0; i<rampLen; i++) rampPcm[i] = i / rampLen;
+  
+  const rootNote = 60; // 261.625565 Hz
+  const rootFreq = 440.0 * Math.pow(2, (rootNote - 69) / 12);
+  
+  // Setup the instrument instance for renderer
+  const insts = [{
+    type: 'sampler',
+    fx: [], fxOrder: [],
+    sample: {
+      name: 'ramp', pcm: rampPcm, rootNote: rootNote,
+      loopStart: 0, loopEnd: rampLen, loopMode: 0 // one-shot
+    }
+  }];
+  r.syncSamplerSlots(insts);
+  
+  // 1) No sample / silence
+  const vdEmpty = makeSamplerVD(rootFreq, 0, smpId);
+  // override instance to trick it to not finding a slot
+  vdEmpty.instId[0] = 1; 
+  const outEmpty = r.renderBlock(vdEmpty, 0);
+  const sEmpty = stats(outEmpty);
+  log(`No sample (slot -1): peak=${sEmpty.peak} nan=${sEmpty.nan}`);
+  if (sEmpty.peak > 0 || sEmpty.nan > 0) { fail++; log('FAIL: no sample not silent'); }
+  
+  // 2) Unity playback
+  const vdUnity = makeSamplerVD(rootFreq, 0, smpId);
+  // to avoid attack envelope (which is 0.001s, roughly 48 samples), skip first block
+  vdUnity.onRel[0] = -BLOCK;
+  const outUnity = r.renderBlock(vdUnity, 0);
+  
+  let diffMax = 0;
+  for(let i=0; i<BLOCK; i++) {
+    const v = outUnity[i * 2];
+    const exp = rampPcm[BLOCK + i]; // because we offset by BLOCK
+    diffMax = Math.max(diffMax, Math.abs(v - exp));
+  }
+  log(`Unity playback: maxDiff=${diffMax.toFixed(6)}`);
+  if (diffMax > 0.05) { fail++; log('FAIL: unity playback diff too large'); }
+  
+  // 3) Octave up (freq = rootFreq * 2)
+  const vdOctave = makeSamplerVD(rootFreq * 2, 0, smpId);
+  vdOctave.onRel[0] = -BLOCK;
+  const outOctave = r.renderBlock(vdOctave, 0);
+  let diffMaxOct = 0;
+  for(let i=0; i<BLOCK; i++) {
+    const v = outOctave[i * 2];
+    const pos = (BLOCK + i) * 2;
+    const exp = rampPcm[pos];
+    diffMaxOct = Math.max(diffMaxOct, Math.abs(v - exp));
+  }
+  log(`Octave up playback: maxDiff=${diffMaxOct.toFixed(6)}`);
+  if (diffMaxOct > 0.05) { fail++; log('FAIL: octave up diff too large'); }
+  
+  // 4) Tiling correctness (read past SMP_ATLAS_W)
+  const vdTile = makeSamplerVD(rootFreq, 0, smpId);
+  vdTile.onRel[0] = -(SMP_ATLAS_W - 10);
+  const outTile = r.renderBlock(vdTile, 0);
+  let diffMaxTile = 0;
+  for(let i=0; i<BLOCK; i++) {
+    const v = outTile[i * 2];
+    const pos = SMP_ATLAS_W - 10 + i;
+    const exp = rampPcm[pos];
+    diffMaxTile = Math.max(diffMaxTile, Math.abs(v - exp));
+  }
+  log(`Tiling (cross boundary): maxDiff=${diffMaxTile.toFixed(6)}`);
+  if (diffMaxTile > 0.05) { fail++; log('FAIL: tiling playback diff too large'); }
+  
+  // 5) One-shot end
+  r.resetState();
+  const vdDone = makeSamplerVD(rootFreq, 0, smpId);
+  vdDone.onRel[0] = -(rampLen + 10);
+  const outDone = r.renderBlock(vdDone, 0);
+  const sDone = stats(outDone);
+  log(`One-shot end: peak=${sDone.peak.toFixed(6)}`);
+  if (sDone.peak > 0) { fail++; log('FAIL: one-shot did not end with silence'); }
+  
+  // 6) Loop wrap
+  const instLoop = [{
+    type: 'sampler', fx: [], fxOrder: [],
+    sample: {
+      name: 'loop', pcm: rampPcm, rootNote: rootNote,
+      loopStart: 10, loopEnd: 20, loopMode: 1 // forward loop
+    }
+  }];
+  r.syncSamplerSlots(instLoop);
+  
+  const vdLoop = makeSamplerVD(rootFreq, 0, smpId);
+  vdLoop.onRel[0] = -15; // start in the middle of loop
+  const outLoop = r.renderBlock(vdLoop, 0);
+  // pos = 15. At i=0, pos=15 -> rampPcm[15]
+  // At i=5, pos=20 -> loops to 10 -> rampPcm[10]
+  const expLoop = [rampPcm[15], rampPcm[16], rampPcm[17], rampPcm[18], rampPcm[19], rampPcm[10], rampPcm[11]];
+  let diffMaxLoop = 0;
+  for(let i=0; i<expLoop.length; i++) {
+    const v = outLoop[i * 2];
+    diffMaxLoop = Math.max(diffMaxLoop, Math.abs(v - expLoop[i]));
+  }
+  log(`Loop wrap: maxDiff=${diffMaxLoop.toFixed(6)}`);
+  if (diffMaxLoop > 0.05) { fail++; log('FAIL: loop wrap diff too large'); }
+
+  document.title = fail === 0 ? 'ALL_OK' : 'FAILED';
+  log(fail === 0 ? '\n=== ALL TESTS OK ===' : `\n=== ${fail} TESTS FAILED ===`);
+} catch(e) {
+  document.title = 'ERROR';
+  log('FATAL: ' + e.message + '\n' + e.stack);
+}
+</script>
+</body></html>
