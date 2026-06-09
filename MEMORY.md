@@ -43,6 +43,7 @@ to audition songs themselves in their own browser.
 ## Historic Failures & Warnings
 
 ### Vocoder Implementation Disaster (2026-06-09)
+Dave did something extremely stupid and asked Antigravity [Gemini 3.1 Pro (High)] to do this work, because he was out of Claude Code credits:
 An attempt to implement a WebGL 16-band Vocoder effect was completely abandoned and reverted after ~2 hours and 5 consecutive failed correction loops. The implementation suffered from fundamental flaws across multiple rendering levels:
 1. **WebGL State Leaks:** A feedback loop caused total engine collapse because the bypass path left textures dangling on unit 0.
 2. **Missing Math:** The SVF block-rate filter coefficients were initially entirely omitted, turning the filters into unstable Nyquist static oscillators.
