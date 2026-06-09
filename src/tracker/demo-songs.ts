@@ -4385,14 +4385,22 @@ export const DEMO_SONGS: SongDef[] = [
   {
     name: "Larynx Yard Sale",
     author: "AI Slop",
-    note: "Big-beat warehouse house built on the CC0 DVS vocal shouts + a melodic kalimba sampler — four-on-the-floor, acid bass, sidechain pump, and a Wilhelm scream for the door.",
+    note: "Big-beat warehouse house on the CC0 DVS vocal shouts + an FM pluck lead. Sampler tricks: stutter-retrigger build, a looped vocal chant in the breakdown, and a tape-stop pitch-bend on the Wilhelm-scream outro. Four-on-the-floor, acid bass, sidechain pump.",
     bpm: 128,
     master: DEFAULT_MASTER * 0.6,
     params: [
       { name: "808 Warehouse Kit", type: "808",  p0: [0, 0.5, 0.5, 0.6], p1: [0, 0, 0, 0] },
       { name: "303 Acid Bass",     type: "303",  p0: [340, 0.85, 0.75, 0.5], p1: [1, 0.28, 0.32, 0] },
       { name: "Moog Hoover Pad",   type: "moog", p0: [620, 0.35, 0.55, 0.15], p1: [9, 0.9, 0.7, 1.1], p2: [1, 1, 2, 0.05], p3: [2, 2, 3, 0] },
-      { name: "Kalimba Lead",      type: "sampler", p0: [0, 0, 1.1, 0], p1: [0.001, 0.1, 1.0, 0.3], sample: smp("Kalimba", "kalimba", 69) },
+      { name: "FM Pluck Lead",     type: "dx7", p0: [1.0, 1.0, 1.2, 0.2], p1: [5, 0.35, 0.4, 1],
+        ops: [
+          { coarse: 1.0, fine: 0, level: 99, detune: 2,  decay: 1.5, mode: 0, sustain: 0.0, release: 0.8 },
+          { coarse: 1.0, fine: 1, level: 75, detune: -2, decay: 1.0, mode: 0, sustain: 0.0, release: 0.6 },
+          { coarse: 2.0, fine: 0, level: 85, detune: 3,  decay: 0.8, mode: 0, sustain: 0.0, release: 0.5 },
+          { coarse: 3.0, fine: 0, level: 60, detune: -3, decay: 0.5, mode: 0, sustain: 0.0, release: 0.4 },
+          { coarse: 0.5, fine: 0, level: 90, detune: 4,  decay: 2.0, mode: 0, sustain: 0.0, release: 1.0 },
+          { coarse: 1.0, fine: 0, level: 50, detune: 0,  decay: 1.2, mode: 0, sustain: 0.0, release: 0.7 }
+        ] },
       { name: "V: Here We Go",     type: "sampler", p0: [0, 0, 1.0, 0], p1: [0.001, 0.1, 1.0, 0.08], sample: smp("Here We Go", "dvs-here-we-go-1") },
       { name: "V: Everybody",      type: "sampler", p0: [0, 0, 1.0, 0], p1: [0.001, 0.1, 1.0, 0.08], sample: smp("Everybody", "dvs-everybody-1") },
       { name: "V: Check It Out",   type: "sampler", p0: [0, 0, 1.0, 0], p1: [0.001, 0.1, 1.0, 0.08], sample: smp("Check It Out", "dvs-check-it-out-1") },
@@ -4401,11 +4409,15 @@ export const DEMO_SONGS: SongDef[] = [
       { name: "V: Turn It Up",     type: "sampler", p0: [0, 0, 1.0, 0], p1: [0.001, 0.1, 1.0, 0.08], sample: smp("Turn It Up", "dvs-turn-it-up-1") },
       { name: "FX: Slapstick",     type: "sampler", p0: [0, 0, 1.2, 0], p1: [0.001, 0.1, 1.0, 0.05], sample: smp("Slapstick", "slapstick") },
       { name: "FX: Wilhelm",       type: "sampler", p0: [0, 0, 1.0, 0], p1: [0.001, 0.1, 1.0, 0.2], sample: smp("Wilhelm", "wilhelm") },
+      // Trick: forward-LOOP the whole "Everybody" clip → a hypnotic chant when held.
+      { name: "V: Chant (loop)",   type: "sampler", p0: [0, 0, 0.9, 0], p1: [0.02, 0.1, 1.0, 0.3],
+        sample: { name: "Everybody (loop)", pcm: new Float32Array(0), rootNote: 60, loopStart: 0, loopEnd: 0, loopMode: 1, url: "/samples/dvs-everybody-1.ogg" } },
     ],
     fxParams: {
       '808':     Object.assign(defaultFxParams(), { distOn: true, dist: 3, compOn: true, compThresh: -15, compRatio: 3, reverbMix: 0.06, master: 0.95 }),
       '303':     Object.assign(defaultFxParams(), { distOn: true, dist: 8, delayOn: true, delayTime: 0.23, delayMix: 0.2, delayFeedback: 0.3, reverbOn: true, reverbMix: 0.16, master: 0.9 }),
       'moog':    Object.assign(defaultFxParams(), { chorusOn: true, chorusMix: 0.4, reverbOn: true, reverbMix: 0.4, reverbDecay: 0.85, widthOn: true, width: 1.4, master: 0.8 }),
+      'dx7':     Object.assign(defaultFxParams(), { distOn: false, delayOn: true, delayTime: 0.23, delayMix: 0.2, delayFeedback: 0.28, reverbOn: true, reverbMix: 0.22, widthOn: true, width: 1.2, master: 0.85 }),
       'sampler': Object.assign(defaultFxParams(), { delayOn: true, delayTime: 0.23, delayMix: 0.16, delayFeedback: 0.22, reverbOn: true, reverbMix: 0.14, master: 1.0 }),
     },
     data: () => {
@@ -4413,11 +4425,11 @@ export const DEMO_SONGS: SongDef[] = [
       const mk = () => new Pattern(N, 8);
       const BD = 36, SD = 38, HH = 42, CP = 39;
       // instrument indices (into params[])
-      const KIT = 0, BASS = 1, PAD = 2, KAL = 3,
+      const KIT = 0, BASS = 1, PAD = 2, LEAD = 3,
             V_HWG = 4, V_EVB = 5, V_CIO = 6, V_DTB = 7, V_YEAH = 8, V_TIU = 9,
-            FX_SLAP = 10, FX_WIL = 11;
+            FX_SLAP = 10, FX_WIL = 11, V_CHANT = 12;
       // channels (== voices)
-      const CH_KICK = 0, CH_CLAP = 1, CH_HAT = 2, CH_BASS = 3, CH_PAD = 4, CH_KAL = 5, CH_V1 = 6, CH_V2 = 7;
+      const CH_KICK = 0, CH_CLAP = 1, CH_HAT = 2, CH_BASS = 3, CH_PAD = 4, CH_LEAD = 5, CH_V1 = 6, CH_V2 = 7;
       const VN = 60;   // vocals/one-shots play at natural pitch (rootNote 60)
 
       const kick = (p: Pattern, to = N) => { for (let r = 0; r < to; r += 4) p.set(r, CH_KICK, BD, KIT, 0.97); };
@@ -4435,10 +4447,10 @@ export const DEMO_SONGS: SongDef[] = [
         }
       };
       const padHold = (p: Pattern, note = 57) => { p.set(0, CH_PAD, note, PAD, 0.55); p.set(N - 1, CH_PAD, OFF, PAD); };
-      const kal = (p: Pattern, steps: [number, number][]) => { for (const [r, m] of steps) p.set(r, CH_KAL, m, KAL, 0.78); };
+      const lead = (p: Pattern, steps: [number, number][]) => { for (const [r, m] of steps) p.set(r, CH_LEAD, m, LEAD, 0.8); };
       const vox = (p: Pattern, ch: number, inst: number, row: number, vel = 0.95) => p.set(row, ch, VN, inst, vel);
 
-      // A-minor kalimba motifs (root 69 = A4)
+      // A-minor lead motifs (MIDI notes — the FM pluck)
       const riffA: [number, number][] = [[0, 69], [4, 72], [8, 76], [12, 72], [16, 69], [20, 76], [24, 81], [28, 76], [32, 69], [36, 72], [40, 76], [44, 79], [48, 77], [52, 76], [56, 72], [60, 69]];
       const riffB: [number, number][] = [[0, 81], [6, 76], [12, 72], [16, 74], [22, 77], [28, 81], [32, 79], [38, 76], [44, 72], [48, 74], [54, 77], [60, 76]];
       const bassRootsA = [33, 33, 36, 40];   // A1 A1 C2 E2
@@ -4456,6 +4468,8 @@ export const DEMO_SONGS: SongDef[] = [
       vox(B, CH_V1, V_CIO, 0);          // "Check It Out"
       vox(B, CH_V2, V_TIU, 48);         // "Turn It Up"
       for (let r = 48; r < N; r++) if (r % 2 === 0 || r >= 56) B.set(r, CH_CLAP, SD, KIT, 0.4 + (r - 48) / 40);
+      // Trick: retrigger "Yeah" on consecutive 16ths → a "y-y-y-yeah!" stutter into the drop.
+      for (let r = 60; r < N; r++) vox(B, CH_V2, V_YEAH, r, 0.6 + (r - 60) * 0.12);
       {
         const CUT = tgt('303', 'CUT');
         const tk = B.getOrCreateAutoTrack(BASS, CUT.id);
@@ -4464,23 +4478,25 @@ export const DEMO_SONGS: SongDef[] = [
 
       // ---- C: main drop (everything in) ----
       const C = mk();
-      kick(C); claps(C); hats(C, 2, 0.45); bass(C, bassRootsA); kal(C, riffA); padHold(C);
+      kick(C); claps(C); hats(C, 2, 0.45); bass(C, bassRootsA); lead(C, riffA); padHold(C);
       vox(C, CH_V1, V_DTB, 0);          // "Drop The Beat"
       vox(C, CH_V2, V_YEAH, 16); vox(C, CH_V2, V_YEAH, 48);
       C.set(24, CH_V1, VN, FX_SLAP, 0.8);   // whip accent
 
       // ---- D: drop variation (call/response, 2nd riff) ----
       const D = mk();
-      kick(D); claps(D); hats(D, 2, 0.45); bass(D, bassRootsB); kal(D, riffB); padHold(D);
+      kick(D); claps(D); hats(D, 2, 0.45); bass(D, bassRootsB); lead(D, riffB); padHold(D);
       vox(D, CH_V1, V_EVB, 0);          // "Everybody"
       vox(D, CH_V2, V_CIO, 8); vox(D, CH_V1, V_YEAH, 32); vox(D, CH_V2, V_TIU, 40);
       D.set(56, CH_V1, VN, FX_SLAP, 0.8);
 
       // ---- E: breakdown (no kick; pad + kalimba + soaked vocal, filter rises) ----
       const E = mk();
-      padHold(E); kal(E, riffB); hats(E, 8, 0.25);
+      padHold(E); lead(E, riffB); hats(E, 8, 0.25);
       vox(E, CH_V1, V_TIU, 0);          // "Turn It Up"
       vox(E, CH_V2, V_HWG, 32);
+      // Trick: hold the looped chant under the whole breakdown ("everybody-everybody…").
+      E.set(0, CH_BASS, VN, V_CHANT, 0.8); E.set(56, CH_BASS, OFF, V_CHANT);
       {
         const FLC = tgt('moog', 'CUT');
         const tk = E.getOrCreateAutoTrack(PAD, FLC.id);
@@ -4493,6 +4509,12 @@ export const DEMO_SONGS: SongDef[] = [
       vox(F, CH_V1, V_YEAH, 0);
       F.set(40, CH_V2, VN, FX_WIL, 1.0);    // someone gets thrown off the decks
       F.set(60, CH_V1, VN, FX_SLAP, 0.9);
+      // Trick: tape-stop the scream — ramp its Tune down ~1.5 octaves so it slurs as it dies.
+      {
+        const TUN = tgt('sampler', 'TUN');
+        const tk = F.getOrCreateAutoTrack(FX_WIL, TUN.id);
+        for (let r = 0; r < N; r++) tk[r] = normByte(TUN, r < 40 ? 0 : Math.max(-24, -(r - 40) * 1.6));
+      }
 
       const A_ = 0, B_ = 1, C_ = 2, D_ = 3, E_ = 4, F_ = 5;
       const order = [
