@@ -30,45 +30,45 @@ export const isampler: InstrumentDef = {
   ],
   presets: [
     {
-      name: 'Minor 9th Chord',
+      name: 'VCSL Crash Cymbal',
       p0: [0, 0, 1, 0],
-      p1: [0.001, 1, 1, 0.4],
+      p1: [0.001, 3, 0, 0.4],
       sample: {
-        name: 'chord.raw',
+        name: 'crash.raw',
         rootNote: 60,
         loopStart: 0,
-        loopEnd: Math.floor(48000 * 2.5),
+        loopEnd: Math.floor(48000 * 3),
         loopMode: 0,
         sr: 48000,
-        pcm: presetsData.chord
+        pcm: presetsData.crash
       }
     },
     {
-      name: 'Reese Bass Loop',
+      name: 'VCSL Cowbell',
       p0: [0, 0, 1.2, 0],
-      p1: [0.001, 1, 1, 0.1],
+      p1: [0.001, 1, 0, 0.1],
       sample: {
-        name: 'reese.raw',
-        rootNote: 33, // A1 is 33
-        loopStart: 0,
-        loopEnd: Math.floor(48000 * 1.5),
-        loopMode: 1,
-        sr: 48000,
-        pcm: presetsData.bass
-      }
-    },
-    {
-      name: 'Lo-Fi Drum Loop',
-      p0: [0, 0, 1.5, 0],
-      p1: [0.001, 1, 1, 0.05],
-      sample: {
-        name: 'drums.raw',
+        name: 'cowbell.raw',
         rootNote: 60,
         loopStart: 0,
-        loopEnd: 48000 * 2,
-        loopMode: 1,
+        loopEnd: Math.floor(48000 * 1.5),
+        loopMode: 0,
         sr: 48000,
-        pcm: presetsData.drum
+        pcm: presetsData.cowbell
+      }
+    },
+    {
+      name: 'VCSL Tambourine',
+      p0: [0, 0, 1.5, 0],
+      p1: [0.001, 1, 0, 0.05],
+      sample: {
+        name: 'tamb.raw',
+        rootNote: 60,
+        loopStart: 0,
+        loopEnd: Math.floor(48000 * 2),
+        loopMode: 0,
+        sr: 48000,
+        pcm: presetsData.tamb
       }
     }
   ],
