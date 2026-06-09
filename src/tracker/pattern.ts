@@ -48,6 +48,50 @@ export class Pattern {
     this.fxCmd[i] = -1; this.fxVal[i] = 0;
   }
 
+  // Push all cells in `ch` from `row` downwards down by one step.
+  insertStep(row: number, ch: number) {
+    if (ch >= this.channels) {
+      const tIdx = ch - this.channels;
+      if (tIdx < this.autoTracks.length) {
+        const track = this.autoTracks[tIdx].data;
+        for (let r = this.rows - 1; r > row; r--) track[r] = track[r - 1];
+        track[row] = -1;
+      }
+      return;
+    }
+    for (let r = this.rows - 1; r > row; r--) {
+      const dst = this.idx(r, ch), src = this.idx(r - 1, ch);
+      this.notes[dst] = this.notes[src];
+      this.inst[dst] = this.inst[src];
+      this.vol[dst] = this.vol[src];
+      this.fxCmd[dst] = this.fxCmd[src];
+      this.fxVal[dst] = this.fxVal[src];
+    }
+    this.clear(row, ch);
+  }
+
+  // Pull all cells in `ch` from `row+1` downwards up by one step.
+  deleteStep(row: number, ch: number) {
+    if (ch >= this.channels) {
+      const tIdx = ch - this.channels;
+      if (tIdx < this.autoTracks.length) {
+        const track = this.autoTracks[tIdx].data;
+        for (let r = row; r < this.rows - 1; r++) track[r] = track[r + 1];
+        track[this.rows - 1] = -1;
+      }
+      return;
+    }
+    for (let r = row; r < this.rows - 1; r++) {
+      const dst = this.idx(r, ch), src = this.idx(r + 1, ch);
+      this.notes[dst] = this.notes[src];
+      this.inst[dst] = this.inst[src];
+      this.vol[dst] = this.vol[src];
+      this.fxCmd[dst] = this.fxCmd[src];
+      this.fxVal[dst] = this.fxVal[src];
+    }
+    this.clear(this.rows - 1, ch);
+  }
+
   // Find or create an automation track for a parameter. The scope is derived from
   // the paramId (the param table is the single source of truth), so callers can't
   // desync scope from the parameter. `instIdx` meaning depends on that scope:

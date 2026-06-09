@@ -1591,6 +1591,10 @@ export class App {
           }
         }
         this._digitEntry = null; this._hexEntry = null; return true;
+      case 'Insert':
+        p.insertStep(c.row, c.ch);
+        this.markDirty('insert');
+        return true;
       case 'Delete':
       case 'Backspace':
         if (this.view.selection) {
@@ -1608,14 +1612,29 @@ export class App {
           this.view.draw();
         } else if (c.ch >= p.channels) {
           const tIdx = c.ch - p.channels;
-          if (tIdx < p.autoTracks.length) p.autoTracks[tIdx].data[c.row] = -1;
-          this._advanceCursorRow();
+          if (tIdx < p.autoTracks.length) {
+            if (p.autoTracks[tIdx].data[c.row] === -1) {
+              p.deleteStep(c.row, c.ch);
+            } else {
+              p.autoTracks[tIdx].data[c.row] = -1;
+              this._advanceCursorRow();
+            }
+          }
         } else if (c.col === 3) {
-          p.setFx(c.row, c.ch, -1, 0);   // effect column: clear just the effect
-          this._advanceCursorRow();
+          const idx = p.idx(c.row, c.ch);
+          if (p.fxCmd[idx] === -1) {
+            p.deleteStep(c.row, c.ch);
+          } else {
+            p.setFx(c.row, c.ch, -1, 0);   // effect column: clear just the effect
+            this._advanceCursorRow();
+          }
         } else {
-          p.clear(c.row, c.ch);
-          this._advanceCursorRow();
+          if (p.note(c.row, c.ch) === EMPTY) {
+            p.deleteStep(c.row, c.ch);
+          } else {
+            p.clear(c.row, c.ch);
+            this._advanceCursorRow();
+          }
         }
         this.markDirty('clear');
         return true;
