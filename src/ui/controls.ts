@@ -629,9 +629,15 @@ export class Controls {
 
     const info = document.createElement('div');
     info.style.marginBottom = '8px';
+    info.style.whiteSpace = 'nowrap';
+    info.style.overflow = 'hidden';
+    info.style.textOverflow = 'ellipsis';
+    info.style.fontSize = '12px';
+    
     if (pr.sample) {
       const sec = (pr.sample.pcm.length / 48000).toFixed(2);
       info.textContent = `Loaded: ${pr.sample.name} (${sec}s)`;
+      info.title = info.textContent;
     } else {
       info.textContent = 'No sample loaded';
     }
@@ -639,6 +645,7 @@ export class Controls {
 
     const btn = document.createElement('button');
     btn.textContent = 'Load Sample...';
+    btn.style.width = '100%';
     btn.onclick = () => {
       const input = document.createElement('input');
       input.type = 'file';
@@ -706,13 +713,16 @@ export class Controls {
       const addInput = (labelTxt: string, val: number, onChange: (v: number) => void) => {
         const d = document.createElement('div');
         d.style.display = 'flex'; d.style.flexDirection = 'column';
+        d.style.minWidth = '0';
         const l = document.createElement('label'); l.textContent = labelTxt;
         l.style.fontSize = '10px'; l.style.color = '#888';
+        l.style.whiteSpace = 'nowrap';
         const inp = document.createElement('input');
         inp.type = 'number';
         inp.value = String(val);
         inp.style.background = '#111'; inp.style.color = '#fff';
         inp.style.border = '1px solid #333'; inp.style.padding = '2px 4px';
+        inp.style.width = '100%'; inp.style.boxSizing = 'border-box';
         inp.onchange = (e) => {
           onChange(Number((e.target as HTMLInputElement).value));
           this.app?._syncRendererFx();
@@ -726,11 +736,14 @@ export class Controls {
       
       const modeDiv = document.createElement('div');
       modeDiv.style.display = 'flex'; modeDiv.style.flexDirection = 'column';
+      modeDiv.style.minWidth = '0';
       const mLabel = document.createElement('label'); mLabel.textContent = 'Loop Mode';
       mLabel.style.fontSize = '10px'; mLabel.style.color = '#888';
+      mLabel.style.whiteSpace = 'nowrap';
       const sel = document.createElement('select');
       sel.style.background = '#111'; sel.style.color = '#fff';
       sel.style.border = '1px solid #333'; sel.style.padding = '2px 4px';
+      sel.style.width = '100%'; sel.style.boxSizing = 'border-box';
       sel.innerHTML = `<option value="0">One-Shot</option><option value="1">Forward</option>`;
       sel.value = String(pr.sample.loopMode);
       sel.onchange = (e) => {
