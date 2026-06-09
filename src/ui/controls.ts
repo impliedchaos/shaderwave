@@ -384,25 +384,66 @@ export class Controls {
         if (def?.defaults.p2) prDst.p2 = preset.p2 ? [...preset.p2] : [...def.defaults.p2];
         if (def?.defaults.p3) prDst.p3 = preset.p3 ? [...preset.p3] : [...def.defaults.p3];
         if (preset.sample) {
-          const binary = atob(preset.sample.pcm);
-          const u8 = new Uint8Array(binary.length);
-          for (let j = 0; j < binary.length; j++) {
-            u8[j] = binary.charCodeAt(j);
+          if (preset.sample.url) {
+            // Load over HTTP
+            fetch(preset.sample.url).then(res => res.arrayBuffer()).then(buf => {
+              const ctx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 48000 });
+              return ctx.decodeAudioData(buf);
+            }).then(audio => {
+              let pcm = audio.getChannelData(0);
+              if (audio.sampleRate !== 48000) {
+                console.warn(`Resampling preset from ${audio.sampleRate} Hz to 48000 Hz`);
+                const ratio = audio.sampleRate / 48000;
+                const newLen = Math.floor(pcm.length / ratio);
+                const newPcm = new Float32Array(newLen);
+                for (let i = 0; i < newLen; i++) {
+                  const pos = i * ratio;
+                  const idx = Math.floor(pos);
+                  const frac = pos - idx;
+                  if (idx + 1 < pcm.length) {
+                    newPcm[i] = pcm[idx] * (1 - frac) + pcm[idx + 1] * frac;
+                  } else {
+                    newPcm[i] = pcm[idx];
+                  }
+                }
+                pcm = newPcm;
+              }
+              const maxLen = 4096 * (4096 / 16);
+              if (pcm.length > maxLen) pcm = pcm.slice(0, maxLen);
+
+              prDst.sample = {
+                name: preset.sample.name,
+                rootNote: preset.sample.rootNote,
+                loopStart: preset.sample.loopStart,
+                loopEnd: preset.sample.loopEnd || pcm.length,
+                loopMode: preset.sample.loopMode,
+                pcm
+              };
+              this.app?._syncRendererFx();
+              this.app?.markDirty('instrument');
+              this._buildParams();
+            }).catch(err => console.error("Failed to load preset sample from URL", err));
+          } else if (preset.sample.pcm) {
+            const binary = atob(preset.sample.pcm);
+            const u8 = new Uint8Array(binary.length);
+            for (let j = 0; j < binary.length; j++) {
+              u8[j] = binary.charCodeAt(j);
+            }
+            const i16 = new Int16Array(u8.buffer);
+            const pcm = new Float32Array(i16.length);
+            for (let j = 0; j < i16.length; j++) {
+              pcm[j] = i16[j] / 32768.0;
+            }
+            prDst.sample = {
+              name: preset.sample.name,
+              rootNote: preset.sample.rootNote,
+              loopStart: preset.sample.loopStart,
+              loopEnd: preset.sample.loopEnd,
+              loopMode: preset.sample.loopMode,
+              pcm
+            };
+            this.app?._syncRendererFx();
           }
-          const i16 = new Int16Array(u8.buffer);
-          const pcm = new Float32Array(i16.length);
-          for (let j = 0; j < i16.length; j++) {
-            pcm[j] = i16[j] / 32768.0;
-          }
-          prDst.sample = {
-            name: preset.sample.name,
-            rootNote: preset.sample.rootNote,
-            loopStart: preset.sample.loopStart,
-            loopEnd: preset.sample.loopEnd,
-            loopMode: preset.sample.loopMode,
-            pcm
-          };
-          this.app?._syncRendererFx();
         }
         if (this.onPresetChange && preset.fx) {
           this.onPresetChange(instName, preset.fx);

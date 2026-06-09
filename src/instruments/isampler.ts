@@ -1,7 +1,5 @@
 import type { InstrumentDef } from '../types.js';
 import shader from '../gl/shaders/synth-sampler.glsl?raw';
-import { presetsData } from './sampler-presets.js';
-
 export const isampler: InstrumentDef = {
   type: 'sampler',
   name: 'Sampler',
@@ -34,13 +32,12 @@ export const isampler: InstrumentDef = {
       p0: [0, 0, 1, 0],
       p1: [0.001, 3, 0, 0.4],
       sample: {
-        name: 'crash.raw',
+        name: 'crash.wav',
         rootNote: 60,
         loopStart: 0,
-        loopEnd: Math.floor(48000 * 3),
+        loopEnd: 0,
         loopMode: 0,
-        sr: 48000,
-        pcm: presetsData.crash
+        url: '/samples/crash.wav'
       }
     },
     {
@@ -48,13 +45,12 @@ export const isampler: InstrumentDef = {
       p0: [0, 0, 1.2, 0],
       p1: [0.001, 1, 0, 0.1],
       sample: {
-        name: 'cowbell.raw',
+        name: 'cowbell.wav',
         rootNote: 60,
         loopStart: 0,
-        loopEnd: Math.floor(48000 * 1.5),
+        loopEnd: 0,
         loopMode: 0,
-        sr: 48000,
-        pcm: presetsData.cowbell
+        url: '/samples/cowbell.wav'
       }
     },
     {
@@ -62,13 +58,25 @@ export const isampler: InstrumentDef = {
       p0: [0, 0, 1.5, 0],
       p1: [0.001, 1, 0, 0.05],
       sample: {
-        name: 'tamb.raw',
+        name: 'tamb.wav',
         rootNote: 60,
         loopStart: 0,
-        loopEnd: Math.floor(48000 * 2),
+        loopEnd: 0,
         loopMode: 0,
-        sr: 48000,
-        pcm: presetsData.tamb
+        url: '/samples/tamb.wav'
+      }
+    },
+    {
+      name: 'Vocal - Shader Wave',
+      p0: [0, 0, 1.0, 0],
+      p1: [0.001, 2, 0.5, 0.1],
+      sample: {
+        name: 'vocal.mp3',
+        rootNote: 60,
+        loopStart: 0,
+        loopEnd: 0,
+        loopMode: 0,
+        url: '/samples/vocal.mp3'
       }
     }
   ],
