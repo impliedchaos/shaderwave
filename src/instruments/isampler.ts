@@ -67,16 +67,16 @@ export const isampler: InstrumentDef = {
       }
     },
     {
-      name: 'Vocal - Shader Wave',
+      name: 'Wilhelm Scream',
       p0: [0, 0, 1.0, 0],
       p1: [0.001, 2, 0.5, 0.1],
       sample: {
-        name: 'vocal.mp3',
+        name: 'wilhelm.wav',
         rootNote: 60,
         loopStart: 0,
         loopEnd: 0,
         loopMode: 0,
-        url: '/samples/vocal.mp3'
+        url: '/samples/wilhelm.wav'
       }
     }
   ],
