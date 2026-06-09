@@ -622,10 +622,15 @@ export class Controls {
   _buildSamplerUI(pr: InstrumentInstance) {
     const wrap = document.createElement('div');
     wrap.className = 'sampler-ui';
-    wrap.style.marginTop = '16px';
+    wrap.style.gridColumn = '1 / -1';
+    wrap.style.marginTop = '4px';
     wrap.style.padding = '8px';
     wrap.style.background = 'rgba(0,0,0,0.2)';
     wrap.style.borderRadius = '4px';
+    wrap.style.boxSizing = 'border-box';
+    wrap.style.width = '100%';
+    wrap.style.minWidth = '0';
+    wrap.style.overflow = 'hidden';
 
     const info = document.createElement('div');
     info.style.marginBottom = '8px';
