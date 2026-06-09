@@ -1,5 +1,6 @@
 import type { InstrumentDef } from '../types.js';
 import shader from '../gl/shaders/synth-sampler.glsl?raw';
+import { presetsData } from './sampler-presets.js';
 
 export const isampler: InstrumentDef = {
   type: 'sampler',
@@ -26,6 +27,50 @@ export const isampler: InstrumentDef = {
     { code: 'DEC', label: 'Decay',  bank: 'p1', index: 1, min: 0.001, max: 2, curve: 'lin', unit: 's' },
     { code: 'SUS', label: 'Sustain',bank: 'p1', index: 2, min: 0, max: 1, curve: 'lin' },
     { code: 'REL', label: 'Release',bank: 'p1', index: 3, min: 0.001, max: 2, curve: 'lin', unit: 's' },
+  ],
+  presets: [
+    {
+      name: 'Minor 9th Chord',
+      p0: [0, 0, 1, 0],
+      p1: [0.001, 1, 1, 0.4],
+      sample: {
+        name: 'chord.raw',
+        rootNote: 60,
+        loopStart: 0,
+        loopEnd: Math.floor(48000 * 2.5),
+        loopMode: 0,
+        sr: 48000,
+        pcm: presetsData.chord
+      }
+    },
+    {
+      name: 'Reese Bass Loop',
+      p0: [0, 0, 1.2, 0],
+      p1: [0.001, 1, 1, 0.1],
+      sample: {
+        name: 'reese.raw',
+        rootNote: 33, // A1 is 33
+        loopStart: 0,
+        loopEnd: Math.floor(48000 * 1.5),
+        loopMode: 1,
+        sr: 48000,
+        pcm: presetsData.bass
+      }
+    },
+    {
+      name: 'Lo-Fi Drum Loop',
+      p0: [0, 0, 1.5, 0],
+      p1: [0.001, 1, 1, 0.05],
+      sample: {
+        name: 'drums.raw',
+        rootNote: 60,
+        loopStart: 0,
+        loopEnd: 48000 * 2,
+        loopMode: 1,
+        sr: 48000,
+        pcm: presetsData.drum
+      }
+    }
   ],
   uploadVoiceUniforms: (gl, prog, vd) => {
     if (!vd.sampler) return;

@@ -285,6 +285,7 @@ export interface Preset {
   p2?: number[];
   p3?: number[];
   fx?: Partial<FxParams>;
+  sample?: any; // SerializedSample to hydrate on load
 }
 
 // A self-contained instrument engine — everything the app needs to register one

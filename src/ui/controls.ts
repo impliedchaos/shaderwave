@@ -383,6 +383,27 @@ export class Controls {
         const def = byType(instName);
         if (def?.defaults.p2) prDst.p2 = preset.p2 ? [...preset.p2] : [...def.defaults.p2];
         if (def?.defaults.p3) prDst.p3 = preset.p3 ? [...preset.p3] : [...def.defaults.p3];
+        if (preset.sample) {
+          const binary = atob(preset.sample.pcm);
+          const u8 = new Uint8Array(binary.length);
+          for (let j = 0; j < binary.length; j++) {
+            u8[j] = binary.charCodeAt(j);
+          }
+          const i16 = new Int16Array(u8.buffer);
+          const pcm = new Float32Array(i16.length);
+          for (let j = 0; j < i16.length; j++) {
+            pcm[j] = i16[j] / 32768.0;
+          }
+          prDst.sample = {
+            name: preset.sample.name,
+            rootNote: preset.sample.rootNote,
+            loopStart: preset.sample.loopStart,
+            loopEnd: preset.sample.loopEnd,
+            loopMode: preset.sample.loopMode,
+            pcm
+          };
+          this.app?._syncRendererFx();
+        }
         if (this.onPresetChange && preset.fx) {
           this.onPresetChange(instName, preset.fx);
         }
