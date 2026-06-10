@@ -1,7 +1,7 @@
 // Sidebar: instrument selector + parameter sliders. The selector lists the
 // engine's instrument table (instances); editing a slider writes straight into
 // the selected instance, which the engine snapshots onto each new note.
-import { INSTRUMENTS, instGlow } from '../constants.js';
+import { INSTRUMENTS, instGlow, INSTRUMENT_COLORS } from '../constants.js';
 import { PRESETS } from './presets.js';
 import { byType } from '../instruments/index.js';
 import { WT_BANKS, WT_TABLES, WT_FRAMES, WT_SAMPLES, sampleTable } from '../instruments/wavetables.js';
@@ -180,7 +180,75 @@ export class Controls {
       const label = document.createElement('span');
       label.className = 'inst-name';
       label.textContent = instr.name || instr.type.toUpperCase();
-      b.append(num, label);
+
+      const icons = document.createElement('div');
+      icons.className = 'inst-icons';
+      icons.style.display = 'flex';
+      icons.style.marginLeft = 'auto';
+      icons.style.gap = '8px';
+      icons.style.alignItems = 'center';
+
+      const pencil = document.createElement('span');
+      pencil.innerHTML = '<svg viewBox="0 0 16 16" width="12" height="12"><path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293l6.5-6.5zm-9.761 5.175-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325z" fill="currentColor"/></svg>';
+      pencil.title = 'Edit instrument name';
+      pencil.style.cursor = 'pointer';
+      pencil.style.display = 'flex';
+      pencil.style.opacity = '0.5';
+      pencil.onmouseover = () => pencil.style.opacity = '1';
+      pencil.onmouseout = () => pencil.style.opacity = '0.5';
+      pencil.onclick = (e) => {
+        e.stopPropagation();
+        const newName = prompt('Enter new instrument name:', instr.name || instr.type.toUpperCase());
+        if (newName !== null) {
+          instr.name = newName.trim();
+          this._buildInstruments();
+          this.app?.markDirty('instrument');
+        }
+      };
+
+      const colorWrapper = document.createElement('div');
+      colorWrapper.style.position = 'relative';
+      colorWrapper.style.display = 'flex';
+      colorWrapper.style.alignItems = 'center';
+      
+      const colorPicker = document.createElement('span');
+      colorPicker.innerHTML = '<svg viewBox="0 0 16 16" width="12" height="12"><circle cx="8" cy="8" r="6" fill="currentColor"/></svg>';
+      colorPicker.title = 'Change color';
+      colorPicker.style.color = instr.color;
+      colorPicker.style.cursor = 'pointer';
+      colorPicker.style.display = 'flex';
+      
+      const colorSelect = document.createElement('select');
+      colorSelect.style.opacity = '0';
+      colorSelect.style.position = 'absolute';
+      colorSelect.style.left = '0';
+      colorSelect.style.top = '0';
+      colorSelect.style.width = '100%';
+      colorSelect.style.height = '100%';
+      colorSelect.style.cursor = 'pointer';
+      
+      INSTRUMENT_COLORS.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c;
+        opt.textContent = c;
+        opt.style.background = c;
+        opt.style.color = '#000';
+        colorSelect.appendChild(opt);
+      });
+      colorSelect.value = instr.color;
+      colorSelect.onclick = (e) => e.stopPropagation();
+      colorSelect.onchange = () => {
+        instr.color = colorSelect.value;
+        this._buildInstruments();
+        this.app?.markDirty('instrument');
+      };
+      
+      colorWrapper.appendChild(colorPicker);
+      colorWrapper.appendChild(colorSelect);
+
+      icons.appendChild(pencil);
+      icons.appendChild(colorWrapper);
+      b.append(num, label, icons);
       const sel = i === this.selected;
       b.className = sel ? 'sel' : '';
       // Each instance carries its own colour so duplicate engines are
