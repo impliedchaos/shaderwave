@@ -42,7 +42,14 @@ to audition songs themselves in their own browser.
 
 ## Historic Failures & Warnings
 
-### Vocoder Implementation Disaster (2026-06-09)
+### Vocoder Implementation Disaster (2026-06-09) — SUPERSEDED by the working build (1.22.0)
+**A working vocoder shipped 2026-06-15** (see "Vocoder — DONE" under Current work). This entry is kept
+only as a record of the four failure modes a GPU vocoder hits, each of which the working build designs
+out: (1) state leak → recursive work on a private FBO + detach state attachments after; (2) missing
+SVF coeffs → per-band coeffs computed CPU-side, nothing implicit; (3) unnormalized bandpass → use the
+`k·v1` unity-gain BP tap + clamp guard; (4) `uKeyTex` unbound / wrong unit → modulator on unit 5,
+sampler uniforms set in init. Original post-mortem below.
+
 Dave did something extremely stupid and asked Antigravity [Gemini 3.1 Pro (High)] to do this work, because he was out of Claude Code credits:
 An attempt to implement a WebGL 16-band Vocoder effect was completely abandoned and reverted after ~2 hours and 5 consecutive failed correction loops. The implementation suffered from fundamental flaws across multiple rendering levels:
 1. **WebGL State Leaks:** A feedback loop caused total engine collapse because the bypass path left textures dangling on unit 0.
@@ -53,6 +60,77 @@ An attempt to implement a WebGL 16-band Vocoder effect was completely abandoned 
 **CRITICAL REMINDER:** If the user ever asks a Gemini model to do deep, non-UI architectural or DSP-level work on the ShaderWave engine again, strongly advise them to rethink the decision. The architecture is unforgiving, and trial-and-error state leakage or DSP math errors will immediately cripple the entire application.
 
 ## Current work
+
+### Vocoder — ✅ DONE (1.22.0, lean-classic v1) — `project`
+Built 2026-06-15 (Opus 4.8). The SECOND attempt — Gemini's 2026-06-09 attempt was a disaster (see
+below); this one designed out all four failure modes from the start and shipped clean. **Verified:**
+`test/vocoder-check.html` (NEW) matches a CPU SVF-bandpass-bank + envelope reference to **9.7e-7**
+across a 16-block stream (proves the strip loop + BOTH filter-state textures + the envelope carry
+bit-continuously), confirms envelope tracking (silent modulator → output decays to <2% within
+release), stability at 16 bands / Q=16 (finite, clamp holds), and transparent bypass (both `vocoderOn:
+false` AND `vocSource:-1`). glsl-check compiles both shaders; **golden-render checksum UNCHANGED
+(0x5fc60c89)** (off-by-default = bit-transparent); render-check + 45/45 logic green. Scope was
+lean-classic (formant shift + unvoiced passthrough deferred — additive later).
+
+Implemented exactly as the design below. Files: `src/gl/shaders/fx-vocoder.glsl` (analysis/synthesis)
++ `fx-vocoder-sum.glsl` (band sum + dry/wet); `fxVocoder` in `effects.ts` (own bandFbo + 2 state
+ping-pongs + dedicated band-aware strip loop); FxParams `vocoderOn/vocSource/vocBands/vocQ/vocAttack/
+vocRelease/vocMix`; automation `VCO/VCB/VCQ/VCA/VCR/VCM` appended at end of TARGETS; FX panel Vocoder
+card (Source knob reuses the compressor's instance-name formatFn, -1 shows "Off"); `_on()` opt-in +
+neutralFxParams off. **Modulator unit = 5** (units 3/4 are the permanently-bound wavetable/sampler
+atlases — clobbering them breaks wvt/sampler on the next block; this was the unit-binding trap to
+avoid). Fixed makeup `uLevel=2.0` + clamp(±4) explosion guard in the sum shader. No song-io change
+(`{...i.fx}` persists new keys; opt-in `_on` + `??` fallbacks make older songs safe).
+
+Original agreed design (kept for reference): scope locked **lean-classic v1**.
+
+**What it is:** a channel vocoder. Carrier = the effect's insert signal (`uIn`, the instance's own
+dry). Modulator = the **sidechain dry bus** (`instDryTex`/`uKeyTex` at `uKeyRow`) — the EXACT
+mechanism the sidechain compressor uses, so a `vocSource` param picks the modulator instance just like
+`compSource`. Zero new renderer plumbing for the modulator (the 1.18.2 two-pass fill already populates
+the whole bus before any FX, so it keys off any instance < INST_DRY_ROWS regardless of chain order).
+
+**THE ARCHITECTURAL CRUX — state budget.** 16 bands × ~7 floats state each (carrier SVF stereo 4 +
+mod SVF mono 2 + env 1) ≈ 112 floats. The shared `_recursive` carries only ONE RGBA texel (4 floats)
+in a BLOCK×1 state texture → CANNOT reuse it; MRT attachments (≥4 guaranteed) don't fit either. **Use
+the reverb-FDN pattern: run bands as texture ROWS.** Render a `BLOCK × N_BANDS` intermediate where row
+b = band b; each row runs its own bandpass + envelope with its own state texel. Per band 2 state
+texels: `stateA=(ic1L,ic2L,ic1R,ic2R)` carrier SVF, `stateB=(ic1mod,ic2mod,env,–)`. MRT = outColor +
+2 state attachments = 3 total (within the WebGL2 min).
+
+**Two passes:** (1) `fx-vocoder.glsl` — per-sample recursive in FX_SUB strips, viewport BLOCK×bands;
+fragment (x,b) advances band b's carrier SVF + mod SVF+env from the strip checkpoint, outputs
+`carrierBand(x)*env(x)` stereo into `bandTex.rg`. Reuses the TESTED TPT-SVF BP-tap from fx-filter.glsl
++ the one-pole envelope from fx-dynamics.glsl. (2) `fx-vocoder-sum.glsl` — non-recursive BLOCK×1,
+`sum_b bandTex(x,b)` → wet, `mix(dry, wet*level, vocMix)`. Vocoder owns its PRIVATE bandFbo (only
+multi-attach FBO) + state ping-pongs in init; shared scratch FBO never left multi-attached. Needs its
+OWN band-aware strip loop (not `_recursive`, which is 1-row/1-state-attachment).
+
+**Four-failure-mode defenses (map to the disaster entry below):** (1) state leak — render to private
+bandFbo, then DETACH attachments 1&2 + `drawBuffers([0])`; bypass = clean O(BLOCK) dry passthrough at
+unit 0 only; reset() clears all state → deterministic export. (2) missing coeffs — per-band coeffs
+computed CPU-side per block (log-spaced ~120 Hz–8 kHz), uploaded as `uG[16]`/`uK[16]`; nothing
+implicit. (3) unnormalized → 113× clip — use the normalized SVF BP tap (k=1/Q), moderate default Q for
+~−3 dB band overlap, output level trim + recommend the chain limiter + safety tanh on the sum. (4)
+uKeyTex unbound — explicit units every block (0=carrier,1=stateA,2=stateB,3=modulator bus), sampler
+uniforms set in init.
+
+**Plumbing:** new `fxVocoder` in FX_EFFECTS (append; order/defaults derive); add `vocoderOn` to the
+`_on()` opt-in truthy group (defaults OFF → existing songs bit-identical). FxParams: `vocoderOn,
+vocSource(-1), vocBands(8, max 16), vocQ, vocAttack, vocRelease, vocMix`. Automation targets appended
+at the VERY END of TARGETS (id-stability): VCO(toggle)/VCS/VCB/VCQ/VCA/VCR/VCM; VCS reuses the
+compressor instance-name formatFn. UI vocoder card (Source knob max INST_DRY_ROWS-1). neutralFxParams
+sets vocoderOn=false. COMPOSING.md author entry.
+
+**Verify:** new `test/vocoder-check.html` (CPU bandpass-bank+env reference to ~1e-5; finite output;
+envelope tracking; bit-continuity across strip/block boundaries; transparent bypass), glsl-check
+compiles both shaders, golden-render checksum UNCHANGED (0x5fc60c89, off-by-default), npm run build.
+**Perf note:** SwiftShader validates correctness not speed; 16 bands as parallel rows is fine on real
+GPU, default bands=8.
+
+**Gotcha — audible modulator:** the modulator instance still plays in the mix (vocoder can't mute
+another instance's chain). User sets that instance's master/pan low. Note in docs; "mute source"
+deferred.
 
 ### Undo/redo + IndexedDB song persistence — ALL PHASES DONE — `project`
 **STATUS (2026-06-08):** COMPLETE. Phase 0+1 (undo/redo) in 1.15.0; Phase 3+4 (lifecycle + custom

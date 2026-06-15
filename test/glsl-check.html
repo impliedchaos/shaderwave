@@ -10,6 +10,8 @@ import FX_DISTORTION from '../src/gl/shaders/fx-distortion.glsl?raw';
 import FX_OVERDRIVE from '../src/gl/shaders/fx-overdrive.glsl?raw';
 import FX_FILTER from '../src/gl/shaders/fx-filter.glsl?raw';
 import FX_EQ from '../src/gl/shaders/fx-eq.glsl?raw';
+import FX_VOCODER from '../src/gl/shaders/fx-vocoder.glsl?raw';
+import FX_VOCODER_SUM from '../src/gl/shaders/fx-vocoder-sum.glsl?raw';
 import FX_DYNAMICS from '../src/gl/shaders/fx-dynamics.glsl?raw';
 import FX_BITCRUSH_UPDATE from '../src/gl/shaders/fx-bitcrush-update.glsl?raw';
 import FX_CHORUS_UPDATE from '../src/gl/shaders/fx-chorus-update.glsl?raw';
@@ -46,6 +48,7 @@ try {
 
   for (const [k, src] of [
     ['fx-distortion', FX_DISTORTION], ['fx-overdrive', FX_OVERDRIVE], ['fx-filter', FX_FILTER], ['fx-eq', FX_EQ], ['fx-dynamics', FX_DYNAMICS],
+    ['fx-vocoder', FX_VOCODER], ['fx-vocoder-sum', FX_VOCODER_SUM],
     ['fx-chorus-update', FX_CHORUS_UPDATE], ['fx-chorus-tap', FX_CHORUS_TAP],
     ['fx-tremolo', FX_TREMOLO],
     ['fx-delay-update', FX_DELAY_UPDATE], ['fx-delay-tap', FX_DELAY_TAP],

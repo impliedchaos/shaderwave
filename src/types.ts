@@ -158,6 +158,13 @@ export interface FxParams {
   limitOn: boolean;
   limitCeil: number;      // dB (output ceiling)
   limitRelease: number;   // ms
+  vocoderOn: boolean;
+  vocSource: number;      // modulator source instance index (-1 = off / no modulator)
+  vocBands: number;       // band count (1..16)
+  vocQ: number;           // per-band resonance / selectivity
+  vocAttack: number;      // ms (envelope follower)
+  vocRelease: number;     // ms (envelope follower)
+  vocMix: number;         // dry/wet (1 = fully vocoded)
   /** Legacy authoring field, migrated to `dist` by makeFx. */
   drive?: number;
   [key: string]: number | boolean | undefined;

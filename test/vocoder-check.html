@@ -1,0 +1,184 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>pending</title></head>
+<body><pre id="out">running…</pre>
+<script type="module">
+// Channel vocoder correctness. Drives the GPU vocoder (carrier = insert signal,
+// modulator = the sidechain dry bus at a chosen row) and checks:
+//   1. matches a CPU reference (constant-Q SVF bandpass bank + per-band envelope)
+//      across a continuous 16-block stream — validates the strip loop AND the carry
+//      of BOTH filter-state textures + the envelope across strips/blocks;
+//   2. tracks the modulator envelope (loud modulator → output; silent → it decays);
+//   3. stays finite (no NaN/Inf) even at high Q;
+//   4. is bit-transparent when off, and when no modulator source is selected.
+import { createGL } from '../src/gl/context.js';
+import { EffectsChain, neutralFxParams } from '../src/gl/effects.js';
+import { makeTex } from '../src/gl/program.js';
+import { BLOCK } from '../src/constants.js';
+
+const out = document.getElementById('out');
+const lines = [];
+const log = (s) => { lines.push(s); out.textContent = lines.join('\n'); console.log(s); };
+const SR = 48000;
+
+// Must mirror effects.ts fxVocoder exactly.
+const VOC_FLO = 120, VOC_FHI = 8000, VOC_LEVEL = 2.0, ROWS = 4;
+const msCoef = (ms) => 1 - Math.exp(-1 / (Math.max(0.05, ms) / 1000 * SR));
+
+function svf(st, x, a1, a2, a3) {        // returns bandpass tap v1; mutates st=[ic1,ic2]
+  const v3 = x - st[1];
+  const v1 = a1 * st[0] + a2 * v3;
+  const v2 = st[1] + a2 * st[0] + a3 * v3;
+  st[0] = 2 * v1 - st[0];
+  st[1] = 2 * v2 - st[1];
+  return v1;
+}
+
+function bandCoeffs(bands, Q) {
+  const k = 1 / Q, a1 = [], a2 = [], a3 = [];
+  for (let b = 0; b < bands; b++) {
+    const t = bands > 1 ? b / (bands - 1) : 0;
+    const fc = Math.max(20, Math.min(SR * 0.45, VOC_FLO * Math.pow(VOC_FHI / VOC_FLO, t)));
+    const gco = Math.tan(Math.PI * fc / SR);
+    const aa1 = 1 / (1 + gco * (gco + k));
+    a1.push(aa1); a2.push(gco * aa1); a3.push(gco * gco * aa1);
+  }
+  return { k, a1, a2, a3 };
+}
+
+// CPU reference vocoder (stereo carrier, mono modulator).
+function vocRef(cL, cR, mod, bands, Q, atkMs, relMs, mix) {
+  const N = cL.length, { k, a1, a2, a3 } = bandCoeffs(bands, Q);
+  const atk = msCoef(atkMs), rel = msCoef(relMs);
+  const stL = [], stR = [], stM = [], env = new Float64Array(bands);
+  for (let b = 0; b < bands; b++) { stL.push([0, 0]); stR.push([0, 0]); stM.push([0, 0]); }
+  const oL = new Float32Array(N), oR = new Float32Array(N);
+  for (let n = 0; n < N; n++) {
+    let wetL = 0, wetR = 0;
+    for (let b = 0; b < bands; b++) {
+      const cbL = k * svf(stL[b], cL[n], a1[b], a2[b], a3[b]);
+      const cbR = k * svf(stR[b], cR[n], a1[b], a2[b], a3[b]);
+      const mb = k * svf(stM[b], mod[n], a1[b], a2[b], a3[b]);
+      const d = Math.abs(mb);
+      env[b] += (d > env[b] ? atk : rel) * (d - env[b]);
+      wetL += cbL * env[b]; wetR += cbR * env[b];
+    }
+    wetL = Math.max(-4, Math.min(4, wetL * VOC_LEVEL));
+    wetR = Math.max(-4, Math.min(4, wetR * VOC_LEVEL));
+    oL[n] = cL[n] * (1 - mix) + wetL * mix;
+    oR[n] = cR[n] * (1 - mix) + wetR * mix;
+  }
+  return { oL, oR };
+}
+
+// Render carrier (cL,cR) with modulator `mod` at bus row `srcRow` through a chain
+// isolated to just the vocoder. Returns {L,R}.
+function renderVoc(cL, cR, mod, srcRow, set) {
+  const gl = createGL(document.createElement('canvas'));
+  const params = neutralFxParams();
+  params.enabled = true; params.master = 1.0;
+  set(params);
+  const chain = new EffectsChain(gl, SR, params);
+  chain.order = ['vocoder'];                              // isolate: only the vocoder runs
+  const inTex = makeTex(gl, BLOCK, 1);
+  const keyTex = makeTex(gl, BLOCK, ROWS);                // sidechain dry bus (modulator)
+  const tgtTex = makeTex(gl, BLOCK, 1);
+  const tgtFbo = gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, tgtFbo);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tgtTex, 0);
+  const cBuf = new Float32Array(BLOCK * 4), kBuf = new Float32Array(BLOCK * 4), readBuf = new Float32Array(BLOCK * 4);
+  const N = cL.length, L = new Float32Array(N), R = new Float32Array(N);
+  for (let b = 0; b < N / BLOCK; b++) {
+    const bs = b * BLOCK;
+    for (let i = 0; i < BLOCK; i++) {
+      cBuf[i * 4] = cL[bs + i]; cBuf[i * 4 + 1] = cR[bs + i]; cBuf[i * 4 + 2] = 0; cBuf[i * 4 + 3] = 1;
+      const m = mod[bs + i]; kBuf[i * 4] = m; kBuf[i * 4 + 1] = m; kBuf[i * 4 + 2] = 0; kBuf[i * 4 + 3] = 1;
+    }
+    gl.bindTexture(gl.TEXTURE_2D, inTex);
+    gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, BLOCK, 1, gl.RGBA, gl.FLOAT, cBuf);
+    gl.bindTexture(gl.TEXTURE_2D, keyTex);
+    gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, srcRow, BLOCK, 1, gl.RGBA, gl.FLOAT, kBuf);   // modulator into its row
+    gl.bindFramebuffer(gl.FRAMEBUFFER, tgtFbo); gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
+    chain.process(inTex, tgtFbo, bs, 1.0, keyTex, 0);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, tgtFbo);
+    gl.readPixels(0, 0, BLOCK, 1, gl.RGBA, gl.FLOAT, readBuf);
+    for (let i = 0; i < BLOCK; i++) { L[bs + i] = readBuf[i * 4]; R[bs + i] = readBuf[i * 4 + 1]; }
+  }
+  return { L, R };
+}
+
+function maxDiff(a, b) { let m = 0, at = -1; for (let i = 0; i < a.length; i++) { const d = Math.abs(a[i] - b[i]); if (d > m) { m = d; at = i; } } return { m, at }; }
+function peak(a, from = 0, to = a.length) { let p = 0; for (let i = from; i < to; i++) p = Math.max(p, Math.abs(a[i])); return p; }
+function anyNaN(a) { for (const v of a) if (!Number.isFinite(v)) return true; return false; }
+
+try {
+  let ok = true;
+  const NB = 16, N = NB * BLOCK;
+
+  // Harmonically-rich carrier; L and R DIFFER so both channels' filter state is tested.
+  const cL = new Float32Array(N), cR = new Float32Array(N), mod = new Float32Array(N);
+  for (let n = 0; n < N; n++) {
+    const t = n / SR;
+    cL[n] = 0.6 * Math.sin(2 * Math.PI * 220 * t) + 0.3 * Math.sin(2 * Math.PI * 440 * t) + 0.2 * Math.sin(2 * Math.PI * 880 * t);
+    cR[n] = 0.5 * Math.sin(2 * Math.PI * 330 * t + 0.7) + 0.25 * Math.sin(2 * Math.PI * 660 * t);
+    mod[n] = (0.5 + 0.5 * Math.sin(2 * Math.PI * 3 * t)) * Math.sin(2 * Math.PI * 500 * t);   // 3 Hz tremolo on 500 Hz
+  }
+
+  // 1. GPU vs CPU reference (validates strip + dual-state + envelope carry).
+  const BANDS = 12, Q = 5, ATK = 3, REL = 40, MIX = 1.0, SRC = 2;
+  const g1 = renderVoc(cL, cR, mod, SRC, (p) => {
+    p.vocoderOn = true; p.vocSource = SRC; p.vocBands = BANDS; p.vocQ = Q;
+    p.vocAttack = ATK; p.vocRelease = REL; p.vocMix = MIX;
+  });
+  const ref = vocRef(cL, cR, mod, BANDS, Q, ATK, REL, MIX);
+  const dL = maxDiff(g1.L, ref.oL), dR = maxDiff(g1.R, ref.oR);
+  const matchOk = dL.m < 1e-5 && dR.m < 1e-5 && !anyNaN(g1.L) && !anyNaN(g1.R);
+  ok = ok && matchOk;
+  log(`Vocoder vs CPU ref: L maxDiff=${dL.m.toExponential(2)} @${dL.at}, R maxDiff=${dR.m.toExponential(2)} @${dR.at} ${matchOk ? 'OK' : 'FAIL'}`);
+
+  // 2. Envelope tracking: loud modulator first half, silent second half. Use a fast
+  //    release (8 ms) so the tail fully decays within the silent half, and measure
+  //    the very end (well past several release time-constants).
+  const mod2 = new Float32Array(N);
+  for (let n = 0; n < N / 2; n++) mod2[n] = mod[n];     // second half stays 0
+  const g2 = renderVoc(cL, cR, mod2, SRC, (p) => {
+    p.vocoderOn = true; p.vocSource = SRC; p.vocBands = BANDS; p.vocQ = Q;
+    p.vocAttack = ATK; p.vocRelease = 8; p.vocMix = MIX;
+  });
+  const loudPk = peak(g2.L, 0, N / 2);
+  const silentPk = peak(g2.L, N - 2 * BLOCK, N);         // tail of the silent half
+  const trackOk = loudPk > 0.02 && silentPk < loudPk * 0.02;
+  ok = ok && trackOk;
+  log(`Envelope tracking: loudPeak=${loudPk.toFixed(4)}, silentPeak=${silentPk.toExponential(2)} (want < 2% of loud) ${trackOk ? 'OK' : 'FAIL'}`);
+
+  // 3. Stability at extreme Q (the failure mode that exploded the naive attempt).
+  const g3 = renderVoc(cL, cR, mod, SRC, (p) => {
+    p.vocoderOn = true; p.vocSource = SRC; p.vocBands = 16; p.vocQ = 16;
+    p.vocAttack = 1; p.vocRelease = 20; p.vocMix = 1.0;
+  });
+  const hiQpk = peak(g3.L);
+  const stableOk = !anyNaN(g3.L) && !anyNaN(g3.R) && hiQpk <= 4.001;   // clamp guard holds
+  ok = ok && stableOk;
+  log(`High-Q stability (16 bands, Q=16): finite=${!anyNaN(g3.L)}, peak=${hiQpk.toFixed(3)} (≤ 4) ${stableOk ? 'OK' : 'FAIL'}`);
+
+  // 4. Bypass transparency (vocoderOn = false → carrier passes through).
+  const g4 = renderVoc(cL, cR, mod, SRC, (p) => { p.vocoderOn = false; p.vocSource = SRC; });
+  const b4 = maxDiff(g4.L, cL);
+  const byp1 = b4.m < 1e-6;
+  ok = ok && byp1;
+  log(`Bypass (off) transparency: maxDiff=${b4.m.toExponential(2)} ${byp1 ? 'OK' : 'FAIL'}`);
+
+  // 5. No-source transparency (on, but vocSource = -1 → passthrough, never silence).
+  const g5 = renderVoc(cL, cR, mod, SRC, (p) => { p.vocoderOn = true; p.vocSource = -1; });
+  const b5 = maxDiff(g5.L, cL);
+  const byp2 = b5.m < 1e-6;
+  ok = ok && byp2;
+  log(`No-source (vocSource=-1) transparency: maxDiff=${b5.m.toExponential(2)} ${byp2 ? 'OK' : 'FAIL'}`);
+
+  document.title = ok ? 'ALL_OK' : 'FAILED';
+  log(ok ? '\n=== VOCODER CHECK OK ===' : '\n=== VOCODER CHECK FAILED ===');
+} catch (e) {
+  document.title = 'ERROR';
+  log('FATAL: ' + e.message + '\n' + (e.stack || ''));
+}
+</script>
+</body></html>

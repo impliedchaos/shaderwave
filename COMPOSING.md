@@ -160,7 +160,7 @@ For the exact, current truth on any engine see its descriptor `paramDefs` + `pre
 ## 6. fxParams (per engine type)
 
 Each engine **type** used in the song gets one fx entry. Start from `defaultFxParams()` and override.
-The chain is: Compressor → Filter → Overdrive → Distortion → Chorus → Tremolo → Delay → Reverb → Bitcrusher → Width → Limiter → Output.
+The chain is: Compressor → Filter → EQ → Vocoder → Overdrive → Distortion → Chorus → Tremolo → Delay → Reverb → Bitcrusher → Width → Limiter → Output.
 The order is **reorderable per instrument instance** (each instance can carry an `fxOrder: string[]` of
 effect keys; absent → default; unknown keys dropped + missing ones appended on load).
 
@@ -170,12 +170,20 @@ Common fields (booleans + scalars):
 `chorusOn`/`chorusMix`/`chorusRate`/`chorusDepth`, `tremoloOn`/`tremoloMix`/`tremoloRate`,
 `delayOn`/`delayTime`/`delayFeedback`/`delayMix`, `reverbOn`/`reverbDecay`/`reverbDamp`/`reverbMix`,
 `bitcrushOn`/`bitcrushBits`/`bitcrushRate`/`bitcrushMix`, `widthOn`/`width`, `master` (fx output level),
-`compOn`/`compThresh` (dB)/`compRatio`/`compAttack` (ms)/`compRelease` (ms)/`compMakeup` (dB),
-`limitOn`/`limitCeil` (dB)/`limitRelease` (ms).
+`compOn`/`compThresh` (dB)/`compRatio`/`compAttack` (ms)/`compRelease` (ms)/`compMakeup` (dB)/`compSource`,
+`limitOn`/`limitCeil` (dB)/`limitRelease` (ms),
+`vocoderOn`/`vocSource`/`vocBands` (1..16)/`vocQ`/`vocAttack` (ms)/`vocRelease` (ms)/`vocMix`.
 The resonant **Filter** is per-sample recursive (LP/HP/BP); its `filterCutoff` (target code `FLC`, log)
 is the marquee LFO sweep target — pair it with a synced LFO for filter-sweep risers/wobbles. The
 **Compressor** + **Limiter** are also per-sample (stereo-linked envelope follower); all their params are
 fx-scope automation/LFO targets too (codes `CMT`/`CMR`/`CMA`/`CML`/`CMK` + `CMO`; `LMC`/`LMR` + `LMO`).
+The **Vocoder** imposes a modulator instance's spectral envelope onto its carrier (the instance it
+sits on). `vocSource` is the modulator's **instrument-instance index** (the SAME sidechain dry bus the
+compressor's `compSource` keys off; -1 = off; max 15). So put the vocoder on a harmonically-rich
+carrier (saw pad, e8e, wvt) and point `vocSource` at a voice/sampler instance — that instance still
+plays audibly, so turn its `master`/level down if you only want it as the modulator. Bands/Q/Attack/
+Release/Mix are fx-scope automation/LFO targets (`VCB`/`VCQ`/`VCA`/`VCR`/`VCM` + toggle `VCO`); `VCQ`
+or `VCM` under an LFO gives talk-box-style movement.
 
 ```ts
 '303': Object.assign(defaultFxParams(), { distOn: true, dist: 10, delayOn: true, delayMix: 0.3, master: 0.85 }),

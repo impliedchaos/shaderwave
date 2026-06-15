@@ -93,6 +93,14 @@ const FX_DEFS: FxDef[] = [
   { label: 'Low Cut', key: 'eqLowFreq', min: 50, max: 1000, step: 10, log: true, fmt: (v) => Math.round(v) + 'Hz' },
   { label: 'High Cut', key: 'eqHighFreq', min: 1000, max: 10000, step: 100, log: true, fmt: (v) => v >= 1000 ? (v / 1000).toFixed(1) + 'k' : Math.round(v) + 'Hz' },
 
+  { category: 'Vocoder', fxKey: 'vocoder', enableKey: 'vocoderOn' },
+  { label: 'Source', key: 'vocSource', min: -1, max: 15, step: 1 },
+  { label: 'Bands', key: 'vocBands', min: 1, max: 16, step: 1, fmt: (v) => String(Math.round(v)) },
+  { label: 'Q', key: 'vocQ', min: 0.5, max: 16, step: 0.1, log: true, fmt: (v) => v.toFixed(1) },
+  { label: 'Attack', key: 'vocAttack', min: 0.1, max: 100, step: 0.1, log: true, fmt: (v) => v.toFixed(1) + 'ms' },
+  { label: 'Release', key: 'vocRelease', min: 5, max: 500, step: 1, log: true, fmt: (v) => Math.round(v) + 'ms' },
+  { label: 'Mix', key: 'vocMix', min: 0, max: 1, step: 0.01 },
+
   { category: 'Compressor', fxKey: 'compressor', enableKey: 'compOn' },
   { label: 'Thresh', key: 'compThresh', min: -60, max: 0, step: 0.5, fmt: (v) => v.toFixed(1) + 'dB' },
   { label: 'Ratio', key: 'compRatio', min: 1, max: 20, step: 0.1, log: true, fmt: (v) => v.toFixed(1) + ':1' },
@@ -534,7 +542,12 @@ export class App {
         else if (key === 'eqLow' || key === 'eqMid' || key === 'eqHigh') params[key] = 0.0;
         else if (key === 'eqLowFreq') params[key] = 200.0;
         else if (key === 'eqHighFreq') params[key] = 3000.0;
-        else if (key === 'compSource') params[key] = -1;
+        else if (key === 'compSource' || key === 'vocSource') params[key] = -1;
+        else if (key === 'vocBands') params[key] = 8;
+        else if (key === 'vocQ') params[key] = 4;
+        else if (key === 'vocAttack') params[key] = 3;
+        else if (key === 'vocRelease') params[key] = 30;
+        else if (key === 'vocMix') params[key] = 1.0;
         else params[key] = min;
       }
       const block = document.createElement('div');
@@ -554,10 +567,11 @@ export class App {
       host.appendChild(block);
       const isPercent = min === 0 && max === 1 && step < 1;
       let fmtFn = d.fmt ?? null;
-      if (key === 'compSource') {
+      if (key === 'compSource' || key === 'vocSource') {
+        const offLabel = key === 'vocSource' ? 'Off' : 'Self';
         fmtFn = (v) => {
           const idx = Math.round(v);
-          if (idx < 0) return 'Self';
+          if (idx < 0) return offLabel;
           const inst = this.engine.instruments[idx];
           return inst ? `${idx}:${inst.name}` : `Inst ${idx}`;
         };
@@ -678,7 +692,7 @@ export class App {
       if (g.enableKey) {
         const ek = g.enableKey;
         if (params[ek] === undefined) {
-          params[ek] = (ek === 'bitcrushOn' || ek === 'odOn' || ek === 'filterOn' || ek === 'compOn' || ek === 'limitOn' || ek === 'eqOn') ? false : true;
+          params[ek] = (ek === 'bitcrushOn' || ek === 'odOn' || ek === 'filterOn' || ek === 'compOn' || ek === 'limitOn' || ek === 'eqOn' || ek === 'vocoderOn') ? false : true;
         }
         catOn = params[ek] !== false;
         const btn = document.createElement('button');

@@ -27,6 +27,8 @@ import FX_BITCRUSH from './shaders/fx-bitcrush.glsl?raw';
 import FX_BITCRUSH_UPDATE from './shaders/fx-bitcrush-update.glsl?raw';
 import FX_FILTER from './shaders/fx-filter.glsl?raw';
 import FX_EQ from './shaders/fx-eq.glsl?raw';
+import FX_VOCODER from './shaders/fx-vocoder.glsl?raw';
+import FX_VOCODER_SUM from './shaders/fx-vocoder-sum.glsl?raw';
 import FX_DYNAMICS from './shaders/fx-dynamics.glsl?raw';
 import FX_WIDTH from './shaders/fx-width.glsl?raw';
 import FX_MASTER from './shaders/fx-master.glsl?raw';
@@ -34,6 +36,11 @@ import FX_MASTER from './shaders/fx-master.glsl?raw';
 // Strip width for per-sample-recursive effects (the resonant filter). Mirrors the
 // synth renderer's subBlock: smaller = fewer redundant recomputes but more draws.
 const FX_SUB = 64;
+
+// Vocoder: max band count (sizes the band/state textures + the GLSL coeff arrays)
+// and the log-spaced band-center range.
+const MAX_VOC_BANDS = 16;
+const VOC_FLO = 120, VOC_FHI = 8000;
 
 // Delay ring: 2D (width-limited) layout, ~2.7s at 48k.
 const DELAY_W = 2048, DELAY_H = 64, DELAY_LEN = DELAY_W * DELAY_H;
@@ -485,6 +492,117 @@ const fxLimiter = makeDynamics({
   },
 });
 
+// Channel vocoder. Carrier = the insert signal (uIn); modulator = the sidechain dry
+// bus (ctx.instDryTex) at row `vocSource`, the SAME mechanism the sidechain
+// compressor keys off. Two passes: (1) analysis/synthesis renders a BLOCK×bands
+// intermediate (band b = row b) per-sample-recursive in strips, MRT carrying the
+// carrier + modulator filter state and the envelope across strips/blocks; (2) the
+// sum pass collapses the rows + dry/wet into the BLOCK×1 output. The multi-attachment
+// recursive work happens on the vocoder's OWN bandFbo, so the chain's shared scratch
+// FBO is never left multi-attached.
+const fxVocoder: FxEffectDef = {
+  key: 'vocoder', name: 'Vocoder', enableFlag: 'vocoderOn',
+  defaults: { vocoderOn: false, vocSource: -1, vocBands: 8, vocQ: 4, vocAttack: 3, vocRelease: 30, vocMix: 1.0 },
+  init(gl) {
+    const prog = createProgram(gl, FX_VOCODER);
+    gl.useProgram(prog);
+    gl.uniform1i(prog.u('uIn'), 0);
+    gl.uniform1i(prog.u('uPrevStateA'), 1);
+    gl.uniform1i(prog.u('uPrevStateB'), 2);
+    const uKey = prog.u('uKeyTex'); if (uKey) gl.uniform1i(uKey, 5);   // unit 5: units 3/4 are the permanently-bound wavetable/sampler atlases
+    const sum = createProgram(gl, FX_VOCODER_SUM);
+    gl.useProgram(sum);
+    gl.uniform1i(sum.u('uBandTex'), 0);
+    gl.uniform1i(sum.u('uDry'), 1);
+
+    const bandTex = makeTex(gl, BLOCK, MAX_VOC_BANDS);
+    const bandFbo = gl.createFramebuffer();
+    // Per-band recursive state, carried across blocks (ping-pong, cleared on reset).
+    let aR = makeTex(gl, BLOCK, MAX_VOC_BANDS), aW = makeTex(gl, BLOCK, MAX_VOC_BANDS);   // carrier SVF
+    let bR = makeTex(gl, BLOCK, MAX_VOC_BANDS), bW = makeTex(gl, BLOCK, MAX_VOC_BANDS);   // modulator SVF + env
+    const a1 = new Float32Array(MAX_VOC_BANDS), a2 = new Float32Array(MAX_VOC_BANDS);
+    const a3 = new Float32Array(MAX_VOC_BANDS), kk = new Float32Array(MAX_VOC_BANDS);
+    return {
+      reset(clear) { clear(aR); clear(aW); clear(bR); clear(bW); },
+      process(ctx, inTex, outFbo) {
+        const g = ctx.gl, p = ctx.params;
+        const bands = Math.max(1, Math.min(MAX_VOC_BANDS, Math.round((p.vocBands as number) ?? 8)));
+        const src = p.vocSource !== undefined ? Math.round(p.vocSource as number) : -1;
+        const on = ctx.on('vocoderOn') && src >= 0 && !!ctx.instDryTex;
+
+        // Off / no modulator selected → cheap dry passthrough via the sum shader.
+        if (!on) {
+          g.useProgram(sum);
+          g.bindFramebuffer(g.FRAMEBUFFER, outFbo);
+          g.drawBuffers([g.COLOR_ATTACHMENT0]);
+          ctx.bind(1, inTex);                          // uDry
+          g.uniform1i(sum.u('uBypass'), 1);
+          g.viewport(0, 0, BLOCK, 1); drawQuad(g);
+          return;
+        }
+
+        // Per-band TPT-SVF coefficients: constant-Q, log-spaced centers (the bank).
+        const sr = ctx.sampleRate;
+        const Q = Math.max(0.5, (p.vocQ as number) ?? 4);
+        const k = 1 / Q;
+        for (let b = 0; b < bands; b++) {
+          const t = bands > 1 ? b / (bands - 1) : 0;
+          const fc = Math.max(20, Math.min(sr * 0.45, VOC_FLO * Math.pow(VOC_FHI / VOC_FLO, t)));
+          const gco = Math.tan(Math.PI * fc / sr);
+          const aa1 = 1 / (1 + gco * (gco + k));
+          a1[b] = aa1; a2[b] = gco * aa1; a3[b] = gco * gco * aa1; kk[b] = k;
+        }
+
+        // 1. Analysis/synthesis — recursive strips, MRT (band signal + 2 state texels),
+        //    rendered over BLOCK×bands into the vocoder's private bandFbo.
+        g.useProgram(prog);
+        g.bindFramebuffer(g.FRAMEBUFFER, bandFbo);
+        g.framebufferTexture2D(g.FRAMEBUFFER, g.COLOR_ATTACHMENT0, g.TEXTURE_2D, bandTex, 0);
+        g.uniform1i(prog.u('uBlock'), BLOCK);
+        g.uniform1i(prog.u('uBands'), bands);
+        g.uniform1i(prog.u('uKeyRow'), src);
+        g.uniform1fv(prog.u('uA1[0]'), a1);
+        g.uniform1fv(prog.u('uA2[0]'), a2);
+        g.uniform1fv(prog.u('uA3[0]'), a3);
+        g.uniform1fv(prog.u('uK[0]'), kk);
+        g.uniform1f(prog.u('uAtk'), msCoef((p.vocAttack as number) ?? 3, sr));
+        g.uniform1f(prog.u('uRel'), msCoef((p.vocRelease as number) ?? 30, sr));
+        for (let o = 0; o < BLOCK; o += FX_SUB) {
+          g.framebufferTexture2D(g.FRAMEBUFFER, g.COLOR_ATTACHMENT1, g.TEXTURE_2D, aW, 0);
+          g.framebufferTexture2D(g.FRAMEBUFFER, g.COLOR_ATTACHMENT2, g.TEXTURE_2D, bW, 0);
+          g.drawBuffers([g.COLOR_ATTACHMENT0, g.COLOR_ATTACHMENT1, g.COLOR_ATTACHMENT2]);
+          ctx.bind(0, inTex);
+          ctx.bind(1, aR);
+          ctx.bind(2, bR);
+          ctx.bind(5, ctx.instDryTex!);
+          g.uniform1i(prog.u('uSubOffset'), o);
+          g.viewport(o, 0, FX_SUB, bands);
+          drawQuad(g);
+          [aR, aW] = [aW, aR];
+          [bR, bW] = [bW, bR];
+        }
+        // Detach the state targets so bandFbo is single-attachment again (hygiene
+        // against the next use inheriting stray draw buffers).
+        g.framebufferTexture2D(g.FRAMEBUFFER, g.COLOR_ATTACHMENT1, g.TEXTURE_2D, null, 0);
+        g.framebufferTexture2D(g.FRAMEBUFFER, g.COLOR_ATTACHMENT2, g.TEXTURE_2D, null, 0);
+        g.drawBuffers([g.COLOR_ATTACHMENT0]);
+
+        // 2. Sum bands + dry/wet → outFbo (BLOCK×1, single attachment).
+        g.useProgram(sum);
+        g.bindFramebuffer(g.FRAMEBUFFER, outFbo);
+        g.drawBuffers([g.COLOR_ATTACHMENT0]);
+        ctx.bind(0, bandTex);
+        ctx.bind(1, inTex);
+        g.uniform1i(sum.u('uBands'), bands);
+        g.uniform1i(sum.u('uBypass'), 0);
+        g.uniform1f(sum.u('uLevel'), 2.0);              // fixed makeup (band-split drops level)
+        g.uniform1f(sum.u('uMix'), (p.vocMix as number) ?? 1.0);
+        g.viewport(0, 0, BLOCK, 1); drawQuad(g);
+      },
+    };
+  },
+};
+
 const fxWidth: FxEffectDef = {
   key: 'width', name: 'Stereo Width', enableFlag: 'widthOn',
   defaults: { widthOn: true, width: 1.15 },
@@ -505,7 +623,7 @@ const fxWidth: FxEffectDef = {
 // Signal-flow order matches the README chain; the master accumulate always runs
 // after it. Reorder this array to rearrange the chain.
 export const FX_EFFECTS: FxEffectDef[] = [
-  fxCompressor, fxFilter, fxEq, fxOverdrive, fxDistortion, fxChorus, fxTremolo, fxDelay, fxReverb, fxBitcrush, fxWidth, fxLimiter,
+  fxCompressor, fxFilter, fxEq, fxVocoder, fxOverdrive, fxDistortion, fxChorus, fxTremolo, fxDelay, fxReverb, fxBitcrush, fxWidth, fxLimiter,
 ];
 
 export const DEFAULT_FX_ORDER = FX_EFFECTS.map((e) => e.key);
@@ -538,7 +656,7 @@ export function defaultFxParams(): FxParams {
 // stays the song-authoring baseline; only `+ Add` uses this.)
 export function neutralFxParams(): FxParams {
   const p = defaultFxParams();
-  p.distOn = p.odOn = p.filterOn = p.eqOn = p.compOn = p.limitOn = p.chorusOn = p.tremoloOn = p.delayOn = p.reverbOn = p.widthOn = p.bitcrushOn = false;
+  p.distOn = p.odOn = p.filterOn = p.eqOn = p.vocoderOn = p.compOn = p.limitOn = p.chorusOn = p.tremoloOn = p.delayOn = p.reverbOn = p.widthOn = p.bitcrushOn = false;
   p.dist = 0;                         // distortion drive → transparent
   p.odDrive = 1; p.odTone = 0.5;      // overdrive: unity drive, centre tone
   p.eqLow = p.eqMid = p.eqHigh = 0;   // EQ gains → neutral 0 dB
@@ -612,7 +730,7 @@ export class EffectsChain {
     const p = this.params as Record<string, number | boolean>;
     // Newer opt-in effects (bitcrush, overdrive) default OFF when the flag is
     // absent (truthy test); the original effects default ON (!== false).
-    const optIn = flag === 'bitcrushOn' || flag === 'odOn' || flag === 'filterOn' || flag === 'compOn' || flag === 'limitOn' || flag === 'eqOn';
+    const optIn = flag === 'bitcrushOn' || flag === 'odOn' || flag === 'filterOn' || flag === 'compOn' || flag === 'limitOn' || flag === 'eqOn' || flag === 'vocoderOn';
     return !!this.params.enabled && (optIn ? !!p[flag] : p[flag] !== false);
   }
 

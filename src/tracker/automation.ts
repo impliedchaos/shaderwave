@@ -131,6 +131,18 @@ const FX_EQ_TARGETS: RawTarget[] = [
 ];
 for (const t of FX_EQ_TARGETS) TARGETS.push({ ...t, scope: 'fx', type: '*', id: TARGETS.length });
 
+// Vocoder fx targets — appended at the very end (id-stable). Source is a discrete
+// instance index, intentionally NOT automatable (like the compressor's compSource).
+const FX_VOC_TARGETS: RawTarget[] = [
+  { code: 'VCO', label: 'Vocoder On',  key: 'vocoderOn',  min: 0,   max: 1,   curve: 'lin', toggle: true },
+  { code: 'VCB', label: 'Voc Bands',   key: 'vocBands',   min: 1,   max: 16,  curve: 'lin' },
+  { code: 'VCQ', label: 'Voc Q',       key: 'vocQ',       min: 0.5, max: 16,  curve: 'log' },
+  { code: 'VCA', label: 'Voc Attack',  key: 'vocAttack',  min: 0.1, max: 100, curve: 'log', unit: 'ms' },
+  { code: 'VCR', label: 'Voc Release', key: 'vocRelease', min: 5,   max: 500, curve: 'log', unit: 'ms' },
+  { code: 'VCM', label: 'Voc Mix',     key: 'vocMix',     min: 0,   max: 1,   curve: 'lin' },
+];
+for (const t of FX_VOC_TARGETS) TARGETS.push({ ...t, scope: 'fx', type: '*', id: TARGETS.length });
+
 export function targetById(id: number): ParamTarget | null {
   return (id >= 0 && id < TARGETS.length) ? TARGETS[id] : null;
 }
