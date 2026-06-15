@@ -4711,5 +4711,162 @@ export const DEMO_SONGS: SongDef[] = [
         pan: [0.5, 0.5, 0.58, 0.5, 0.40, 0.62, 0.5, 0.45],
       };
     }
+  },
+  {
+    name: "Disgraced Child of a Robber Baron",
+    author: "AI Slop",
+    note: "Cumbia-flavored (à la Stromae's 'Santé') — 96 BPM 4/4, swung güiro + syncopated bombo + conga tumbao, bouncy bass, accordion hook, pan-flute response and an offbeat tres. Am–E7 vamp, i–iv–V–i chorus, major-lift bridge. ~4 min.",
+    bpm: 96,
+    master: DEFAULT_MASTER * 0.5,
+    params: [
+      { name: "Cumbia Kit", type: "808", p0: [0, 0.55, 0.5, 0.55], p1: [0, 0, 0, 0] },
+      { name: "Bouncy Bass", type: "moog", p0: [500, 0.3, 0.5, 0.2], p1: [4, 0.4, 0.4, 0.5], p2: [1, 1, 2, 0], p3: [2, 2, 1, 0] },
+      { name: "Accordion", type: "e8e", p0: [0.02, 0.2, 0.85, 0.3], p1: [0.2, 0.15, 8, 0], p2: [1, 2, 1, 3], p3: [1, 0.7, 0.8, 0.5] },
+      { name: "Pan Flute", type: "wvt", p0: [0.03, 0.3, 0.8, 0.35], p1: [0.15, 0.0, 0.04, 0.05], p2: [1, 0, 0, -1], p3: [1, 0.0, 0, 0] },
+      { name: "Tres", type: "guitar", p0: [0.9, 0.15, 0.8, 0.6], p1: [24, 0.1, 0.6, 0.08] },
+      { name: "Marimba", type: "wvt", p0: [0.002, 0.22, 0.0, 0.18], p1: [0.12, 0.0, 0.0, 0.08], p2: [1, 0, 0, -1], p3: [1, 0.0, 0.4, 0] },
+    ],
+    fxParams: {
+      '808': Object.assign(defaultFxParams(), { distOn: false, odOn: false, delayOn: false, chorusOn: false, tremoloOn: false, reverbOn: true, reverbMix: 0.12, widthOn: true, width: 1.15, master: 0.95 }),
+      'moog': Object.assign(defaultFxParams(), { distOn: false, odOn: true, odDrive: 2.0, odTone: 0.5, odLevel: 0.9, delayOn: false, reverbOn: false, chorusOn: false, tremoloOn: false, widthOn: false, master: 0.9 }),
+      'e8e': Object.assign(defaultFxParams(), { distOn: false, odOn: false, chorusOn: true, chorusMix: 0.35, chorusRate: 0.8, chorusDepth: 2.5, tremoloOn: false, delayOn: true, delayTime: 0.30, delayFeedback: 0.25, delayMix: 0.18, reverbOn: true, reverbMix: 0.20, widthOn: true, width: 1.3, master: 0.85 }),
+      'wvt': Object.assign(defaultFxParams(), { distOn: false, odOn: false, chorusOn: true, chorusMix: 0.15, tremoloOn: false, delayOn: true, delayTime: 0.33, delayFeedback: 0.28, delayMix: 0.15, reverbOn: true, reverbMix: 0.22, widthOn: true, width: 1.4, master: 0.95 }),
+      'guitar': Object.assign(defaultFxParams(), { distOn: false, odOn: true, odDrive: 2.5, odTone: 0.6, odLevel: 0.7, filterOn: false, chorusOn: true, chorusMix: 0.2, tremoloOn: false, delayOn: true, delayTime: 0.20, delayFeedback: 0.22, delayMix: 0.18, reverbOn: true, reverbMix: 0.15, widthOn: true, width: 1.3, master: 0.85 }),
+    },
+    data: () => {
+      const N = 64;
+      const mk = () => new Pattern(N, 8);
+      const BD = 36, SD = 38, HH = 42;
+      const I_KIT = 0, I_BASS = 1, I_ACC = 2, I_FLUTE = 3, I_TRES = 4, I_MAR = 5;
+      const drunk = (r: number, sp: number) => (r * 53 + 17) % sp;
+
+      // --- Cumbia engine room: swung güiro, syncopated bombo, conga tumbao -------
+      const setPerc = (pat: Pattern, full: boolean) => {
+        for (let r = 0; r < N; r++) {
+          const s = r % 16, bar = Math.floor(r / 16);
+          // bombo (kick): beats 1 & 3 + a push — humanized with small note-delay so
+          // the downbeat breathes (beat 1 barely, beat 3 looser) instead of robotic.
+          if (s === 0) { pat.set(r, 0, BD, I_KIT, 0.96); if (full) pat.setFx(r, 0, 5, drunk(r, 0x08)); }
+          if (s === 8) { pat.set(r, 0, BD, I_KIT, 0.9); if (full) pat.setFx(r, 0, 5, 0x08 + drunk(r, 0x10)); }
+          if (full && s === 14 && bar % 2 === 1) { pat.set(r, 0, BD, I_KIT, 0.7); pat.setFx(r, 0, 5, 0x10 + drunk(r, 0x12)); }
+          // clave/rim backbeat (2 & 4) — dragged late for a lazy cumbia pocket.
+          if (s === 4 || s === 12) { pat.set(r, 1, SD, I_KIT, 0.58); if (full) pat.setFx(r, 1, 5, 0x14 + drunk(r, 0x16)); }
+          // güiro — accented 8ths + swung 16th scrape (the loose cumbia rasp).
+          if (s % 2 === 0) pat.set(r, 2, HH, I_KIT, s % 4 === 2 ? 0.5 : 0.3);
+          else if (full) { pat.set(r, 2, HH, I_KIT, 0.2); pat.setFx(r, 2, 5, 0x2c + drunk(r, 0x14)); }
+        }
+      };
+
+      // --- Bouncy bass tumbao (root / fifth / octave per chord) -------------------
+      const rootOf: Record<string, number> = { Am: 45, Dm: 38, E7: 40, C: 36, F: 41, G: 43 };
+      const fifthOf: Record<string, number> = { Am: 52, Dm: 45, E7: 47, C: 43, F: 48, G: 50 };
+      const setBass = (pat: Pattern, chords: string[], vol = 0.9) => {
+        for (let bar = 0; bar < 4; bar++) {
+          const root = rootOf[chords[bar]], fifth = fifthOf[chords[bar]], oct = root + 12;
+          const hits = [{ s: 0, n: root }, { s: 6, n: fifth }, { s: 8, n: root }, { s: 11, n: fifth }, { s: 14, n: oct }];
+          for (const h of hits) { const r = bar * 16 + h.s; pat.set(r, 3, h.n, I_BASS, vol); pat.set(r + 2, 3, OFF, I_BASS); }
+        }
+      };
+
+      // --- Offbeat tres: pluck chord tones on the "&"s (the cumbia guacharaca/tres) -
+      const tonesOf: Record<string, number[]> = {
+        Am: [69, 72, 76], Dm: [74, 77, 81], E7: [76, 80, 83], C: [72, 76, 79], F: [77, 81, 84], G: [79, 83, 86],
+      };
+      const setTres = (pat: Pattern, chords: string[], vol = 0.45) => {
+        for (let bar = 0; bar < 4; bar++) {
+          const t = tonesOf[chords[bar]];
+          [2, 6, 10, 14].forEach((s, i) => {
+            const r = bar * 16 + s;
+            pat.set(r, 6, t[i % t.length], I_TRES, vol * (i % 2 ? 0.78 : 1)); pat.set(r + 1, 6, OFF, I_TRES);
+          });
+        }
+      };
+
+      // --- Marimba montuno (ch 7): plucky syncopated arpeggio answering the leads ---
+      const marTones: Record<string, number[]> = {
+        Am: [57, 60, 64, 67], Dm: [57, 62, 65, 69], E7: [56, 59, 64, 68],
+        C: [55, 60, 64, 67], F: [57, 60, 65, 69], G: [55, 59, 62, 67],
+      };
+      const setMarimba = (pat: Pattern, chords: string[], vol = 0.8) => {
+        const fig = [{ s: 0, t: 0 }, { s: 3, t: 2 }, { s: 6, t: 1 }, { s: 8, t: 3 }, { s: 11, t: 2 }, { s: 14, t: 1 }];
+        for (let bar = 0; bar < 4; bar++) {
+          const t = marTones[chords[bar]];
+          for (const h of fig) { const r = bar * 16 + h.s; pat.set(r, 7, t[h.t], I_MAR, vol); pat.set(r + 2, 7, OFF, I_MAR); }
+        }
+      };
+
+      // --- Melodic line placer (s = row, n = note, l = length rows, v = vol) -------
+      type Note = { s: number; n: number; l?: number; v?: number };
+      const place = (pat: Pattern, ch: number, inst: number, notes: Note[], vol: number) => {
+        for (const m of notes) { pat.set(m.s, ch, m.n, inst, m.v ?? vol); pat.set(m.s + (m.l ?? 3), ch, OFF, inst); }
+      };
+
+      // Accordion hook (call) + pan-flute (response), per section.
+      const accVerse: Note[] = [
+        { s: 0, n: 69 }, { s: 4, n: 72 }, { s: 6, n: 71, l: 2 }, { s: 8, n: 69 }, { s: 12, n: 64, l: 3 },
+        { s: 16, n: 69 }, { s: 20, n: 76 }, { s: 22, n: 74, l: 2 }, { s: 24, n: 72 }, { s: 26, n: 71, l: 2 }, { s: 28, n: 69, l: 3 },
+        { s: 32, n: 71 }, { s: 36, n: 68 }, { s: 38, n: 64, l: 2 }, { s: 40, n: 68 }, { s: 44, n: 71, l: 3 },
+        { s: 48, n: 74 }, { s: 52, n: 71 }, { s: 54, n: 68, l: 2 }, { s: 56, n: 64 }, { s: 60, n: 64, l: 3 },
+      ];
+      const fluteVerse: Note[] = [{ s: 10, n: 76, l: 4 }, { s: 30, n: 79, l: 3 }, { s: 42, n: 71, l: 4 }, { s: 58, n: 75, l: 4 }];
+      const accChorus: Note[] = [
+        { s: 0, n: 69 }, { s: 2, n: 72 }, { s: 4, n: 76, l: 2 }, { s: 6, n: 72 }, { s: 8, n: 69 }, { s: 12, n: 71 },
+        { s: 16, n: 74 }, { s: 18, n: 77 }, { s: 20, n: 81, l: 2 }, { s: 22, n: 77 }, { s: 24, n: 74 }, { s: 28, n: 69 },
+        { s: 32, n: 71 }, { s: 34, n: 74 }, { s: 36, n: 80, l: 2 }, { s: 38, n: 76 }, { s: 40, n: 71 }, { s: 44, n: 68 },
+        { s: 48, n: 69 }, { s: 50, n: 72 }, { s: 52, n: 76, l: 3 }, { s: 56, n: 72 }, { s: 60, n: 69, l: 3 },
+      ];
+      const fluteChorus: Note[] = [
+        { s: 0, n: 76, l: 3 }, { s: 8, n: 79, l: 3 }, { s: 12, n: 78, l: 2 },
+        { s: 16, n: 81, l: 3 }, { s: 24, n: 84, l: 3 },
+        { s: 32, n: 78, l: 3 }, { s: 40, n: 83, l: 3 },
+        { s: 48, n: 79, l: 3 }, { s: 56, n: 76, l: 4 },
+      ];
+      const accBridge: Note[] = [
+        { s: 0, n: 72 }, { s: 4, n: 76 }, { s: 6, n: 79, l: 2 }, { s: 8, n: 76 }, { s: 12, n: 72 },
+        { s: 16, n: 77 }, { s: 20, n: 81 }, { s: 22, n: 84, l: 2 }, { s: 24, n: 81 }, { s: 28, n: 77 },
+        { s: 32, n: 72 }, { s: 36, n: 79 }, { s: 40, n: 76 }, { s: 44, n: 72 },
+        { s: 48, n: 74 }, { s: 52, n: 79 }, { s: 54, n: 83, l: 2 }, { s: 56, n: 79 }, { s: 60, n: 74, l: 3 },
+      ];
+      const fluteBridge: Note[] = [{ s: 0, n: 79, l: 3 }, { s: 16, n: 84, l: 3 }, { s: 32, n: 79, l: 3 }, { s: 48, n: 81, l: 3 }];
+      const fluteBreak: Note[] = [
+        { s: 0, n: 76, l: 2 }, { s: 4, n: 79, l: 2 }, { s: 6, n: 78, l: 2 }, { s: 8, n: 76 }, { s: 10, n: 74, l: 2 }, { s: 12, n: 71, l: 4 },
+        { s: 16, n: 64, l: 6 }, { s: 32, n: 71, l: 2 }, { s: 36, n: 74, l: 2 }, { s: 40, n: 76, l: 6 },
+      ];
+
+      const verseC = ['Am', 'Am', 'E7', 'E7'], chorusC = ['Am', 'Dm', 'E7', 'Am'];
+      const bridgeC = ['C', 'F', 'C', 'G'], introC = ['Am', 'Am', 'Am', 'E7'];
+
+      const p0 = mk(), p1 = mk(), p2 = mk(), p3 = mk(), p4 = mk(), p5 = mk(), p6 = mk();
+
+      // p0 — intro: lighter groove (8th güiro, no congas/scrape) + bass.
+      setPerc(p0, false); setBass(p0, introC, 0.8);
+      // p1 — verse A: full cumbia perc + bass + tres + accordion hook + marimba.
+      setPerc(p1, true); setBass(p1, verseC); setTres(p1, verseC); place(p1, 4, I_ACC, accVerse, 0.6); setMarimba(p1, verseC);
+      // p2 — verse B: add the pan-flute response.
+      setPerc(p2, true); setBass(p2, verseC); setTres(p2, verseC); place(p2, 4, I_ACC, accVerse, 0.6); place(p2, 5, I_FLUTE, fluteVerse, 0.6); setMarimba(p2, verseC);
+      // p3 — chorus: i–iv–V–i, everything driving.
+      setPerc(p3, true); setBass(p3, chorusC, 0.95); setTres(p3, chorusC, 0.5); place(p3, 4, I_ACC, accChorus, 0.65); place(p3, 5, I_FLUTE, fluteChorus, 0.6); setMarimba(p3, chorusC, 0.78);
+      // p4 — break: percussion feature + bass + a flute lick (accordion/tres/marimba drop out).
+      setPerc(p4, true); setBass(p4, verseC, 0.85); place(p4, 5, I_FLUTE, fluteBreak, 0.62);
+      // p5 — bridge: major lift (C–F–C–G).
+      setPerc(p5, true); setBass(p5, bridgeC); setTres(p5, bridgeC, 0.5); place(p5, 4, I_ACC, accBridge, 0.62); place(p5, 5, I_FLUTE, fluteBridge, 0.55); setMarimba(p5, bridgeC);
+      // p6 — outro: wind down to perc + bass + a last accordion phrase + soft marimba.
+      setPerc(p6, false); setBass(p6, introC, 0.7); place(p6, 4, I_ACC, accVerse.slice(0, 8), 0.5); setMarimba(p6, introC, 0.6);
+
+      // Stop notes hanging over from the previous pattern (see COMPOSING §10): OFF any
+      // melodic channel (3–7) not retriggering on row 0.
+      const killHang = (pat: Pattern) => {
+        for (let ch = 3; ch < 8; ch++) if (pat.note(0, ch) === EMPTY) pat.set(0, ch, OFF, 0);
+      };
+      [p0, p1, p2, p3, p4, p5, p6].forEach(killHang);
+
+      return {
+        patterns: [p0, p1, p2, p3, p4, p5, p6],
+        // intro · verse×2 · chorus×2 · verse×2 · chorus×2 · break · bridge×2 · chorus · verse×2 · chorus×2 · break · outro×2  ≈ 4 min @ 96 BPM
+        order: [0, 1, 2, 3, 3, 1, 2, 3, 3, 4, 1, 2, 3, 3, 5, 5, 3, 1, 2, 3, 3, 4, 6, 6],
+        rowsPerBeat: 4,
+        pan: [0.5, 0.5, 0.6, 0.5, 0.38, 0.64, 0.42, 0.6],
+      };
+    }
   }
 ];
