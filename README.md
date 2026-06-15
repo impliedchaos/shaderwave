@@ -233,7 +233,7 @@ A second shader stage runs between the synth mix and the audio readback. All
 effects are editable from the **Instrument FX** panel.
 
 ```
-input → Compressor → Filter → Overdrive → Distortion → Chorus → Tremolo → Delay → Reverb → Bitcrusher → Width → Limiter → Master Out
+input → Compressor → Filter → EQ → Vocoder → Overdrive → Distortion → Chorus → Tremolo → Delay → Reverb → Bitcrusher → Width → Limiter → Master Out
 ```
 
 Each effect is its own GPU pass over a `BLOCK × 1` stereo buffer. The order above is
@@ -274,6 +274,31 @@ primary target the LFOs / mod matrix were built to sweep.
 - **Reso** — resonance / Q (→ self-oscillation near the top)
 - **Mode** — LP (low-pass) · HP (high-pass) · BP (band-pass)
 - **Mix** — wet/dry blend
+
+### Equalizer — 3-Band
+
+Three bands (low shelf · peaking mid · high shelf) split by two per-sample crossover
+filters (TPT, zero-delay-feedback). Perfectly transparent at 0 dB.
+- **Low / Mid / High** — per-band gain (dB)
+- **Low Cut / High Cut** — crossover frequencies (Hz, log)
+
+### Vocoder — Channel Vocoder
+
+Imposes the spectral envelope of a **modulator** (another instrument instance) onto the
+**carrier** (the instance this effect sits on). Per-sample recursive, like the filter: the
+bands run as texture **rows** (one bandpass + envelope follower per row), so it holds a whole
+filter bank of state. The modulator is read from the same sidechain dry bus the compressor
+keys off, so **Source** picks an instrument instance. Use a **bright** carrier (saw / pulse /
+e8e / bright wvt) — a sine has no high harmonics for the upper formants to shape.
+- **Source** — modulator instrument-instance index (−1 = off)
+- **Bands** — analysis/synthesis band count (1–16; more = finer, gap-free formants)
+- **Q** — per-band resonance / selectivity
+- **Attack / Release** — envelope follower time constants (ms)
+- **Mix** — dry/wet (1 = fully vocoded)
+- **Unvoiced** — sibilance passthrough: passes the modulator's own gated high frequencies so
+  consonants (s/t/f/sh — broadband noise a tonal carrier can't voice) stay crisp
+- **Formant** — shifts the formant peaks ±12 st **without changing pitch** (pitch is the
+  carrier's note); up = smaller/brighter, down = bigger/darker
 
 ### Compressor
 
