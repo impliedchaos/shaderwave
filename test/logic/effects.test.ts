@@ -2,7 +2,7 @@
 // reorderable per-instrument chain: a saved/hand-edited order must never silently
 // drop an effect (missing keys are appended) or run an unknown one (dropped).
 import { test, assert, assertEq } from './_harness.js';
-import { normalizeFxOrder, DEFAULT_FX_ORDER, defaultFxParams } from '../../src/gl/effects.js';
+import { normalizeFxOrder, DEFAULT_FX_ORDER, defaultFxParams, neutralFxParams, FX_EFFECTS } from '../../src/gl/effects.js';
 
 test('normalizeFxOrder: undefined → the full default order', () => {
   const o = normalizeFxOrder(undefined);
@@ -45,4 +45,40 @@ test('equalizer and compressor sidechain parameters are in defaultFxParams()', (
   assertEq(p.eqLowFreq, 200, 'EQ low cutoff default');
   assertEq(p.eqHighFreq, 3000, 'EQ high cutoff default');
   assertEq(p.compSource, -1, 'compressor sidechain source default is self');
+});
+
+// ── New-instrument fx defaults (`+ Add` → neutralFxParams) ──────────────────────
+// A freshly-added instrument must be a CLEAN SLATE: every effect off, every gain at
+// unity/neutral, so toggling one on starts transparent. This is derived from the
+// FX_EFFECTS registry, so adding a new effect that defaults `on` (or with a non-zero
+// mix) and forgetting to zero it in neutralFxParams() fails here — exactly the
+// regression the engine's addInstrument() relies on not happening.
+test('neutralFxParams: every registry effect enable-flag is OFF', () => {
+  const n = neutralFxParams();
+  for (const def of FX_EFFECTS) {
+    if (!def.enableFlag) continue;                 // always-on effects have no flag
+    assert(def.enableFlag in (n as object), `${def.key}: enable flag ${def.enableFlag} present`);
+    assertEq((n as any)[def.enableFlag], false, `${def.key}: starts OFF on a fresh instrument`);
+  }
+});
+
+test('neutralFxParams: a fresh instrument is audibly transparent (neutral gains)', () => {
+  const n = neutralFxParams() as any;
+  // The wet-only sends must be zero so an enabled effect is the only audible change.
+  assertEq(n.delayMix, 0, 'delay send zero');
+  assertEq(n.reverbMix, 0, 'reverb send zero');
+  assertEq(n.bitcrushMix, 0, 'bitcrush send zero');
+  assertEq(n.dist, 0, 'distortion drive transparent');
+  assertEq(n.eqLow, 0, 'EQ low neutral'); assertEq(n.eqMid, 0, 'EQ mid neutral'); assertEq(n.eqHigh, 0, 'EQ high neutral');
+  assertEq(n.width, 1.0, 'stereo width unity');
+  assertEq(n.master, 1.0, 'chain master unity');
+  assertEq(n.enabled, true, 'the chain itself is enabled (it is the per-effect flags that gate sound)');
+});
+
+test('neutralFxParams: structurally a complete chain (same keys as defaultFxParams)', () => {
+  // neutral is built FROM default then zeroed — it must not be missing keys the
+  // renderer/persistence expect, or a saved fresh instrument would round-trip lossy.
+  const d = Object.keys(defaultFxParams()).sort();
+  const n = Object.keys(neutralFxParams()).sort();
+  assertEq(n.join(','), d.join(','), 'neutral and default fx have identical key sets');
 });

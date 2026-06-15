@@ -5,6 +5,7 @@ import './lfo.test.js';
 import './mod-matrix.test.js';
 import './automation.test.js';
 import './effects.test.js';
+import './bitcrush.test.js';
 import './song-io.test.js';
 import './demo-songs.test.js';
 import './history.test.js';

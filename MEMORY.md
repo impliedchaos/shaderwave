@@ -356,7 +356,14 @@ Honest assessment of what the project most needs (beyond the parked plans below)
    version gate, demo-song load loop + target-range/type audit (21 tests). PLUS `test/golden-render.html`
    (headless GPU) — renders a fixed song twice for bit-identical determinism (checksum 0x5fc60c89)
    AND, when `renderBlockAsync` exists, asserts `async[n]==sync[n-1]` bit-for-bit (the async-readback
-   guard). STILL TODO to fold in: bitcrush continuity, new-instrument fx defaults. The HTML harnesses
+   guard). The two earlier TODOs are now folded in (1.29.x, `effects.test.ts` + `bitcrush.test.ts`,
+   57 tests): **new-instrument fx defaults** — `neutralFxParams()` zeroes EVERY `FX_EFFECTS` enable
+   flag (registry-derived, so a future effect that defaults-on is caught) + same key set as
+   `defaultFxParams()`; **bitcrush continuity** — a CPU model of the two `fx-bitcrush*.glsl` integer
+   windowing shaders asserts blocked decimation is bit-identical to single-pass (block-alignment
+   independence — the property the cross-block carry exists for) and that the no-carry fallback
+   diverges (so the test can fail). The real GPU shader stays covered by `golden-render.html`; the
+   CPU model mirrors the .glsl line-for-line — keep them in sync. The HTML harnesses
    (glsl/render/onset/instance/drum) remain the GPU-correctness net.
 4. ✅ DONE (1.14.0) — **compressor + transparent limiter** (shared per-sample envelope follower via
    `_recursive`) + **reorderable per-instrument chain** (▲▼ in the FX panel, `fxOrder` per instance).
