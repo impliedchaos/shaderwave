@@ -140,6 +140,7 @@ const FX_VOC_TARGETS: RawTarget[] = [
   { code: 'VCA', label: 'Voc Attack',  key: 'vocAttack',  min: 0.1, max: 100, curve: 'log', unit: 'ms' },
   { code: 'VCR', label: 'Voc Release', key: 'vocRelease', min: 5,   max: 500, curve: 'log', unit: 'ms' },
   { code: 'VCM', label: 'Voc Mix',     key: 'vocMix',     min: 0,   max: 1,   curve: 'lin' },
+  { code: 'VCU', label: 'Voc Unvoiced', key: 'vocUnvoiced', min: 0, max: 1,   curve: 'lin' },
 ];
 for (const t of FX_VOC_TARGETS) TARGETS.push({ ...t, scope: 'fx', type: '*', id: TARGETS.length });
 

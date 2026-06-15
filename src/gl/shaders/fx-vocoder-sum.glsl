@@ -5,12 +5,13 @@
 precision highp float;
 precision highp int;
 
-uniform sampler2D uBandTex;     // BLOCK×bands, .rg = carrier band × envelope    unit 0
+uniform sampler2D uBandTex;     // BLOCK×(bands+1), .rg = band × env; row uBands = unvoiced  unit 0
 uniform sampler2D uDry;         // carrier dry, BLOCK×1 (rg = L,R)                unit 1
 uniform int   uBands;
 uniform int   uBypass;          // 1 → pass carrier straight through (effect off / no key)
 uniform float uLevel;           // makeup gain (band-splitting drops level)
 uniform float uMix;             // dry/wet (1 = fully vocoded)
+uniform float uUvMix;           // unvoiced/sibilance passthrough amount (0 = off)
 
 layout(location = 0) out vec4 outColor;
 
@@ -26,6 +27,8 @@ void main() {
   vec2 wet = vec2(0.0);
   for (int b = 0; b < uBands; b++) wet += texelFetch(uBandTex, ivec2(x, b), 0).rg;
   wet *= uLevel;
+  // Add the gated sibilance from the unvoiced detector row (× amount × a small boost).
+  wet += (uUvMix * 1.5) * texelFetch(uBandTex, ivec2(x, uBands), 0).rg;
   wet = clamp(wet, -4.0, 4.0);    // explosion guard against resonant buildup; a
                                   // downstream limiter shapes the rest if it's hot
   outColor = vec4(mix(dry, wet, uMix), 0.0, 1.0);

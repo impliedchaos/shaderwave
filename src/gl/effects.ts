@@ -37,10 +37,13 @@ import FX_MASTER from './shaders/fx-master.glsl?raw';
 // synth renderer's subBlock: smaller = fewer redundant recomputes but more draws.
 const FX_SUB = 64;
 
-// Vocoder: max band count (sizes the band/state textures + the GLSL coeff arrays)
-// and the log-spaced band-center range.
+// Vocoder: max band count (sizes the GLSL coeff arrays) + a speech-focused
+// log-spaced band-center range. The band/state textures get ONE extra row for the
+// unvoiced (sibilance) detector. VOC_UV_* are the detector's low/high split corners.
 const MAX_VOC_BANDS = 16;
-const VOC_FLO = 120, VOC_FHI = 8000;
+const VOC_TEX_ROWS = MAX_VOC_BANDS + 1;        // +1 = the unvoiced detector row
+const VOC_FLO = 180, VOC_FHI = 7500;
+const VOC_UV_LO = 700, VOC_UV_HI = 3500;
 
 // Delay ring: 2D (width-limited) layout, ~2.7s at 48k.
 const DELAY_W = 2048, DELAY_H = 64, DELAY_LEN = DELAY_W * DELAY_H;
@@ -502,7 +505,7 @@ const fxLimiter = makeDynamics({
 // FBO is never left multi-attached.
 const fxVocoder: FxEffectDef = {
   key: 'vocoder', name: 'Vocoder', enableFlag: 'vocoderOn',
-  defaults: { vocoderOn: false, vocSource: -1, vocBands: 8, vocQ: 4, vocAttack: 3, vocRelease: 30, vocMix: 1.0 },
+  defaults: { vocoderOn: false, vocSource: -1, vocBands: 16, vocQ: 4, vocAttack: 2, vocRelease: 18, vocMix: 1.0, vocUnvoiced: 0.5 },
   init(gl) {
     const prog = createProgram(gl, FX_VOCODER);
     gl.useProgram(prog);
@@ -515,11 +518,12 @@ const fxVocoder: FxEffectDef = {
     gl.uniform1i(sum.u('uBandTex'), 0);
     gl.uniform1i(sum.u('uDry'), 1);
 
-    const bandTex = makeTex(gl, BLOCK, MAX_VOC_BANDS);
+    const bandTex = makeTex(gl, BLOCK, VOC_TEX_ROWS);
     const bandFbo = gl.createFramebuffer();
-    // Per-band recursive state, carried across blocks (ping-pong, cleared on reset).
-    let aR = makeTex(gl, BLOCK, MAX_VOC_BANDS), aW = makeTex(gl, BLOCK, MAX_VOC_BANDS);   // carrier SVF
-    let bR = makeTex(gl, BLOCK, MAX_VOC_BANDS), bW = makeTex(gl, BLOCK, MAX_VOC_BANDS);   // modulator SVF + env
+    // Per-row recursive state, carried across blocks (ping-pong, cleared on reset).
+    // VOC_TEX_ROWS = bands + the unvoiced detector row.
+    let aR = makeTex(gl, BLOCK, VOC_TEX_ROWS), aW = makeTex(gl, BLOCK, VOC_TEX_ROWS);   // carrier SVF / uv detector
+    let bR = makeTex(gl, BLOCK, VOC_TEX_ROWS), bW = makeTex(gl, BLOCK, VOC_TEX_ROWS);   // modulator SVF + env
     const a1 = new Float32Array(MAX_VOC_BANDS), a2 = new Float32Array(MAX_VOC_BANDS);
     const a3 = new Float32Array(MAX_VOC_BANDS), kk = new Float32Array(MAX_VOC_BANDS);
     return {
@@ -553,8 +557,14 @@ const fxVocoder: FxEffectDef = {
           a1[b] = aa1; a2[b] = gco * aa1; a3[b] = gco * gco * aa1; kk[b] = k;
         }
 
-        // 1. Analysis/synthesis — recursive strips, MRT (band signal + 2 state texels),
-        //    rendered over BLOCK×bands into the vocoder's private bandFbo.
+        // Unvoiced detector coefficients (fixed split corners + fast envelopes).
+        const uvLp = (fc: number) => Math.tan(Math.PI * Math.min(sr * 0.45, fc) / sr);
+        const gLo = uvLp(VOC_UV_LO), gHi = uvLp(VOC_UV_HI);
+
+        // 1. Analysis/synthesis — recursive strips, MRT (row signal + 2 state texels),
+        //    rendered over BLOCK×(bands+1) into the vocoder's private bandFbo. The
+        //    extra row (index = bands) is the unvoiced/sibilance detector.
+        const rows = bands + 1;
         g.useProgram(prog);
         g.bindFramebuffer(g.FRAMEBUFFER, bandFbo);
         g.framebufferTexture2D(g.FRAMEBUFFER, g.COLOR_ATTACHMENT0, g.TEXTURE_2D, bandTex, 0);
@@ -565,8 +575,15 @@ const fxVocoder: FxEffectDef = {
         g.uniform1fv(prog.u('uA2[0]'), a2);
         g.uniform1fv(prog.u('uA3[0]'), a3);
         g.uniform1fv(prog.u('uK[0]'), kk);
-        g.uniform1f(prog.u('uAtk'), msCoef((p.vocAttack as number) ?? 3, sr));
-        g.uniform1f(prog.u('uRel'), msCoef((p.vocRelease as number) ?? 30, sr));
+        g.uniform1f(prog.u('uAtk'), msCoef((p.vocAttack as number) ?? 2, sr));
+        g.uniform1f(prog.u('uRel'), msCoef((p.vocRelease as number) ?? 18, sr));
+        g.uniform1f(prog.u('uUvGLo'), gLo);
+        g.uniform1f(prog.u('uUvALo'), 1 / (1 + gLo));
+        g.uniform1f(prog.u('uUvGHi'), gHi);
+        g.uniform1f(prog.u('uUvAHi'), 1 / (1 + gHi));
+        g.uniform1f(prog.u('uUvAtk'), msCoef(1.5, sr));
+        g.uniform1f(prog.u('uUvRel'), msCoef(12, sr));
+        g.uniform1f(prog.u('uUvThr'), 0.45);
         for (let o = 0; o < BLOCK; o += FX_SUB) {
           g.framebufferTexture2D(g.FRAMEBUFFER, g.COLOR_ATTACHMENT1, g.TEXTURE_2D, aW, 0);
           g.framebufferTexture2D(g.FRAMEBUFFER, g.COLOR_ATTACHMENT2, g.TEXTURE_2D, bW, 0);
@@ -576,7 +593,7 @@ const fxVocoder: FxEffectDef = {
           ctx.bind(2, bR);
           ctx.bind(5, ctx.instDryTex!);
           g.uniform1i(prog.u('uSubOffset'), o);
-          g.viewport(o, 0, FX_SUB, bands);
+          g.viewport(o, 0, FX_SUB, rows);
           drawQuad(g);
           [aR, aW] = [aW, aR];
           [bR, bW] = [bW, bR];
@@ -597,6 +614,7 @@ const fxVocoder: FxEffectDef = {
         g.uniform1i(sum.u('uBypass'), 0);
         g.uniform1f(sum.u('uLevel'), 2.0);              // fixed makeup (band-split drops level)
         g.uniform1f(sum.u('uMix'), (p.vocMix as number) ?? 1.0);
+        g.uniform1f(sum.u('uUvMix'), Math.max(0, Math.min(1, (p.vocUnvoiced as number) ?? 0.5)));
         g.viewport(0, 0, BLOCK, 1); drawQuad(g);
       },
     };

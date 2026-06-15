@@ -165,6 +165,7 @@ export interface FxParams {
   vocAttack: number;      // ms (envelope follower)
   vocRelease: number;     // ms (envelope follower)
   vocMix: number;         // dry/wet (1 = fully vocoded)
+  vocUnvoiced: number;    // unvoiced/sibilance passthrough amount (0 = off)
   /** Legacy authoring field, migrated to `dist` by makeFx. */
   drive?: number;
   [key: string]: number | boolean | undefined;

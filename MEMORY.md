@@ -61,7 +61,7 @@ An attempt to implement a WebGL 16-band Vocoder effect was completely abandoned 
 
 ## Current work
 
-### Vocoder — ✅ DONE (1.22.0, lean-classic v1) — `project`
+### Vocoder — ✅ DONE (1.22.0 v1; intelligibility pass 1.23.0) — `project`
 Built 2026-06-15 (Opus 4.8). The SECOND attempt — Gemini's 2026-06-09 attempt was a disaster (see
 below); this one designed out all four failure modes from the start and shipped clean. **Verified:**
 `test/vocoder-check.html` (NEW) matches a CPU SVF-bandpass-bank + envelope reference to **9.7e-7**
@@ -81,6 +81,21 @@ neutralFxParams off. **Modulator unit = 5** (units 3/4 are the permanently-bound
 atlases — clobbering them breaks wvt/sampler on the next block; this was the unit-binding trap to
 avoid). Fixed makeup `uLevel=2.0` + clamp(±4) explosion guard in the sum shader. No song-io change
 (`{...i.fx}` persists new keys; opt-in `_on` + `??` fallbacks make older songs safe).
+
+**Intelligibility pass (1.23.0, 2026-06-15):** user said the v1 was "a bit unintelligible" — the
+classic channel-vocoder result. Three fixes: (1) defaults retuned — `vocBands` 8→**16** over a
+speech-focused **180 Hz–7.5 kHz** range (at 8 bands the constant-Q bandwidth left GAPS between band
+centers that swallow formants; 16 bands cover gap-free at Q≈4), faster default envelope (attack 2 ms,
+release 18 ms). (2) **Unvoiced/sibilance passthrough** — consonants (s/t/f/sh) are broadband noise a
+tonal carrier physically can't voice, so they smear. Added as ONE extra texture row (index = `uBands`,
+texture height now `MAX_VOC_BANDS+1`) reusing the same strip+MRT state machinery: that row splits the
+modulator with two 1st-order TPT low-passes (700/3500 Hz), follows HF vs LF energy, and emits the
+modulator's gated high-passed signal; the sum pass mixes it in × `vocUnvoiced` (new param, default 0.5,
+target `VCU`). Verified: noise modulator → ×6.4 output energy (gate opens), pure 200 Hz tone → ×1.000
+(gate stays shut) — clean voiced/unvoiced discrimination. (3) Docs: COMPOSING.md notes the carrier MUST
+be bright (saw/pulse/e8e/bright-wvt; a sine has no highs → silent upper formants). golden checksum
+still 0x5fc60c89 (off by default); vocoder-check still matches the CPU band ref to 1.2e-6 (with
+`vocUnvoiced:0`, since the ref models voiced bands only). **Still deferred:** formant shift.
 
 Original agreed design (kept for reference): scope locked **lean-classic v1**.
 

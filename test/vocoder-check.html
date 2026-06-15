@@ -21,7 +21,7 @@ const log = (s) => { lines.push(s); out.textContent = lines.join('\n'); console.
 const SR = 48000;
 
 // Must mirror effects.ts fxVocoder exactly.
-const VOC_FLO = 120, VOC_FHI = 8000, VOC_LEVEL = 2.0, ROWS = 4;
+const VOC_FLO = 180, VOC_FHI = 7500, VOC_LEVEL = 2.0, ROWS = 4;   // must mirror effects.ts
 const msCoef = (ms) => 1 - Math.exp(-1 / (Math.max(0.05, ms) / 1000 * SR));
 
 function svf(st, x, a1, a2, a3) {        // returns bandpass tap v1; mutates st=[ic1,ic2]
@@ -109,6 +109,8 @@ function renderVoc(cL, cR, mod, srcRow, set) {
 function maxDiff(a, b) { let m = 0, at = -1; for (let i = 0; i < a.length; i++) { const d = Math.abs(a[i] - b[i]); if (d > m) { m = d; at = i; } } return { m, at }; }
 function peak(a, from = 0, to = a.length) { let p = 0; for (let i = from; i < to; i++) p = Math.max(p, Math.abs(a[i])); return p; }
 function anyNaN(a) { for (const v of a) if (!Number.isFinite(v)) return true; return false; }
+function rms(a) { let s = 0; for (const v of a) s += v * v; return Math.sqrt(s / a.length); }
+function hashNoise(n) { const s = Math.sin(n * 12.9898) * 43758.5453; return 2 * (s - Math.floor(s)) - 1; }
 
 try {
   let ok = true;
@@ -127,7 +129,7 @@ try {
   const BANDS = 12, Q = 5, ATK = 3, REL = 40, MIX = 1.0, SRC = 2;
   const g1 = renderVoc(cL, cR, mod, SRC, (p) => {
     p.vocoderOn = true; p.vocSource = SRC; p.vocBands = BANDS; p.vocQ = Q;
-    p.vocAttack = ATK; p.vocRelease = REL; p.vocMix = MIX;
+    p.vocAttack = ATK; p.vocRelease = REL; p.vocMix = MIX; p.vocUnvoiced = 0;   // ref models voiced bands only
   });
   const ref = vocRef(cL, cR, mod, BANDS, Q, ATK, REL, MIX);
   const dL = maxDiff(g1.L, ref.oL), dR = maxDiff(g1.R, ref.oR);
@@ -173,6 +175,28 @@ try {
   const byp2 = b5.m < 1e-6;
   ok = ok && byp2;
   log(`No-source (vocSource=-1) transparency: maxDiff=${b5.m.toExponential(2)} ${byp2 ? 'OK' : 'FAIL'}`);
+
+  // 6. Unvoiced/sibilance passthrough discriminates noise from tone. A broadband
+  //    NOISE modulator (all "unvoiced") should add HF energy when enabled; a pure
+  //    low TONE modulator (voiced, no HF) should leave the gate shut → ~no change.
+  const noiseMod = new Float32Array(N), toneMod = new Float32Array(N);
+  for (let n = 0; n < N; n++) {
+    noiseMod[n] = 0.5 * hashNoise(n);
+    toneMod[n] = 0.5 * Math.sin(2 * Math.PI * 200 * n / SR);
+  }
+  const setVoc = (uv) => (p) => {
+    p.vocoderOn = true; p.vocSource = SRC; p.vocBands = 16; p.vocQ = 4;
+    p.vocAttack = 2; p.vocRelease = 18; p.vocMix = 1.0; p.vocUnvoiced = uv;
+  };
+  const noiseOff = rms(renderVoc(cL, cR, noiseMod, SRC, setVoc(0)).L);
+  const noiseOn  = rms(renderVoc(cL, cR, noiseMod, SRC, setVoc(0.9)).L);
+  const toneOff  = rms(renderVoc(cL, cR, toneMod,  SRC, setVoc(0)).L);
+  const toneOn   = rms(renderVoc(cL, cR, toneMod,  SRC, setVoc(0.9)).L);
+  const noiseRatio = noiseOn / (noiseOff + 1e-9);
+  const toneRatio = toneOn / (toneOff + 1e-9);
+  const uvOk = noiseRatio > 1.15 && toneRatio < 1.05;
+  ok = ok && uvOk;
+  log(`Unvoiced discrimination: noise rms ${noiseOff.toFixed(4)}→${noiseOn.toFixed(4)} (×${noiseRatio.toFixed(2)}, want >1.15), tone ×${toneRatio.toFixed(3)} (want <1.05) ${uvOk ? 'OK' : 'FAIL'}`);
 
   document.title = ok ? 'ALL_OK' : 'FAILED';
   log(ok ? '\n=== VOCODER CHECK OK ===' : '\n=== VOCODER CHECK FAILED ===');

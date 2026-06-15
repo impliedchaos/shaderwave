@@ -172,7 +172,7 @@ Common fields (booleans + scalars):
 `bitcrushOn`/`bitcrushBits`/`bitcrushRate`/`bitcrushMix`, `widthOn`/`width`, `master` (fx output level),
 `compOn`/`compThresh` (dB)/`compRatio`/`compAttack` (ms)/`compRelease` (ms)/`compMakeup` (dB)/`compSource`,
 `limitOn`/`limitCeil` (dB)/`limitRelease` (ms),
-`vocoderOn`/`vocSource`/`vocBands` (1..16)/`vocQ`/`vocAttack` (ms)/`vocRelease` (ms)/`vocMix`.
+`vocoderOn`/`vocSource`/`vocBands` (1..16)/`vocQ`/`vocAttack` (ms)/`vocRelease` (ms)/`vocMix`/`vocUnvoiced`.
 The resonant **Filter** is per-sample recursive (LP/HP/BP); its `filterCutoff` (target code `FLC`, log)
 is the marquee LFO sweep target — pair it with a synced LFO for filter-sweep risers/wobbles. The
 **Compressor** + **Limiter** are also per-sample (stereo-linked envelope follower); all their params are
@@ -182,8 +182,13 @@ sits on). `vocSource` is the modulator's **instrument-instance index** (the SAME
 compressor's `compSource` keys off; -1 = off; max 15). So put the vocoder on a harmonically-rich
 carrier (saw pad, e8e, wvt) and point `vocSource` at a voice/sampler instance — that instance still
 plays audibly, so turn its `master`/level down if you only want it as the modulator. Bands/Q/Attack/
-Release/Mix are fx-scope automation/LFO targets (`VCB`/`VCQ`/`VCA`/`VCR`/`VCM` + toggle `VCO`); `VCQ`
-or `VCM` under an LFO gives talk-box-style movement.
+Release/Mix/Unvoiced are fx-scope automation/LFO targets (`VCB`/`VCQ`/`VCA`/`VCR`/`VCM`/`VCU` + toggle
+`VCO`); `VCQ` or `VCM` under an LFO gives talk-box-style movement. **Intelligibility tips:** (1) the
+carrier must be BRIGHT — a saw/pulse/e8e/bright-wvt carries formants; a sine/triangle has no highs so
+upper formants go silent. (2) `vocBands` 16 (the default) covers the speech range gap-free; fewer bands
+leave holes between formants. (3) `vocUnvoiced` (default 0.5) passes the modulator's own sibilance
+(s/t/f/sh — broadband noise a tonal carrier can't voice) through ungated; raise it for crisper
+consonants, drop to 0 for a purely tonal/robotic vocode.
 
 ```ts
 '303': Object.assign(defaultFxParams(), { distOn: true, dist: 10, delayOn: true, delayMix: 0.3, master: 0.85 }),

@@ -100,6 +100,7 @@ const FX_DEFS: FxDef[] = [
   { label: 'Attack', key: 'vocAttack', min: 0.1, max: 100, step: 0.1, log: true, fmt: (v) => v.toFixed(1) + 'ms' },
   { label: 'Release', key: 'vocRelease', min: 5, max: 500, step: 1, log: true, fmt: (v) => Math.round(v) + 'ms' },
   { label: 'Mix', key: 'vocMix', min: 0, max: 1, step: 0.01 },
+  { label: 'Unvoiced', key: 'vocUnvoiced', min: 0, max: 1, step: 0.01 },
 
   { category: 'Compressor', fxKey: 'compressor', enableKey: 'compOn' },
   { label: 'Thresh', key: 'compThresh', min: -60, max: 0, step: 0.5, fmt: (v) => v.toFixed(1) + 'dB' },
@@ -543,11 +544,12 @@ export class App {
         else if (key === 'eqLowFreq') params[key] = 200.0;
         else if (key === 'eqHighFreq') params[key] = 3000.0;
         else if (key === 'compSource' || key === 'vocSource') params[key] = -1;
-        else if (key === 'vocBands') params[key] = 8;
+        else if (key === 'vocBands') params[key] = 16;
         else if (key === 'vocQ') params[key] = 4;
-        else if (key === 'vocAttack') params[key] = 3;
-        else if (key === 'vocRelease') params[key] = 30;
+        else if (key === 'vocAttack') params[key] = 2;
+        else if (key === 'vocRelease') params[key] = 18;
         else if (key === 'vocMix') params[key] = 1.0;
+        else if (key === 'vocUnvoiced') params[key] = 0.5;
         else params[key] = min;
       }
       const block = document.createElement('div');
