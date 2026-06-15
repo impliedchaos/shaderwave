@@ -19,10 +19,10 @@
 
 float e8eOsc(float wave, float phase, float dt, float pw, float frame){
   int w = int(wave + 0.5);
-  if (w == 0) return oscSine(phase);
-  if (w == 1) return oscSaw(phase, dt);
-  if (w == 2) return oscSquare(phase, dt, pw);
-  if (w == 3) return oscTri(phase);
+  if (w == 0) return oscSinePW(phase, pw);       // PulseW warps every shape, not
+  if (w == 1) return oscSawPW(phase, dt, pw);    // just the square (pw=0.5 → the
+  if (w == 2) return oscSquare(phase, dt, pw);   // plain wave, bit-for-bit)
+  if (w == 3) return oscTriPW(phase, pw);
   return noise1(frame);              // 4 = white noise
 }
 

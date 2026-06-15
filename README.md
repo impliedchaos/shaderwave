@@ -60,7 +60,8 @@ sidebar; a song shows only the instruments it uses.
 
 Saw/square oscillator through a 4-pole nonlinear ladder filter with downward
 envelope sweep and accent. Parameters: **Cutoff**, **Reso**, **EnvMod**,
-**Accent**, **Wave** (saw/square), **FiltDecay**, **AmpDecay**.
+**Accent**, **Wave** (saw/square/tri/sine/noise), **FiltDecay**, **AmpDecay**,
+**PulseW** (pulse-width warp on all four shapes; automatable).
 
 Modded to also allow triangle/sine/noise oscillators.
 
@@ -120,7 +121,8 @@ single, dual or triple oscillator. Parameters: **Attack/Decay/Sustain/Release**
 (a standard ADSR), **Detune2** and **Detune3** (osc 2/3 offset in semitones —
 fractional values beat against osc 1), **Bits** (1–16; the quantizer depth, 8 by
 default = 256 steps), **Drive**, three **Wave** selectors (which display the
-waveform name), per-oscillator **Levels**, and **PulseW** (square pulse width).
+waveform name), per-oscillator **Levels**, and **PulseW** (pulse-width warp on all
+shapes — sine/saw/tri, not just square).
 The expressive controls (detune, bits, drive) live in the p0/p1 banks so they're
 automatable; the short name is **E8E** to stay visually distinct from the 808.
 

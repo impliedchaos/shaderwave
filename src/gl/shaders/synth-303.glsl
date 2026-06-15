@@ -4,7 +4,8 @@
 //
 // Params (per voice):
 //   uP0 = (cutoffHz, resonance 0..1, envMod 0..1, accent 0..1)
-//   uP1 = (wave[0=saw,1=square,2=triangle,3=sine,4=noise], filterDecay s, ampDecay s, _)
+//   uP1 = (wave[0=saw,1=square,2=triangle,3=sine,4=noise], filterDecay s, ampDecay s,
+//          pulseWidth 0.05..0.95 — warps all four shapes; legacy 0 → 0.5 neutral)
 
 void main(){
   int x = int(gl_FragCoord.x);
@@ -21,6 +22,7 @@ void main(){
   vec4 p0 = uP0[v], p1 = uP1[v];
   float baseCut = p0.x, res = p0.y, envmod = p0.z, accent = p0.w;
   float wave = p1.x, fDecay = p1.y, aDecay = p1.z;
+  float pw = p1.w < 0.04 ? 0.5 : clamp(p1.w, 0.04, 0.96);   // legacy 0 → neutral
   float dt = freq / uSampleRate;
 
   float y = 0.0;
@@ -34,10 +36,10 @@ void main(){
     
     float phase = current_phase;
     float osc;
-    if      (wave < 0.5) osc = oscSaw(phase, dt);
-    else if (wave < 1.5) osc = oscSquare(phase, dt, 0.5);
-    else if (wave < 2.5) osc = oscTri(phase);
-    else if (wave < 3.5) osc = oscSine(phase);
+    if      (wave < 0.5) osc = oscSawPW(phase, dt, pw);
+    else if (wave < 1.5) osc = oscSquare(phase, dt, pw);
+    else if (wave < 2.5) osc = oscTriPW(phase, pw);
+    else if (wave < 3.5) osc = oscSinePW(phase, pw);
     else                 osc = noise1(uBlockStart + float(i));   // filtered by the ladder
 
     float fenv = exp(-t / max(fDecay, 0.01));     // classic downward sweep

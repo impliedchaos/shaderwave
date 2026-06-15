@@ -66,6 +66,29 @@ An attempt to implement a WebGL 16-band Vocoder effect was completely abandoned 
 
 ## Current work
 
+### Pulse-width (PWM) on all four wave shapes — 303 + 888State — ✅ DONE — `project`
+The user's "Varying Cycle Functions" Desmos idea: one duty-cycle knob warping EVERY
+shape, not just the square. Implemented as a shared phase warp in `common.glsl`:
+`dutyWarp(phase,duty)` stretches the first `duty` of the cycle onto the first half,
+the rest onto the second half; `oscSawPW`/`oscTriPW`/`oscSinePW` feed the warped phase
+through the existing shape funcs (square already took a duty arg). **Key property:
+`dutyWarp(phase,0.5) == phase` exactly, so each `*PW` osc is bit-identical to its plain
+version at 0.5** — existing patches + the golden render are untouched (verified: golden
+fingerprint identical with/without the change).
+- **303** (`i303` + `synth-303.glsl`): added `PulseW` at the previously-unused `p1.w`
+  (paramDef + `PWM` autoTarget, so it's LFO/automation-targetable). Default 0.5. Shader
+  reads `p1.w < 0.04 ? 0.5 : clamp(p1.w,0.04,0.96)` — the **legacy-0 → 0.5 sentinel** so
+  old saved songs (p1.w==0) stay neutral. All i303 presets + defaults bumped 0→0.5.
+- **888State** (`ie8e` + `synth-e8e.glsl`): already had a `PulseW` knob (p3.w) that only
+  fed the square — now routed through `e8eOsc`'s sine/saw/tri too. Still NOT automatable
+  (only p0/p1 are inst-scope automatable for this engine; out of scope).
+- Saw warp BLEPs the true wrap (still phase 0, jump 2); the bend at φ=duty is a slope
+  corner only, left un-BLEPed (mild, like the plain triangle). Acceptable for a synth.
+- **Golden fingerprint is now `0x549f6e7e`** (logged, NOT asserted — the harness only
+  checks render-vs-render determinism + no-NaN). The many `0x5fc60c89` mentions below are
+  STALE fingerprints from older entries; the value drifted as the audio path grew. Don't
+  treat a fingerprint change as a failure — only a determinism/NaN break is.
+
 ### Note-delay effect column command (1.25.0; re-scoped 1.25.1) — ✅ DONE — `project`
 Built 2026-06-15. New effect-column command `FX_NOTE_DELAY = 0x5` (key '5'): pushes a note's attack
 later WITHIN ITS OWN STEP by `val/255` of ONE row — for **swing and humanized "drunken" timing** (0x00

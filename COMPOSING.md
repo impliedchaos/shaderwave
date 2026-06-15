@@ -130,8 +130,9 @@ each slot's meaning is listed. **The fastest correct way to set an instrument: c
 banks (shown) and tweak.** Only `p0`/`p1` are automatable/LFO-targetable (see §7–8).
 
 ```
-303  (TB-303)      p0=[Cutoff(Hz), Reso, EnvMod, Accent]  p1=[Wave(0saw/1sq), FiltDecay, AmpDecay]
-                   preset: p0=[400,0.72,0.6,0.4] p1=[0,0.3,0.4,0]
+303  (TB-303)      p0=[Cutoff(Hz), Reso, EnvMod, Accent]  p1=[Wave(0saw/1sq/2tri/3sine/4noise), FiltDecay, AmpDecay, PulseW]
+                   PulseW warps ALL four shapes (not just square); 0.5 neutral, legacy 0 → 0.5
+                   preset: p0=[400,0.72,0.6,0.4] p1=[0,0.3,0.4,0.5]
 808  (TR-808 DRUM) p0=[slot, Tone, Decay, Snappy]  (slot is set from the note; leave 0)
                    preset: p0=[0,0.6,0.5,0.6] p1=[0,0,0,0]
 moog (Minimoog)    p0=[Cutoff, Reso, EnvAmt, KbdTrack]  p1=[Detune, AmpSus, FiltDecay, AmpDecay]
@@ -144,6 +145,7 @@ wvt  (Wavewright)  p0=[Attack, Decay, Sustain, Release]  p1=[Pos1, Pos2, Detune2
                    preset: p0=[0.01,0.4,0.8,0.4] p1=[0,0.5,0.08,0] p2=[0,0,0,-1] p3=[0.8,0.6,0,0]
 e8e  (888State)    p0=[Attack, Decay, Sustain, Release]  p1=[Detune2, Detune3, Bits, Drive]
                    p2=[Wave1, Wave2, Wave3, Oscs]  p3=[Level1, Level2, Level3, PulseW]   waves: 0 sine 1 saw 2 square 3 tri 4 noise
+                   PulseW now warps ALL shapes (sine/saw/tri too, not just square); 0.5 neutral
                    preset: p0=[0.005,0.25,0.6,0.25] p1=[0.12,-12,8,0] p2=[2,2,3,2] p3=[1,0.8,0.5,0.5]
 dx7  (FM)          Operator/SysEx-ROM editor — set via presets/ops, not simple banks. Easiest: copy an
                    existing dx7 instance's `ops` from another demo song.
@@ -225,7 +227,7 @@ for (let r = 0; r < N; r++) track[r] = normByte(CUT, 400 + r * 30);   // sweep c
 - First arg to `getOrCreateAutoTrack` is the **instrument index** for `inst`/`fx` scope, the
   **channel index** for `chan` scope, and ignored for `global`. Scope is derived from the param id.
 - **Codes by scope:**
-  - `inst` (per engine, pass the matching instrument index): e.g. `303`: CUT RES ENV ACC WAV FDC ADC ·
+  - `inst` (per engine, pass the matching instrument index): e.g. `303`: CUT RES ENV ACC WAV FDC ADC PWM ·
     `moog`: CUT RES FEN DTC SUS FDC ADC · `wvt`: ATK DEC SUS REL PS1 PS2 DT2 FM · `808`: TON DEC SNP ·
     `e8e`: ATK DEC SUS DT2 DT3 BIT DRV · `sampler`: TUN STA LVL ATK DEC SUS REL · (others in their descriptors).
   - `fx` (engine-agnostic): LVL DRV OVD OVT OVL DLM DLF RVM RVD CHM WID BCB BCR BCM, plus on/off

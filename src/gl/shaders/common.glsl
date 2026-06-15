@@ -70,6 +70,24 @@ float oscSquare(float phase, float dt, float pw){
 float oscTri(float phase){ return 1.0 - 4.0 * abs(fract(phase + 0.25) - 0.5); }
 float oscSine(float phase){ return sin(TAU * phase); }
 
+// --- pulse-width (duty cycle) for ALL shapes -------------------------------
+// One phase warp drives every wave: the first `duty` of the cycle is stretched to
+// occupy its first half, the rest to the second half. Feeding the warped phase
+// through the normal shape functions gives saw/triangle/sine a coherent pulse-width
+// control (square already takes a duty directly). At duty=0.5 the warp is the
+// identity, so each PW oscillator is BIT-IDENTICAL to its plain version — existing
+// patches and the golden render are untouched.
+float dutyWarp(float phase, float duty){
+  duty = clamp(duty, 0.02, 0.98);
+  return phase < duty ? 0.5 * (phase / duty)
+                      : 0.5 + 0.5 * ((phase - duty) / (1.0 - duty));
+}
+// Saw: BLEP the true wrap (still at phase 0, magnitude 2); the bend at φ=duty is a
+// slope corner only (left un-BLEPed — mild, like the plain triangle).
+float oscSawPW(float phase, float dt, float duty){ return (2.0 * dutyWarp(phase, duty) - 1.0) - polyBlep(phase, dt); }
+float oscTriPW(float phase, float duty){ return oscTri(dutyWarp(phase, duty)); }
+float oscSinePW(float phase, float duty){ return oscSine(dutyWarp(phase, duty)); }
+
 // --- envelope --------------------------------------------------------------
 // Pre-release ADSR value at time t (seconds since note-on).
 float envPre(float t, float a, float d, float s){
