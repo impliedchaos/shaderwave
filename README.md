@@ -29,7 +29,7 @@ served from a domain root or a subpath.
 | **Z–M** / **S,D,G,H,J**    | Piano keys — write a note to the cursor cell & preview        |
 | **Arrows**                  | Move cursor; **←/→** step note → instrument → volume → effect sub-columns, then across automation-track columns |
 | **0–9** / **A–F**          | Set the inst/volume field (2-digit); on an automation-track column, enter a hex byte (`00`–`FF`) |
-| **0–4 / A**                 | On the **effect** sub-column, pick a command (see below) then type its 2-hex value |
+| **0–5 / A**                 | On the **effect** sub-column, pick a command (see below) then type its 2-hex value |
 | **Shift+↑/↓**              | Nudge the note's volume ±5%                                  |
 | **PageUp/Dn**, **Home/End** | Page / jump the cursor; **mouse wheel** scrolls the grid      |
 | **Click+drag**              | Select a block of cells (note channels and automation tracks) |
@@ -213,9 +213,13 @@ the command key, then two hex digits.
 | `1` / `2` | Pitch slide up / down | `xx` = rate |
 | `3` | **Tone portamento** (meend) — slides to the cell's note without re-attacking | `xx` = rate |
 | `4` | **Vibrato** (gamak) | x = speed, y = depth |
+| `5` | **Note delay** — defers the note's attack toward the next note on its channel | `xx` = fraction (`00` none · `80` ½ · `FF` until next) |
 | `A` | Volume slide | x = up, y = down |
 
-The engine modulates pitch/volume once per render block (~93 Hz). Pitch effects
+Most of these modulate a *playing* voice once per render block (~93 Hz). **Note delay**
+(`5`) is different — it's a scheduler effect: the note's trigger frame is pushed later
+by `xx/255` of the interval to the next note on that channel (sample-accurate, possibly
+into a later block), and the voice keeps playing its previous note until then. Pitch effects
 are smooth on the phase-accumulating melodic engines (**303**, **Moog**); the
 closed-form engines (Tanpura/DX7/808/E8E) step on per-block pitch changes, so pitch
 effects are best on the leads — volume slide works on any instrument.

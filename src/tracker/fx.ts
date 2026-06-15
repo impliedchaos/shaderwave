@@ -7,6 +7,11 @@
 // 0..15 and match the key used to type it. -1 = no effect in a cell.
 export const FX_NONE = -1;
 
+// Note-trigger delay (handled in the engine's scheduler, NOT _modulateVoices): a note
+// on this cell triggers `val/255` of the way toward the NEXT note on its channel —
+// 0x00 = no delay, 0x80 ≈ halfway, 0xFF ≈ right at the next note.
+export const FX_NOTE_DELAY = 0x5;
+
 export interface FxCmdDef {
   code: number;   // stored in Pattern.fxCmd; also the display/keyboard char (hex)
   key: string;    // keyboard key that selects it (upper-case)
@@ -20,6 +25,7 @@ export const FX_CMDS: FxCmdDef[] = [
   { code: 0x2, key: '2', label: 'Pitch slide down (xx = rate)' },
   { code: 0x3, key: '3', label: 'Tone portamento → note (meend)' },
   { code: 0x4, key: '4', label: 'Vibrato (x = speed, y = depth)' },
+  { code: 0x5, key: '5', label: 'Note delay (xx = fraction to next note: 00 none · 80 half · FF until next)' },
   { code: 0xA, key: 'A', label: 'Volume slide (x = up, y = down)' },
 ];
 

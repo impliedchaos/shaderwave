@@ -6,6 +6,7 @@
 // channel). When a new note hits a channel, it overwrites that voice.
 import { VOICES, INSTRUMENTS, INSTRUMENT_COLORS, noteToFreq, BLOCK, DEFAULT_MASTER } from '../constants.js';
 import { EMPTY, OFF } from './pattern.js';
+import { FX_NOTE_DELAY } from './fx.js';
 import type { Pattern } from './pattern.js';
 import { defaultParams, instrumentsFromParams, DRUM_MAP } from './song.js';
 import { neutralFxParams } from '../gl/effects.js';
@@ -57,6 +58,11 @@ export class Engine {
   startFrame: number | null;
   _rowCursor: number;            // next row index to fire (running; song-global or pattern-local)
   _nextRowFrame: number | null;  // absolute frame that row fires at; null → (re)anchor at next block
+  _trigRow: number;              // absolute row currently being triggered (for the note-delay lookahead)
+  // Deferred note triggers from the note-delay effect (FX_NOTE_DELAY): a note pushed
+  // toward the next note fires at an absolute frame, possibly in a later block. Fired
+  // in frame order from advance(); cleared on play/stop/pause.
+  _pending: { frame: number; ch: number; note: number; inst: number; vol: number }[];
   lastBlockStart: number;
   displayRow: number;
   displayOrder: number;
@@ -108,6 +114,8 @@ export class Engine {
     this.startFrame = null;   // absolute frame mapped to song row 0
     this._rowCursor = 0;
     this._nextRowFrame = null;
+    this._trigRow = 0;
+    this._pending = [];
     this.lastBlockStart = 0;
     this.displayRow = 0;
     this.displayOrder = 0;
@@ -302,6 +310,7 @@ export class Engine {
     this.playMode = mode; this.playing = true; this.startFrame = null;
     this.paused = false; this._resumeOffset = 0; // fresh start → row 0
     this._rowCursor = 0; this._nextRowFrame = null;
+    this._pending.length = 0;            // drop any deferred note-delay triggers
     this.autoLive.inst.clear();
     this.panAuto.fill(NaN);
     this.vd.master = this.songMaster;   // drop any VOL automation override
@@ -316,6 +325,7 @@ export class Engine {
     this.playing = false;
     this.paused = true;
     this._nextRowFrame = null;   // resume re-anchors the row clock; _rowCursor holds the position
+    this._pending.length = 0;    // pending frames are stale once the clock re-anchors on resume
     for (const v of this.voices) v.active = false;
   }
   resume() {
@@ -329,6 +339,7 @@ export class Engine {
     this.playing = false;
     this.paused = false; this._resumeOffset = 0;
     this._rowCursor = 0; this._nextRowFrame = null; this.startFrame = null;
+    this._pending.length = 0;
     for (const v of this.voices) v.active = false;
     this.panAuto.fill(NaN);     // drop pan automation overrides; slider base returns
     this.autoLive.inst.clear(); // drop inst automation overrides; base params return
@@ -486,10 +497,12 @@ export class Engine {
       let ended = false;
       while (this._nextRowFrame < blockEnd) {
         if (this.playMode === 'song' && this._rowCursor >= total) { ended = true; break; }
+        this._firePendingUpTo(this._nextRowFrame);  // deferred note-delay triggers landing before this row
         this._triggerRow(this._rowCursor, Math.round(this._nextRowFrame));
         this._nextRowFrame += this.samplesPerRow;   // uses the bpm in effect AFTER this row's automation
         this._rowCursor++;
       }
+      if (!ended) this._firePendingUpTo(blockEnd);   // remaining deferred triggers in this block
 
       if (ended) {
         this.stop();
@@ -548,7 +561,47 @@ export class Engine {
     return this.vd;
   }
 
+  // Fire deferred note-delay triggers whose frame is < limit, in frame order. Each is
+  // a plain note trigger at its (sample-accurate) frame; the voice keeps playing its
+  // previous note until then, so a delayed note slots cleanly into the gap.
+  _firePendingUpTo(limit: number) {
+    if (this._pending.length === 0) return;
+    this._pending.sort((a, b) => a.frame - b.frame);
+    while (this._pending.length && this._pending[0].frame < limit) {
+      const p = this._pending.shift()!;
+      this.triggerNote(p.ch, p.note, p.inst, p.vol, Math.round(p.frame));
+    }
+  }
+
+  // Rows from the row currently being triggered (_trigRow) to the next note on channel
+  // `ch`, scanning forward in playback order (wrapping once). Falls back to 1 row when
+  // the channel has no further note. This is the interval the note-delay fraction scales.
+  _rowsToNextNote(ch: number): number {
+    const song = this.song;
+    if (!song) return 1;
+    if (this.playMode === 'pattern') {
+      const pat = song.patterns[this.currentPatternIdx];
+      if (!pat || ch >= pat.channels) return 1;
+      const rows = pat.rows;
+      const cur = ((this._trigRow % rows) + rows) % rows;
+      for (let d = 1; d <= rows; d++) {
+        if (pat.notes[pat.idx((cur + d) % rows, ch)] !== EMPTY) return d;
+      }
+      return 1;
+    }
+    const total = this.totalRows;
+    if (total <= 0) return 1;
+    const cur = ((this._trigRow % total) + total) % total;
+    for (let d = 1; d <= total; d++) {
+      const { patIdx, localRow } = this.resolveSongRow((cur + d) % total);
+      const pat = song.patterns[patIdx];
+      if (pat && ch < pat.channels && pat.notes[pat.idx(localRow, ch)] !== EMPTY) return d;
+    }
+    return 1;
+  }
+
   _triggerRow(k: number, frame: number) {
+    this._trigRow = k;
     const fr = Math.round(frame);
     const song = this.song;
     if (!song) return;
@@ -593,6 +646,22 @@ export class Engine {
     if (cmd === 3 && hasNote && note !== OFF && v.active) {
       v.targetFreq = noteToFreq(note);          // meend: glide to the note, no re-attack
       v.fxCmd = 3; v.fxVal = val; v.fxStart = frame;
+      return;
+    }
+    // Note-trigger delay: defer this note's attack toward the NEXT note on its channel
+    // (val/255 of that interval). The voice keeps playing its previous note until the
+    // deferred trigger fires, so the delayed note slots into the gap.
+    if (cmd === FX_NOTE_DELAY && hasNote && note !== OFF) {
+      const frac = (val & 0xff) / 255;
+      if (frac > 0) {
+        const interval = this._rowsToNextNote(ch) * this.samplesPerRow;
+        // Cap a hair under the interval so 0xFF lands just before the next note
+        // (which then retriggers the voice) instead of colliding on the same frame.
+        const delay = Math.min(Math.round(frac * interval), Math.max(0, Math.round(interval) - 1));
+        this._pending.push({ frame: frame + delay, ch, note, inst, vol });
+      } else {
+        this.triggerNote(ch, note, inst, vol, frame);   // 0x00 = trigger immediately
+      }
       return;
     }
     if (hasNote) {

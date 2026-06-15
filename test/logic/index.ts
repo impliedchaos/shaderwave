@@ -9,6 +9,7 @@ import './song-io.test.js';
 import './demo-songs.test.js';
 import './history.test.js';
 import './song-store.test.js';
+import './note-delay.test.js';
 import { run } from './_harness.js';
 
 run();

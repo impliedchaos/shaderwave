@@ -61,6 +61,28 @@ An attempt to implement a WebGL 16-band Vocoder effect was completely abandoned 
 
 ## Current work
 
+### Note-delay effect column command (1.25.0) — ✅ DONE — `project`
+Built 2026-06-15. New effect-column command `FX_NOTE_DELAY = 0x5` (key '5'): a note on the cell is
+deferred toward the NEXT note on its channel by `val/255` of that interval (0x00 none, 0x80 half, 0xFF
+until next). **Unlike the slide/vibrato effects it is a SCHEDULER effect, not a `_modulateVoices`
+one** — so it lives in the trigger path, not the per-block modulation switch. Design: `engine._pending`
+queue of deferred triggers `{frame, ch, note, inst, vol}`; `_applyCell` (FX_NOTE_DELAY branch) computes
+`interval = _rowsToNextNote(ch) * samplesPerRow` (scans forward in playback order, wraps once, falls
+back to 1 row) and pushes `{frame: rowFrame + delay}` where `delay = min(round(frac*interval),
+round(interval)-1)` (the cap makes 0xFF land 1 sample before the next note instead of colliding).
+`advance` fires pending via `_firePendingUpTo(limit)` (sorted, frame-ordered) — interleaved before each
+row in the while-loop and once more up to blockEnd; so a deferred trigger fires sample-accurately even
+in a LATER block. The voice keeps playing its previous note until the deferred trigger (musical: the
+delayed note slots into the gap). `_pending` cleared on play/stop/pause (frames are absolute → stale on
+resume re-anchor). `_trigRow` tracks the row being triggered for the lookahead. GOTCHA: at 0xFF the
+delayed note and the next note land in the same render block and the next note overwrites it (one onset
+per voice per block) — intended ("delayed until the next note"); the 1-sample delayed trigger isn't
+observable after the block, so its test checks `_pending[0].frame` directly. 5 logic tests in
+`test/logic/note-delay.test.ts` (drive real `engine.advance`). golden checksum UNCHANGED (no demo uses
+it → `_pending` empty → the added calls are no-ops). Docs: README effect table + COMPOSING Pattern API
++ in-app help (PATTERN_FX auto-derives from FX_CMDS; bumped the "0–5 · A" hints).
+
+
 ### Vocoder — ✅ DONE (1.22.0 v1; intelligibility 1.23.0; formant shift 1.24.0) — `project`
 Built 2026-06-15 (Opus 4.8). The SECOND attempt — Gemini's 2026-06-09 attempt was a disaster (see
 below); this one designed out all four failure modes from the start and shipped clean. **Verified:**

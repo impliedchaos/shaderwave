@@ -92,8 +92,15 @@ valid song.
 const pat = new Pattern(rows, 8);              // channels is ALWAYS 8
 pat.set(row, channel, note, instIdx, vol);     // place a note
 pat.set(row, channel, OFF, instIdx);           // note-off (release) — vol omitted
+pat.setFx(row, channel, cmd, val);             // effect-column command (per-cell articulation)
 ```
 - `row` 0..rows-1, `channel` 0..7, `instIdx` = index into `params[]`, `vol` 0..1.
+- **Effect column** (`setFx`, codes in `src/tracker/fx.ts`): `0` arpeggio · `1`/`2` pitch slide
+  up/down · `3` tone portamento (meend, slides without re-attack) · `4` vibrato · `5` **note
+  delay** (`val/255` of the way to the next note on the channel — `0x00` none, `0x80` half,
+  `0xFF` until the next note; the voice holds its previous note through the gap) · `0xA` volume
+  slide. One command per cell. Pitch slides are smooth only on the phase-accumulating engines
+  (303, Moog).
 - A channel is monophonic: a new note on a channel replaces the previous. For a **chord**, use
   several channels with the same `instIdx`.
 - **channel index == voice index == pan index** (8 channels, 8 voices).

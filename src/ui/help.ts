@@ -9,7 +9,7 @@ const KEYBOARD = [
   ['Arrows', 'Move the cursor around the grid'],
   ['← / →', 'Step through the note → instrument → volume → effect sub-columns'],
   ['0 – 9', 'On the instrument / volume sub-column, type the value (two digits)'],
-  ['0–4 · A', 'On the effect sub-column, pick a command, then type its 2-hex value'],
+  ['0–5 · A', 'On the effect sub-column, pick a command, then type its 2-hex value'],
   ['Shift + ↑ / ↓', 'Nudge the current note’s volume by ±5%'],
   ['=', 'Write a note-off (release)'],
   ['Del / Backspace', 'Clear the cell — or the whole selection'],
