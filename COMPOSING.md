@@ -286,6 +286,20 @@ that's 8 s. Build a few patterns and repeat them in `order` to reach the length 
   shift (which would mis-target automation/LFOs that point at it).
 - **Drum notes pick a slot, not a pitch** (808). Use 36/38/42/46.
 - **`OFF`** ends a note; without it, notes ring until the next note on that channel.
+- **Hanging notes across pattern boundaries.** A note still sounding at a pattern's end keeps
+  ringing into the next pattern until *that channel* plays again — so a sustained voice (pad, clav,
+  horn stab) bleeds into sections that don't replay it. Two traps make this easy to miss: a note on
+  (or near) the **last row** whose `OFF` lands past the last row is a silent no-op, and a channel that
+  simply isn't replayed in the next pattern has nothing to cut it. **Fix (the standard idiom): drop an
+  `OFF` on row 0 of each pattern for every channel that isn't already retriggering there.** Channels
+  that *do* start on row 0 retrigger anyway, so leave those (and usually the drums) alone:
+  ```ts
+  const killHang = (pat) => {
+    for (let ch = 3; ch < 8; ch++) if (pat.note(0, ch) === EMPTY) pat.set(0, ch, OFF, 0);  // melodic chans
+  };
+  [pA, pB, pC].forEach(killHang);   // after all notes are placed, before returning
+  ```
+  (`EMPTY` is exported from `./pattern.js`.) See "All That and a Bag of Dicks" for a worked example.
 - **Headroom:** keep `master` ≤ ~`DEFAULT_MASTER * 0.8` and watch summed levels; the signal is 32-bit
   float internally (can exceed ±1) but the master/limiter stage and your ears decide.
 

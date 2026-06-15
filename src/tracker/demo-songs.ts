@@ -1,4 +1,4 @@
-import { Pattern, OFF } from './pattern.js';
+import { Pattern, OFF, EMPTY } from './pattern.js';
 import { defaultFxParams } from '../gl/effects.js';
 import { targetByCode, normByte } from './automation.js';
 import { defaultLfo, defaultPumpLfo } from './lfo.js';
@@ -4544,6 +4544,171 @@ export const DEMO_SONGS: SongDef[] = [
           { source: 3, targetParamId: tgt('303', 'LVL').id,  targetInstIdx: BASS, depth: 0.55, bipolar: true },
           { source: 3, targetParamId: tgt('moog', 'LVL').id, targetInstIdx: PAD,  depth: 0.5,  bipolar: true },
         ],
+      };
+    }
+  },
+  {
+    name: "All That and a Bag of Dicks",
+    author: "AI Slop",
+    note: "Filthy 104 BPM 70s porno-funk — one-chord Em vamp, drunken swung drums, and an auto-wah guitar (the resonant Filter cutoff swept by per-pattern automation). Moog bass, clav comp, Solina strings, brass stabs.",
+    bpm: 104,
+    master: DEFAULT_MASTER * 0.52,
+    params: [
+      { name: "808 Funk Kit", type: "808", p0: [0, 0.55, 0.5, 0.55], p1: [0, 0, 0, 0] },
+      { name: "Moog Funk Bass", type: "moog", p0: [650, 0.4, 0.65, 0.15], p1: [5, 0.25, 0.35, 0.4], p2: [1, 1, 2, 0], p3: [2, 2, 1, 0] },
+      { name: "Wah Guitar", type: "guitar", p0: [1.4, 0.2, 0.72, 0.85], p1: [28, 0.15, 0.5, 0.1] },
+      { name: "Clavinet", type: "wvt", p0: [0.002, 0.16, 0.15, 0.12], p1: [0.35, 0.55, 0.05, 0.15], p2: [9, 11, 0, -1], p3: [0.85, 0.45, 0, 0] },
+      { name: "Solina Strings", type: "e8e", p0: [0.09, 0.4, 0.85, 0.55], p1: [0.15, -12, 8, 0], p2: [1, 1, 3, 3], p3: [1, 0.85, 0.6, 0.5] },
+      { name: "Brass Stabs", type: "wvt", p0: [0.012, 0.22, 0.5, 0.18], p1: [0.5, 0.45, 0.06, 0.25], p2: [14, 10, 0, -1], p3: [0.9, 0.6, 0, 0] },
+    ],
+    fxParams: {
+      '808': Object.assign(defaultFxParams(), { distOn: false, odOn: false, delayOn: false, chorusOn: false, tremoloOn: false, reverbOn: true, reverbMix: 0.10, widthOn: true, width: 1.1, master: 0.95 }),
+      'moog': Object.assign(defaultFxParams(), { distOn: false, odOn: true, odDrive: 2.2, odTone: 0.5, odLevel: 0.9, delayOn: false, reverbOn: false, chorusOn: false, tremoloOn: false, widthOn: false, master: 0.92 }),
+      'guitar': Object.assign(defaultFxParams(), {
+        distOn: false, odOn: true, odDrive: 15.0, odTone: 0.55, odLevel: 0.35,   // cranked drive, tamed output
+        filterOn: true, filterMode: 0, filterReso: 0.72, filterCutoff: 700, filterMix: 1.0,   // the WAH — cutoff swept by automation
+        chorusOn: false, chorusMix: 0.20, chorusRate: 1.2, chorusDepth: 2.0,   // chorus off (drier wah)
+        tremoloOn: false, delayOn: true, delayTime: 0.32, delayFeedback: 0.30, delayMix: 0.16,
+        reverbOn: true, reverbMix: 0.16, widthOn: true, width: 1.25, master: 0.95,
+      }),
+      'wvt': Object.assign(defaultFxParams(), { distOn: false, odOn: false, delayOn: true, delayTime: 0.28, delayFeedback: 0.22, delayMix: 0.12, reverbOn: true, reverbMix: 0.18, chorusOn: true, chorusMix: 0.15, tremoloOn: false, widthOn: true, width: 1.3, master: 0.9 }),
+      'e8e': Object.assign(defaultFxParams(), { distOn: false, odOn: false, delayOn: false, reverbOn: true, reverbMix: 0.38, chorusOn: true, chorusMix: 0.4, chorusRate: 0.5, chorusDepth: 3.0, tremoloOn: false, widthOn: true, width: 1.6, master: 0.82 }),
+    },
+    data: () => {
+      const N = 64;
+      const mk = () => new Pattern(N, 8);
+      const BD = 36, SD = 38, HH = 42, OH = 46;
+      const I_KIT = 0, I_BASS = 1, I_GTR = 2, I_CLAV = 3, I_STR = 4, I_HORN = 5;
+
+      // Deterministic "drunk" jitter (0..spread-1) for the note-delay swing — varies
+      // per row so the groove humanizes without being random (demos must be deterministic).
+      const drunk = (r: number, spread: number) => (r * 53 + 17) % spread;
+
+      // --- DRUNKEN DRUMS: funk kit, swung 16ths + humanized note-delay (cmd 5) ----
+      const setDrums = (pat: Pattern, vary: boolean, ghosts = true) => {
+        for (let r = 0; r < N; r++) {
+          const s = r % 16, bar = Math.floor(r / 16);
+          // Kick — syncopated, kept tight (the pocket's anchor).
+          if (s === 0 || s === 6 || s === 10) pat.set(r, 0, BD, I_KIT, s === 0 ? 0.98 : 0.85);
+          if (ghosts && s === 11 && bar % 2 === 1) pat.set(r, 0, BD, I_KIT, 0.68);
+          // Snare — backbeat, laid back; ghost notes drunker.
+          if (s === 4 || s === 12) { pat.set(r, 1, SD, I_KIT, 0.9); if (vary) pat.setFx(r, 1, 5, 0x10 + drunk(r, 0x10)); }
+          if (ghosts && (s === 7 || s === 14)) { pat.set(r, 1, SD, I_KIT, 0.3); pat.setFx(r, 1, 5, 0x24 + drunk(r, 0x18)); }
+          // Hats — 16ths, swing the off-beats hard, tiny humanize on the downs.
+          if (s !== 14) {
+            pat.set(r, 2, HH, I_KIT, s % 2 === 0 ? 0.5 : 0.34);
+            if (s % 2 === 1) pat.setFx(r, 2, 5, 0x2e + (vary ? drunk(r, 0x16) : 0));   // the swung "&"s
+            else if (vary) pat.setFx(r, 2, 5, drunk(r, 0x0c));
+          } else {
+            pat.set(r, 2, OH, I_KIT, 0.5);                                            // open-hat lift into the 1
+            if (vary) pat.setFx(r, 2, 5, 0x18 + drunk(r, 0x12));
+          }
+        }
+      };
+
+      // --- Plucky Moog funk bass riff (E minor) -----------------------------------
+      const bassHits = [{ s: 0, n: 40 }, { s: 3, n: 52 }, { s: 6, n: 47 }, { s: 9, n: 40 }, { s: 12, n: 43 }, { s: 14, n: 50 }];
+      const setBass = (pat: Pattern, vol = 0.9) => {
+        for (let bar = 0; bar < 4; bar++) for (const h of bassHits) {
+          const r = bar * 16 + h.s;
+          pat.set(r, 3, h.n, I_BASS, vol); pat.set(r + 2, 3, OFF, I_BASS);
+        }
+      };
+
+      // --- Choppy wah-guitar 16th comp (Em9 tones; the wah does the talking) ------
+      const gtrMask = [1, 0, 1, 1, 0, 1, 1, 0, 1, 0, 1, 1, 0, 1, 1, 0];
+      const gtrNotes = [64, 0, 67, 71, 0, 64, 67, 0, 71, 0, 74, 67, 0, 64, 71, 0];
+      const setGtr = (pat: Pattern, vol = 0.7) => {
+        for (let bar = 0; bar < 4; bar++) for (let s = 0; s < 16; s++) {
+          if (!gtrMask[s]) continue;
+          const r = bar * 16 + s;
+          pat.set(r, 4, gtrNotes[s], I_GTR, s % 4 === 0 ? vol : vol * 0.62);
+          pat.set(r + 1, 4, OFF, I_GTR);                                              // tight choppy chuck
+        }
+      };
+      // Sustained guitar for the breakdown so the slow vocal wah really sings.
+      const setGtrSus = (pat: Pattern, vol = 0.82) => {
+        const hits = [{ s: 0, n: 64 }, { s: 8, n: 67 }];
+        for (let bar = 0; bar < 4; bar++) for (const h of hits) {
+          const r = bar * 16 + h.s; pat.set(r, 4, h.n, I_GTR, vol); pat.set(r + 7, 4, OFF, I_GTR);
+        }
+      };
+
+      // --- AUTO-WAH: sweep the guitar's resonant Filter cutoff (fx target FLC) -----
+      // A triangle wah, lo↔hi (log-interpolated) every `period` rows. This IS the
+      // "automate the ladder filter" wah — per-pattern automation on the cutoff.
+      const FLC = tgt('guitar', 'FLC');
+      const wah = (pat: Pattern, period: number, lo: number, hi: number) => {
+        const t = pat.getOrCreateAutoTrack(I_GTR, FLC.id);
+        for (let r = 0; r < N; r++) {
+          const ph = (r % period) / period;
+          const tri = ph < 0.5 ? ph * 2 : 2 - ph * 2;                                 // 0→1→0
+          t[r] = normByte(FLC, lo * Math.pow(hi / lo, tri));
+        }
+      };
+
+      // --- Clav comp (syncopated) -------------------------------------------------
+      const clavMask = [1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1];
+      const clavNotes = [64, 0, 0, 67, 0, 0, 71, 0, 0, 64, 0, 0, 67, 0, 0, 71];
+      const setClav = (pat: Pattern, vol = 0.5) => {
+        for (let bar = 0; bar < 4; bar++) for (let s = 0; s < 16; s++) {
+          if (!clavMask[s]) continue;
+          const r = bar * 16 + s; pat.set(r, 5, clavNotes[s], I_CLAV, vol); pat.set(r + 2, 5, OFF, I_CLAV);
+        }
+      };
+
+      // --- Strings (held swells) + brass stabs ------------------------------------
+      const setStrings = (pat: Pattern, segs: { r: number; n: number; off: number }[], vol = 0.5) => {
+        for (const g of segs) { pat.set(g.r, 6, g.n, I_STR, vol); pat.set(g.off, 6, OFF, I_STR); }
+      };
+      const hornHits = [{ s: 0, n: 76 }, { s: 6, n: 74 }, { s: 8, n: 79 }, { s: 14, n: 76 }];
+      const setHorns = (pat: Pattern, vol = 0.72) => {
+        for (let bar = 0; bar < 4; bar++) for (const h of hornHits) {
+          const r = bar * 16 + h.s; pat.set(r, 7, h.n, I_HORN, vol); pat.set(r + 2, 7, OFF, I_HORN);
+        }
+      };
+
+      // ---- Build patterns --------------------------------------------------------
+      const p0 = mk(), p1 = mk(), p2 = mk(), p3 = mk(), p4 = mk(), p5 = mk();
+
+      // p0 — intro: drunken drums + bass only, building the pocket.
+      setDrums(p0, true, false); setBass(p0, 0.88);
+
+      // p1 — main groove: drums, bass, wah chucks, clav.
+      setDrums(p1, true); setBass(p1); setGtr(p1, 0.72); wah(p1, 4, 380, 2100); setClav(p1, 0.5);
+
+      // p2 — groove + strings, slightly faster wah.
+      setDrums(p2, true); setBass(p2); setGtr(p2, 0.72); wah(p2, 2, 420, 2400); setClav(p2, 0.5);
+      setStrings(p2, [{ r: 0, n: 52, off: 31 }, { r: 32, n: 52, off: 63 }]);
+
+      // p3 — the hook: everything in, horns, a string lift (Em–Em–D–Em).
+      setDrums(p3, true); setBass(p3, 0.95); setGtr(p3, 0.78); wah(p3, 4, 400, 2600); setClav(p3, 0.55);
+      setStrings(p3, [{ r: 0, n: 52, off: 31 }, { r: 32, n: 50, off: 47 }, { r: 48, n: 52, off: 63 }], 0.55);
+      setHorns(p3, 0.74);
+
+      // p4 — breakdown: sparse drums + sustained guitar with a slow, deep vocal wah.
+      setDrums(p4, true, false); setBass(p4, 0.8); setGtrSus(p4, 0.84); wah(p4, 32, 280, 2700);
+      setStrings(p4, [{ r: 0, n: 52, off: 63 }], 0.4);
+
+      // p5 — outro: groove winding down (drums, bass, last wah licks).
+      setDrums(p5, true); setBass(p5, 0.85); setGtr(p5, 0.6); wah(p5, 4, 360, 1800);
+
+      // Stop notes hanging over from the previous pattern: OFF any melodic channel
+      // (3–7 = bass/guitar/clav/strings/horns) that has no note on row 0. Channels
+      // that DO start on row 0 retrigger anyway, so they're left alone. This kills the
+      // clav/horn tails (whose own OFFs land past the last row) bleeding into sections
+      // that don't replay them.
+      const killHang = (pat: Pattern) => {
+        for (let ch = 3; ch < 8; ch++) if (pat.note(0, ch) === EMPTY) pat.set(0, ch, OFF, 0);
+      };
+      [p0, p1, p2, p3, p4, p5].forEach(killHang);
+
+      return {
+        patterns: [p0, p1, p2, p3, p4, p5],
+        // intro · verse · chorus×2 · verse · chorus×2 · break · verse · chorus×2 · break · verse · chorus×3 · outro×2  ≈ 3.5 min @ 104 BPM
+        order: [0, 1, 2, 3, 3, 1, 2, 3, 3, 4, 1, 2, 2, 3, 3, 4, 1, 2, 3, 3, 3, 5, 5],
+        rowsPerBeat: 4,
+        pan: [0.5, 0.5, 0.58, 0.5, 0.40, 0.62, 0.5, 0.45],
       };
     }
   }
