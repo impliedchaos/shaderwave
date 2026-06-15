@@ -213,13 +213,14 @@ the command key, then two hex digits.
 | `1` / `2` | Pitch slide up / down | `xx` = rate |
 | `3` | **Tone portamento** (meend) — slides to the cell's note without re-attacking | `xx` = rate |
 | `4` | **Vibrato** (gamak) | x = speed, y = depth |
-| `5` | **Note delay** — defers the note's attack toward the next note on its channel | `xx` = fraction (`00` none · `80` ½ · `FF` until next) |
+| `5` | **Note delay** — pushes the note's attack later within its step (swing / humanize) | `xx` = fraction of one step (`00` none · `80` ½ · `FF` ≈ full) |
 | `A` | Volume slide | x = up, y = down |
 
 Most of these modulate a *playing* voice once per render block (~93 Hz). **Note delay**
-(`5`) is different — it's a scheduler effect: the note's trigger frame is pushed later
-by `xx/255` of the interval to the next note on that channel (sample-accurate, possibly
-into a later block), and the voice keeps playing its previous note until then. Pitch effects
+(`5`) is different — it's a scheduler effect: the note's trigger frame is pushed later by
+`xx/255` of **one step** (sample-accurate, possibly into a later block), and the voice keeps
+playing its previous note until then. Use it for swing (nudge the off-beats) or humanized
+"drunken" timing. Pitch effects
 are smooth on the phase-accumulating melodic engines (**303**, **Moog**); the
 closed-form engines (Tanpura/DX7/808/E8E) step on per-block pitch changes, so pitch
 effects are best on the leads — volume slide works on any instrument.

@@ -61,26 +61,24 @@ An attempt to implement a WebGL 16-band Vocoder effect was completely abandoned 
 
 ## Current work
 
-### Note-delay effect column command (1.25.0) — ✅ DONE — `project`
-Built 2026-06-15. New effect-column command `FX_NOTE_DELAY = 0x5` (key '5'): a note on the cell is
-deferred toward the NEXT note on its channel by `val/255` of that interval (0x00 none, 0x80 half, 0xFF
-until next). **Unlike the slide/vibrato effects it is a SCHEDULER effect, not a `_modulateVoices`
-one** — so it lives in the trigger path, not the per-block modulation switch. Design: `engine._pending`
-queue of deferred triggers `{frame, ch, note, inst, vol}`; `_applyCell` (FX_NOTE_DELAY branch) computes
-`interval = _rowsToNextNote(ch) * samplesPerRow` (scans forward in playback order, wraps once, falls
-back to 1 row) and pushes `{frame: rowFrame + delay}` where `delay = min(round(frac*interval),
-round(interval)-1)` (the cap makes 0xFF land 1 sample before the next note instead of colliding).
-`advance` fires pending via `_firePendingUpTo(limit)` (sorted, frame-ordered) — interleaved before each
-row in the while-loop and once more up to blockEnd; so a deferred trigger fires sample-accurately even
-in a LATER block. The voice keeps playing its previous note until the deferred trigger (musical: the
-delayed note slots into the gap). `_pending` cleared on play/stop/pause (frames are absolute → stale on
-resume re-anchor). `_trigRow` tracks the row being triggered for the lookahead. GOTCHA: at 0xFF the
-delayed note and the next note land in the same render block and the next note overwrites it (one onset
-per voice per block) — intended ("delayed until the next note"); the 1-sample delayed trigger isn't
-observable after the block, so its test checks `_pending[0].frame` directly. 5 logic tests in
-`test/logic/note-delay.test.ts` (drive real `engine.advance`). golden checksum UNCHANGED (no demo uses
-it → `_pending` empty → the added calls are no-ops). Docs: README effect table + COMPOSING Pattern API
-+ in-app help (PATTERN_FX auto-derives from FX_CMDS; bumped the "0–5 · A" hints).
+### Note-delay effect column command (1.25.0; re-scoped 1.25.1) — ✅ DONE — `project`
+Built 2026-06-15. New effect-column command `FX_NOTE_DELAY = 0x5` (key '5'): pushes a note's attack
+later WITHIN ITS OWN STEP by `val/255` of ONE row — for **swing and humanized "drunken" timing** (0x00
+on the beat, 0x80 half a step, 0xFF ≈ a full step). **NOTE the re-scope:** the first cut (1.25.0)
+delayed by the interval to the *next note*, which the user found wildly too long (a 0x80 delayed ~8
+notes). Corrected to one step (1.25.1) — that's what swing/humanize need. The `_rowsToNextNote`
+lookahead + `_trigRow` field were deleted; the interval is now just `this.samplesPerRow`.
+**Unlike the slide/vibrato effects it is a SCHEDULER effect, not a `_modulateVoices` one** — it lives in
+the trigger path. Design: `engine._pending` queue `{frame, ch, note, inst, vol}`; `_applyCell`
+(FX_NOTE_DELAY branch) pushes `{frame: rowFrame + delay}`, `delay = min(round(frac*row),
+round(row)-1)` (cap keeps 0xFF under one step). `advance` fires pending via `_firePendingUpTo(limit)`
+(sorted, frame-ordered) — interleaved before each row in the while-loop and once more up to blockEnd —
+so a deferred trigger fires sample-accurately even in a LATER block (a half-step ≈ 3000 samples ≈ 6
+blocks). The voice keeps playing its previous note until the deferred trigger (the delayed note slots
+into the gap). `_pending` cleared on play/stop/pause (absolute frames go stale on resume re-anchor). 5
+logic tests in `test/logic/note-delay.test.ts` drive real `engine.advance`. golden checksum UNCHANGED
+(no demo uses it → `_pending` empty → added calls are no-ops). Docs: README effect table + COMPOSING
+Pattern API + in-app help (PATTERN_FX auto-derives from FX_CMDS; "0–5 · A" hints).
 
 
 ### Vocoder — ✅ DONE (1.22.0 v1; intelligibility 1.23.0; formant shift 1.24.0) — `project`
