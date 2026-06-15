@@ -61,7 +61,7 @@ An attempt to implement a WebGL 16-band Vocoder effect was completely abandoned 
 
 ## Current work
 
-### Vocoder — ✅ DONE (1.22.0 v1; intelligibility pass 1.23.0) — `project`
+### Vocoder — ✅ DONE (1.22.0 v1; intelligibility 1.23.0; formant shift 1.24.0) — `project`
 Built 2026-06-15 (Opus 4.8). The SECOND attempt — Gemini's 2026-06-09 attempt was a disaster (see
 below); this one designed out all four failure modes from the start and shipped clean. **Verified:**
 `test/vocoder-check.html` (NEW) matches a CPU SVF-bandpass-bank + envelope reference to **9.7e-7**
@@ -95,7 +95,21 @@ target `VCU`). Verified: noise modulator → ×6.4 output energy (gate opens), p
 (gate stays shut) — clean voiced/unvoiced discrimination. (3) Docs: COMPOSING.md notes the carrier MUST
 be bright (saw/pulse/e8e/bright-wvt; a sine has no highs → silent upper formants). golden checksum
 still 0x5fc60c89 (off by default); vocoder-check still matches the CPU band ref to 1.2e-6 (with
-`vocUnvoiced:0`, since the ref models voiced bands only). **Still deferred:** formant shift.
+`vocUnvoiced:0`, since the ref models voiced bands only).
+
+**Formant shift (1.24.0, 2026-06-15):** shifts the formant peaks up/down WITHOUT changing pitch (pitch
+= the carrier's note). Mechanism: the band bank already separates the modulator's envelope per band, so
+formant shift = drive synthesis band b with the envelope of band `b − offset`. The bank is LOG-spaced,
+so a constant frequency ratio is a constant band-index offset: `bandsPerOctave = (bands-1)/log2(fHi/
+fLo)`; `vocFormant` (semitones, ±12, target `VCF`) → offset = (st/12)·bandsPerOctave. Implemented by
+DECOUPLING analysis from synthesis: the analysis shader now emits `(carrierBandL, carrierBandR, env)`
+per band row (instead of pre-multiplying), and the SUM shader does `carrierBand[b] · env[b−offset]`
+with linear interp between the two nearest source bands, clamped at the edges. Resolution is bounded by
+band count (16 bands ≈ 0.36 oct/band) so big shifts smear; ±7 st is the musical range. Verified:
+neutral peak at F0, +12 st moves the output spectral peak to ~2·F0 (probe energy ratio 1.66 → 0.35);
+match test still 1.2e-6 at `vocFormant:0` (decoupled product is bit-equivalent within f32). golden
+checksum unchanged. **Lean-classic vocoder is now feature-complete** (formant shift was the last
+deferred item).
 
 Original agreed design (kept for reference): scope locked **lean-classic v1**.
 

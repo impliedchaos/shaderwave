@@ -505,7 +505,7 @@ const fxLimiter = makeDynamics({
 // FBO is never left multi-attached.
 const fxVocoder: FxEffectDef = {
   key: 'vocoder', name: 'Vocoder', enableFlag: 'vocoderOn',
-  defaults: { vocoderOn: false, vocSource: -1, vocBands: 16, vocQ: 4, vocAttack: 2, vocRelease: 18, vocMix: 1.0, vocUnvoiced: 0.5 },
+  defaults: { vocoderOn: false, vocSource: -1, vocBands: 16, vocQ: 4, vocAttack: 2, vocRelease: 18, vocMix: 1.0, vocUnvoiced: 0.5, vocFormant: 0 },
   init(gl) {
     const prog = createProgram(gl, FX_VOCODER);
     gl.useProgram(prog);
@@ -615,6 +615,11 @@ const fxVocoder: FxEffectDef = {
         g.uniform1f(sum.u('uLevel'), 2.0);              // fixed makeup (band-split drops level)
         g.uniform1f(sum.u('uMix'), (p.vocMix as number) ?? 1.0);
         g.uniform1f(sum.u('uUvMix'), Math.max(0, Math.min(1, (p.vocUnvoiced as number) ?? 0.5)));
+        // Formant shift (semitones) → a band-index offset. Log-spaced bank ⇒ a constant
+        // frequency ratio is a constant band offset: bands-per-octave = (bands-1)/octaveSpan.
+        const fm = (p.vocFormant as number) ?? 0;
+        const octaveSpan = Math.log2(VOC_FHI / VOC_FLO);
+        g.uniform1f(sum.u('uFormantBands'), bands > 1 ? (fm / 12) * (bands - 1) / octaveSpan : 0);
         g.viewport(0, 0, BLOCK, 1); drawQuad(g);
       },
     };

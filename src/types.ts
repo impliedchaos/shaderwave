@@ -166,6 +166,7 @@ export interface FxParams {
   vocRelease: number;     // ms (envelope follower)
   vocMix: number;         // dry/wet (1 = fully vocoded)
   vocUnvoiced: number;    // unvoiced/sibilance passthrough amount (0 = off)
+  vocFormant: number;     // formant shift in semitones (±, 0 = neutral); pitch unchanged
   /** Legacy authoring field, migrated to `dist` by makeFx. */
   drive?: number;
   [key: string]: number | boolean | undefined;

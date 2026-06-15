@@ -46,7 +46,7 @@ uniform float uUvGHi, uUvAHi;   // high corner (~sibilance, e.g. 3500 Hz)
 uniform float uUvAtk, uUvRel;   // detector envelope coefficients (fast)
 uniform float uUvThr;           // gate threshold on HF/(HF+LF)
 
-layout(location = 0) out vec4 outColor;    // band: carrier band × env (stereo); uv row: gated HF
+layout(location = 0) out vec4 outColor;    // band row: (carrierBandL, carrierBandR, modEnv); uv row: (gatedHF, gatedHF, 0)
 layout(location = 1) out vec4 outStateA;
 layout(location = 2) out vec4 outStateB;
 
@@ -119,7 +119,10 @@ void main() {
     env += coef * (d - env);
   }
 
-  outColor  = vec4(cband * env, 0.0, 1.0);
+  // Emit the carrier band and the modulator envelope SEPARATELY (not the product):
+  // the sum pass multiplies carrier band b by the envelope of band b−formantOffset,
+  // which is what shifts the formants up/down independently of pitch.
+  outColor  = vec4(cband, env, 1.0);
   outStateA = vec4(stCarL, stCarR);
   outStateB = vec4(stMod, env, 0.0);
 }

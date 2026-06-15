@@ -172,7 +172,7 @@ Common fields (booleans + scalars):
 `bitcrushOn`/`bitcrushBits`/`bitcrushRate`/`bitcrushMix`, `widthOn`/`width`, `master` (fx output level),
 `compOn`/`compThresh` (dB)/`compRatio`/`compAttack` (ms)/`compRelease` (ms)/`compMakeup` (dB)/`compSource`,
 `limitOn`/`limitCeil` (dB)/`limitRelease` (ms),
-`vocoderOn`/`vocSource`/`vocBands` (1..16)/`vocQ`/`vocAttack` (ms)/`vocRelease` (ms)/`vocMix`/`vocUnvoiced`.
+`vocoderOn`/`vocSource`/`vocBands` (1..16)/`vocQ`/`vocAttack` (ms)/`vocRelease` (ms)/`vocMix`/`vocUnvoiced`/`vocFormant` (semitones).
 The resonant **Filter** is per-sample recursive (LP/HP/BP); its `filterCutoff` (target code `FLC`, log)
 is the marquee LFO sweep target — pair it with a synced LFO for filter-sweep risers/wobbles. The
 **Compressor** + **Limiter** are also per-sample (stereo-linked envelope follower); all their params are
@@ -188,7 +188,10 @@ carrier must be BRIGHT — a saw/pulse/e8e/bright-wvt carries formants; a sine/t
 upper formants go silent. (2) `vocBands` 16 (the default) covers the speech range gap-free; fewer bands
 leave holes between formants. (3) `vocUnvoiced` (default 0.5) passes the modulator's own sibilance
 (s/t/f/sh — broadband noise a tonal carrier can't voice) through ungated; raise it for crisper
-consonants, drop to 0 for a purely tonal/robotic vocode.
+consonants, drop to 0 for a purely tonal/robotic vocode. (4) `vocFormant` (±12 st, target `VCF`)
+shifts the formant peaks up/down **without changing pitch** (pitch is the carrier's note) — up =
+smaller/brighter/"chipmunk", down = bigger/darker; great as an automation/LFO target for talking
+sweeps. Resolution is limited by `vocBands`, so big shifts smear; ±7 st is the natural musical range.
 
 ```ts
 '303': Object.assign(defaultFxParams(), { distOn: true, dist: 10, delayOn: true, delayMix: 0.3, master: 0.85 }),

@@ -101,6 +101,7 @@ const FX_DEFS: FxDef[] = [
   { label: 'Release', key: 'vocRelease', min: 5, max: 500, step: 1, log: true, fmt: (v) => Math.round(v) + 'ms' },
   { label: 'Mix', key: 'vocMix', min: 0, max: 1, step: 0.01 },
   { label: 'Unvoiced', key: 'vocUnvoiced', min: 0, max: 1, step: 0.01 },
+  { label: 'Formant', key: 'vocFormant', min: -12, max: 12, step: 1, fmt: (v) => (v > 0 ? '+' : '') + Math.round(v) + 'st' },
 
   { category: 'Compressor', fxKey: 'compressor', enableKey: 'compOn' },
   { label: 'Thresh', key: 'compThresh', min: -60, max: 0, step: 0.5, fmt: (v) => v.toFixed(1) + 'dB' },
@@ -550,6 +551,7 @@ export class App {
         else if (key === 'vocRelease') params[key] = 18;
         else if (key === 'vocMix') params[key] = 1.0;
         else if (key === 'vocUnvoiced') params[key] = 0.5;
+        else if (key === 'vocFormant') params[key] = 0;
         else params[key] = min;
       }
       const block = document.createElement('div');

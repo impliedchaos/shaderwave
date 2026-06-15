@@ -111,6 +111,14 @@ function peak(a, from = 0, to = a.length) { let p = 0; for (let i = from; i < to
 function anyNaN(a) { for (const v of a) if (!Number.isFinite(v)) return true; return false; }
 function rms(a) { let s = 0; for (const v of a) s += v * v; return Math.sqrt(s / a.length); }
 function hashNoise(n) { const s = Math.sin(n * 12.9898) * 43758.5453; return 2 * (s - Math.floor(s)) - 1; }
+// RMS of a signal through a single SVF bandpass probe at `freq` (settling-skipped).
+function bandEnergy(sig, freq, Q) {
+  const k = 1 / Q, gco = Math.tan(Math.PI * freq / SR);
+  const a1 = 1 / (1 + gco * (gco + k)), a2 = gco * a1, a3 = gco * gco * a1;
+  const st = [0, 0]; let s = 0, nn = 0; const start = Math.floor(sig.length / 8);
+  for (let n = 0; n < sig.length; n++) { const v = k * svf(st, sig[n], a1, a2, a3); if (n >= start) { s += v * v; nn++; } }
+  return Math.sqrt(s / nn);
+}
 
 try {
   let ok = true;
@@ -129,7 +137,7 @@ try {
   const BANDS = 12, Q = 5, ATK = 3, REL = 40, MIX = 1.0, SRC = 2;
   const g1 = renderVoc(cL, cR, mod, SRC, (p) => {
     p.vocoderOn = true; p.vocSource = SRC; p.vocBands = BANDS; p.vocQ = Q;
-    p.vocAttack = ATK; p.vocRelease = REL; p.vocMix = MIX; p.vocUnvoiced = 0;   // ref models voiced bands only
+    p.vocAttack = ATK; p.vocRelease = REL; p.vocMix = MIX; p.vocUnvoiced = 0; p.vocFormant = 0;   // ref models unshifted voiced bands only
   });
   const ref = vocRef(cL, cR, mod, BANDS, Q, ATK, REL, MIX);
   const dL = maxDiff(g1.L, ref.oL), dR = maxDiff(g1.R, ref.oR);
@@ -197,6 +205,24 @@ try {
   const uvOk = noiseRatio > 1.15 && toneRatio < 1.05;
   ok = ok && uvOk;
   log(`Unvoiced discrimination: noise rms ${noiseOff.toFixed(4)}→${noiseOn.toFixed(4)} (×${noiseRatio.toFixed(2)}, want >1.15), tone ×${toneRatio.toFixed(3)} (want <1.05) ${uvOk ? 'OK' : 'FAIL'}`);
+
+  // 7. Formant shift moves the spectral peak without changing pitch. Drive a flat
+  //    (noise) carrier with a single tone modulator at F0 — the vocoded peak sits at
+  //    F0. A +12 st (one octave up) formant shift should move the peak to ~2·F0.
+  const F0 = 1000;
+  const noiseC = new Float32Array(N), toneAt = new Float32Array(N);
+  for (let n = 0; n < N; n++) { noiseC[n] = 0.5 * hashNoise(n * 1.7 + 3); toneAt[n] = 0.5 * Math.sin(2 * Math.PI * F0 * n / SR); }
+  const setF = (fmt) => (p) => {
+    p.vocoderOn = true; p.vocSource = SRC; p.vocBands = 16; p.vocQ = 5;
+    p.vocAttack = 2; p.vocRelease = 18; p.vocMix = 1.0; p.vocUnvoiced = 0; p.vocFormant = fmt;
+  };
+  const o0 = renderVoc(noiseC, noiseC, toneAt, SRC, setF(0)).L;
+  const oUp = renderVoc(noiseC, noiseC, toneAt, SRC, setF(12)).L;
+  const e0lo = bandEnergy(o0, F0, 6), e0hi = bandEnergy(o0, 2 * F0, 6);
+  const eUlo = bandEnergy(oUp, F0, 6), eUhi = bandEnergy(oUp, 2 * F0, 6);
+  const fmtOk = e0lo > e0hi * 1.2 && eUhi > eUlo * 1.2 && !anyNaN(oUp);
+  ok = ok && fmtOk;
+  log(`Formant shift: neutral F0/2F0=${(e0lo / e0hi).toFixed(2)} (want >1.2), +12st F0/2F0=${(eUlo / eUhi).toFixed(2)} (want <0.83) ${fmtOk ? 'OK' : 'FAIL'}`);
 
   document.title = ok ? 'ALL_OK' : 'FAILED';
   log(ok ? '\n=== VOCODER CHECK OK ===' : '\n=== VOCODER CHECK FAILED ===');
