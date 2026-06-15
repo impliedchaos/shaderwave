@@ -71,6 +71,265 @@ export function makeFx(overrides: Partial<Record<InstrumentType, Partial<FxParam
 
 export const DEMO_SONGS: SongDef[] = [
   {
+    name: "Burning Chlamydia Pissies",
+    author: "AI Slop",
+    note: "A 16-minute dark cyberpunk synthwave journey \u2014 from a low, slow, heavy start into a driving bacchanal of bodily fluids and regret. Prompt: Let's create a new demo song. It'll be a long one. Let's make it 15 to 20 minutes long. Style: dark synthwave / cyberpunk. Start low and slow, heavy and ominous; eventually bringing in some driving beats/bass; keep a musical theme or two, but lets keep the song changing and growing and not be repetetive. Call it 'Burning Chlamydia Pissies'. As inspiration: Imagine a pansexual, bacchanalian orgy with three dozen hot people in a bathhouse. The bath house is littered with bottles of lube, booze, and vcr head cleaner. A couple of tables have been setup with an array of drugs on them. The participants are all euphoric and seeking further sexual bliss. Eventually it's a massive golden shower over everyone, but there's this one absolute dickhead who came to the party knowing they had chlamydia, and they smile through the pain of pissing on everyone because they're a complete asshole.",
+    bpm: 105, // Starts somewhat slow and driving
+    master: DEFAULT_MASTER * 0.45,
+    params: [
+      // 0: Dark Sub Bass (Moog)
+      { name: "Heavy Sub Bass", type: "moog", p0: [150, 0.4, 0.8, 0], p1: [2, 0.95, 0.7, 0.9], p2: [1, 1, 1, 0], p3: [2, 2, 2, 0.02] },
+      // 1: Evolving Cyberpunk Arp (WVT)
+      { name: "Cyber Arp", type: "wvt", p0: [0.01, 0.35, 0.5, 0.25], p1: [0.15, 0.45, 0.08, 0.05], p2: [14, 15, 0, -1], p3: [0.8, 0.6, 0, 0] },
+      // 2: Gritty 303 Lead (The Asshole)
+      { name: "Chlamydia 303", type: "303", p0: [600, 0.88, 0.75, 0.6], p1: [1, 0.35, 0.4, 0] }, // Saw, high resonance
+      // 3: Warm Pad (DX7)
+      {
+        name: "Bathhouse Pad", type: "dx7",
+        p0: [1, 1.5, 2.5, 0.4], p1: [5, 0.6, 0.8, 3],
+        ops: [
+          { coarse: 1.0, fine: 0, level: 99, detune: 2,  decay: 3.5,  mode: 0, sustain: 0.85, release: 2.5 },
+          { coarse: 2.0, fine: 1, level: 75, detune: -3, decay: 3.8,  mode: 0, sustain: 0.80, release: 2.8 },
+          { coarse: 1.0, fine: 0, level: 60, detune: 7,  decay: 4.0,  mode: 0, sustain: 0.75, release: 3.0 },
+          { coarse: 3.0, fine: 0, level: 45, detune: 0,  decay: 2.5,  mode: 0, sustain: 0.60, release: 2.0 },
+          { coarse: 5.0, fine: 0, level: 30, detune: -1, decay: 1.5,  mode: 0, sustain: 0.40, release: 1.5 },
+          { coarse: 4.0, fine: 0, level: 20, detune: 2,  decay: 1.0,  mode: 0, sustain: 0.30, release: 1.0 }
+        ]
+      },
+      // 4: Driving Synth Bass (Moog) for later
+      { name: "Driving Bass", type: "moog", p0: [800, 0.6, 0.8, 0.2], p1: [8, 0.8, 0.5, 0.7], p2: [1, 1, 2, 0.05], p3: [2, 2, 3, 0] },
+      // 5: Kit (808)
+      { name: "Orgy Kit", type: "808", p0: [0, 0.55, 0.6, 0.6], p1: [0, 0, 0, 0] },
+      // 6: Euphoric Pluck (WVT)
+      { name: "Popper Pluck", type: "wvt", p0: [0.005, 0.2, 0.1, 0.15], p1: [0.0, 0.6, 0.05, 0.0], p2: [7, 8, 0.0, -1], p3: [0.9, 0.5, 0, 0] }
+    ],
+    fxParams: {
+      'moog': Object.assign(defaultFxParams(), { distOn: true, dist: 4.0, tone: 0.5, chorusMix: 0.35, chorusRate: 0.4, delayMix: 0.2, reverbMix: 0.3, reverbDecay: 0.85 }),
+      'wvt': Object.assign(defaultFxParams(), { chorusMix: 0.5, delayMix: 0.4, delayTime: 0.375, delayFeedback: 0.5, reverbMix: 0.45, reverbDecay: 0.9, width: 1.4 }),
+      '303': Object.assign(defaultFxParams(), { distOn: true, dist: 12.0, tone: 0.6, delayMix: 0.3, delayTime: 0.375, delayFeedback: 0.6, reverbMix: 0.25 }),
+      'dx7': Object.assign(defaultFxParams(), { chorusMix: 0.6, delayMix: 0.2, reverbMix: 0.6, reverbDecay: 0.95, width: 1.5 }),
+      '808': Object.assign(defaultFxParams(), { distOn: true, dist: 3.0, tone: 0.4, delayOn: false, master: 0.9, reverbMix: 0.15, reverbDecay: 0.7 }),
+    },
+    data: () => {
+      const ROWS = 128;
+      const CH = 8;
+      const NUM_PATTERNS = 54; // 54 * 128 / 420 = ~16.4 minutes
+      const p = Array.from({ length: NUM_PATTERNS }, () => new Pattern(ROWS, CH));
+
+      const I_SUB = 0, I_ARP = 1, I_303 = 2, I_PAD = 3, I_BASS = 4, I_KIT = 5, I_PLUCK = 6;
+      const BD = 36, SD = 38, HH = 42, OH = 46, CLAP = 39, RIM = 37;
+
+      const drunk = (r: number) => (r * 137 + 43) % 100; // deterministic pseudo-random
+
+      const roots = [40, 41, 40, 43, 40, 45, 47, 43];
+      const getRoot = (row: number, patIdx: number) => {
+         const globalRow = patIdx * ROWS + row;
+         return roots[Math.floor(globalRow / 64) % roots.length];
+      };
+
+      const padChords = [
+        [52, 59], // Em
+        [53, 60], // F
+        [52, 59], // Em
+        [55, 62], // G
+        [52, 59], // Em
+        [57, 64], // Am
+        [59, 66], // Bm
+        [55, 62]  // G
+      ];
+      const arpPattern = [0, 7, 12, 15, 12, 7, 3, 7];
+      const plkPattern = [12, 19, 24, 19, 12, 15, 19, 24, 27, 24];
+
+      const CUT_303 = tgt('303', 'CUT'), RES_303 = tgt('303', 'RES'), PS1_WVT = tgt('wvt', 'PS1');
+
+      for (let i = 0; i < NUM_PATTERNS; i++) {
+        const pat = p[i];
+        
+        // --- Drums (Ch 0, 1, 2) ---
+        for (let r = 0; r < ROWS; r++) {
+          const s = r % 16;
+          
+          if (i < 4) {
+             // Absolute ambient void, no drums.
+          } else if (i < 8) {
+             // Distant ambient thumps
+             if (s === 0 && drunk(r) < (i * 10)) pat.set(r, 0, BD, I_KIT, 0.6);
+             if (i >= 6 && s === 8 && drunk(r) < 20) pat.set(r, 1, RIM, I_KIT, 0.5);
+          } else if (i < 16) {
+             // Arp phase: steady sparse beat
+             if (s === 0 || (s === 8 && drunk(r) < i * 5)) pat.set(r, 0, BD, I_KIT, 0.85);
+             if (s === 4 || s === 12) {
+               if (drunk(r) < 40) pat.set(r, 1, RIM, I_KIT, 0.7);
+             }
+          } else if (i < 24 || (i >= 34 && i < 46)) {
+             // Drive / Chlamydia Build: steady house beat
+             if (s === 0 || s === 10) pat.set(r, 0, BD, I_KIT, 0.9);
+             if (s === 4 || s === 12) pat.set(r, 1, SD, I_KIT, 0.85);
+             if (s % 2 === 1 && drunk(r) < 70) pat.set(r, 2, HH, I_KIT, 0.4);
+             if (s === 14 && drunk(r) < 50) pat.set(r, 2, OH, I_KIT, 0.5);
+          } else if ((i >= 24 && i < 32) || (i >= 46 && i < 52)) {
+             // Peak Orgy / Chlamydia Peak: four on the floor max
+             if (s === 0 || s === 4 || s === 8 || s === 12) pat.set(r, 0, BD, I_KIT, 0.95);
+             if (s === 4 || s === 12) {
+               pat.set(r, 1, SD, I_KIT, 0.9);
+               pat.set(r, 2, CLAP, I_KIT, 0.8);
+             }
+             if (s % 2 === 1) pat.set(r, 2, HH, I_KIT, 0.5);
+             if (s === 6 || s === 14) pat.set(r, 2, OH, I_KIT, 0.6);
+             if ((s === 7 || s === 15) && drunk(r) < 40) pat.set(r, 1, SD, I_KIT, 0.4);
+          } else if (i >= 32 && i < 34) {
+             // Breakdown: massive beat drop
+             if (s === 0 && r === 0) pat.set(r, 0, BD, I_KIT, 0.9);
+          } else if (i >= 52) {
+             // Collapse: staggered heartbeat
+             if (s === 0 && drunk(r) < 30) pat.set(r, 0, BD, I_KIT, 0.6);
+          }
+        }
+
+        // --- Bass (Ch 3) ---
+        if (i < 16 || i >= 52) {
+          // Sub Bass
+          for (let r = 0; r < ROWS; r += 64) {
+            const rt = getRoot(r, i);
+            pat.set(r, 3, rt - 12, I_SUB, 0.8);
+            pat.set(r + 63, 3, OFF, I_SUB);
+          }
+          // Sweep the sub cutoff
+          const subCut = pat.getOrCreateAutoTrack(I_SUB, tgt('moog', 'CUT').id);
+          for(let r=0; r<ROWS; r++) {
+             const globalProg = (i * ROWS + r) / (NUM_PATTERNS * ROWS);
+             subCut[r] = normByte(tgt('moog', 'CUT'), 100 + globalProg * 400 + Math.sin(r/32)*50);
+          }
+        } else if (i >= 16 && i < 52) {
+          // Drive Bass
+          for (let r = 0; r < ROWS; r += 2) {
+            if (i >= 32 && i < 34) continue; // Drop out during breakdown!
+            
+            const rt = getRoot(r, i);
+            const isOct = (r % 16 === 14 || (r % 16 === 6 && drunk(r) < 30));
+            pat.set(r, 3, rt + (isOct ? 12 : 0), I_BASS, 0.8);
+            pat.set(r + 1, 3, OFF, I_BASS);
+          }
+        }
+
+        // --- Pad (Ch 4, 5) ---
+        for (let r = 0; r < ROWS; r += 64) {
+          const chord = padChords[Math.floor((i * ROWS + r) / 64) % 8];
+          let padVol = 0.5;
+          if (i < 8) padVol = 0.2 + (i / 8) * 0.3;
+          if (i >= 52) padVol = 0.5 - ((i - 52) / 2) * 0.3;
+          chord.forEach((n, idx) => {
+            pat.set(r, 4 + idx, n, I_PAD, padVol);
+            pat.set(r + 63, 4 + idx, OFF, I_PAD);
+          });
+        }
+
+        // --- Arp or 303 (Ch 6) ---
+        if (i >= 2 && i < 32) {
+          // Arp
+          const arpVol = (i < 8) ? 0.2 + (i/8)*0.4 : 0.6;
+          for (let r = 0; r < ROWS; r += 2) {
+            const evolve = i % arpPattern.length;
+            const offset = arpPattern[((r / 2) + evolve) % arpPattern.length];
+            if (drunk(r) < 10 && i > 8) {
+               pat.set(r, 6, getRoot(r, i) + offset + 12, I_ARP, arpVol*0.8);
+            } else {
+               pat.set(r, 6, getRoot(r, i) + offset, I_ARP, arpVol);
+            }
+            pat.set(r + 1, 6, OFF, I_ARP);
+          }
+          const trk = pat.getOrCreateAutoTrack(I_ARP, PS1_WVT.id);
+          for (let r = 0; r < ROWS; r++) {
+             const base = (i < 16) ? 0.2 : 0.4;
+             const move = Math.sin((r / ROWS) * Math.PI * 2 * (i % 3 + 1)) * 0.2;
+             trk[r] = normByte(PS1_WVT, base + move);
+          }
+        } else if (i >= 32) {
+          // 303 Asshole
+          const baseRiff = [0, 1, 3, 0, 7, 8, 7, 3, 0, 1, 3, 0, 10, 8, 7, 12];
+          const octShift = i >= 46 ? 24 : 12;
+          for (let r = 0; r < ROWS; r++) {
+            const s = r % 16;
+            if (r % 2 === 0) {
+              let noteOffset = baseRiff[s];
+              if (i > 40 && drunk(r) < (i - 40) * 5) {
+                 noteOffset += (drunk(r + 1) % 5) - 2; 
+              }
+              if (i >= 52 && drunk(r) < 80) continue; // Collapse phase stutter
+
+              pat.set(r, 6, getRoot(r, i) + octShift + noteOffset, I_303, s % 4 === 0 ? 0.9 : 0.7);
+              pat.set(r + 1, 6, OFF, I_303);
+            }
+          }
+
+          const cutTrk = pat.getOrCreateAutoTrack(I_303, CUT_303.id);
+          const resTrk = pat.getOrCreateAutoTrack(I_303, RES_303.id);
+          for (let r = 0; r < ROWS; r++) {
+            let cutVal = 100;
+            let resVal = 0.5;
+            
+            if (i >= 32 && i < 34) {
+              cutVal = 100 + (r / ROWS) * 300;
+            } else if (i >= 34 && i < 46) {
+              const prog = (i - 34) / 12;
+              cutVal = 400 + prog * 1000 + Math.sin(r / 16) * 200;
+              resVal = 0.6 + prog * 0.3;
+            } else if (i >= 46 && i < 52) {
+              const prog = (i - 46) / 6;
+              cutVal = 1500 + prog * 1500 + Math.sin(r / 8) * 500;
+              resVal = 0.9 + prog * 0.09;
+            } else {
+              cutVal = 3000 - ((i - 52 + r / ROWS) / 2) * 2500;
+            }
+            
+            cutTrk[r] = normByte(CUT_303, Math.max(50, Math.min(3000, cutVal)));
+            resTrk[r] = normByte(RES_303, Math.max(0, Math.min(0.99, resVal)));
+          }
+        }
+
+        // --- Pluck (Ch 7) ---
+        if (i >= 1 && i < 8) {
+           for (let r = 0; r < ROWS; r += 16) {
+              if (drunk(r) < 40) {
+                 const evolve = i % plkPattern.length;
+                 const offset = plkPattern[((r / 16) + evolve) % plkPattern.length];
+                 pat.set(r, 7, getRoot(r, i) + offset + 12, I_PLUCK, 0.4 + (i/8)*0.2);
+                 pat.set(r + 3, 7, OFF, I_PLUCK);
+              }
+           }
+           const trk = pat.getOrCreateAutoTrack(I_PLUCK, PS1_WVT.id);
+           for (let r = 0; r < ROWS; r++) trk[r] = normByte(PS1_WVT, 0.1);
+        } else if ((i >= 16 && i < 32) || (i >= 46 && i < 52)) {
+          for (let r = 0; r < ROWS; r += 4) {
+             if (drunk(r) < 20) continue;
+             const evolve = i % plkPattern.length;
+             const offset = plkPattern[((r / 4) + evolve) % plkPattern.length];
+             pat.set(r, 7, getRoot(r, i) + offset, I_PLUCK, 0.65);
+             pat.set(r + 3, 7, OFF, I_PLUCK);
+          }
+          const trk = pat.getOrCreateAutoTrack(I_PLUCK, PS1_WVT.id);
+          for (let r = 0; r < ROWS; r++) {
+             trk[r] = normByte(PS1_WVT, 0.2 + ((i-16) / 36) * 0.6);
+          }
+        }
+      }
+
+      const killHang = (pat: Pattern) => {
+        for (let ch = 3; ch < 8; ch++) if (pat.note(0, ch) === EMPTY) pat.set(0, ch, OFF, 0);
+      };
+      p.forEach(killHang);
+
+      const order = Array.from({ length: NUM_PATTERNS }, (_, i) => i);
+
+      return {
+        patterns: p,
+        order,
+        rowsPerBeat: 4,
+        pan: [0.5, 0.5, 0.5, 0.5, 0.4, 0.6, 0.5, 0.5]
+      };
+    }
+  },
+  {
     name: "Gooner Prolapse",
     author: "AI Slop",
     note: "Relentless 135 BPM acid techno \u2014 dual 303 and Moog basses/leads trading off over an 808 kick. Maximalist and aggressive.",

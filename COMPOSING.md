@@ -22,7 +22,7 @@ valid song.
 {
   name: "My Song",
   author: "AI Slop",
-  note: "One-line description shown in the Song Editor.",
+  note: "One-line description shown in the Song Editor. ALWAYS append the generation prompt here.",
   bpm: 120,
   master: DEFAULT_MASTER * 0.7,        // output gain; DEFAULT_MASTER*1.0 == 100%
   params: [                            // the INSTRUMENT TABLE — index = the `inst` used in cells
@@ -70,7 +70,7 @@ valid song.
 | field | meaning |
 | --- | --- |
 | `name` | song title (shown in the dropdown) |
-| `author?`, `note?` | metadata shown in the Song Editor |
+| `author?`, `note?` | metadata shown in the Song Editor. `note` MUST contain the AI generation prompt! |
 | `bpm` | tempo |
 | `master?` | output gain, usually `DEFAULT_MASTER * x` (x≈0.5–0.8 to leave headroom) |
 | `params` | the instrument table — an **array of instances** `{ name, type, p0, p1, p2?, p3?, ops? }` |
@@ -206,6 +206,8 @@ sweeps. Resolution is limited by `vocBands`, so big shifts smear; ±7 st is the 
 NOTE: `defaultFxParams()` has the classic effects **on** by default (distortion/chorus/tremolo/
 delay/reverb/width), with chorus/tremolo at 0 mix. So set `…Mix`/`…On` explicitly for what you want.
 (`+ Add` in the editor uses a different all-off "neutral" default; demo songs use `defaultFxParams`.)
+
+**Crucial advice for the 808:** Delay on the 808 sounds terrible in most mixes. Always explicitly disable it (`delayOn: false`) unless you're designing a sparse, dubby effect!
 
 ---
 

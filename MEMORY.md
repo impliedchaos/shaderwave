@@ -13,6 +13,11 @@ wants you to work — include the why), **reference** (external pointers), **use
 
 ## How the user wants you to work
 
+### AI-generated songs MUST include their prompt in the description — `feedback`
+When generating new demo songs, the `note` field of the `SongDef` MUST contain both a short description of the track AND the exact, verbatim text of the prompt the user provided to request it.
+- **Why:** The user wants a permanent record of the prompt that inspired the creation of the song, embedded within the song's metadata.
+- **How to apply:** Append " Prompt: <user's verbatim prompt>" to the `note` field.
+
 ### Check if the dev server is already running — AND NEVER `pkill` IT — `feedback`
 Before starting the Vite dev server (`npx vite --port 5173`) for headless harnesses or
 anything else, **always check whether one is already running first**
