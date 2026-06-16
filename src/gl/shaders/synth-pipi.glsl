@@ -12,9 +12,9 @@
 //       an initial faster stage over a long "aftersound" tail (the piano double-decay).
 //   • DETUNED STRING CHOIR — 3 strings (trichord) per note in the mid/treble, 2 in the
 //       tenor, 1 wound string in the bass, with an asymmetric detune spread that beats.
-//   • PHASE-COHERENT STRIKE — a string's partials all launch in phase (a real hammer
-//       impulse), giving the sharp percussive attack; the strings are nudged apart so
-//       they bloom without stacking into one onset spike.
+//   • DECORRELATED PHASE — partials get per-voice random start phases so a CHORD's
+//       notes don't pile their attacks up coherently into a clipped/harsh transient;
+//       the hammer thunk carries the percussive onset instead.
 //   • REGISTER VOICING — bass notes carry many more partials and ring longer/brighter;
 //       treble is sparser, shorter, softer (key tracking).
 //   • SOUNDBOARD BODY — fixed low-mid formant bumps so it reads as a resonant box.
@@ -91,14 +91,15 @@ void main(){
     float tauFast = tauSlow * 0.28;
     float env = 0.72 * exp(-t / tauFast) + 0.28 * exp(-t / tauSlow);
 
-    // PHASE-COHERENT STRIKE — all partials of a string launch in phase, so they sum
-    // to a sharp, percussive attack (random phases smeared it). The 2-3 strings are
-    // detuned by an asymmetric spread (and nudged by a small constant phase so they
-    // don't stack to one onset spike) → beating/bloom without losing the attack.
+    // DECORRELATED PHASE — each (partial, voice) gets its own random start phase so
+    // stacked notes (a chord) DON'T pile their attacks up coherently into a clipped,
+    // harsh transient; the hammer thunk below carries the percussive onset instead.
+    // The 2-3 strings are detuned and further phase-offset so they still beat/bloom.
     float ph = TAU * fn * t;
-    float s = sin(ph);                                          // reference string
-    if (strands >= 2.0) s += sin(ph * (1.0 + det) + 0.20);      // sharp string
-    if (strands >= 3.0) s += sin(ph * (1.0 - det * 0.7) + 0.40);// flat string
+    float q  = TAU * hash11(float(n) + float(v) * 7.13);
+    float s = sin(ph + q);                                          // reference string
+    if (strands >= 2.0) s += sin(ph * (1.0 + det) + q + 2.10);      // sharp string
+    if (strands >= 3.0) s += sin(ph * (1.0 - det * 0.7) + q + 4.19);// flat string
     acc += a * env * s / strands;
   }
 
