@@ -5384,5 +5384,355 @@ export const DEMO_SONGS: SongDef[] = [
         ],
       };
     }
+  },
+  {
+    name: "Cirrhosis After Hours",
+    author: "AI Slop",
+    note: "A smoky 92-BPM jazz piano trio — the overhauled Pipi piano comping & soloing over a walking Moog upright bass and a brushed 808 kit (feathered kick, spang-a-lang ride, brush backbeat). Swung 8ths, Autumn-Leaves changes (Cm7–F7–BbMaj7–EbMaj7 · Am7b5–D7–Gm7) in Gm. Prompt: 'a cool demo song — smoky jazz piano trio showcasing the new piano, called Cirrhosis After Hours'.",
+    bpm: 92,
+    master: DEFAULT_MASTER * 0.6,
+    params: [
+      { name: "Brush Kit",   type: "808",  p0: [0, 0.5, 0.45, 0.4], p1: [0, 0, 0, 0] },
+      { name: "After-Hours Pno", type: "pipi", p0: [4.8, 0.0004, 0.45, 0.28], p1: [26, 0.0014, 0.85, 0.5] },
+      { name: "Upright Bass", type: "moog", p0: [450, 0.2, 0.5, 0.4], p1: [1.5, 0.1, 0.4, 0.55], p2: [1, 1, 1, 0.03], p3: [1, 1, 1, 0] },
+    ],
+    fxParams: {
+      '808':  Object.assign(defaultFxParams(), { distOn: false, delayOn: false, reverbOn: true, reverbDecay: 0.6, reverbDamp: 0.5, reverbSend: 0.4, reverbMix: 0.18, master: 0.8 }),
+      'pipi': Object.assign(defaultFxParams(), { compOn: true, compThresh: -20, compRatio: 2.5, compAttack: 8, compRelease: 160, compMakeup: 3, eqOn: true, eqLow: -2, eqHigh: 2, delayOn: false, reverbOn: true, reverbDecay: 0.78, reverbDamp: 0.5, reverbSend: 0.55, reverbMix: 0.18, widthOn: true, width: 1.15, master: 0.85 }),
+      'moog': Object.assign(defaultFxParams(), { distOn: false, chorusOn: false, delayOn: false, reverbOn: true, reverbDecay: 0.5, reverbSend: 0.3, reverbMix: 0.08, master: 0.85 }),
+    },
+    data: () => {
+      const N = 64;                          // 4 bars/pattern (16 rows/bar) at 92 BPM
+      const mk = () => new Pattern(N, 8);
+      const I_KIT = 0, I_PNO = 1, I_BASS = 2;
+      const BD = 36, SD = 38, HH = 42;
+
+      // Autumn-Leaves changes in Gm — 3-note rootless-ish voicings (bass plays the root).
+      const CH_A = [[63, 67, 70], [57, 60, 63], [62, 65, 69], [55, 58, 62]];   // Cm7 F7 BbMaj7 EbMaj7
+      const CH_B = [[60, 63, 67], [54, 57, 60], [58, 62, 65], [58, 62, 65]];   // Am7b5 D7 Gm7 Gm7
+      const ROOT_A = [36, 41, 34, 39];        // C2 F2 Bb1 Eb2
+      const ROOT_B = [33, 38, 31, 31];        // A1 D2 G1 G1
+
+      // Brushed kit: feathered kick on every beat, spang-a-lang ride with swung &s
+      // (the "&" lands late on the last 16th), soft brush backbeat on 2 & 4 + ghosts.
+      const drums = (pat: Pattern) => {
+        for (let bar = 0; bar < 4; bar++) {
+          const b = bar * 16;
+          for (const o of [0, 4, 8, 12]) pat.set(b + o, 0, BD, I_KIT, 0.16);
+          pat.set(b + 0, 1, HH, I_KIT, 0.42); pat.set(b + 4, 1, HH, I_KIT, 0.4); pat.set(b + 7, 1, HH, I_KIT, 0.3);
+          pat.set(b + 8, 1, HH, I_KIT, 0.42); pat.set(b + 12, 1, HH, I_KIT, 0.4); pat.set(b + 15, 1, HH, I_KIT, 0.3);
+          pat.set(b + 4, 2, SD, I_KIT, 0.22); pat.set(b + 12, 2, SD, I_KIT, 0.22);
+          pat.set(b + 7, 2, SD, I_KIT, 0.1);  pat.set(b + 15, 2, SD, I_KIT, 0.1);
+        }
+      };
+      // Walking quarter notes (root · 4th · 5th · chromatic lead-in to the next root).
+      const walk = (pat: Pattern, roots: number[], nextRoot: number) => {
+        for (let bar = 0; bar < 4; bar++) {
+          const b = bar * 16, r = roots[bar];
+          const nr = bar < 3 ? roots[bar + 1] : nextRoot;
+          const lead = nr > r ? nr - 1 : nr + 1;
+          [r, r + 5, r + 7, lead].forEach((n, i) => { pat.set(b + i * 4, 6, n, I_BASS, 0.7); pat.set(b + i * 4 + 3, 6, OFF, I_BASS); });
+        }
+      };
+      // Comp: chord on the downbeat + a syncopated stab on the "and of 3".
+      const comp = (pat: Pattern, chords: number[][], vol = 0.5) => {
+        for (let bar = 0; bar < 4; bar++) {
+          const b = bar * 16, c = chords[bar];
+          c.forEach((n, vi) => { pat.set(b + 0, 3 + vi, n, I_PNO, vol); pat.set(b + 10, 3 + vi, n, I_PNO, vol * 0.8); });
+        }
+      };
+      const melody = (pat: Pattern, ev: { r: number; n: number; off: number }[]) => {
+        for (const e of ev) { pat.set(e.r, 7, e.n, I_PNO, 0.58); pat.set(e.off, 7, OFF, I_PNO); }
+      };
+      const MEL_A = [{ r: 2, n: 70, off: 8 }, { r: 8, n: 67, off: 14 }, { r: 18, n: 69, off: 24 }, { r: 26, n: 65, off: 31 },
+                     { r: 32, n: 74, off: 40 }, { r: 42, n: 72, off: 47 }, { r: 50, n: 70, off: 56 }, { r: 56, n: 67, off: 62 }];
+      const MEL_B = [{ r: 2, n: 75, off: 8 }, { r: 8, n: 72, off: 14 }, { r: 16, n: 66, off: 22 }, { r: 24, n: 69, off: 30 },
+                     { r: 34, n: 74, off: 40 }, { r: 42, n: 70, off: 47 }, { r: 48, n: 67, off: 62 }];
+
+      const pIntro = mk(); walk(pIntro, ROOT_A, ROOT_B[0]);
+      const pAh = mk(); drums(pAh); walk(pAh, ROOT_A, ROOT_B[0]); comp(pAh, CH_A); melody(pAh, MEL_A);
+      const pBh = mk(); drums(pBh); walk(pBh, ROOT_B, ROOT_A[0]); comp(pBh, CH_B); melody(pBh, MEL_B);
+      const pAc = mk(); drums(pAc); walk(pAc, ROOT_A, ROOT_B[0]); comp(pAc, CH_A);
+      const pBc = mk(); drums(pBc); walk(pBc, ROOT_B, ROOT_A[0]); comp(pBc, CH_B);
+      const pOut = mk();
+      [58, 62, 65].forEach((n, vi) => pOut.set(0, 3 + vi, n, I_PNO, 0.5));   // final Gm7, ring out
+      pOut.set(0, 6, 31, I_BASS, 0.6); pOut.set(0, 0, BD, I_KIT, 0.2); pOut.set(0, 1, HH, I_KIT, 0.35);
+
+      // Intro: just ride + walking bass (sparse), so add the ride here directly.
+      for (let bar = 0; bar < 4; bar++) {
+        const b = bar * 16;
+        pIntro.set(b + 0, 1, HH, I_KIT, 0.34); pIntro.set(b + 4, 1, HH, I_KIT, 0.32); pIntro.set(b + 7, 1, HH, I_KIT, 0.24);
+        pIntro.set(b + 8, 1, HH, I_KIT, 0.34); pIntro.set(b + 12, 1, HH, I_KIT, 0.32); pIntro.set(b + 15, 1, HH, I_KIT, 0.24);
+      }
+
+      const killHang = (pat: Pattern) => { for (let ch = 3; ch < 8; ch++) if (pat.note(0, ch) === EMPTY) pat.set(0, ch, OFF, 0); };
+      [pIntro, pAh, pBh, pAc, pBc, pOut].forEach(killHang);
+
+      return {
+        patterns: [pIntro, pAh, pBh, pAc, pBc, pOut],
+        // intro · head(AB) · solo(ABAB) · head(AB) · solo(AB) · head(AB) · out  ≈ 2:46
+        order: [0, 1, 2, 3, 4, 3, 4, 1, 2, 3, 4, 3, 4, 1, 2, 5],
+        rowsPerBeat: 4,
+        pan: [0.5, 0.6, 0.45, 0.4, 0.5, 0.6, 0.5, 0.55],
+      };
+    }
+  },
+  {
+    name: "Neon Roadkill",
+    author: "AI Slop",
+    note: "100-BPM synthwave night-drive: lush 888State pad bed, a driving plucky Moog octave bass, a DX7 brass lead, a glassy Wavewright 16th-arp swept by a slow LFO filter, and big gated 808 drums. i–VI–III–VII in A minor (Am–F–C–G). Prompt: 'a cool demo — synthwave/Vangelis night-drive showcasing the new e8e pads, called Neon Roadkill'.",
+    bpm: 100,
+    master: DEFAULT_MASTER * 0.58,
+    params: [
+      { name: "Gated Kit",  type: "808",  p0: [0, 0.55, 0.55, 0.6], p1: [0, 0, 0, 0] },
+      { name: "Drive Bass", type: "moog", p0: [700, 0.4, 0.6, 0.1], p1: [2, 0.0, 0.4, 0.25], p2: [1, 1, 2, 0.02], p3: [1, 1, 1, 0] },
+      { name: "Neon Pad",   type: "e8e",  p0: [0.28, 0.5, 0.9, 1.3], p1: [0.18, -0.15, 14, 0.0], p2: [1, 1, 1, 3], p3: [1.0, 0.9, 0.8, 0.5] },
+      {
+        name: "Brass Lead", type: "dx7",
+        p0: [1, 1.2, 2.2, 0.45], p1: [5, 0.6, 0.8, 2.5],
+        ops: [
+          { coarse: 1.0, fine: 0, level: 99, detune: 2,  decay: 3.0, mode: 0, sustain: 0.9,  release: 1.5 },
+          { coarse: 1.0, fine: 1, level: 80, detune: -3, decay: 3.0, mode: 0, sustain: 0.85, release: 1.6 },
+          { coarse: 2.0, fine: 0, level: 65, detune: 5,  decay: 2.6, mode: 0, sustain: 0.7,  release: 1.4 },
+          { coarse: 3.0, fine: 0, level: 45, detune: 0,  decay: 2.0, mode: 0, sustain: 0.55, release: 1.2 },
+          { coarse: 4.0, fine: 0, level: 28, detune: -1, decay: 1.4, mode: 0, sustain: 0.4,  release: 1.0 },
+          { coarse: 6.0, fine: 0, level: 18, detune: 2,  decay: 1.0, mode: 0, sustain: 0.3,  release: 0.8 }
+        ]
+      },
+      { name: "Glass Arp",  type: "wvt",  p0: [0.005, 0.22, 0.2, 0.18], p1: [0.0, 0.55, 0.06, 0.0], p2: [15, 8, 0, -1], p3: [0.9, 0.5, 0, 0] },
+    ],
+    fxParams: {
+      '808':  Object.assign(defaultFxParams(), { distOn: true, dist: 2.0, tone: 0.5, delayOn: false, reverbOn: true, reverbDecay: 0.72, reverbDamp: 0.4, reverbSend: 0.5, reverbMix: 0.26, master: 0.9 }),
+      'moog': Object.assign(defaultFxParams(), { distOn: true, dist: 2.0, tone: 0.5, chorusOn: false, delayOn: false, reverbOn: true, reverbDecay: 0.4, reverbSend: 0.2, reverbMix: 0.06, master: 0.85 }),
+      'e8e':  Object.assign(defaultFxParams(), { chorusOn: true, chorusMix: 0.4, chorusRate: 0.3, chorusDepth: 5, delayOn: false, reverbOn: true, reverbDecay: 0.9, reverbSend: 0.6, reverbMix: 0.4, widthOn: true, width: 1.5, master: 0.72 }),
+      'dx7':  Object.assign(defaultFxParams(), { chorusOn: true, chorusMix: 0.35, delayOn: true, delayTime: 0.3, delayFeedback: 0.4, delayMix: 0.3, reverbOn: true, reverbDecay: 0.9, reverbSend: 0.5, reverbMix: 0.32, widthOn: true, width: 1.4, master: 0.78 }),
+      'wvt':  Object.assign(defaultFxParams(), { filterOn: true, filterCutoff: 1800, filterReso: 0.35, filterMode: 0, delayOn: true, delayTime: 0.15, delayFeedback: 0.45, delayMix: 0.35, reverbOn: true, reverbDecay: 0.8, reverbSend: 0.5, reverbMix: 0.3, widthOn: true, width: 1.4, master: 0.7 }),
+    },
+    data: () => {
+      const N = 64;                          // 4 bars/pattern at 100 BPM
+      const mk = () => new Pattern(N, 8);
+      const I_KIT = 0, I_BASS = 1, I_PAD = 2, I_LEAD = 3, I_ARP = 4;
+      const BD = 36, SD = 38, HH = 42, OH = 46;
+
+      // Am – F – C – G (i VI III VII), one chord per bar.
+      const ROOT  = [45, 41, 48, 43];                               // A2 F2 C3 G2 (driving bass)
+      const PAD   = [[57, 64], [53, 60], [60, 67], [55, 62]];       // root+5th dyads (the fat e8e pad)
+      const ARPCH = [[57, 60, 64], [53, 57, 60], [48, 52, 55], [55, 59, 62]];
+
+      const drums = (pat: Pattern, full = true) => {
+        for (let bar = 0; bar < 4; bar++) {
+          const b = bar * 16;
+          pat.set(b + 0, 0, BD, I_KIT, 0.95); pat.set(b + 8, 0, BD, I_KIT, 0.9);
+          if (full) pat.set(b + 14, 0, BD, I_KIT, 0.5);
+          pat.set(b + 4, 1, SD, I_KIT, 0.85); pat.set(b + 12, 1, SD, I_KIT, 0.88);  // big gated snare on 2 & 4
+          if (full) for (let s = 1; s < 16; s += 2) pat.set(b + s, 2, HH, I_KIT, s % 4 === 3 ? 0.4 : 0.28);
+          if (full) pat.set(b + 14, 2, OH, I_KIT, 0.4);
+        }
+      };
+      const bass = (pat: Pattern) => {
+        for (let bar = 0; bar < 4; bar++) {
+          const b = bar * 16, r = ROOT[bar];
+          for (let s = 0; s < 16; s += 2) {                          // driving straight 8ths, octave pops
+            const n = (s === 6 || s === 14) ? r + 12 : r;
+            pat.set(b + s, 3, n, I_BASS, s % 4 === 0 ? 0.85 : 0.7); pat.set(b + s + 1, 3, OFF, I_BASS);
+          }
+        }
+      };
+      const pad = (pat: Pattern, vol = 0.5) => {
+        for (let bar = 0; bar < 4; bar++) { const b = bar * 16; PAD[bar].forEach((n, vi) => pat.set(b, 4 + vi, n, I_PAD, vol)); }
+      };
+      const arp = (pat: Pattern, vol = 0.4) => {
+        for (let bar = 0; bar < 4; bar++) {
+          const b = bar * 16, t = ARPCH[bar];
+          for (let s = 0; s < 16; s++) { const seq = [t[0], t[1], t[2], t[0] + 12]; pat.set(b + s, 7, seq[s % 4] + 12, I_ARP, vol); }
+        }
+      };
+      const lead = (pat: Pattern) => {
+        const ev = [{ r: 0, n: 76, off: 8 }, { r: 8, n: 79, off: 14 }, { r: 16, n: 81, off: 30 },
+                    { r: 32, n: 79, off: 40 }, { r: 40, n: 76, off: 46 }, { r: 48, n: 74, off: 62 }];
+        for (const e of ev) { pat.set(e.r, 6, e.n, I_LEAD, 0.7); pat.set(e.off, 6, OFF, I_LEAD); }
+      };
+
+      const pIntro  = mk(); pad(pIntro, 0.45); arp(pIntro, 0.3);
+      const pVerse  = mk(); drums(pVerse); bass(pVerse); pad(pVerse, 0.5); arp(pVerse);
+      const pChorus = mk(); drums(pChorus); bass(pChorus); pad(pChorus, 0.55); arp(pChorus); lead(pChorus);
+      const pBridge = mk(); pad(pBridge, 0.55); arp(pBridge, 0.35); lead(pBridge);        // drums drop
+      const pOut    = mk(); pad(pOut, 0.5);                                               // pad rings out
+
+      const killHang = (pat: Pattern) => { for (let ch = 3; ch < 8; ch++) if (pat.note(0, ch) === EMPTY) pat.set(0, ch, OFF, 0); };
+      [pIntro, pVerse, pChorus, pBridge, pOut].forEach(killHang);
+
+      return {
+        patterns: [pIntro, pVerse, pChorus, pBridge, pOut],
+        // intro · verse · chorus ×… · bridge · … · out  ≈ 2:33
+        order: [0, 1, 2, 1, 2, 3, 2, 1, 2, 2, 3, 2, 1, 2, 2, 4],
+        rowsPerBeat: 4,
+        pan: [0.5, 0.5, 0.5, 0.42, 0.62, 0.5, 0.45, 0.6],
+        lfos: [
+          { ...defaultLfo(), shape: 0, sync: true, rateBeats: 16 },   // slow 4-bar sine
+          { ...defaultLfo(), shape: 0, sync: true, rateBeats: 8 },
+          { ...defaultLfo(), shape: 0, sync: true, rateBeats: 8 },
+          { ...defaultPumpLfo() },
+        ],
+        modRoutings: [
+          { source: 0, targetParamId: tgt('wvt', 'FLC').id, targetInstIdx: I_ARP, depth: 0.55, bipolar: true },  // slow filter sweep on the arp
+        ],
+      };
+    }
+  },
+  {
+    name: "Mall of the Dead",
+    author: "AI Slop",
+    note: "70-BPM vaporwave / lo-fi haze: a 33⅓ vinyl-crackle groove bed under dreamy bit-crushed Pipi Rhodes-ish chords (doo-wop loop Cmaj7–Am7–Fmaj7–G7), a round Moog bass and a sleepy half-time 808. Chorus wobble + dark EQ for the dead-mall tape feel. Prompt: 'a cool demo — vaporwave/lo-fi via the vinyl groove engine, called Mall of the Dead'.",
+    bpm: 70,
+    master: DEFAULT_MASTER * 0.6,
+    params: [
+      { name: "Sleepy Kit", type: "808",   p0: [0, 0.45, 0.5, 0.5], p1: [0, 0, 0, 0] },
+      { name: "Round Bass", type: "moog",  p0: [320, 0.3, 0.5, 0.1], p1: [2, 0.2, 0.4, 0.6], p2: [1, 1, 1, 0.04], p3: [1, 1, 1, 0] },
+      { name: "Haze Rhodes", type: "pipi", p0: [5.0, 0.0003, 0.22, 0.18], p1: [20, 0.0011, 1.1, 0.5] },
+      { name: "Dead Wax",   type: "groove", p0: [0.4, 0.5, 0.35, 0.5], p1: [0.5, 0.4, 0.45, 0.65], p2: [0, 0.5, 0.4, 0] },
+    ],
+    fxParams: {
+      '808':    Object.assign(defaultFxParams(), { distOn: false, delayOn: false, reverbOn: true, reverbDecay: 0.6, reverbSend: 0.4, reverbMix: 0.2, bitcrushOn: true, bitcrushBits: 9, bitcrushRate: 0.5, bitcrushMix: 0.25, master: 0.8 }),
+      'moog':   Object.assign(defaultFxParams(), { distOn: false, delayOn: false, reverbOn: true, reverbDecay: 0.5, reverbSend: 0.25, reverbMix: 0.1, master: 0.82 }),
+      'pipi':   Object.assign(defaultFxParams(), { chorusOn: true, chorusMix: 0.45, chorusRate: 0.25, chorusDepth: 6, eqOn: true, eqLow: 0, eqMid: 0, eqHigh: -2.5, delayOn: true, delayTime: 0.4, delayFeedback: 0.3, delayMix: 0.2, reverbOn: true, reverbDecay: 0.9, reverbSend: 0.6, reverbMix: 0.4, bitcrushOn: true, bitcrushBits: 10, bitcrushMix: 0.2, widthOn: true, width: 1.4, master: 0.78 }),
+      'groove': Object.assign(defaultFxParams(), { distOn: false, delayOn: false, reverbOn: true, reverbDecay: 0.7, reverbSend: 0.4, reverbMix: 0.2, widthOn: true, width: 1.3, master: 0.55 }),
+    },
+    data: () => {
+      const N = 64;                          // 4 bars/pattern at 70 BPM (slow, half-time feel)
+      const mk = () => new Pattern(N, 8);
+      const I_KIT = 0, I_BASS = 1, I_KEYS = 2, I_WAX = 3;
+      const BD = 36, SD = 38, HH = 42;
+
+      // Doo-wop / vaporwave loop: Cmaj7 – Am7 – Fmaj7 – G7, one chord per bar.
+      const CH   = [[64, 67, 71], [60, 64, 67], [57, 60, 64], [59, 62, 65]];
+      const ROOT = [36, 33, 29, 31];          // C2 A1 F1 G1
+
+      const drums = (pat: Pattern) => {
+        for (let bar = 0; bar < 4; bar++) {
+          const b = bar * 16;
+          pat.set(b + 0, 0, BD, I_KIT, 0.85); pat.set(b + 10, 0, BD, I_KIT, 0.45);   // lazy kick
+          pat.set(b + 8, 1, SD, I_KIT, 0.8);                                          // half-time backbeat on 3
+          for (const o of [2, 6, 12, 14]) pat.set(b + o, 2, HH, I_KIT, 0.2);
+        }
+      };
+      const bass = (pat: Pattern) => {
+        for (let bar = 0; bar < 4; bar++) { const b = bar * 16; pat.set(b, 3, ROOT[bar], I_BASS, 0.75); pat.set(b + 8, 3, ROOT[bar], I_BASS, 0.6); pat.set(b + 15, 3, OFF, I_BASS); }
+      };
+      const keys = (pat: Pattern, vol = 0.5) => {
+        for (let bar = 0; bar < 4; bar++) { const b = bar * 16; CH[bar].forEach((n, vi) => pat.set(b, 4 + vi, n, I_KEYS, vol)); }
+      };
+      const wax = (pat: Pattern, vol = 0.5) => { pat.set(0, 7, 48, I_WAX, vol); };       // continuous crackle bed
+
+      const pIntro = mk(); wax(pIntro, 0.55); keys(pIntro, 0.45);
+      const pMain  = mk(); wax(pMain); keys(pMain, 0.5); bass(pMain); drums(pMain);
+      const pBreak = mk(); wax(pBreak, 0.55); keys(pBreak, 0.52); bass(pBreak);          // drums drop
+      const pOut   = mk(); wax(pOut, 0.5); CH[0].forEach((n, vi) => pOut.set(0, 4 + vi, n, I_KEYS, 0.45));  // final Cmaj7 rings out
+
+      const killHang = (pat: Pattern) => { for (let ch = 3; ch < 8; ch++) if (pat.note(0, ch) === EMPTY) pat.set(0, ch, OFF, 0); };
+      [pIntro, pMain, pBreak, pOut].forEach(killHang);
+
+      return {
+        patterns: [pIntro, pMain, pBreak, pOut],
+        // intro · main · break · main · out  ≈ 2:44
+        order: [0, 1, 1, 2, 1, 1, 1, 2, 1, 1, 1, 3],
+        rowsPerBeat: 4,
+        pan: [0.5, 0.5, 0.55, 0.5, 0.4, 0.5, 0.6, 0.5],
+      };
+    }
+  },
+  {
+    name: "Amen, Brother-in-Law",
+    author: "AI Slop",
+    note: "174-BPM drum & bass: a chopped two-step 808 break (kick/snare/ghosts/hats across four channels), a growling detuned-Moog Reese bass swept by an LFO filter, a clean 303 sub, e8e off-beat stabs and a dark DX7 pad. D-minor, roots D–D–F–C. Prompt: 'a cool demo — drum'n'bass / breakbeat workout, called Amen, Brother-in-Law'.",
+    bpm: 174,
+    master: DEFAULT_MASTER * 0.58,
+    params: [
+      { name: "Break Kit", type: "808",  p0: [0, 0.5, 0.4, 0.7], p1: [0, 0, 0, 0] },
+      { name: "Reese",     type: "moog", p0: [450, 0.6, 0.5, 0], p1: [14, 0.9, 0.5, 0.85], p2: [1, 1, 1, 0], p3: [1, 1, 1, 0] },
+      { name: "Sub",       type: "303",  p0: [100, 0.1, 0.1, 0], p1: [3, 0.5, 0.7, 0.5] },
+      { name: "Stab",      type: "e8e",  p0: [0.002, 0.14, 0.0, 0.1], p1: [0.12, -12, 8, 0.2], p2: [2, 1, 3, 3], p3: [1.0, 0.7, 0.5, 0.5] },
+      {
+        name: "Dark Pad", type: "dx7",
+        p0: [1, 1.5, 2.5, 0.4], p1: [5, 0.6, 0.8, 3],
+        ops: [
+          { coarse: 1.0, fine: 0, level: 99, detune: 2,  decay: 3.5, mode: 0, sustain: 0.85, release: 2.5 },
+          { coarse: 2.0, fine: 1, level: 70, detune: -3, decay: 3.8, mode: 0, sustain: 0.80, release: 2.8 },
+          { coarse: 1.0, fine: 0, level: 55, detune: 7,  decay: 4.0, mode: 0, sustain: 0.75, release: 3.0 },
+          { coarse: 3.0, fine: 0, level: 38, detune: 0,  decay: 2.5, mode: 0, sustain: 0.55, release: 2.0 },
+          { coarse: 5.0, fine: 0, level: 22, detune: -1, decay: 1.5, mode: 0, sustain: 0.35, release: 1.5 },
+          { coarse: 4.0, fine: 0, level: 14, detune: 2,  decay: 1.0, mode: 0, sustain: 0.25, release: 1.0 }
+        ]
+      },
+    ],
+    fxParams: {
+      '808':  Object.assign(defaultFxParams(), { distOn: true, dist: 3.0, tone: 0.55, delayOn: false, reverbOn: true, reverbDecay: 0.4, reverbSend: 0.3, reverbMix: 0.1, master: 0.92 }),
+      'moog': Object.assign(defaultFxParams(), { distOn: true, dist: 5.0, tone: 0.5, chorusOn: false, delayOn: false, reverbOn: false, master: 0.85 }),
+      '303':  Object.assign(defaultFxParams(), { distOn: false, delayOn: false, reverbOn: false, master: 0.9 }),
+      'e8e':  Object.assign(defaultFxParams(), { distOn: false, delayOn: true, delayTime: 0.21, delayFeedback: 0.45, delayMix: 0.32, reverbOn: true, reverbDecay: 0.7, reverbSend: 0.4, reverbMix: 0.24, widthOn: true, width: 1.4, master: 0.72 }),
+      'dx7':  Object.assign(defaultFxParams(), { chorusOn: true, chorusMix: 0.4, delayOn: false, reverbOn: true, reverbDecay: 0.92, reverbSend: 0.5, reverbMix: 0.4, widthOn: true, width: 1.5, master: 0.6 }),
+    },
+    data: () => {
+      const N = 128;                         // 8 bars/pattern at 174 BPM (~11 s)
+      const mk = () => new Pattern(N, 8);
+      const I_KIT = 0, I_REESE = 1, I_SUB = 2, I_STAB = 3, I_PAD = 4;
+      const BD = 36, SD = 38, HH = 42, OH = 46;
+      const BARS = 8;
+
+      // D-minor phrase, roots D–D–F–C (per bar, repeating every 4 bars).
+      const ROOT = [38, 38, 41, 36];          // D2 D2 F2 C2 (Reese)
+
+      const drums = (pat: Pattern, ghosts = true) => {
+        for (let bar = 0; bar < BARS; bar++) {
+          const b = bar * 16;
+          pat.set(b + 0, 0, BD, I_KIT, 0.95);
+          pat.set(b + ([10, 6, 10, 11][bar % 4]), 0, BD, I_KIT, 0.78);     // syncopated 2nd kick (varies)
+          pat.set(b + 4, 1, SD, I_KIT, 0.92); pat.set(b + 12, 1, SD, I_KIT, 0.92);
+          for (let s = 1; s < 16; s += 2) pat.set(b + s, 2, HH, I_KIT, s % 4 === 3 ? 0.36 : 0.24);
+          pat.set(b + 14, 2, OH, I_KIT, 0.4);
+          if (ghosts) {                                                    // chopped ghost-snare fills
+            pat.set(b + 7, 3, SD, I_KIT, 0.4); pat.set(b + 11, 3, SD, I_KIT, 0.33);
+            if (bar % 4 === 3) { pat.set(b + 13, 3, SD, I_KIT, 0.45); pat.set(b + 15, 3, SD, I_KIT, 0.55); }
+          }
+        }
+      };
+      const reese = (pat: Pattern, vol = 0.7) => {
+        for (let bar = 0; bar < BARS; bar++) { const b = bar * 16, r = ROOT[bar % 4]; pat.set(b, 4, r, I_REESE, vol); pat.set(b + 8, 4, r, I_REESE, vol * 0.85); pat.set(b + 15, 4, OFF, I_REESE); }
+      };
+      const sub = (pat: Pattern, vol = 0.8) => {
+        for (let bar = 0; bar < BARS; bar++) { const b = bar * 16; pat.set(b, 5, ROOT[bar % 4] - 12, I_SUB, vol); pat.set(b + 15, 5, OFF, I_SUB); }
+      };
+      const stabs = (pat: Pattern) => {
+        for (let bar = 0; bar < BARS; bar++) { const b = bar * 16, fifth = ROOT[bar % 4] + 19; pat.set(b + 6, 6, fifth, I_STAB, 0.5); pat.set(b + 14, 6, fifth + 3, I_STAB, 0.45); }
+      };
+      const pad = (pat: Pattern, vol = 0.5) => {
+        for (let bar = 0; bar < BARS; bar += 4) pat.set(bar * 16, 7, 50, I_PAD, vol);     // sustained Dm drone
+      };
+
+      const pIntro = mk(); pad(pIntro, 0.55); reese(pIntro, 0.6);
+      const pDrop  = mk(); drums(pDrop); reese(pDrop); sub(pDrop); stabs(pDrop); pad(pDrop, 0.4);
+      const pBreak = mk(); pad(pBreak, 0.55); stabs(pBreak); sub(pBreak, 0.7);            // drums drop
+      const pOut   = mk(); pad(pOut, 0.55); sub(pOut, 0.6);
+
+      const killHang = (pat: Pattern) => { for (let ch = 4; ch < 8; ch++) if (pat.note(0, ch) === EMPTY) pat.set(0, ch, OFF, 0); };
+      [pIntro, pDrop, pBreak, pOut].forEach(killHang);
+
+      return {
+        patterns: [pIntro, pDrop, pBreak, pOut],
+        // intro · drop · break · drop · out  ≈ 2:45
+        order: [0, 1, 1, 2, 1, 1, 1, 2, 1, 1, 1, 2, 1, 1, 3],
+        rowsPerBeat: 4,
+        pan: [0.5, 0.55, 0.45, 0.5, 0.5, 0.5, 0.62, 0.4],
+        lfos: [
+          { ...defaultLfo(), shape: 0, sync: true, rateBeats: 4 },     // 1-bar sine — Reese filter growl
+          { ...defaultLfo(), shape: 0, sync: true, rateBeats: 8 },
+          { ...defaultLfo(), shape: 0, sync: true, rateBeats: 8 },
+          { ...defaultPumpLfo() },
+        ],
+        modRoutings: [
+          { source: 0, targetParamId: tgt('moog', 'CUT').id, targetInstIdx: I_REESE, depth: 0.5, bipolar: true },  // wobble the Reese
+        ],
+      };
+    }
   }
 ];
