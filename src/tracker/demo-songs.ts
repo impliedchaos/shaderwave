@@ -5587,13 +5587,13 @@ export const DEMO_SONGS: SongDef[] = [
     bpm: 70,
     master: DEFAULT_MASTER * 0.6,
     params: [
-      { name: "Sleepy Kit", type: "808",   p0: [0, 0.72, 0.42, 0.5], p1: [0, 0, 0, 0] },
+      { name: "Sleepy Kit", type: "808",   p0: [0, 0.45, 0.5, 0.5], p1: [0, 0, 0, 0] },
       { name: "Round Bass", type: "moog",  p0: [320, 0.3, 0.5, 0.1], p1: [2, 0.2, 0.4, 0.6], p2: [1, 1, 1, 0.04], p3: [1, 1, 1, 0] },
       { name: "Haze Rhodes", type: "pipi", p0: [5.0, 0.0003, 0.22, 0.18], p1: [20, 0.0011, 1.1, 0.5] },
       { name: "Dead Wax",   type: "groove", p0: [0.4, 0.5, 0.35, 0.5], p1: [0.5, 0.4, 0.45, 0.65], p2: [0, 0.5, 0.4, 0] },
     ],
     fxParams: {
-      '808':    Object.assign(defaultFxParams(), { distOn: false, delayOn: false, reverbOn: true, reverbDecay: 0.6, reverbSend: 0.4, reverbMix: 0.2, bitcrushOn: true, bitcrushBits: 9, bitcrushRate: 0.5, bitcrushMix: 0.25, master: 0.8 }),
+      '808':    Object.assign(defaultFxParams(), { distOn: false, delayOn: false, reverbOn: true, reverbDecay: 0.6, reverbSend: 0.4, reverbMix: 0.2, bitcrushOn: false, master: 0.8 }),
       'moog':   Object.assign(defaultFxParams(), { distOn: false, delayOn: false, reverbOn: true, reverbDecay: 0.5, reverbSend: 0.25, reverbMix: 0.1, master: 0.82 }),
       'pipi':   Object.assign(defaultFxParams(), { chorusOn: true, chorusMix: 0.45, chorusRate: 0.25, chorusDepth: 6, eqOn: true, eqLow: 0, eqMid: 0, eqHigh: -2.5, delayOn: true, delayTime: 0.4, delayFeedback: 0.3, delayMix: 0.2, reverbOn: true, reverbDecay: 0.9, reverbSend: 0.6, reverbMix: 0.4, bitcrushOn: true, bitcrushBits: 10, bitcrushMix: 0.2, widthOn: true, width: 1.4, master: 0.78 }),
       'groove': Object.assign(defaultFxParams(), { distOn: false, delayOn: false, reverbOn: true, reverbDecay: 0.7, reverbSend: 0.4, reverbMix: 0.2, widthOn: true, width: 1.3, master: 0.55 }),
