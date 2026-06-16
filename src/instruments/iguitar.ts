@@ -9,7 +9,7 @@ import shader from '../gl/shaders/synth-guitar.glsl?raw';
 export const iguitar: InstrumentDef = {
   type: 'guitar',
   name: 'Gigi',
-  short: 'GIG',
+  short: 'GTR',
   label: 'Gigi — Acoustic / Electric Guitar',
   blurb: 'Modal plucked-string guitar that morphs acoustic↔electric (Body): pluck-position comb, soundboard resonance vs magnetic-pickup comb + long sustain, frequency-dependent decay, a pick transient and a built-in Drive for electric overdrive. Decay, PluckPos, Tone, Body, Partials, Drive, Pick, Release.',
   shader,
