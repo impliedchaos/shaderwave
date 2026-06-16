@@ -116,6 +116,8 @@ void main(){
   // Damper on key-up (a long Release simulates the sustain pedal).
   float relGate = tRel < 0.0 ? 1.0 : exp(-tRel / rel);
 
-  float s = (acc * 0.6 + thunk) * relGate * vel;
+  // Output trimmed (0.6 → 0.48) so dense, loud chords keep headroom rather than
+  // slamming the mix/limiter into harshness; bump the instrument/song level to taste.
+  float s = (acc * 0.48 + thunk) * relGate * vel;
   outAudio = vec4(tanh(s), 0.0, 0.0, 1.0);
 }
