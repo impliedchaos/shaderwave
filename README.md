@@ -45,6 +45,19 @@ served from a domain root or a subpath.
 
 The transport bar's **LEN** field sets the current pattern's row count.
 
+### Recording
+
+The **● Record** button arms live recording and starts playback (song mode, unless
+something is already playing); click it again or press Stop to disarm — its icon
+glows red while armed. With it armed and playing:
+
+- **Notes** from the keyboard or MIDI land at the **playhead** on the cursor's
+  channel (move the cursor to pick which channel), instead of stepping the editor.
+- **Parameter moves** — turning an instrument/FX knob, or a MIDI CC — record into
+  that parameter's **automation track** at the playhead, creating the track if one
+  doesn't exist. While you hold the knob the existing track is suppressed so it
+  can't fight you, and the value is latched into every row you sweep over.
+
 ### Instruments & the instrument table
 
 The sidebar lists an **instrument table** — instances you play from. Each note in a

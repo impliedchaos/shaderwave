@@ -62,6 +62,12 @@ const MODULATION = [
   ['Mod matrix', 'Routings aim a target at an LFO source, each with its own depth/polarity — so one LFO can drive many parameters. Add rows in the Song Editor.'],
 ];
 
+const RECORDING = [
+  ['Record button', 'Arms live recording and starts playback (song mode, unless something\'s already playing). Click again — or press Stop — to disarm; the icon glows red while armed.'],
+  ['Recording notes', 'While armed and playing, keyboard / MIDI notes land at the playhead on the cursor\'s channel (move the cursor to choose the channel) — the edit cursor stays put. Stopped, it\'s normal step-entry at the cursor.'],
+  ['Recording automation', 'While armed, turning a parameter knob (or moving a MIDI CC) writes to that parameter\'s automation track at the playhead, creating the track if needed. The existing track is suppressed while you hold the knob so it can\'t fight you, and the value latches into every row you sweep over.'],
+];
+
 const STYLE = `
   #help-overlay { display: none; position: fixed; inset: 0; z-index: 1000;
     background: rgba(3, 5, 8, 0.9); align-items: center; justify-content: center;
@@ -161,6 +167,7 @@ function build() {
   section('Effect column  ·  per-cell command + 2-hex value', PATTERN_FX, 'kbd');
   section('Effects chain (reorderable per instrument)  ·  Comp → Filter → EQ → Vocoder → OD → Dist → Chorus → Tremolo → Delay → Reverb → Bitcrush → Width → Limiter', EFFECTS, 'name');
   section('Modulation', MODULATION, 'name');
+  section('Recording', RECORDING, 'name');
 
   // Backdrop click (outside the panel) and the Close button both dismiss.
   overlay.addEventListener('mousedown', (e) => { if (e.target === overlay) closeHelp(); });
