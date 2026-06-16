@@ -2,6 +2,7 @@
 import type { App } from '../main.js';
 import { normalizeFxOrder } from '../gl/effects.js';
 import { bindKnob } from './controls.js';
+import { recordKnob, disarmRecord, fxParamTarget } from './record.js';
 
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -145,8 +146,10 @@ export function buildFxPanel(app: App) {
     block.appendChild(wrapper);
     outHost.appendChild(block);
     if (params.master === undefined) params.master = 1.0;
-    bindKnob(knob, valSpan, 0, 2, 0.01, params.master as number, false, (v) => { params.master = v; },
-      null, () => app.markDirty('fxknob'));
+    bindKnob(knob, valSpan, 0, 2, 0.01, params.master as number, false, (v) => {
+      params.master = v;
+      recordKnob(app, fxParamTarget('master'), app._fxPanelInst!, v);
+    }, null, () => { app.markDirty('fxknob'); disarmRecord(app); });
     app._fxKnobs.push({ el: knob as KnobEl, key: 'master' });
   }
 
@@ -217,7 +220,8 @@ export function buildFxPanel(app: App) {
     }
     bindKnob(knob, valSpan, min, max, step, params[key] as number, isPercent, (v) => {
       params[key] = v;
-    }, fmtFn, () => app.markDirty('fxknob'), d.log ?? false);
+      recordKnob(app, fxParamTarget(key), app._fxPanelInst!, v);
+    }, fmtFn, () => { app.markDirty('fxknob'); disarmRecord(app); }, d.log ?? false);
     app._fxKnobs.push({ el: knob as KnobEl, key });
   };
 
@@ -257,7 +261,8 @@ export function buildFxPanel(app: App) {
 
       bindKnob(handle, valSpan, min, max, step, params[key] as number, false, (v) => {
         params[key] = v;
-      }, d.fmt ?? null, () => app.markDirty('fxknob'), d.log ?? false, track);
+        recordKnob(app, fxParamTarget(key), app._fxPanelInst!, v);
+      }, d.fmt ?? null, () => { app.markDirty('fxknob'); disarmRecord(app); }, d.log ?? false, track);
       app._fxKnobs.push({ el: handle as KnobEl, key });
     }
 
@@ -299,7 +304,8 @@ export function buildFxPanel(app: App) {
 
       bindKnob(knob, valSpan, min, max, step, params[key] as number, false, (v) => {
         params[key] = v;
-      }, d.fmt ?? null, () => app.markDirty('fxknob'), d.log ?? false);
+        recordKnob(app, fxParamTarget(key), app._fxPanelInst!, v);
+      }, d.fmt ?? null, () => { app.markDirty('fxknob'); disarmRecord(app); }, d.log ?? false);
       app._fxKnobs.push({ el: knob as KnobEl, key });
     }
 

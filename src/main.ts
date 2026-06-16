@@ -28,6 +28,7 @@ import type { ParamTarget } from './types.js';
 import { buildFxPanel, type KnobEl } from './ui/fx-panel.js';
 import { buildLfoUI } from './ui/lfo-panel.js';
 import { initMidi } from './ui/midi.js';
+import { tickRecord } from './ui/record.js';
 import { bindKeys, advanceCursorRow, closeFxPicker, type ClipCell } from './ui/input.js';
 import {
   songDisplayName as _songDisplayName,
@@ -94,6 +95,12 @@ export class App {
   _freqData?: Uint8Array<ArrayBuffer>;
   _waveData?: Uint8Array<ArrayBuffer>;
   _recordEnabled = false;
+  // Live-record arm bookkeeping (see ui/record.ts). `_armUntil` is the linger
+  // deadline (Infinity while a knob is held); `_armPrevRow`/`_armLastByte` let
+  // tickRecord latch the held value into every row the playhead crosses.
+  _armUntil = 0;
+  _armPrevRow = -1;
+  _armLastByte = -1;
   // Undo/redo: whole-document snapshot history. `_histTag`/`_histTime` drive the
   // coalescing of a continuing gesture (knob drag, two-digit entry) into one step.
   history = new History();
@@ -303,10 +310,15 @@ export class App {
     };
     const recordBtn = $('record');
     if (recordBtn) {
-      recordBtn.onclick = () => {
+      recordBtn.onclick = async () => {
         this._recordEnabled = !this._recordEnabled;
-        if (this._recordEnabled) recordBtn.classList.add('playing');
-        else recordBtn.classList.remove('playing');
+        recordBtn.classList.toggle('playing', this._recordEnabled);
+        // Arming record starts playback so notes/automation land at the playhead.
+        // If something's already playing (incl. a pattern loop) leave its mode be.
+        if (this._recordEnabled && !this.engine.playing) {
+          await this.ensureAudio();
+          if (this.engine.paused) this.engine.resume(); else this.engine.play('song');
+        }
       };
     }
     $<HTMLInputElement>('bpm').oninput = (e) => {
@@ -655,7 +667,10 @@ export class App {
     const instIdx = this.controls.selected;
     const instr = this.engine.instruments[instIdx];
 
-    if (instr) {
+    // While live-recording a param, leave the inst knobs alone — the drag owns
+    // them. Otherwise the armed track is suppressed in _applyAutomation, so
+    // autoLive freezes at a stale value and _extSet would fight the user's hand.
+    if (instr && !this.engine._armedTrack) {
       for (const k of this.controls.paramKnobs || []) {
         const live = playing ? this.engine.autoLive.inst.get(`${instIdx}:${k.bank}:${k.i}`) : undefined;
         k.el._extSet?.(live !== undefined ? live : (instr as any)[k.bank!][k.i!]);
@@ -826,6 +841,7 @@ export class App {
     const vuREl = $('vu-r');
 
     const tick = () => {
+      tickRecord(this);
       this.view.draw();
       this._drawVisualizer();
       this._syncKnobs();

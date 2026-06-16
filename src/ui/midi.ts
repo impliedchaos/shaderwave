@@ -2,6 +2,7 @@
 // Each function takes the App instance and operates on its fields.
 import type { App } from '../main.js';
 import { targetsForType } from '../tracker/automation.js';
+import { recordNoteAtPlayhead, recordParamByte, armForRecord } from './record.js';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -54,27 +55,11 @@ export function onMidiMessage(app: App, msg: any) {
     // 1. Apply it live to the engine
     app.engine.applyAutomationLive(target, instIdx, app.view.cursor.ch, val255);
 
-    // 2. If recording is enabled, write it to the pattern
+    // 2. If recording is enabled, arm + write to the target's track at the
+    //    playhead (shared with the knob path; arming suppresses the stale track).
     if (app._recordEnabled) {
-      const row = app.engine.playing ? app.engine.displayRow : app.view.cursor.row;
-      const curCh = app.view.cursor.ch;
-      const patIdx = app.engine.currentPatternIdx;
-      const p = app.engine.song?.patterns[patIdx];
-      if (p) {
-        // Record into the AutoTrack for this target, creating it if absent (so a
-        // CC tweak always lands somewhere). The track's targetInstIdx depends on
-        // scope: global → null, chan → the cursor channel it pans, inst/fx → the
-        // selected instrument instance.
-        const trackInst = target.scope === 'global' ? null
-                        : target.scope === 'chan'   ? curCh
-                        : instIdx;
-        const before = p.autoTracks.length;
-        const data = p.getOrCreateAutoTrack(trackInst, target.id);
-        if (row >= 0 && row < data.length) data[row] = val255;
-        app.markDirty('midicc', true);   // streamed CC → coalesce into one step
-        if (p.autoTracks.length !== before) app.view._resize();  // new track widens the grid
-        app.view.draw();
-      }
+      armForRecord(app, target, instIdx);
+      recordParamByte(app, target, instIdx, val255);
     }
   } else if (status === 0x90 && data2 > 0) { // Note On
     const note = data1;
@@ -86,20 +71,9 @@ export function onMidiMessage(app: App, msg: any) {
     });
     
     if (app._recordEnabled) {
-      const row = app.engine.playing ? app.engine.displayRow : app.view.cursor.row;
-      const curCh = app.view.cursor.ch;
-      const patIdx = app.engine.currentPatternIdx;
-      const p = app.engine.song?.patterns[patIdx];
-      if (p) {
-        if (curCh < p.channels) {
-          p.set(row, curCh, note, instIdx, data2 / 127.0);
-          app.markDirty('note');
-          if (!app.engine.playing) {
-             app._advanceCursorRow();
-          }
-        }
-        app.view.draw();
-      }
+      recordNoteAtPlayhead(app, note, instIdx, data2 / 127.0);
+      // Stopped (step-record): advance the edit cursor like keyboard entry.
+      if (!app.engine.playing) app._advanceCursorRow();
     }
   } else if (status === 0x80 || (status === 0x90 && data2 === 0)) { // Note Off
     const note = data1;

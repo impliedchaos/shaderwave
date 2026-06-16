@@ -5,6 +5,7 @@ import { INSTRUMENTS, instGlow, INSTRUMENT_COLORS } from '../constants.js';
 import { PRESETS } from './presets.js';
 import { byType } from '../instruments/index.js';
 import { resolveAssetUrl } from '../audio/sample-loader.js';
+import { recordKnob, disarmRecord, instParamTarget } from './record.js';
 import { WT_BANKS, WT_TABLES, WT_FRAMES, WT_SAMPLES, sampleTable } from '../instruments/wavetables.js';
 import type { Preset } from './presets.js';
 import type { DX7Op, FxParams, InstrumentInstance, InstrumentType } from '../types.js';
@@ -734,11 +735,14 @@ export class Controls {
           // Push the edit into any sounding voices so held notes change immediately
           // (not only on the next note-on).
           this.engine.updateInstrumentParam(this.selected, d.bank!, d.i!, v);
+          // While recording, also write it to the param's automation track at the
+          // playhead (no-op for p2/p3 — those have no automation target).
+          if (this.app) recordKnob(this.app, instParamTarget(name, d.bank!, d.i!), this.selected, v);
         }
       }, formatFn,
       // Preset matching scans every cached ROM bank, so run it once on drag-end
       // rather than on every pointer-move; the drag-end is also one undo step.
-      () => { this._refreshPresetSelection(); this.app?.markDirty('knob'); });
+      () => { this._refreshPresetSelection(); this.app?.markDirty('knob'); if (this.app) disarmRecord(this.app); });
 
       // Per-operator dx7 knobs have no automation target; p0/p1 knobs do.
       if (d.type !== 'op') this.paramKnobs.push({ el: knob, bank: d.bank, i: d.i });

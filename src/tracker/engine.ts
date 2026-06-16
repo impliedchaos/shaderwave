@@ -52,6 +52,11 @@ export class Engine {
   bpm: number;
   fxParams: FxParamsByType | null;
   autoLive: { inst: Map<string, number> };
+  // While a parameter is being live-recorded (a knob is grabbed / MIDI CC is
+  // streaming), its existing automation track is suppressed in _applyAutomation
+  // so the live input wins instead of fighting the stored data. The UI loop also
+  // erases the stale rows the playhead sweeps over. Matched by (paramId,instIdx).
+  _armedTrack: { paramId: number; targetInstIdx: number | null } | null = null;
   playing: boolean;
   paused: boolean;
   _resumeOffset: number;
@@ -310,6 +315,7 @@ export class Engine {
     this._rowCursor = 0; this._nextRowFrame = null;
     this._pending.length = 0;            // drop any deferred note-delay triggers
     this.autoLive.inst.clear();
+    this._armedTrack = null;             // drop any live-record arm
     this.panAuto.fill(NaN);
     this.vd.master = this.songMaster;   // drop any VOL automation override
     this._restoreLfoFx();               // fresh run → drop any prior fx-LFO override
@@ -339,6 +345,7 @@ export class Engine {
     this._rowCursor = 0; this._nextRowFrame = null; this.startFrame = null;
     this._pending.length = 0;
     for (const v of this.voices) v.active = false;
+    this._armedTrack = null;    // drop any live-record arm
     this.panAuto.fill(NaN);     // drop pan automation overrides; slider base returns
     this.autoLive.inst.clear(); // drop inst automation overrides; base params return
     this.vd.master = this.songMaster; // drop VOL automation override; song base returns
@@ -654,6 +661,10 @@ export class Engine {
   // note re-snapshots); 'fx' targets write the engine-type's shared fxParams.
   _applyAutomation(pat: Pattern, row: number) {
     for (const track of pat.autoTracks) {
+      // Suppress the track currently being live-recorded so its stale stored
+      // data doesn't fight the knob/CC the user is actively moving.
+      if (this._armedTrack && track.targetParamId === this._armedTrack.paramId
+          && track.targetInstIdx === this._armedTrack.targetInstIdx) continue;
       const val255 = track.data[row];
       if (val255 < 0) continue;
       const t = targetById(track.targetParamId);

@@ -369,6 +369,14 @@
     box-shadow: 0 0 18px var(--hot-glow);
   }
 
+  /* The record button matches the (neutral) stop button by default — its icon
+     uses currentColor — and only the icon turns red once recording is armed. */
+  #record.playing {
+    color: #ff3b30;
+    border-color: #ff3b30;
+    box-shadow: 0 0 10px rgba(255, 59, 48, 0.5);
+  }
+
   /* Style transport buttons as square icon-only controls */
   #play, #stop, #record {
     width: 32px;
@@ -1453,7 +1461,7 @@
     <div class="control-group">
       <button id="play" class="primary" title="Play"><svg class="icon" viewBox="0 0 16 16" width="14" height="14"><path d="M4 2.5v11l9-5.5-9-5.5z" fill="currentColor"/></svg></button>
       <button id="stop" title="Stop"><svg class="icon" viewBox="0 0 16 16" width="14" height="14"><rect x="3" y="3" width="10" height="10" rx="1.5" fill="currentColor"/></svg></button>
-      <button id="record" class="primary" title="Record"><svg class="icon" viewBox="0 0 16 16" width="14" height="14"><circle cx="8" cy="8" r="5" fill="#ff3b30"/></svg></button>
+      <button id="record" title="Record"><svg class="icon" viewBox="0 0 16 16" width="14" height="14"><circle cx="8" cy="8" r="5" fill="currentColor"/></svg></button>
       <span class="vol-label">VOL</span>
       <div class="vol-meter">
         <div class="vu"><div class="vu-fill" id="vu-l"></div></div>

@@ -66,6 +66,56 @@ An attempt to implement a WebGL 16-band Vocoder effect was completely abandoned 
 
 ## Current work
 
+### Record button — live note + automation recording — ✅ DONE + shipped (1.33.0, 2026-06-16, user-verified in-browser) — `project`
+Implemented in `src/ui/record.ts` (shared helpers) + wiring in `main.ts` (button→play, RAF
+`tickRecord`), `input.ts` (keyboard), `midi.ts` (refactored onto the shared helpers), `controls.ts` +
+`fx-panel.ts` (knob arm/record/disarm), `engine.ts` (`_armedTrack` field + `_applyAutomation` skip +
+play/stop reset). All recording lands in `app.view.pattern` at `engine.displayRow` — which also FIXED a
+latent bug where the old MIDI path used `currentPatternIdx` (wrong pattern during song-mode playback).
+Arm model: `engine._armedTrack` set by `armForRecord(t, inst, held)` — a KNOB arm is `held`
+(`_armUntil = Infinity`, cleared only on pointer-up via `disarmRecord`), a MIDI CC arm lingers
+`ARM_LINGER_MS` (300ms) past the last message. `_applyAutomation` skips the armed track so the stored
+data can't fight the live input; `_syncKnobs` also leaves the inst knobs alone while armed (else stale
+`autoLive` yanks the knob away from the user's hand — that was the "feels unresponsive/jitter" bug).
+Write model is **LATCH, not on-change**: `tickRecord` fills every row the playhead crosses with the
+held byte (`_armLastByte`), so a continuous gesture leaves NO empty steps and cleanly overwrites old
+data. (The earlier on-change + deferred sweep-erase approach DROPPED most values — by the time the
+playhead left a row the "written row" marker had already advanced, so the row got erased. And the
+300ms linger wrongly expired the *knob* arm mid-hold, letting the old track fight back. Both fixed by
+latch + held-arm.) Latch is dense (a value per swept row); if a sparse/clean look is wanted later,
+RLE-compress equal consecutive values to -1 holds on disarm (playback-identical). Possible future
+polish: opt-in automation glide/ramp (interpolate between points on playback) and the sparse-RLE look.
+Original spec below.
+
+Spec agreed with the user 2026-06-16 (gameplan only; no code yet). The recording machinery
+ALREADY EXISTS for MIDI (`ui/midi.ts`): note-on while `app._recordEnabled` writes at the playhead
+(`engine.displayRow` when playing, else `cursor.row`) into `engine.currentPatternIdx`; CC writes to
+the target's auto-track, creating it via `getOrCreateAutoTrack`. The record button (`main.ts:304-311`)
+currently ONLY toggles `_recordEnabled` + a `.playing` class — nothing else hangs off it. The work is
+to extend the same behavior to the record button, the computer keyboard, and the UI knobs:
+- **Button starts playback** (`main.ts:306`): on enable, `if (!engine.playing) engine.play('song')`.
+  If something is ALREADY playing (incl. pattern-loop), leave the mode as-is. Stop still disarms record.
+- **Write target = follow the playhead** (`engine.currentPatternIdx` @ `engine.displayRow`); the editor
+  view should auto-follow the playing pattern (check whether it already does).
+- **Keyboard notes** (`ui/input.ts:75-86`): when `_recordEnabled && engine.playing`, write at the
+  playhead and do NOT advance the edit cursor. Factor a shared `recordNoteAtPlayhead()` out of `midi.ts`.
+- **Param knobs** (`ui/controls.ts:725` inst params, `ui/fx-panel.ts` fx): map `{bank,i}`/fx-key →
+  `ParamTarget` (same `targetsForType` lookup MIDI uses) and record the normalized byte to that target's
+  auto-track. Shared `recordParamValue()` helper with the CC path.
+- **Arm + overwrite (no fighting)**: add `engine._armedTrack = {scope,targetInstIdx,paramId}|null`, set
+  on knob `pointerdown`, cleared on `pointerup` (MIDI: armed while CC streams). `_applyAutomation`
+  (`engine.ts:655`) SKIPS the armed track during the gesture so old data doesn't yank the param back.
+  Writes happen ON CHANGE (sparse, like CC today), BUT while armed the RAF loop (`main.ts:660`, already
+  watches `displayRow`) erases each newly-crossed row to `-1` so stale old values are deleted across the
+  swept region — leaving a clean track of just the new gesture (holds carry each value forward). NB:
+  grabbing-without-moving still erases the swept region while held.
+- **Button styling** (`index.html:1456` + CSS `#record` at `index.html:373`): make the record button the
+  SAME color as `#stop` by default (drop `class="primary"`; icon uses `currentColor` instead of the
+  hardcoded `fill="#ff3b30"`), and turn the icon RED only when enabled (the `.playing` class on `#record`).
+- Build order: (1) extract shared note/param record helpers from midi.ts (pure refactor) → (2) button→play
+  → (3) keyboard notes → (4) param knobs → (5) arm/skip/erase. `npm run build` after each; audition
+  in-browser (recording needs a real audio device — headless harnesses don't cover it).
+
 ### Pulse-width (PWM) on all four wave shapes — 303 + 888State — ✅ DONE — `project`
 The user's "Varying Cycle Functions" Desmos idea: one duty-cycle knob warping EVERY
 shape, not just the square. Implemented as a shared phase warp in `common.glsl`:

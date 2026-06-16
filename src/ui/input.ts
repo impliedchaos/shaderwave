@@ -3,6 +3,7 @@ import type { App } from '../main.js';
 import { EMPTY, OFF } from '../tracker/pattern.js';
 import { fxByKey } from '../tracker/fx.js';
 import { byType } from '../instruments/index.js';
+import { recordNoteAtPlayhead } from './record.js';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -72,13 +73,19 @@ export function bindKeys(app: App) {
     if (note == null) return;
     e.preventDefault();
 
-    // Write into the pattern at the cursor and preview the sound.
     const inst = app.controls.selected;
-    const p = app.view.pattern;
-    const { row, ch } = app.view.cursor;
-    p.set(row, ch, note, inst, 0.9);
-    app.markDirty('note');
-    advanceCursorRow(app);
+    // While recording-and-playing, notes land at the playhead (and we DON'T move
+    // the edit cursor — the playhead is the write head). Otherwise write at the
+    // cursor and step it, the normal step-entry behaviour.
+    if (app._recordEnabled && app.engine.playing) {
+      recordNoteAtPlayhead(app, note, inst, 0.9);
+    } else {
+      const p = app.view.pattern;
+      const { row, ch } = app.view.cursor;
+      p.set(row, ch, note, inst, 0.9);
+      app.markDirty('note');
+      advanceCursorRow(app);
+    }
 
     app.ensureAudio().then(() => {
       const v = app.engine.previewNote(inst, note, 0.9);
