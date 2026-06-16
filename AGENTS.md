@@ -170,5 +170,5 @@ and `git status` before committing** so they don't get swept into a commit.
 - Branch only if asked; the user directs commits/pushes explicitly.
 - End commit messages with:
   `Co-Authored-By: ` and then the name of the agent and model it's using.
-- Before pushing, increment the patch version in `package.json`. If it's a larger change increment the minor version, and if there are breaking changes, increment the major version.
+- Before pushing, increment the patch version in `package.json`. If it's a larger change increment the minor version, and if there are breaking changes, increment the major version. **Adding a demo song is only a patch bump** (it's content, not an engine change) — don't bump the minor version for it.
 - The remote prints a jokey server-hook banner on push — it's not an error.
