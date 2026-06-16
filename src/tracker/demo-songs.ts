@@ -5278,5 +5278,111 @@ export const DEMO_SONGS: SongDef[] = [
         ],
       };
     }
+  },
+  {
+    name: "Vaffanculo in D Minor",
+    author: "AI Slop",
+    note: "Slow-building cinematic adagio in D minor à la John Murphy's 'Adagio in D Minor' (Sunshine / 'Surface of the Sun'). A descending lament bass D–C–Bb–A under an e8e string ensemble, dx7 brass/organ swells, a moog cello-sub, 808 timpani rolls, and a soaring e8e violin descant at the peak — a relentless layered crescendo, a pull-back, a final surge, then a release into the reverb tail. 66 BPM. Prompt: 'make an orchestral demo track in the style of John Murphy's Adagio in D Minor — full build — called Vaffanculo in D Minor'.",
+    bpm: 66,
+    master: DEFAULT_MASTER * 0.6,
+    params: [
+      // 0: Timpani / bass drum (808) — long, dark, boomy
+      { name: "Timpani",       type: "808",  p0: [0, 0.7, 0.85, 0.3], p1: [0, 0, 0, 0] },
+      // 1: Cello / sub pedal (Moog) — dark, sustained, the descending lament bass
+      { name: "Cello Sub",     type: "moog", p0: [180, 0.35, 0.6, 0], p1: [6, 0.95, 0.7, 1.2], p2: [1, 1, 1, 0], p3: [1, 1, 1, 0.01] },
+      // 2: String ensemble (888State) — slow attack, high sustain, long release
+      { name: "String Ens.",   type: "e8e",  p0: [0.25, 0.5, 0.9, 0.7], p1: [0.18, -12, 8, 0], p2: [1, 1, 3, 3], p3: [1, 0.85, 0.6, 0.5] },
+      // 3: Brass / organ swell (DX7) — warm sustained 6-op pad (Bathhouse-pad voicing)
+      {
+        name: "Brass Swell", type: "dx7",
+        p0: [1, 1.5, 2.5, 0.4], p1: [5, 0.6, 0.8, 3],
+        ops: [
+          { coarse: 1.0, fine: 0, level: 99, detune: 2,  decay: 3.5, mode: 0, sustain: 0.85, release: 2.5 },
+          { coarse: 2.0, fine: 1, level: 75, detune: -3, decay: 3.8, mode: 0, sustain: 0.80, release: 2.8 },
+          { coarse: 1.0, fine: 0, level: 60, detune: 7,  decay: 4.0, mode: 0, sustain: 0.75, release: 3.0 },
+          { coarse: 3.0, fine: 0, level: 45, detune: 0,  decay: 2.5, mode: 0, sustain: 0.60, release: 2.0 },
+          { coarse: 5.0, fine: 0, level: 30, detune: -1, decay: 1.5, mode: 0, sustain: 0.40, release: 1.5 },
+          { coarse: 4.0, fine: 0, level: 20, detune: 2,  decay: 1.0, mode: 0, sustain: 0.30, release: 1.0 }
+        ]
+      },
+      // 4: Soaring violin descant (888State) — brighter, faster attack, peak only
+      { name: "Violin Top",    type: "e8e",  p0: [0.12, 0.4, 0.85, 0.6], p1: [0.12, -7, 8, 0], p2: [1, 1, 3, 3], p3: [1, 0.8, 0.5, 0.5] },
+    ],
+    fxParams: {
+      '808':  Object.assign(defaultFxParams(), { distOn: true, dist: 1.5, tone: 0.4, delayOn: false, reverbOn: true, reverbDecay: 0.72, reverbMix: 0.22, master: 0.9 }),
+      'moog': Object.assign(defaultFxParams(), { distOn: false, chorusOn: true, chorusMix: 0.15, chorusRate: 0.3, chorusDepth: 5, delayOn: false, reverbOn: true, reverbDecay: 0.85, reverbMix: 0.25, widthOn: true, width: 1.2, master: 0.8 }),
+      'e8e':  Object.assign(defaultFxParams(), { distOn: false, chorusOn: true, chorusMix: 0.4, chorusRate: 0.35, chorusDepth: 5, delayOn: false, reverbOn: true, reverbDecay: 0.92, reverbMix: 0.42, widthOn: true, width: 1.5, master: 0.78 }),
+      'dx7':  Object.assign(defaultFxParams(), { chorusOn: true, chorusMix: 0.5, chorusRate: 0.3, chorusDepth: 6, delayOn: false, reverbOn: true, reverbDecay: 0.95, reverbMix: 0.5, widthOn: true, width: 1.5, master: 0.8 }),
+    },
+    data: () => {
+      const N = 64;                          // 4 bars/pattern (16 rows/bar) → ~14.5 s at 66 BPM
+      const mk = () => new Pattern(N, 8);
+      const I_TIMP = 0, I_BASS = 1, I_STR = 2, I_BRASS = 3, I_HIGH = 4;
+      const TIMP = 36;                       // 808 bass-drum slot, used as the timpani
+
+      // Descending lament in D minor: Dm – C – Bb – A(maj), one chord per bar.
+      const STR  = [[62, 65, 69], [60, 64, 67], [62, 65, 70], [61, 64, 69]];  // string triad ch2,3,4 (low→high)
+      const BRS  = [[50, 57], [48, 55], [46, 53], [45, 52]];                  // brass root+5th  ch5,6
+      const BASS = [38, 36, 34, 33];                                          // cello root      ch1  (D2 C2 Bb1 A1)
+      const HIGH = [81, 79, 77, 76];                                          // violin descant  ch7  (A5 G5 F5 E5)
+
+      // Layer helpers — each retriggers its chord at every bar downbeat and holds
+      // (legato; the next bar's note replaces it). killHang() cuts tails between sections.
+      const strings = (pat: Pattern, vol: number) => {
+        for (let bar = 0; bar < 4; bar++) { const r = bar * 16, c = STR[bar]; pat.set(r, 2, c[0], I_STR, vol); pat.set(r, 3, c[1], I_STR, vol); pat.set(r, 4, c[2], I_STR, vol); }
+      };
+      const brass = (pat: Pattern, vol: number) => {
+        for (let bar = 0; bar < 4; bar++) { const r = bar * 16, c = BRS[bar]; pat.set(r, 5, c[0], I_BRASS, vol); pat.set(r, 6, c[1], I_BRASS, vol); }
+      };
+      const cello = (pat: Pattern, vol: number) => {
+        for (let bar = 0; bar < 4; bar++) pat.set(bar * 16, 1, BASS[bar], I_BASS, vol);
+      };
+      const descant = (pat: Pattern, vol: number) => {
+        for (let bar = 0; bar < 4; bar++) pat.set(bar * 16, 7, HIGH[bar], I_HIGH, vol);
+      };
+      // Timpani — gentle single booms → beats 1&3 + a roll → driving hits + accelerando roll.
+      const timpSoft = (pat: Pattern, vol: number) => { for (let bar = 0; bar < 4; bar++) pat.set(bar * 16, 0, TIMP, I_TIMP, vol); };
+      const timpBuild = (pat: Pattern, vol: number) => {
+        for (let bar = 0; bar < 4; bar++) { const r = bar * 16; pat.set(r, 0, TIMP, I_TIMP, vol); pat.set(r + 8, 0, TIMP, I_TIMP, vol * 0.7); }
+        for (let r = 56; r < 64; r++) pat.set(r, 0, TIMP, I_TIMP, 0.3 + (r - 56) * 0.07);   // roll into the next bar
+      };
+      const timpPeak = (pat: Pattern, vol: number) => {
+        for (let r = 0; r < 64; r++) if (r % 4 === 0) pat.set(r, 0, TIMP, I_TIMP, r % 16 === 0 ? vol : vol * 0.8);
+        for (let r = 56; r < 64; r++) pat.set(r, 0, TIMP, I_TIMP, 0.4 + (r - 56) * 0.07);   // crescendo roll
+      };
+
+      // --- Sections ---------------------------------------------------------------
+      const pIntro = mk(); cello(pIntro, 0.6); strings(pIntro, 0.28);                                       // bass + a whisper of strings
+      const pStr   = mk(); cello(pStr, 0.7);  strings(pStr, 0.45); timpSoft(pStr, 0.4);                     // strings bloom + soft timpani
+      const pBuild = mk(); cello(pBuild, 0.75); strings(pBuild, 0.55); brass(pBuild, 0.5); timpBuild(pBuild, 0.6);  // brass enters, timpani drives
+      const pPeak  = mk(); cello(pPeak, 0.85); strings(pPeak, 0.7); brass(pPeak, 0.8); descant(pPeak, 0.7); timpPeak(pPeak, 0.9);  // fff: everything + soaring violins
+      const pOut   = mk();                                                                                  // final Dm, released into the reverb tail
+      pOut.set(0, 1, 38, I_BASS, 0.5); pOut.set(0, 2, 62, I_STR, 0.32); pOut.set(0, 3, 65, I_STR, 0.32); pOut.set(0, 4, 69, I_STR, 0.32); pOut.set(0, 0, TIMP, I_TIMP, 0.5);
+      for (let ch = 1; ch < 8; ch++) pOut.set(52, ch, OFF, 0);                                              // let releases + reverb fade to silence
+
+      // Cut held string/brass/descant tails when a section drops a layer (e.g. peak → bridge/outro).
+      const killHang = (pat: Pattern) => { for (let ch = 1; ch < 8; ch++) if (pat.note(0, ch) === EMPTY) pat.set(0, ch, OFF, 0); };
+      [pIntro, pStr, pBuild, pPeak, pOut].forEach(killHang);
+
+      const LVL_STR = tgt('e8e', 'LVL'), LVL_BRS = tgt('dx7', 'LVL'), CUT_BASS = tgt('moog', 'CUT');
+      return {
+        patterns: [pIntro, pStr, pBuild, pPeak, pOut],
+        // intro·intro · strings·strings · build·build · peak·peak · strings(pull-back) · build · peak·peak · outro  ≈ 3:08
+        order: [0, 0, 1, 1, 2, 2, 3, 3, 1, 2, 3, 3, 4],
+        rowsPerBeat: 4,
+        pan: [0.5, 0.5, 0.35, 0.5, 0.65, 0.4, 0.6, 0.55],
+        lfos: [
+          { ...defaultLfo(), shape: 0, sync: true, rateBeats: 8 },    // 0: slow sine (2 bars) — orchestral swell
+          { ...defaultLfo(), shape: 0, sync: true, rateBeats: 16 },   // 1: very slow sine (4 bars) — sub filter drift
+          { ...defaultLfo(), shape: 0, sync: true, rateBeats: 8 },    // 2: spare
+          { ...defaultPumpLfo() },                                    // 3: pump (unused here)
+        ],
+        modRoutings: [
+          { source: 0, targetParamId: LVL_STR.id,  targetInstIdx: I_STR,   depth: 0.12, bipolar: true },  // swell → strings level
+          { source: 0, targetParamId: LVL_BRS.id,  targetInstIdx: I_BRASS, depth: 0.10, bipolar: true },  // swell → brass level
+          { source: 1, targetParamId: CUT_BASS.id, targetInstIdx: I_BASS,  depth: 0.30, bipolar: true },  // drift → cello-sub cutoff
+        ],
+      };
+    }
   }
 ];
