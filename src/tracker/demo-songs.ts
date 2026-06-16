@@ -5485,7 +5485,7 @@ export const DEMO_SONGS: SongDef[] = [
     master: DEFAULT_MASTER * 0.58,
     params: [
       { name: "Gated Kit",  type: "808",  p0: [0, 0.55, 0.55, 0.6], p1: [0, 0, 0, 0] },
-      { name: "Drive Bass", type: "moog", p0: [700, 0.4, 0.6, 0.1], p1: [2, 0.0, 0.4, 0.25], p2: [1, 1, 2, 0.02], p3: [1, 1, 1, 0] },
+      { name: "Drive Bass", type: "moog", p0: [400, 0.45, 0.5, 0], p1: [8, 0.8, 0.6, 0.9], p2: [1, 1, 1, 0], p3: [2, 2, 2, 0] },  // "Muffled Noir Bass" preset
       { name: "Neon Pad",   type: "e8e",  p0: [0.28, 0.5, 0.9, 1.3], p1: [0.18, -0.15, 14, 0.0], p2: [1, 1, 1, 3], p3: [1.0, 0.9, 0.8, 0.5] },
       {
         name: "Brass Lead", type: "dx7",
@@ -5503,7 +5503,7 @@ export const DEMO_SONGS: SongDef[] = [
     ],
     fxParams: {
       '808':  Object.assign(defaultFxParams(), { distOn: true, dist: 2.0, tone: 0.5, delayOn: false, reverbOn: true, reverbDecay: 0.72, reverbDamp: 0.4, reverbSend: 0.5, reverbMix: 0.26, master: 0.9 }),
-      'moog': Object.assign(defaultFxParams(), { distOn: true, dist: 2.0, tone: 0.5, chorusOn: false, delayOn: false, reverbOn: true, reverbDecay: 0.4, reverbSend: 0.2, reverbMix: 0.06, master: 0.85 }),
+      'moog': Object.assign(defaultFxParams(), { distOn: true, dist: 2.0, tone: 0.5, chorusOn: false, delayOn: false, reverbOn: true, reverbDecay: 0.9, reverbSend: 0.2, reverbMix: 0.4, master: 0.85 }),  // "Muffled Noir Bass" preset fx
       'e8e':  Object.assign(defaultFxParams(), { chorusOn: true, chorusMix: 0.4, chorusRate: 0.3, chorusDepth: 5, delayOn: false, reverbOn: true, reverbDecay: 0.9, reverbSend: 0.6, reverbMix: 0.4, widthOn: true, width: 1.5, master: 0.72 }),
       'dx7':  Object.assign(defaultFxParams(), { chorusOn: true, chorusMix: 0.35, delayOn: true, delayTime: 0.3, delayFeedback: 0.4, delayMix: 0.3, reverbOn: true, reverbDecay: 0.9, reverbSend: 0.5, reverbMix: 0.32, widthOn: true, width: 1.4, master: 0.78 }),
       'wvt':  Object.assign(defaultFxParams(), { filterOn: true, filterCutoff: 1800, filterReso: 0.35, filterMode: 0, delayOn: true, delayTime: 0.15, delayFeedback: 0.45, delayMix: 0.35, reverbOn: true, reverbDecay: 0.8, reverbSend: 0.5, reverbMix: 0.3, widthOn: true, width: 1.4, master: 0.7 }),
