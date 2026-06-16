@@ -815,7 +815,11 @@ export const DEMO_SONGS: SongDef[] = [
       '303': Object.assign(defaultFxParams(), { chorusMix: 0.6, chorusRate: 0.5, chorusDepth: 3.5, delayMix: 0.45, delayTime: 0.6, delayFeedback: 0.55, reverbMix: 0.7, reverbDecay: 0.95 }),
       'dx7': Object.assign(defaultFxParams(), { chorusMix: 0.5, chorusRate: 0.4, chorusDepth: 3.0, delayMix: 0.4, delayTime: 0.5, delayFeedback: 0.45, reverbMix: 0.75, reverbDecay: 0.95 }),
       '808': defaultFxParams(),
-      'moog': Object.assign(defaultFxParams(), { chorusMix: 0.35, chorusRate: 0.3, chorusDepth: 2.5, delayMix: 0.3, delayTime: 0.45, delayFeedback: 0.4, reverbMix: 0.65, reverbDecay: 0.93 }),
+      // Bass was drowning: a reverb-soaked bass loses its fundamental + attack. Dry the
+      // chain (less reverb/delay/chorus) so the Moog cuts through. Shared by bass + sub,
+      // but a tighter sub also un-muddies the low end. Per-bass loudness is raised via the
+      // note vols below (the sub keeps its own quieter levels).
+      'moog': Object.assign(defaultFxParams(), { chorusMix: 0.22, chorusRate: 0.3, chorusDepth: 2.0, delayMix: 0.16, delayTime: 0.45, delayFeedback: 0.3, reverbMix: 0.32, reverbDecay: 0.88 }),
     },
     data: () => {
       const CH = 8;
@@ -958,42 +962,42 @@ export const DEMO_SONGS: SongDef[] = [
       writeSubDrone(p[0], verse, 0.35);
       writePadChords(p[0], verse, 0.2);
 
-      writePadChords(p[1], verse, 0.4);
-      writeBassLine(p[1], verse, 0.45);
+      writePadChords(p[1], verse, 0.32);
+      writeBassLine(p[1], verse, 0.62);
       writeSubDrone(p[1], verse, 0.35);
 
-      writePadChords(p[2], verse, 0.5);
-      writeBassLine(p[2], verse, 0.6);
+      writePadChords(p[2], verse, 0.4);
+      writeBassLine(p[2], verse, 0.78);
       writeSubDrone(p[2], verse, 0.35);
       writeShimmerArp(p[2], verse, 0.2);
       writeBellMelody(p[2], bellMelody1, 0.3);
 
-      writePadChords(p[3], bridge, 0.55);
-      writeBassLine(p[3], bridge, 0.65);
+      writePadChords(p[3], bridge, 0.44);
+      writeBassLine(p[3], bridge, 0.82);
       writeSubDrone(p[3], bridge, 0.4);
       writeShimmerArp(p[3], bridge, 0.28);
       writeBellMelody(p[3], bellMelody2, 0.35);
 
-      writePadChords(p[4], climax, 0.6);
-      writeBassLine(p[4], climax, 0.7);
+      writePadChords(p[4], climax, 0.48);
+      writeBassLine(p[4], climax, 0.85);
       writeSubDrone(p[4], climax, 0.45);
       writeShimmerArp(p[4], climax, 0.35);
       writeBellMelody(p[4], bellMelody3, 0.4);
 
-      writePadChords(p[5], climax, 0.6);
-      writeBassLine(p[5], climax, 0.7);
+      writePadChords(p[5], climax, 0.48);
+      writeBassLine(p[5], climax, 0.85);
       writeSubDrone(p[5], climax, 0.45);
       writeShimmerArp(p[5], climax, 0.35);
       writeBellMelody(p[5], bellMelody3.map(([r, n, d]) => [r, n + 5, d]), 0.4);
 
-      writePadChords(p[6], verse, 0.45);
-      writeBassLine(p[6], verse, 0.5);
+      writePadChords(p[6], verse, 0.36);
+      writeBassLine(p[6], verse, 0.66);
       writeSubDrone(p[6], verse, 0.35);
       writeShimmerArp(p[6], verse, 0.22);
       writeBellMelody(p[6], bellMelody1, 0.28);
 
       writePadChords(p[7], outro, 0.3);
-      writeBassLine(p[7], outro, 0.35);
+      writeBassLine(p[7], outro, 0.5);
       writeSubDrone(p[7], outro, 0.3);
       writeBellMelody(p[7], bellMelodyOutro, 0.25);
 
@@ -5125,6 +5129,153 @@ export const DEMO_SONGS: SongDef[] = [
         order: [0, 1, 2, 3, 3, 1, 2, 3, 3, 4, 1, 2, 3, 3, 5, 5, 3, 1, 2, 3, 3, 4, 6, 6],
         rowsPerBeat: 4,
         pan: [0.5, 0.5, 0.6, 0.5, 0.38, 0.64, 0.42, 0.6],
+      };
+    }
+  },
+  {
+    name: "Too Drunk to Suck",
+    author: "AI Slop",
+    note: "Sleazy 100 BPM acid-sludge: crazy swung drunken 808, a PWM-wobbled 303 acid bass (LFO on the new Pulse-Width mod) and a 303 scream-lead whose pulse width sweeps every bar, plus a TALKING VOCODER — a bright e8e saw carrier voiced by a looped 'freak' vocal with an LFO formant sweep, and 'hot'/'oww' shouts. Am vamp, ~4 min. Prompt: I'd like a new demo track. I want some crazy swinging drunken drums, Maybe some pwm sweeps on our new instrument mod, Maybe some hot vocoder action?  Make it 4 minutes long and call it \"Too Drunk to Suck\".",
+    bpm: 100,
+    master: DEFAULT_MASTER * 0.5,
+    params: [
+      { name: "Drunk 808 Kit",   type: "808",     p0: [0, 0.5, 0.55, 0.6], p1: [0, 0, 0, 0] },
+      { name: "PWM Acid Bass",    type: "303",     p0: [320, 0.82, 0.7, 0.45], p1: [0, 0.30, 0.38, 0.5] },   // saw; PulseW LFO-wobbled
+      { name: "PWM Scream Lead",  type: "303",     p0: [1500, 0.86, 0.8, 0.55], p1: [1, 0.16, 0.28, 0.5] },  // square; PulseW swept per bar
+      { name: "Vocoder Carrier",  type: "e8e",     p0: [0.02, 0.5, 0.9, 0.4], p1: [0.1, -0.1, 8, 0.15], p2: [1, 1, 1, 3], p3: [1, 0.8, 0.7, 0.5] }, // 3 bright saws
+      { name: "Vox Mod: Freak",   type: "sampler", p0: [0, 0, 0.7, 0], p1: [0.02, 0.1, 1.0, 0.25],
+        sample: { name: "Freak (loop)", pcm: new Float32Array(0), rootNote: 60, loopStart: 0, loopEnd: 0, loopMode: 1, url: "/samples/dvs-freak-1.ogg" } },
+      { name: "Vox: Hot",         type: "sampler", p0: [0, 0, 1.0, 0], p1: [0.001, 0.1, 1.0, 0.1], sample: smp("Hot", "dvs-hot-1") },
+      { name: "Vox: Oww",         type: "sampler", p0: [0, 0, 1.0, 0], p1: [0.001, 0.1, 1.0, 0.1], sample: smp("Oww", "dvs-oww-1") },
+    ],
+    fxParams: {
+      '808':     Object.assign(defaultFxParams(), { distOn: true, dist: 3, odOn: false, delayOn: false, chorusOn: false, tremoloOn: false, reverbOn: true, reverbMix: 0.08, compOn: true, compThresh: -14, compRatio: 3, master: 0.95 }),
+      '303':     Object.assign(defaultFxParams(), { distOn: true, dist: 7, tone: 0.55, chorusOn: false, tremoloOn: false, delayOn: true, delayTime: 0.30, delayFeedback: 0.32, delayMix: 0.20, reverbOn: true, reverbMix: 0.16, widthOn: true, width: 1.1, master: 0.80 }),
+      'e8e':     Object.assign(defaultFxParams(), {
+        distOn: false, odOn: false, chorusOn: false, tremoloOn: false, delayOn: false,
+        vocoderOn: true, vocSource: 4, vocBands: 16, vocQ: 7, vocAttack: 3, vocRelease: 22, vocMix: 1.0, vocUnvoiced: 0.6, vocFormant: 0,   // carrier voiced by inst 4 (Freak loop)
+        reverbOn: true, reverbMix: 0.22, reverbDecay: 0.8, widthOn: true, width: 1.4, master: 0.98,
+      }),
+      'sampler': Object.assign(defaultFxParams(), { distOn: false, chorusOn: false, tremoloOn: false, delayOn: true, delayTime: 0.30, delayFeedback: 0.24, delayMix: 0.14, reverbOn: true, reverbMix: 0.14, master: 0.85 }),
+    },
+    data: () => {
+      const N = 64;
+      const mk = () => new Pattern(N, 8);
+      const BD = 36, SD = 38, HH = 42, OH = 46;
+      const I_KIT = 0, I_BASS = 1, I_LEAD = 2, I_CARR = 3, I_VOX = 4, I_HOT = 5, I_OWW = 6;
+      // channels: 0 kick · 1 snare · 2 hat · 3 bass · 4 lead · 5 carrier · 6 vox-mod · 7 shouts
+
+      // Deterministic "drunk" jitter for the note-delay swing (cmd 5) — humanizes the
+      // groove without randomness (demos must render bit-identically).
+      const drunk = (r: number, spread: number) => (r * 53 + 17) % spread;
+
+      // --- CRAZY DRUNKEN DRUMS: 808, hard-swung 16ths, sloppy ghost notes ----------
+      const setDrums = (pat: Pattern, full = true, ghosts = true) => {
+        for (let r = 0; r < N; r++) {
+          const s = r % 16, bar = Math.floor(r / 16);
+          if (s === 0 || s === 6 || s === 10) { pat.set(r, 0, BD, I_KIT, s === 0 ? 0.98 : 0.82); if (full) pat.setFx(r, 0, 5, drunk(r, 0x12)); }
+          if (full && s === 11 && bar % 2 === 1) { pat.set(r, 0, BD, I_KIT, 0.6); pat.setFx(r, 0, 5, 0x10 + drunk(r, 0x18)); }
+          if (s === 4 || s === 12) { pat.set(r, 1, SD, I_KIT, 0.9); pat.setFx(r, 1, 5, 0x14 + drunk(r, 0x1a)); }
+          if (ghosts && (s === 7 || s === 15)) { pat.set(r, 1, SD, I_KIT, 0.28); pat.setFx(r, 1, 5, 0x28 + drunk(r, 0x1c)); }
+          if (s !== 14) {
+            pat.set(r, 2, HH, I_KIT, s % 2 === 0 ? 0.46 : 0.30);
+            if (s % 2 === 1) pat.setFx(r, 2, 5, 0x30 + drunk(r, 0x1a));          // swung "&"s, drunk
+            else if (full) pat.setFx(r, 2, 5, drunk(r, 0x10));
+          } else { pat.set(r, 2, OH, I_KIT, 0.5); pat.setFx(r, 2, 5, 0x1c + drunk(r, 0x16)); }   // open-hat lift into the 1
+        }
+      };
+
+      // --- PWM acid bass (303 saw): rolling 16ths with octave pops ------------------
+      const bassFig = [0, 3, 4, 6, 7, 10, 11, 14];
+      const setBass = (pat: Pattern, roots: number[], vol = 0.9) => {
+        for (let bar = 0; bar < 4; bar++) {
+          const root = roots[bar];
+          for (const s of bassFig) {
+            const r = bar * 16 + s;
+            const oct = (s === 7 || s === 14) ? 12 : 0;
+            pat.set(r, 3, root + oct, I_BASS, s % 4 === 0 ? vol : vol * 0.7);
+            pat.set(r + 1, 3, OFF, I_BASS);
+          }
+        }
+      };
+
+      // --- PWM scream lead (303 square; pulse width swept by automation below) ------
+      const leadFig = [{ s: 0, n: 69 }, { s: 3, n: 76 }, { s: 6, n: 72 }, { s: 9, n: 74 }, { s: 12, n: 71 }, { s: 14, n: 69 }];
+      const setLead = (pat: Pattern, vol = 0.6) => {
+        for (let bar = 0; bar < 4; bar++) for (const h of leadFig) {
+          const r = bar * 16 + h.s, t = bar === 2 ? -2 : 0;
+          pat.set(r, 4, h.n + t, I_LEAD, vol); pat.set(r + 2, 4, OFF, I_LEAD);
+        }
+      };
+      // The PWM SWEEP: triangle 0.12↔0.88 over each bar, on the lead's Pulse-Width.
+      const PWM_LEAD = tgt('303', 'PWM');
+      const leadPwmSweep = (pat: Pattern, period = 16) => {
+        const t = pat.getOrCreateAutoTrack(I_LEAD, PWM_LEAD.id);
+        for (let r = 0; r < N; r++) {
+          const ph = (r % period) / period, tri = ph < 0.5 ? ph * 2 : 2 - ph * 2;
+          t[r] = normByte(PWM_LEAD, 0.12 + tri * 0.76);
+        }
+      };
+
+      // --- Vocoder carrier (held per bar) + the looped vocal modulator under it ----
+      const carrTones = [57, 60, 64, 59];        // A C E B — the robot "sings" this
+      const setCarrier = (pat: Pattern, tones = carrTones, vol = 0.7) => {
+        for (let bar = 0; bar < 4; bar++) { const r = bar * 16; pat.set(r, 5, tones[bar], I_CARR, vol); pat.set(r + 15, 5, OFF, I_CARR); }
+      };
+      const setVoxMod = (pat: Pattern, vol = 0.72) => { pat.set(0, 6, 60, I_VOX, vol); pat.set(63, 6, OFF, I_VOX); };  // held loop = continuous modulator
+
+      // --- Vocal shouts (ch 7 one-shots; sustain=1 so the clip ends itself) --------
+      const shout = (pat: Pattern, r: number, inst: number, vol = 0.9) => pat.set(r, 7, 60, inst, vol);
+
+      const rootsIntro = [33, 33, 33, 40], rootsA = [33, 33, 40, 36], rootsCho = [33, 40, 36, 31];
+
+      const p0 = mk(), p1 = mk(), p2 = mk(), p3 = mk(), p4 = mk(), p5 = mk();
+
+      // p0 — intro: drunken drums (no ghosts) + bass building the pocket.
+      setDrums(p0, false, false); setBass(p0, rootsIntro, 0.8);
+      // p1 — groove: full crazy drums + PWM bass + a couple shouts.
+      setDrums(p1, true); setBass(p1, rootsA); shout(p1, 0, I_HOT, 0.85); shout(p1, 40, I_HOT, 0.7);
+      // p2 — + PWM scream lead with the per-bar pulse-width sweep + shouts.
+      setDrums(p2, true); setBass(p2, rootsA); setLead(p2, 0.6); leadPwmSweep(p2); shout(p2, 0, I_HOT, 0.85); shout(p2, 28, I_OWW, 0.8);
+      // p3 — CHORUS / robot hook: drums, bass, lead+PWM sweep, vocoder carrier voiced
+      //      by the held "freak" loop, shouts. The centerpiece.
+      setDrums(p3, true); setBass(p3, rootsCho, 0.95); setLead(p3, 0.62); leadPwmSweep(p3);
+      setCarrier(p3); setVoxMod(p3); shout(p3, 0, I_HOT, 0.9); shout(p3, 24, I_OWW, 0.85); shout(p3, 56, I_HOT, 0.7);
+      // p4 — breakdown: sparse drums + vocoder feature (carrier + freak loop; the
+      //      formant LFO really sings here) + light bass.
+      setDrums(p4, false, true); setBass(p4, rootsA, 0.7); setCarrier(p4, [57, 55, 60, 52], 0.78); setVoxMod(p4, 0.8); shout(p4, 32, I_OWW, 0.7);
+      // p5 — outro: groove winding down + a last shout.
+      setDrums(p5, true, false); setBass(p5, rootsIntro, 0.7); shout(p5, 0, I_HOT, 0.7);
+
+      // Kill notes hanging across pattern boundaries (COMPOSING §10): OFF any melodic
+      // channel (3–7) not retriggering on row 0.
+      const killHang = (pat: Pattern) => {
+        for (let ch = 3; ch < 8; ch++) if (pat.note(0, ch) === EMPTY) pat.set(0, ch, OFF, 0);
+      };
+      [p0, p1, p2, p3, p4, p5].forEach(killHang);
+
+      const PWM_BASS = tgt('303', 'PWM'), VCF = tgt('e8e', 'VCF'), CUT_LEAD = tgt('303', 'CUT');
+      const LVL_BASS = tgt('303', 'LVL'), LVL_CARR = tgt('e8e', 'LVL');
+      return {
+        patterns: [p0, p1, p2, p3, p4, p5],
+        // intro · groove · +lead · chorus×2 · groove · +lead · chorus×2 · break · +lead ·
+        // chorus×3 · groove · +lead · chorus×2 · break · chorus×2 · groove · +lead · chorus · outro  = 25 × 9.6 s ≈ 4:00
+        order: [0, 1, 2, 3, 3, 1, 2, 3, 3, 4, 2, 3, 3, 3, 1, 2, 3, 3, 4, 3, 3, 1, 2, 3, 5],
+        rowsPerBeat: 4,
+        pan: [0.5, 0.5, 0.6, 0.5, 0.4, 0.5, 0.6, 0.42],
+        lfos: [
+          { ...defaultLfo(), shape: 0, sync: true, rateBeats: 8 },    // 0: slow sine — bass PWM wobble (2 bars)
+          { ...defaultLfo(), shape: 1, sync: true, rateBeats: 16 },   // 1: triangle 4-bar — carrier formant sweep (talking)
+          { ...defaultLfo(), shape: 0, sync: true, rateBeats: 2 },    // 2: sine — lead cutoff movement
+          { ...defaultPumpLfo() },                                    // 3: pump — sidechain duck to the kick
+        ],
+        modRoutings: [
+          { source: 0, targetParamId: PWM_BASS.id, targetInstIdx: I_BASS, depth: 0.45, bipolar: true },  // LFO0 → bass Pulse-Width
+          { source: 1, targetParamId: VCF.id,      targetInstIdx: I_CARR, depth: 0.55, bipolar: true },  // LFO1 → vocoder formant
+          { source: 2, targetParamId: CUT_LEAD.id, targetInstIdx: I_LEAD, depth: 0.40, bipolar: true },  // LFO2 → lead cutoff
+          { source: 3, targetParamId: LVL_BASS.id, targetInstIdx: I_BASS, depth: 0.70, bipolar: true },  // PUMP → bass level
+          { source: 3, targetParamId: LVL_CARR.id, targetInstIdx: I_CARR, depth: 0.55, bipolar: true },  // PUMP → carrier level
+        ],
       };
     }
   }
