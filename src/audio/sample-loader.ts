@@ -7,8 +7,19 @@ const ENGINE_SR = 48000;
 // dimensions in gl/synth-renderer.ts (SMP_ATLAS_W * SMP_ATLAS_H / SMP_ATLAS_W rows).
 const MAX_FRAMES = 4096 * (4096 / 16);
 
+// Resolve a sample/asset URL so it works under a subpath deployment. Stored URLs
+// (demo songs, presets, saved songs) use root-absolute paths like "/samples/x.ogg",
+// which ignore the deploy subdir; rewrite the leading "/" to Vite's base ("./" in
+// our config) so it resolves relative to the page — same trick the sysex loader uses.
+// Absolute (http(s)://, //, data:, blob:) and already-relative URLs pass through.
+export function resolveAssetUrl(url: string): string {
+  if (/^([a-z]+:)?\/\//i.test(url) || url.startsWith('data:') || url.startsWith('blob:')) return url;
+  if (url.startsWith('/')) return import.meta.env.BASE_URL + url.slice(1);
+  return url;
+}
+
 export async function decodeSampleUrl(url: string): Promise<Float32Array> {
-  const buf = await (await fetch(url)).arrayBuffer();
+  const buf = await (await fetch(resolveAssetUrl(url))).arrayBuffer();
   const Ctx = window.AudioContext || (window as any).webkitAudioContext;
   const ctx = new Ctx({ sampleRate: ENGINE_SR });
   try {

@@ -4,6 +4,7 @@
 import { INSTRUMENTS, instGlow, INSTRUMENT_COLORS } from '../constants.js';
 import { PRESETS } from './presets.js';
 import { byType } from '../instruments/index.js';
+import { resolveAssetUrl } from '../audio/sample-loader.js';
 import { WT_BANKS, WT_TABLES, WT_FRAMES, WT_SAMPLES, sampleTable } from '../instruments/wavetables.js';
 import type { Preset } from './presets.js';
 import type { DX7Op, FxParams, InstrumentInstance, InstrumentType } from '../types.js';
@@ -454,7 +455,7 @@ export class Controls {
         if (preset.sample) {
           if (preset.sample.url) {
             // Load over HTTP
-            fetch(preset.sample.url).then(res => res.arrayBuffer()).then(buf => {
+            fetch(resolveAssetUrl(preset.sample.url)).then(res => res.arrayBuffer()).then(buf => {
               const ctx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 48000 });
               return ctx.decodeAudioData(buf);
             }).then(audio => {
