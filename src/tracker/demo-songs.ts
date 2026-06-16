@@ -5587,7 +5587,7 @@ export const DEMO_SONGS: SongDef[] = [
     bpm: 70,
     master: DEFAULT_MASTER * 0.6,
     params: [
-      { name: "Sleepy Kit", type: "808",   p0: [0, 0.45, 0.5, 0.5], p1: [0, 0, 0, 0] },
+      { name: "Sleepy Kit", type: "808",   p0: [0, 0.72, 0.42, 0.5], p1: [0, 0, 0, 0] },
       { name: "Round Bass", type: "moog",  p0: [320, 0.3, 0.5, 0.1], p1: [2, 0.2, 0.4, 0.6], p2: [1, 1, 1, 0.04], p3: [1, 1, 1, 0] },
       { name: "Haze Rhodes", type: "pipi", p0: [5.0, 0.0003, 0.22, 0.18], p1: [20, 0.0011, 1.1, 0.5] },
       { name: "Dead Wax",   type: "groove", p0: [0.4, 0.5, 0.35, 0.5], p1: [0.5, 0.4, 0.45, 0.65], p2: [0, 0.5, 0.4, 0] },
@@ -5606,7 +5606,7 @@ export const DEMO_SONGS: SongDef[] = [
 
       // Doo-wop / vaporwave loop: Cmaj7 – Am7 – Fmaj7 – G7, one chord per bar.
       const CH   = [[64, 67, 71], [60, 64, 67], [57, 60, 64], [59, 62, 65]];
-      const ROOT = [36, 33, 29, 31];          // C2 A1 F1 G1
+      const ROOT = [48, 45, 41, 43];          // C3 A2 F2 G2 (was an octave lower → sub-mud)
 
       const drums = (pat: Pattern) => {
         for (let bar = 0; bar < 4; bar++) {
