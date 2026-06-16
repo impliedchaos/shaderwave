@@ -215,8 +215,8 @@ export class Engine {
     // song's routings were driving before swapping (so we don't leak overrides).
     this._restoreLfoFx();
     // Always expose exactly LFO_COUNT sources: pad a song that defines fewer (older
-    // songs / demos predating LFO 3 & 4) with the defaults — so LFO 3 and the
-    // dedicated pump (LFO 4) appear even for songs that never set them.
+    // songs / demos predating LFO 2 & 3) with the defaults — so LFO 2 and the
+    // dedicated pump (LFO 3) appear even for songs that never set them.
     const lfos = defaultLfos();
     if (song.lfos) for (let i = 0; i < LFO_COUNT; i++) if (song.lfos[i]) lfos[i] = song.lfos[i];
     this.lfos = lfos;

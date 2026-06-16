@@ -240,7 +240,7 @@ for (let r = 0; r < N; r++) track[r] = normByte(CUT, 400 + r * 30);   // sweep c
 
 **Four** song-wide LFO **sources** + a list of **routings** (a source → a target, with depth). One
 source can drive many targets. Return them from `data()`. If you return fewer than 4 LFOs they're
-padded to 4 (LFO 4 = the pump); you only need to specify the ones you use.
+padded to 4 (LFO 3 = the pump); you only need to specify the ones you use.
 
 ```ts
 const PS1 = tgt('wvt', 'PS1'), RVM = tgt('wvt', 'RVM');
@@ -248,14 +248,14 @@ const LVL_BASS = tgt('303', 'LVL'), LVL_PAD = tgt('wvt', 'LVL');
 return {
   patterns: [...], order: [...], rowsPerBeat: 4,
   lfos: [
-    { ...defaultLfo(), shape: 0, sync: true, rateBeats: 16 },                         // LFO 1: slow sine, 4 bars
-    { ...defaultLfo(), shape: 6, sync: true, rateBeats: 2, wtBank: 2, wtPos: 0.5 },   // LFO 2: wavetable (PWM), 1/2 bar
-    { ...defaultLfo(), shape: 3, sync: true, rateBeats: 1 },                          // LFO 3: 1-beat saw (general source)
-    { ...defaultPumpLfo() },                                                          // LFO 4: the ducking pump (1 beat)
+    { ...defaultLfo(), shape: 0, sync: true, rateBeats: 16 },                         // LFO 0: slow sine, 4 bars
+    { ...defaultLfo(), shape: 6, sync: true, rateBeats: 2, wtBank: 2, wtPos: 0.5 },   // LFO 1: wavetable (PWM), 1/2 bar
+    { ...defaultLfo(), shape: 3, sync: true, rateBeats: 1 },                          // LFO 2: 1-beat saw (general source)
+    { ...defaultPumpLfo() },                                                          // LFO 3: the ducking pump (1 beat)
   ],
   modRoutings: [
-    { source: 0, targetParamId: PS1.id, targetInstIdx: I_LEAD, depth: 0.45, bipolar: true },  // LFO1 → lead Pos1
-    { source: 0, targetParamId: RVM.id, targetInstIdx: I_LEAD, depth: 0.30, bipolar: false }, // LFO1 → lead reverb mix (fx)
+    { source: 0, targetParamId: PS1.id, targetInstIdx: I_LEAD, depth: 0.45, bipolar: true },  // LFO0 → lead Pos1
+    { source: 0, targetParamId: RVM.id, targetInstIdx: I_LEAD, depth: 0.30, bipolar: false }, // LFO0 → lead reverb mix (fx)
     { source: 3, targetParamId: LVL_BASS.id, targetInstIdx: I_BASS, depth: 0.7, bipolar: true }, // PUMP → bass Level
     { source: 3, targetParamId: LVL_PAD.id,  targetInstIdx: I_PAD,  depth: 0.6, bipolar: true }, // PUMP → pad Level
   ],

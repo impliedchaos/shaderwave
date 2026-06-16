@@ -41,7 +41,7 @@ export function buildLfoUI(app: App) {
     const beatOpts = BEATS.map(([v, l]) => `<option value="${v}">${l}</option>`).join('');
     const bankOpts = WT_BANKS.map((b, k) => `<option value="${k}">${b.name}</option>`).join('');
     panel.innerHTML = `
-      <div class="lfo-head">LFO ${i + 1}</div>
+      <div class="lfo-head">LFO ${i}</div>
       <label class="lfo-row">Shape <select data-k="shape">${shapeOpts}</select></label>
       <label class="lfo-row"><input type="checkbox" data-k="sync"> Sync</label>
       <label class="lfo-row" data-when="sync">Rate <select data-k="beats">${beatOpts}</select></label>
@@ -89,7 +89,7 @@ export function buildLfoUI(app: App) {
   matrix.className = 'lfo-matrix';
   const addBtn = eng.modRoutings.length < MAX_ROUTINGS ? '<button class="lfo-add" data-k="add">+ Add</button>' : '';
   matrix.innerHTML = `<div class="lfo-head">Routings ${addBtn}</div>`;
-  const srcOpts = eng.lfos.map((_, i) => `<option value="${i}">LFO ${i + 1}</option>`).join('');
+  const srcOpts = eng.lfos.map((_, i) => `<option value="${i}">LFO ${i}</option>`).join('');
   const tgtOpts = opts.map((o, k) => `<option value="${k}">${o.label}</option>`).join('');
 
   eng.modRoutings.forEach((r, ri) => {

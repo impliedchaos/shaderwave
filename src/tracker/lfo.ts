@@ -12,7 +12,7 @@ import { wtShape } from '../instruments/wavetables.js';
 
 const TAU = Math.PI * 2;
 
-export const LFO_COUNT = 4;        // number of LFO sources (LFO 4 defaults to the pump)
+export const LFO_COUNT = 4;        // number of LFO sources (LFO 3 defaults to the pump)
 export const MAX_ROUTINGS = 12;    // cap on matrix rows (UI/sanity) — 4 LFOs want more rows
 export const LFO_SHAPES = ['Sine', 'Triangle', 'Square', 'Saw', 'S&H', 'Ramp', 'Wavetable', 'Pump'];
 export const LFO_SHAPE_WAVETABLE = 6;
@@ -23,7 +23,7 @@ export function defaultLfo(): LfoConfig {
 }
 // The dedicated ducking-pump source: the Pump shape, tempo-synced, one duck per
 // beat (rateBeats 1) — route it to instruments' Level via the matrix to sidechain
-// them to the beat (leave the kick unrouted). LFO 4 ships pre-set to this.
+// them to the beat (leave the kick unrouted). LFO 3 ships pre-set to this.
 export function defaultPumpLfo(): LfoConfig {
   return { shape: LFO_SHAPE_PUMP, sync: true, rateBeats: 1, rateHz: 1, wtBank: 0, wtPos: 0 };
 }

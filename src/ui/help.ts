@@ -57,8 +57,8 @@ const EFFECTS = [
 
 const MODULATION = [
   ['Automation tracks', 'Per-pattern lanes sequencing one parameter over the rows (2-hex bytes). Add with the + Auto Track button; scope is inst / fx / channel / global.'],
-  ['Global LFOs', 'Four song-wide LFO sources (Sine/Tri/Square/Saw/S&H/Ramp/Wavetable/Pump, tempo-synced or free Hz). LFOs 1–3 are general; LFO 4 defaults to the Pump. Set in the Song Editor.'],
-  ['Pump (LFO 4)', 'The Pump shape is a one-sided downward ducking envelope — full duck on the beat, swelling back. Route it to instruments\' Level (via the matrix) to sidechain them to the beat; leave the kick unrouted. It always ducks down (ignores the ± toggle).'],
+  ['Global LFOs', 'Four song-wide LFO sources (Sine/Tri/Square/Saw/S&H/Ramp/Wavetable/Pump, tempo-synced or free Hz). LFOs 0–2 are general; LFO 3 defaults to the Pump. Set in the Song Editor.'],
+  ['Pump (LFO 3)', 'The Pump shape is a one-sided downward ducking envelope — full duck on the beat, swelling back. Route it to instruments\' Level (via the matrix) to sidechain them to the beat; leave the kick unrouted. It always ducks down (ignores the ± toggle).'],
   ['Mod matrix', 'Routings aim a target at an LFO source, each with its own depth/polarity — so one LFO can drive many parameters. Add rows in the Song Editor.'],
 ];
 

@@ -4407,10 +4407,10 @@ export const DEMO_SONGS: SongDef[] = [
 
       // THE MOD MATRIX IN ACTION — each LFO is ONE source fanning out to many
       // targets across instruments AND scopes:
-      //  LFO 1 (slow sine, 4 bars): pad + bass morph Positions (unison timbre sweep)
+      //  LFO 0 (slow sine, 4 bars): pad + bass morph Positions (unison timbre sweep)
       //  + the pad's reverb mix swelling with it (fx scope) + a slow auto-pan on the
       //  lead (chan scope) — four destinations from one source.
-      //  LFO 2 (wavetable PWM, 1/2 bar): pulses the lead AND pluck morph in lockstep,
+      //  LFO 1 (wavetable PWM, 1/2 bar): pulses the lead AND pluck morph in lockstep,
       //  plus a tight pan wobble on the pluck.
       const PS1 = tgt('wvt', 'PS1'), PS2 = tgt('wvt', 'PS2'), RVM = tgt('wvt', 'RVM'), PAN = tgt('wvt', 'PAN');
       const lfos = [

@@ -651,7 +651,7 @@ limiter), and the first consumer — a resonant multimode filter — shipped.
 ### 4 LFOs + Pump (ducking) shape (1.12.0) — `project`
 Added 2026-06-08. `LFO_COUNT` 2→4 (`MAX_ROUTINGS` 8→12). The UI is fully data-driven
 (`_buildLfoUI` iterates `eng.lfos`; shape dropdown from `LFO_SHAPES`; matrix source dropdown from
-`eng.lfos`), so LFO 3 & 4 panels + source options cascade for free. LFOs 1–3 are generic; **LFO 4
+`eng.lfos`), so LFO 2 & 3 panels + source options cascade for free. LFOs 0–2 are generic; **LFO 3
 defaults to the new Pump shape** (`defaultLfos()` sets the last slot to `defaultPumpLfo()` — shape 7,
 synced, `rateBeats:1`). NO default routing (user wires the pump per-instrument: route PUMP → each
 non-kick instrument's `LVL`, leave the kick unrouted = sidechain pump without a compressor).
@@ -662,7 +662,7 @@ non-kick instrument's `LVL`, leave the kick unrouted = sidechain pump without a 
   returns `raw*depth`, downward) so flipping ± can't turn it into a boost. Block-rate stepping (~93 Hz)
   means the attack is a ~1-block ramp — punchy, not a hard click.
 - **Padding:** a song defining <4 LFOs is padded to 4 in BOTH load paths — `engine.loadSong` (demos via
-  `data()`) and `song-io.migrate` (saved files) — seeding LFO 4 = pump. So LFO 3/4 appear even for songs
+  `data()`) and `song-io.migrate` (saved files) — seeding LFO 3 = pump. So LFO 2/3 appear even for songs
   predating them; no format-version bump needed (lfos is variable-length + normalized on load).
 - Verified: 24/24 logic tests (incl. pump one-sidedness + ± independence + engine padding), golden-render
   determinism checksum UNCHANGED (0x5fc60c89 — adding unrouted LFOs doesn't alter existing audio) + async≡sync.
@@ -678,7 +678,7 @@ v4** (migrate splits each v3 LFO's embedded target into a source + one routing).
 prune/remap now keys on `modRoutings` (not lfos). UI: Song Editor shows SOURCE panels +
 a Routings matrix (+ Add / ✕, per-row source/target/depth/±). Verified: build + glsl/render-check
 + headless (one source→two targets both move; v3→v4 migration; all 20 songs load). La Mesa de
-Onda updated: LFO1 → pad PS1 AND bass PS1 (one source, two targets); LFO2 → lead PS2.
+Onda updated: LFO0 → pad PS1 AND bass PS1 (one source, two targets); LFO1 → lead PS2.
 
 **WVT Env→Pos:** ADSR can modulate morph Position. `EnvPos1`/`EnvPos2` knobs in WVT's free
 `p3[2]`/`p3[3]` (bipolar −1..1); shader does `clamp(pos + envAmt*env, 0,1)` per-sample before
