@@ -3,7 +3,7 @@
 // control that crossfades soundboard resonance (acoustic) ↔ pickup comb + long sustain
 // (electric), frequency-dependent decay, a pick transient, and a built-in Drive for
 // electric overdrive. Fits the universal p0/p1 banks, so no engine-specific plumbing.
-import type { InstrumentDef } from '../types.js';
+import type { FxParams, InstrumentDef } from '../types.js';
 import shader from '../gl/shaders/synth-guitar.glsl?raw';
 
 export const iguitar: InstrumentDef = {
@@ -40,5 +40,15 @@ export const iguitar: InstrumentDef = {
     { name: 'Overdrive',       p0: [4.5, 0.13, 0.7,  0.05], p1: [30, 0.55, 0.40, 0.20] },
     { name: 'Crunch Rock',     p0: [3.5, 0.12, 0.75, 0.0],  p1: [28, 0.85, 0.50, 0.15] },
     { name: 'Muted Funk',      p0: [0.7, 0.10, 0.55, 0.2],  p1: [24, 0.2,  0.6,  0.05] },
+    { name: 'Jazz Box',        p0: [3.0, 0.30, 0.35, 0.35], p1: [22, 0.0,  0.25, 0.18] },
+    { name: 'Twangy Tele',     p0: [3.5, 0.10, 0.8,  0.05], p1: [30, 0.15, 0.55, 0.16] },
   ],
+  // Bare modal string is dry/spiky; a freshly-added instance lands in a small room with
+  // gentle glue comp and a little air + width (merged over the all-off neutral set).
+  fxDefaults: {
+    eqOn: true, eqLow: -1.5, eqMid: 0, eqHigh: 2, eqLowFreq: 110, eqHighFreq: 3500,
+    compOn: true, compThresh: -18, compRatio: 2.5, compAttack: 6, compRelease: 140, compMakeup: 2.5,
+    reverbOn: true, reverbDecay: 0.7, reverbDamp: 0.5, reverbSend: 0.5, reverbMix: 0.16,
+    widthOn: true, width: 1.15,
+  } as Partial<FxParams>,
 };

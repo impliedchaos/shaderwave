@@ -5734,5 +5734,207 @@ export const DEMO_SONGS: SongDef[] = [
         ],
       };
     }
+  },
+  {
+    name: "Te amo (en lo profundo de tu culo)",
+    author: "AI Slop",
+    note: "Driving mariachi-ROCK in A minor (6/8 gallop, ~122 BPM) à la 'Canción del Mariachi' (Desperado): a furious strummed vihuela rasgueado on every 8th (down/up rolls via note-delay) over a walking guitarrón bajeo, with overdriven Gigi guitars for grit, punchy descending two-trumpet hooks (parallel thirds) and a violin section. i–VII–VI–V verse, iv–i–V–i chorus, VI–III–iv–V bridge, a flashy trumpet adorno. No drums — the gallop drives it. ~3 min. Prompts: 'make a ~3 minute mariachi song called \"Te amo (en lo profundo de tu culo)\"' → 'Better... but... this is a song about anal sex, it should be more upbeat.  Can we make it a little more rock infused like \"Cancion del Mariachi?\"'.",
+    bpm: 122,
+    master: DEFAULT_MASTER * 0.5,
+    params: [
+      // Three acoustic-guitar instances (Gigi): the deep guitarrón, the furiously
+      // strummed vihuela and a nylon for filigree — all overdriven for rock grit,
+      // sharing the 'guitar' fx room.
+      { name: "Guitarrón", type: "guitar", p0: [1.0, 0.20, 0.50, 0.70], p1: [26, 0.18, 0.50, 0.10] },
+      { name: "Vihuela",   type: "guitar", p0: [0.40, 0.12, 0.82, 0.55], p1: [28, 0.22, 0.68, 0.05] },
+      // Trumpet: a warm, softened analog saw-brass (Minimoog) — darker cutoff, gentle
+      // filter env, minimal detune. The "played" feel comes from heavy VIBRATO on held
+      // notes (effect column 4xy, smooth on this phase-accumulating engine), not the tone.
+      { name: "Trompeta", type: "moog", p0: [600, 0.20, 0.42, 0.30], p1: [4, 0.85, 0.50, 0.45], p2: [1, 1, 1, 0.0], p3: [2, 2, 2, 0.03] },
+      { name: "Violines", type: "e8e",    p0: [0.20, 0.5, 0.9, 0.9], p1: [0.16, -0.14, 13, 0.0], p2: [1, 1, 1, 3], p3: [1.0, 0.85, 0.7, 0.5] },
+      { name: "Guitarra", type: "guitar", p0: [0.9, 0.28, 0.55, 0.85], p1: [24, 0.05, 0.35, 0.10] },
+    ],
+    fxParams: {
+      // Overdriven acoustic guitars (the rock grit) in a tight room.
+      'guitar': Object.assign(defaultFxParams(), { distOn: false, odOn: true, odDrive: 2.6, odTone: 0.6, odLevel: 0.82, filterOn: false, chorusOn: true, chorusMix: 0.12, chorusRate: 0.6, chorusDepth: 2.0, tremoloOn: false, delayOn: false, reverbOn: true, reverbDecay: 0.65, reverbDamp: 0.5, reverbSend: 0.45, reverbMix: 0.13, widthOn: true, width: 1.25, master: 0.85 }),
+      // Trumpets (analog saw-brass): light overdrive bite + a hint of chorus for the
+      // ensemble warmth and a bright hall, panned wide as a duet.
+      'moog':   Object.assign(defaultFxParams(), { distOn: false, odOn: true, odDrive: 0.8, odTone: 0.45, odLevel: 0.9, chorusOn: true, chorusMix: 0.12, chorusRate: 0.5, chorusDepth: 2.0, tremoloOn: false, delayOn: false, reverbOn: true, reverbDecay: 0.7, reverbDamp: 0.45, reverbSend: 0.5, reverbMix: 0.18, widthOn: true, width: 1.3, master: 0.85 }),
+      // Violin section: lush chorus + hall, kept well back under the gallop.
+      'e8e':    Object.assign(defaultFxParams(), { distOn: false, odOn: false, chorusOn: true, chorusMix: 0.3, chorusRate: 0.5, chorusDepth: 3.0, tremoloOn: false, delayOn: false, reverbOn: true, reverbDecay: 0.8, reverbDamp: 0.45, reverbSend: 0.55, reverbMix: 0.24, widthOn: true, width: 1.4, master: 0.6 }),
+    },
+    data: () => {
+      const N = 24;                       // 4 bars of 6/8 (6 rows/bar @ rowsPerBeat 3, one row = one 8th)
+      const mk = () => new Pattern(N, 8);
+      const I_GTRON = 0, I_VIH = 1, I_TPT = 2, I_VLN = 3, I_NYL = 4;
+      // channels: 0 guitarrón · 1-3 vihuela chord · 4 trumpet lead · 5 trumpet harmony ·
+      //           6 violins · 7 nylon arpeggio.
+      const off = (pat: Pattern, r: number, ch: number) => { if (r < N) pat.set(r, ch, OFF, 0); };
+
+      // --- Chord tables (A minor) -----------------------------------------------
+      const rootOf: Record<string, number> = { Am: 45, G: 43, F: 41, E7: 40, Dm: 38, C: 36 };   // guitarrón
+      const fifthOf: Record<string, number> = { Am: 52, G: 50, F: 48, E7: 47, Dm: 45, C: 43 };  // guitarrón bajeo fifth
+      const vihOf: Record<string, number[]> = {                                                  // 3-note vihuela voicing
+        Am: [57, 60, 64], G: [55, 59, 62], F: [57, 60, 65], E7: [56, 59, 64], Dm: [57, 62, 65], C: [55, 60, 64],
+      };
+      const vlnOf: Record<string, number> = { Am: 76, G: 74, F: 77, E7: 80, Dm: 81, C: 79 };     // soaring violin tone
+      const nylOf: Record<string, number[]> = {                                                  // nylon arpeggio tones
+        Am: [45, 52, 57, 60], G: [43, 50, 55, 59], F: [41, 48, 53, 57], E7: [40, 47, 52, 56], Dm: [50, 53, 57, 62], C: [48, 52, 55, 60],
+      };
+
+      // Diatonic third ABOVE in C major / A minor (G# → B covered by the +3 fallback) —
+      // the second trumpet rides above the lead, the bright mariachi-duet voicing.
+      const SCALE = [0, 2, 4, 5, 7, 9, 11];
+      const third_above = (n: number) => {
+        const pc = ((n % 12) + 12) % 12, oct = Math.floor(n / 12);
+        let idx = SCALE.indexOf(pc);
+        if (idx < 0) return n + 3;                 // chromatic (e.g. G#) → a minor third above
+        let di = idx + 2, o = oct;
+        if (di > 6) { di -= 7; o += 1; }
+        return o * 12 + SCALE[di];
+      };
+
+      // --- Rock gallop engine: walking guitarrón bajeo + a furious vihuela rasgueado.
+      // The vihuela strums every 8th (D U D · D U D), accenting the two main beats, with
+      // the rasgueado note-delays spread across the three strings (reversed on upstrokes).
+      const setGroove = (pat: Pattern, chords: string[], vihVol = 0.5) => {
+        const strokes = [   // r = 8th within the bar, up = upstroke, acc = beat accent
+          { r: 0, up: false, acc: true }, { r: 1, up: true, acc: false }, { r: 2, up: false, acc: false },
+          { r: 3, up: false, acc: true }, { r: 4, up: true, acc: false }, { r: 5, up: false, acc: false },
+        ];
+        for (let bar = 0; bar < 4; bar++) {
+          const c = chords[bar], b = bar * 6, nextRoot = rootOf[chords[(bar + 1) % 4]];
+          // guitarrón bajeo: root on beat 1, fifth on beat 2, then a stepwise approach
+          // note on the last 8th that walks into the next bar's root.
+          pat.set(b, 0, rootOf[c], I_GTRON, 0.96);  off(pat, b + 2, 0);
+          pat.set(b + 3, 0, fifthOf[c], I_GTRON, 0.84); off(pat, b + 5, 0);
+          const approach = nextRoot + (nextRoot >= fifthOf[c] ? -1 : 1);
+          pat.set(b + 5, 0, approach, I_GTRON, 0.6); off(pat, b + 6, 0);
+          // vihuela rasgueado gallop.
+          const t = vihOf[c];
+          for (const st of strokes) {
+            const r = b + st.r, vol = vihVol * (st.acc ? 1 : 0.6) * (st.up ? 0.85 : 1);
+            for (let s = 0; s < 3; s++) {
+              pat.set(r, 1 + s, t[s], I_VIH, vol);
+              off(pat, r + 1, 1 + s);
+              const d = (st.up ? 2 - s : s) * 0x24;     // strum roll; reversed on the upstroke
+              if (d > 0) pat.setFx(r, 1 + s, 5, d);
+            }
+          }
+        }
+      };
+
+      // --- Sustained violin line (one swelling tone per bar) ----------------------
+      const setStrings = (pat: Pattern, chords: string[], vol = 0.3) => {
+        for (let bar = 0; bar < 4; bar++) {
+          const b = bar * 6;
+          pat.set(b, 6, vlnOf[chords[bar]], I_VLN, vol); off(pat, b + 5, 6);
+        }
+      };
+
+      // --- Nylon filigree (ch 7): a sparse arpeggio on the down-pulses --------------
+      const setNylon = (pat: Pattern, chords: string[], vol = 0.32) => {
+        const fig = [0, 2, 1];                          // root, fifth, third on 8ths 0/2/4
+        for (let bar = 0; bar < 4; bar++) {
+          const t = nylOf[chords[bar]], b = bar * 6;
+          fig.forEach((ti, k) => { const r = b + k * 2; pat.set(r, 7, t[ti], I_NYL, vol); off(pat, r + 2, 7); });
+        }
+      };
+
+      // --- Trumpet duet placer: lead on ch 4, a diatonic third ABOVE on ch 5 -------
+      // Phrases are written in the treble staff but played an OCTAVE DOWN (-12) — the
+      // upper register read too high/synthetic; the lower octave is warmer and brassier.
+      // The harmony rides a third above the lead (ch 5 sits up, out of the muddy low end).
+      type Note = { s: number; n: number; l?: number; v?: number };
+      const setTrumpets = (pat: Pattern, notes: Note[], vol = 0.74) => {
+        for (const m of notes) {
+          const len = m.l ?? 2, v = m.v ?? vol, lead = m.n - 12;
+          pat.set(m.s, 4, lead, I_TPT, v);                       off(pat, m.s + len, 4);
+          pat.set(m.s, 5, third_above(lead), I_TPT, v * 0.85);   off(pat, m.s + len, 5);
+          // VIBRATO (4 = x:speed, y:depth) on sustained notes — the singing mariachi
+          // wobble that makes a synth lead sound played. Enters a row after the attack
+          // (clean onset), deeper on long held notes; both trumpet voices wobble.
+          if (len >= 2) {
+            const vib = len >= 4 ? 0x65 : 0x53;   // long notes: faster + deeper
+            pat.setFx(m.s + 1, 4, 4, vib);
+            pat.setFx(m.s + 1, 5, 4, vib);
+          }
+        }
+      };
+
+      // --- Trumpet phrases (4 bars of 6 8ths; A minor, range ~F4-C6) --------------
+      const tptIntro: Note[] = [   // bold Desperado call (Am Am E7 E7)
+        { s: 0, n: 69, l: 1 }, { s: 1, n: 72, l: 1 }, { s: 2, n: 76, l: 2 }, { s: 4, n: 81, l: 2 },
+        { s: 6, n: 76, l: 1 }, { s: 7, n: 81, l: 1 }, { s: 8, n: 84, l: 4 },
+        { s: 12, n: 80, l: 1 }, { s: 13, n: 83, l: 1 }, { s: 14, n: 80, l: 2 }, { s: 16, n: 76, l: 2 },
+        { s: 18, n: 80, l: 1 }, { s: 19, n: 76, l: 1 }, { s: 20, n: 76, l: 4 },
+      ];
+      const tptVerse: Note[] = [   // descending sequence (Am G F E7)
+        { s: 0, n: 76, l: 2 }, { s: 2, n: 72, l: 2 }, { s: 4, n: 69, l: 2 },
+        { s: 6, n: 74, l: 2 }, { s: 8, n: 71, l: 2 }, { s: 10, n: 67, l: 2 },
+        { s: 12, n: 72, l: 2 }, { s: 14, n: 69, l: 2 }, { s: 16, n: 65, l: 2 },
+        { s: 18, n: 71, l: 1 }, { s: 19, n: 80, l: 1 }, { s: 20, n: 76, l: 4 },
+      ];
+      const tptChorus: Note[] = [  // big hook (Dm Am E7 Am)
+        { s: 0, n: 81, l: 2 }, { s: 2, n: 77, l: 2 }, { s: 4, n: 81, l: 2 },
+        { s: 6, n: 84, l: 2 }, { s: 8, n: 81, l: 2 }, { s: 10, n: 76, l: 2 },
+        { s: 12, n: 80, l: 2 }, { s: 14, n: 83, l: 2 }, { s: 16, n: 80, l: 2 },
+        { s: 18, n: 76, l: 1 }, { s: 19, n: 81, l: 1 }, { s: 20, n: 84, l: 4 },
+      ];
+      const tptBridge: Note[] = [  // rising line (F C Dm E7)
+        { s: 0, n: 65, l: 2 }, { s: 2, n: 69, l: 2 }, { s: 4, n: 72, l: 2 },
+        { s: 6, n: 72, l: 2 }, { s: 8, n: 76, l: 2 }, { s: 10, n: 79, l: 2 },
+        { s: 12, n: 74, l: 2 }, { s: 14, n: 77, l: 2 }, { s: 16, n: 81, l: 2 },
+        { s: 18, n: 83, l: 1 }, { s: 19, n: 80, l: 1 }, { s: 20, n: 76, l: 4 },
+      ];
+      const tptBreak: Note[] = [   // flashy adorno — fast 8th runs (Dm Am E7 Am)
+        { s: 0, n: 74, l: 1 }, { s: 1, n: 77, l: 1 }, { s: 2, n: 81, l: 1 }, { s: 3, n: 84, l: 1 }, { s: 4, n: 81, l: 1 }, { s: 5, n: 77, l: 1 },
+        { s: 6, n: 76, l: 1 }, { s: 7, n: 81, l: 1 }, { s: 8, n: 84, l: 1 }, { s: 9, n: 81, l: 1 }, { s: 10, n: 76, l: 2 },
+        { s: 12, n: 80, l: 1 }, { s: 13, n: 83, l: 1 }, { s: 14, n: 80, l: 1 }, { s: 15, n: 76, l: 1 }, { s: 16, n: 80, l: 1 }, { s: 17, n: 83, l: 1 },
+        { s: 18, n: 84, l: 1 }, { s: 19, n: 81, l: 1 }, { s: 20, n: 76, l: 4 },
+      ];
+      const tptOutro: Note[] = [   // final cadence (Dm E7 Am Am)
+        { s: 0, n: 81, l: 2 }, { s: 2, n: 77, l: 2 }, { s: 4, n: 74, l: 2 },
+        { s: 6, n: 80, l: 2 }, { s: 8, n: 83, l: 1 }, { s: 9, n: 80, l: 2 },
+        { s: 12, n: 76, l: 2 }, { s: 14, n: 72, l: 2 }, { s: 16, n: 69, l: 2 },
+        { s: 18, n: 81, l: 6 },
+      ];
+
+      const introC = ['Am', 'Am', 'E7', 'E7'], mainC = ['Am', 'G', 'F', 'E7'];
+      const chorusC = ['Dm', 'Am', 'E7', 'Am'], bridgeC = ['F', 'C', 'Dm', 'E7'];
+      const outroC = ['Dm', 'E7', 'Am', 'Am'];
+
+      const p0 = mk(), p1 = mk(), p2 = mk(), p3 = mk(), p4 = mk(), p5 = mk(), p6 = mk();
+
+      // p0 — intro: gallop + nylon + trumpet fanfare.
+      setGroove(p0, introC, 0.5); setNylon(p0, introC, 0.3); setStrings(p0, introC, 0.24); setTrumpets(p0, tptIntro, 0.76);
+      // p1 — verse A: gallop + nylon + soft violins (no trumpet, the "canto").
+      setGroove(p1, mainC, 0.5); setNylon(p1, mainC, 0.32); setStrings(p1, mainC, 0.22);
+      // p2 — verse B: add the descending trumpet hook.
+      setGroove(p2, mainC, 0.5); setNylon(p2, mainC, 0.32); setStrings(p2, mainC, 0.24); setTrumpets(p2, tptVerse, 0.66);
+      // p3 — chorus: full drive — trumpet duet + soaring violins.
+      setGroove(p3, chorusC, 0.56); setStrings(p3, chorusC, 0.3); setTrumpets(p3, tptChorus, 0.78);
+      // p4 — trumpet adorno feature over the chorus changes.
+      setGroove(p4, chorusC, 0.54); setStrings(p4, chorusC, 0.28); setTrumpets(p4, tptBreak, 0.78);
+      // p5 — bridge: VI–III–iv–V lift, rising trumpet.
+      setGroove(p5, bridgeC, 0.52); setNylon(p5, bridgeC, 0.32); setStrings(p5, bridgeC, 0.3); setTrumpets(p5, tptBridge, 0.72);
+      // p6 — outro: final cadence, trumpets hold high, violins swell out.
+      setGroove(p6, outroC, 0.5); setStrings(p6, outroC, 0.28); setTrumpets(p6, tptOutro, 0.74);
+
+      // Kill notes hanging across pattern boundaries (COMPOSING §10): OFF any channel
+      // not already retriggering on row 0.
+      const killHang = (pat: Pattern) => {
+        for (let ch = 0; ch < 8; ch++) if (pat.note(0, ch) === EMPTY) pat.set(0, ch, OFF, 0);
+      };
+      [p0, p1, p2, p3, p4, p5, p6].forEach(killHang);
+
+      return {
+        patterns: [p0, p1, p2, p3, p4, p5, p6],
+        // intro · verse A/B · chorus · verse B · chorus · adorno · bridge · chorus · verse · chorus · adorno · verse A/B · chorus×2 · outro  ≈ 3 min @ 122 BPM (6/8)
+        order: [0, 0, 1, 1, 2, 2, 3, 3, 2, 2, 3, 3, 4, 5, 5, 3, 3, 1, 1, 2, 2, 3, 3, 4, 5, 5, 3, 3, 2, 2, 3, 3, 4, 1, 1, 2, 2, 3, 3, 3, 3, 6, 6, 6, 6],
+        rowsPerBeat: 3,
+        pan: [0.5, 0.42, 0.5, 0.58, 0.38, 0.62, 0.5, 0.55],
+      };
+    }
   }
 ];

@@ -83,6 +83,20 @@ hook:** `InstrumentDef.fxDefaults?: Partial<FxParams>` — flattering FX a fresh
 starts with (merged over `neutralFxParams()`); only affects `+ Add`, NOT demos (they set `fxParams` per
 type) or saved songs. Pipi ships reverb+EQ+comp+width defaults. Any engine can now declare `fxDefaults`.
 
+### Guitar (Gigi) realism overhaul, same playbook as Pipi — ✅ DONE + shipped (1.35.0, 2026-06-16) — `project`
+`synth-guitar.glsl` got the SAME treatment as the piano (user asked "improve the guitar synth",
+chose all four): (1) **coherent pluck** — partials start at phase 0 (was random `hash11` phase, the
+synth-strings-wash-+-click bug); (2) few-cents **per-voice detune** (`vdet`) so strummed chords chorus
+instead of phase-locking; (3) **velocity→brightness** (`bright` folds tone+vel+reg into the rolloff);
+(4) **register key-tracking** (`reg = log2(220/f0)/3`, anchored A3 for guitar range; bass longer + up to
+2.5× partials, `GTR_MAXN` 32→48) + a 3-bump **soundboard body** (air ~100 / plate ~185 / wood ~400 Hz),
+morphed in by `Body`. Added `fxDefaults` (EQ/comp/small room/width) + Jazz Box & Twangy Tele presets.
+**Lead-instrument lesson (demo "Te amo …"):** an exposed synth melody reads "synthetic" no matter the
+engine (user rejected dx7 FM → moog → wvt formant in turn). What actually fixed it: keep moog (saw-brass)
+but add EXPRESSION — effect-column **vibrato `4xy`** on held notes (smooth only on phase-accumulating
+303/moog) + a softer/darker patch. Static + perfectly-tuned = synthetic; vibrato = "played". No real
+brass sample exists in `public/samples/` (percussion + vocal chops only).
+
 ### Record button — live note + automation recording — ✅ DONE + shipped (1.33.0, 2026-06-16, user-verified in-browser) — `project`
 Implemented in `src/ui/record.ts` (shared helpers) + wiring in `main.ts` (button→play, RAF
 `tickRecord`), `input.ts` (keyboard), `midi.ts` (refactored onto the shared helpers), `controls.ts` +
