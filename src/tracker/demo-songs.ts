@@ -5575,7 +5575,7 @@ export const DEMO_SONGS: SongDef[] = [
           { ...defaultPumpLfo() },
         ],
         modRoutings: [
-          { source: 0, targetParamId: tgt('wvt', 'FLC').id, targetInstIdx: I_ARP, depth: 0.55, bipolar: true },  // slow filter sweep on the arp
+          { source: 0, targetParamId: tgt('wvt', 'FLC').id, targetInstIdx: I_ARP, depth: 0.15, bipolar: true },  // gentle filter shimmer on the arp (never chokes it out)
         ],
       };
     }
