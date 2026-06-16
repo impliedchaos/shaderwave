@@ -70,10 +70,12 @@ An attempt to implement a WebGL 16-band Vocoder effect was completely abandoned 
 `synth-pipi.glsl` model upgraded (user asked "improve the piano", chose "just make it better" =
 global sound change; existing songs using pipi now sound different/better — accepted): (1) partial cap
 32→64 with **register-scaled** count (`regBoost = clamp(330/f0,1,4)`) so bass is rich, treble breaks at
-Nyquist as before; (2) phase: briefly tried **phase-coherent strike** (all partials in phase) but it made
-CHORDS clip — voices' attacks piled up constructively into a harsh transient (render peak
-0.77 vs 0.31 decorrelated), so REVERTED to per-voice random `hash11` phase (1.34.5); the
-hammer thunk carries the attack instead; (3) **1–3 string choir** (`strands` by f0: <110→1, <220→2, else 3)
+Nyquist as before; (2) **phase**: partials start at phase 0 (**coherent strike**) — zero-start (no onset
+click) and a defined percussive tone. DO NOT randomize partial phase: random `hash11`
+phase makes it sound like a generic "synth strings/guitar" wash AND clicks (nonzero
+partial starts) — tried that to fix chords in 1.34.5, was worse, reverted in 1.34.6. The
+real chord fix is a few-cents **per-voice detune** (`vdet`) so stacked notes chorus
+instead of phase-locking into harshness; (3) **1–3 string choir** (`strands` by f0: <110→1, <220→2, else 3)
 with asymmetric detune + small constant per-string phase; (4) **soundboard body** formant bumps (~130/280
 Hz Gaussians) + **key tracking** (`reg = log2(440/f0)/4`; bass longer/brighter, treble shorter/softer,
 ~centered at middle C). Verified: `glsl-check` ALL_OK + `render-check` pipi peak 0.77 NaN=0. **New reusable
