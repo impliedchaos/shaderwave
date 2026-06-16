@@ -66,6 +66,19 @@ An attempt to implement a WebGL 16-band Vocoder effect was completely abandoned 
 
 ## Current work
 
+### Piano (Pipi) realism overhaul + per-engine `fxDefaults` — ✅ DONE (1.34.0, 2026-06-16) — `project`
+`synth-pipi.glsl` model upgraded (user asked "improve the piano", chose "just make it better" =
+global sound change; existing songs using pipi now sound different/better — accepted): (1) partial cap
+32→64 with **register-scaled** count (`regBoost = clamp(330/f0,1,4)`) so bass is rich, treble breaks at
+Nyquist as before; (2) **phase-coherent strike** — partials launch in phase (was random `hash11` phases →
+mushy attack) for a percussive onset; (3) **1–3 string choir** (`strands` by f0: <110→1, <220→2, else 3)
+with asymmetric detune + small constant per-string phase; (4) **soundboard body** formant bumps (~130/280
+Hz Gaussians) + **key tracking** (`reg = log2(440/f0)/4`; bass longer/brighter, treble shorter/softer,
+~centered at middle C). Verified: `glsl-check` ALL_OK + `render-check` pipi peak 0.77 NaN=0. **New reusable
+hook:** `InstrumentDef.fxDefaults?: Partial<FxParams>` — flattering FX a freshly-`addInstrument`'d instance
+starts with (merged over `neutralFxParams()`); only affects `+ Add`, NOT demos (they set `fxParams` per
+type) or saved songs. Pipi ships reverb+EQ+comp+width defaults. Any engine can now declare `fxDefaults`.
+
 ### Record button — live note + automation recording — ✅ DONE + shipped (1.33.0, 2026-06-16, user-verified in-browser) — `project`
 Implemented in `src/ui/record.ts` (shared helpers) + wiring in `main.ts` (button→play, RAF
 `tickRecord`), `input.ts` (keyboard), `midi.ts` (refactored onto the shared helpers), `controls.ts` +

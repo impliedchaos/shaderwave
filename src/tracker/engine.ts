@@ -408,7 +408,9 @@ export class Engine {
     const used = new Set(this.instruments.map((i) => i.color));
     const color = INSTRUMENT_COLORS.find((c) => !used.has(c))
       || INSTRUMENT_COLORS[this.instruments.length % INSTRUMENT_COLORS.length];
-    const e: InstrumentInstance = { name: byType(type)?.name ?? type.toUpperCase(), type, color, p0: [...dp.p0], p1: [...dp.p1], fx: neutralFxParams() };
+    const fxDef = byType(type)?.fxDefaults;
+    const fx = fxDef ? Object.assign(neutralFxParams(), fxDef) : neutralFxParams();
+    const e: InstrumentInstance = { name: byType(type)?.name ?? type.toUpperCase(), type, color, p0: [...dp.p0], p1: [...dp.p1], fx };
     if (dp.ops) e.ops = dp.ops.map((o) => ({ ...o }));
     // defaultParams() already deep-clones the engine's extra banks (p2/p3) when
     // its descriptor declares them, so just carry whatever it produced.

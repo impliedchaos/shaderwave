@@ -10,15 +10,21 @@
 //       highs off more/less (Hardness), and harder hits (velocity) are brighter.
 //   • TWO-RATE, FREQUENCY-DEPENDENT DECAY — high partials die fast; each partial has
 //       an initial faster stage over a long "aftersound" tail (the piano double-decay).
-//   • DETUNED STRING PAIR — ~2 strings per note a few cents apart beat together for the
-//       shimmer/aftersound (two slightly-detuned copies per partial).
+//   • DETUNED STRING CHOIR — 3 strings (trichord) per note in the mid/treble, 2 in the
+//       tenor, 1 wound string in the bass, with an asymmetric detune spread that beats.
+//   • PHASE-COHERENT STRIKE — a string's partials all launch in phase (a real hammer
+//       impulse), giving the sharp percussive attack; the strings are nudged apart so
+//       they bloom without stacking into one onset spike.
+//   • REGISTER VOICING — bass notes carry many more partials and ring longer/brighter;
+//       treble is sparser, shorter, softer (key tracking).
+//   • SOUNDBOARD BODY — fixed low-mid formant bumps so it reads as a resonant box.
 //   • HAMMER NOISE — a short broadband thunk at onset (the felt contact).
 //
 // Params (per voice):
 //   uP0 = (decay s [aftersound], inharmonicity B, hardness 0..1, hammer 0..1)
 //   uP1 = (partials 1..32, detune, damping [hi-partial decay tilt], release s)
 
-const int PIPI_MAXN = 32;
+const int PIPI_MAXN = 64;
 
 void main(){
   int x = int(gl_FragCoord.x);
@@ -38,13 +44,27 @@ void main(){
   float B      = max(uP0[v].y, 0.0);      // inharmonicity coefficient
   float hard   = clamp(uP0[v].z, 0.0, 1.0);
   float hammer = clamp(uP0[v].w, 0.0, 1.0);
-  int   N      = int(clamp(uP1[v].x, 1.0, float(PIPI_MAXN)));
-  float det    = uP1[v].y;                // string-pair detune (fractional)
+  float det    = uP1[v].y;                // string detune (fractional)
   float damp   = max(uP1[v].z, 0.0);      // higher → high partials decay faster
   float rel    = max(uP1[v].w, 0.005);    // damper time on key-up (large ≈ sustain pedal)
 
-  // Brightness rises with hammer hardness AND velocity (ff is brighter than pp).
-  float bright  = clamp(hard * 0.7 + vel * 0.45, 0.0, 1.0);
+  // KEY TRACKING — register, ~1 at the bottom of the keyboard, 0 at A4 (440 Hz),
+  // negative up top. A real piano rings longer & richer low, shorter & softer high.
+  float reg = clamp(log2(440.0 / max(f0, 1.0)) / 4.0, -0.7, 1.0);
+  decay *= mix(0.85, 1.7, clamp(reg, 0.0, 1.0));   // bass sustains longer (≈1.0 at middle C)
+  decay *= mix(1.0, 0.62, clamp(-reg, 0.0, 1.0));  // treble dies faster
+
+  // MORE PARTIALS IN THE BASS — a low string is rich well past the 1·f0..32·f0 the
+  // old fixed cap allowed; treble runs out of room below Nyquist and breaks early.
+  float regBoost = clamp(330.0 / max(f0, 1.0), 1.0, 4.0);
+  int   N = int(clamp(uP1[v].x * regBoost, 1.0, float(PIPI_MAXN)));
+
+  // STRING COUNT — most notes are a 3-string trichord; the tenor drops to 2 and the
+  // lowest notes to a single wound string (monochord).
+  float strands = f0 < 110.0 ? 1.0 : (f0 < 220.0 ? 2.0 : 3.0);
+
+  // Brightness rises with hammer hardness, velocity, and (slightly) lower register.
+  float bright  = clamp(hard * 0.7 + vel * 0.45 + max(reg, 0.0) * 0.1, 0.0, 1.0);
   float rolloff = mix(1.6, 0.25, bright);   // high-partial damping exponent
   const float STRIKE = 0.125;               // hammer ~1/8 along the string
 
@@ -60,17 +80,26 @@ void main(){
     float comb = 0.3 + 0.7 * abs(sin(PI * float(n) * STRIKE));
     float a = comb * exp(-float(n - 1) * rolloff * 0.18) / float(n);
 
+    // SOUNDBOARD BODY — a couple of fixed low-mid formant bumps so the tone reads as
+    // a resonant box, not a bare string.
+    float body = 1.0 + 0.5 * exp(-pow((fn - 130.0) / 70.0, 2.0))
+                     + 0.35 * exp(-pow((fn - 280.0) / 140.0, 2.0));
+    a *= body;
+
     // Two-rate, frequency-dependent decay (high partials faster; double-decay shape).
     float tauSlow = decay / (1.0 + damp * float(n - 1));
     float tauFast = tauSlow * 0.28;
     float env = 0.72 * exp(-t / tauFast) + 0.28 * exp(-t / tauSlow);
 
-    // Detuned string pair → beating / shimmer (onset-locked phases).
-    float phi  = hash11(float(n) + float(v) * 7.13);
-    float phi2 = hash11(float(n) * 1.7 + float(v) * 3.1 + 2.0);
-    float s1 = sin(TAU * (fn * (1.0 - det) * t + phi));
-    float s2 = sin(TAU * (fn * (1.0 + det) * t + phi2));
-    acc += a * env * (s1 + s2) * 0.5;
+    // PHASE-COHERENT STRIKE — all partials of a string launch in phase, so they sum
+    // to a sharp, percussive attack (random phases smeared it). The 2-3 strings are
+    // detuned by an asymmetric spread (and nudged by a small constant phase so they
+    // don't stack to one onset spike) → beating/bloom without losing the attack.
+    float ph = TAU * fn * t;
+    float s = sin(ph);                                          // reference string
+    if (strands >= 2.0) s += sin(ph * (1.0 + det) + 0.20);      // sharp string
+    if (strands >= 3.0) s += sin(ph * (1.0 - det * 0.7) + 0.40);// flat string
+    acc += a * env * s / strands;
   }
 
   // Hammer thunk: short broadband contact noise, brighter with a harder hammer;

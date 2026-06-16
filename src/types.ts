@@ -318,6 +318,10 @@ export interface InstrumentDef {
   paramDefs: ParamDef[];   // sidebar knobs ([] when customControls)
   autoTargets: RawTarget[];// inst-scope automation targets
   presets?: Preset[];
+  // Flattering FX a freshly-added instance should start with (merged over the
+  // all-off neutral default). For engines that sound much better in context —
+  // e.g. a piano wants a little reverb/EQ/comp. Absent → bone-dry neutral.
+  fxDefaults?: Partial<FxParams>;
   customControls?: boolean; // bespoke sidebar UI (dx7 operator/SysEx-ROM editor)
   // Upload any engine-specific per-voice uniforms beyond the universal banks
   // (dx7 operator banks). Called once per block with the synth program bound.
