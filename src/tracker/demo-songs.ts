@@ -5797,12 +5797,12 @@ export const DEMO_SONGS: SongDef[] = [
       // --- Rock gallop engine: walking guitarrón bajeo + a furious vihuela rasgueado.
       // The vihuela strums every 8th (D U D · D U D), accenting the two main beats, with
       // the rasgueado note-delays spread across the three strings (reversed on upstrokes).
-      const setGroove = (pat: Pattern, chords: string[], vihVol = 0.5) => {
+      const setGroove = (pat: Pattern, chords: string[], vihVol = 0.5, bars = [0, 1, 2, 3]) => {
         const strokes = [   // r = 8th within the bar, up = upstroke, acc = beat accent
           { r: 0, up: false, acc: true }, { r: 1, up: true, acc: false }, { r: 2, up: false, acc: false },
           { r: 3, up: false, acc: true }, { r: 4, up: true, acc: false }, { r: 5, up: false, acc: false },
         ];
-        for (let bar = 0; bar < 4; bar++) {
+        for (const bar of bars) {
           const c = chords[bar], b = bar * 6, nextRoot = rootOf[chords[(bar + 1) % 4]];
           // guitarrón bajeo: root on beat 1, fifth on beat 2, then a stepwise approach
           // note on the last 8th that walks into the next bar's root.
@@ -5825,8 +5825,8 @@ export const DEMO_SONGS: SongDef[] = [
       };
 
       // --- Sustained violin line (one swelling tone per bar) ----------------------
-      const setStrings = (pat: Pattern, chords: string[], vol = 0.3) => {
-        for (let bar = 0; bar < 4; bar++) {
+      const setStrings = (pat: Pattern, chords: string[], vol = 0.3, bars = [0, 1, 2, 3]) => {
+        for (const bar of bars) {
           const b = bar * 6;
           pat.set(b, 6, vlnOf[chords[bar]], I_VLN, vol); off(pat, b + 5, 6);
         }
@@ -5904,7 +5904,7 @@ export const DEMO_SONGS: SongDef[] = [
       const chorusC = ['Dm', 'Am', 'E7', 'Am'], bridgeC = ['F', 'C', 'Dm', 'E7'];
       const outroC = ['Dm', 'E7', 'Am', 'Am'];
 
-      const p0 = mk(), p1 = mk(), p2 = mk(), p3 = mk(), p4 = mk(), p5 = mk(), p6 = mk();
+      const p0 = mk(), p1 = mk(), p2 = mk(), p3 = mk(), p4 = mk(), p5 = mk(), p6 = mk(), p7 = mk();
 
       // p0 — intro: gallop + nylon + trumpet fanfare.
       setGroove(p0, introC, 0.5); setNylon(p0, introC, 0.3); setStrings(p0, introC, 0.24); setTrumpets(p0, tptIntro, 0.76);
@@ -5921,17 +5921,41 @@ export const DEMO_SONGS: SongDef[] = [
       // p6 — outro: final cadence, trumpets hold high, violins swell out.
       setGroove(p6, outroC, 0.5); setStrings(p6, outroC, 0.28); setTrumpets(p6, tptOutro, 0.74);
 
+      // p7 — GRAND FINALE: two bars of E7 build, then the V→i resolution onto a big held
+      // Am tonic with a final "¡bm—BAH!" tag that rings out (the classic mariachi ending).
+      const finalC = ['E7', 'E7', 'Am', 'Am'];
+      const finaleTpt: Note[] = [
+        { s: 0, n: 76, l: 2 }, { s: 2, n: 80, l: 2 }, { s: 4, n: 83, l: 2 },                                       // E7: E G# B rising
+        { s: 6, n: 80, l: 1 }, { s: 7, n: 83, l: 1 }, { s: 8, n: 86, l: 1 }, { s: 9, n: 83, l: 1 }, { s: 10, n: 80, l: 2 }, // E7 flourish
+        { s: 12, n: 81, l: 8 },                                                                                    // Am: land on the tonic A, long held (deep vibrato)
+        { s: 21, n: 76, l: 1 }, { s: 23, n: 81, l: 1 },                                                            // tag: ¡E!—¡A!
+      ];
+      setGroove(p7, finalC, 0.54, [0, 1]);     // gallop only through the E7 build
+      setStrings(p7, finalC, 0.3, [0, 1]);     // violins on the build
+      setTrumpets(p7, finaleTpt, 0.78);
+      {
+        const rAm = rootOf['Am'], fAm = vihOf['Am'];
+        const finalStrum = (row: number, gv: number, sv: number, ringTo: number) => {
+          p7.set(row, 0, rAm, I_GTRON, gv); off(p7, ringTo, 0);
+          for (let s = 0; s < 3; s++) { p7.set(row, 1 + s, fAm[s], I_VIH, sv); off(p7, ringTo, 1 + s); if (s > 0) p7.setFx(row, 1 + s, 5, s * 0x24); }
+        };
+        finalStrum(12, 0.98, 0.82, 20);          // the big Am downbeat — rings through the bar
+        finalStrum(21, 0.70, 0.55, 22);          // tag pickup ("bm")
+        finalStrum(23, 0.98, 0.85, N);           // final hit — no OFF, rings out as the song ends ("BAH!")
+        p7.set(12, 6, vlnOf['Am'], I_VLN, 0.32); // violins swell on the final tonic and ring out
+      }
+
       // Kill notes hanging across pattern boundaries (COMPOSING §10): OFF any channel
       // not already retriggering on row 0.
       const killHang = (pat: Pattern) => {
         for (let ch = 0; ch < 8; ch++) if (pat.note(0, ch) === EMPTY) pat.set(0, ch, OFF, 0);
       };
-      [p0, p1, p2, p3, p4, p5, p6].forEach(killHang);
+      [p0, p1, p2, p3, p4, p5, p6, p7].forEach(killHang);
 
       return {
-        patterns: [p0, p1, p2, p3, p4, p5, p6],
-        // intro · verse A/B · chorus · verse B · chorus · adorno · bridge · chorus · verse · chorus · adorno · verse A/B · chorus×2 · outro  ≈ 3 min @ 122 BPM (6/8)
-        order: [0, 0, 1, 1, 2, 2, 3, 3, 2, 2, 3, 3, 4, 5, 5, 3, 3, 1, 1, 2, 2, 3, 3, 4, 5, 5, 3, 3, 2, 2, 3, 3, 4, 1, 1, 2, 2, 3, 3, 3, 3, 6, 6, 6, 6],
+        patterns: [p0, p1, p2, p3, p4, p5, p6, p7],
+        // intro · verse A/B · chorus · verse B · chorus · adorno · bridge · chorus · verse · chorus · adorno · verse A/B · chorus×2 · outro×3 · FINALE  ≈ 3 min @ 122 BPM (6/8)
+        order: [0, 0, 1, 1, 2, 2, 3, 3, 2, 2, 3, 3, 4, 5, 5, 3, 3, 1, 1, 2, 2, 3, 3, 4, 5, 5, 3, 3, 2, 2, 3, 3, 4, 1, 1, 2, 2, 3, 3, 3, 3, 6, 6, 6, 7],
         rowsPerBeat: 3,
         pan: [0.5, 0.42, 0.5, 0.58, 0.38, 0.62, 0.5, 0.55],
       };
