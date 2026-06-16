@@ -47,6 +47,14 @@ export const ie8e: InstrumentDef = {
     { name: 'Fat Saw Stack', p0: [0.01,  0.4,  0.8, 0.4],  p1: [0.18, 12,  8,  0.0], p2: [1, 1, 1, 3], p3: [1.0, 0.9, 0.7, 0.5] },
     { name: 'Glass Bell',    p0: [0.001, 0.6,  0.0, 0.5],  p1: [7.0,  19,  10, 0.0], p2: [0, 0, 0, 3], p3: [1.0, 0.6, 0.4, 0.5] },
     { name: 'Lo-Fi Pad',     p0: [0.2,   0.5,  0.7, 0.6],  p1: [0.08, -12, 5,  0.0], p2: [3, 3, 0, 3], p3: [1.0, 0.8, 0.6, 0.5] },
+    // Pads — slow attack, high sustain, long release; triple-osc with subtle (cents)
+    // detune for width. Higher Bits = smoother; drop Bits for lo-fi grit.
+    { name: 'Warm Pad',      p0: [0.35,  0.6,  0.85, 1.1], p1: [0.12, -0.12, 13, 0.08], p2: [3, 1, 3, 3], p3: [1.0, 0.7, 0.6, 0.5] },
+    { name: 'String Ens.',   p0: [0.28,  0.5,  0.9,  1.3], p1: [0.18, -0.15, 14, 0.0],  p2: [1, 1, 1, 3], p3: [1.0, 0.9, 0.8, 0.5] },
+    { name: 'Glass Pad',     p0: [0.32,  0.7,  0.8,  1.1], p1: [0.10, 12.1,  14, 0.0],  p2: [0, 0, 3, 3], p3: [1.0, 0.6, 0.4, 0.5] },
+    { name: 'Hollow PWM Pad',p0: [0.22,  0.5,  0.85, 0.95],p1: [0.1,  -0.1,  11, 0.0],  p2: [2, 2, 2, 3], p3: [1.0, 0.8, 0.6, 0.28] },
+    { name: 'Fifths Pad',    p0: [0.3,   0.5,  0.85, 1.1], p1: [0.1,  7.0,   12, 0.0],  p2: [1, 1, 2, 3], p3: [1.0, 0.7, 0.5, 0.5] },
+    { name: 'Dusty Pad',     p0: [0.4,   0.6,  0.7,  0.9], p1: [0.08, -0.08, 4,  0.18], p2: [3, 3, 1, 3], p3: [1.0, 0.7, 0.5, 0.5] },
     { name: 'Hiss Stab',     p0: [0.001, 0.08, 0.0, 0.05], p1: [0.0,  -24, 4,  0.3], p2: [2, 4, 0, 2], p3: [1.0, 0.4, 0.5, 0.5] },
     // Chiptune/NES-style drums — E8E is pitched (no pitch envelope), so these are
     // short pitched blips + noise bursts. Play kick/toms LOW (toms hi→low on
