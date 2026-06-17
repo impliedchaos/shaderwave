@@ -5,6 +5,7 @@
 
 const KEYBOARD = [
   ['Z – M', 'Piano keys (with S D G H J) — write a note at the cursor and preview it'],
+  ['Q – O', 'Piano keys one octave up (2 3 5 6 7 9 black notes; I closes the octave on C)'],
   ['[  /  ]', 'Octave down / up'],
   ['Arrows', 'Move the cursor around the grid'],
   ['← / →', 'Step through the note → instrument → volume → effect sub-columns'],

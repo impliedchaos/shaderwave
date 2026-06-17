@@ -12,10 +12,15 @@ const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getEleme
 // cell (`auto` = the row's Int16 value). `auto === undefined` discriminates.
 export type ClipCell = { note: number; inst: number; vol: number; fxCmd?: number; fxVal?: number; auto?: number };
 
-// Lower keyboard row → semitone offset within the current octave.
+// Piano-style keyboard map → semitone offset above the current octave. The lower
+// (Z) row is the current octave; the upper (Q) row is the octave above (+12), with
+// the number-row keys as its black notes — the classic tracker two-octave layout.
 const KEY_SEMI: Record<string, number> = {
   KeyZ: 0, KeyS: 1, KeyX: 2, KeyD: 3, KeyC: 4, KeyV: 5, KeyG: 6,
   KeyB: 7, KeyH: 8, KeyN: 9, KeyJ: 10, KeyM: 11, Comma: 12, KeyL: 13, Period: 14,
+  KeyQ: 12, Digit2: 13, KeyW: 14, Digit3: 15, KeyE: 16, KeyR: 17, Digit5: 18,
+  KeyT: 19, Digit6: 20, KeyY: 21, Digit7: 22, KeyU: 23,
+  KeyI: 24, Digit9: 25, KeyO: 26,   // upper row closes on C (= Z, two octaves up), with the C#/D overhang
 };
 // For 808, keys select drum slots rather than pitches.
 const DRUM_KEYS = [36, 38, 42, 46, 39, 41, 45, 48, 56];
