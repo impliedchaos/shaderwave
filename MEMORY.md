@@ -94,6 +94,32 @@ Spectra is the answer: it **parallelises over partials** so the GPU finally has 
   the 2048 case is well under the 10.7 ms realtime budget. **Phase 2 (not done):** uploaded spectral
   table → true additive *resynthesis* (analyse a sample → morph/freeze its partials).
 
+### Spectra expressivity pass — coherence + shimmer + formant + velocity (2.1.0, 2026-06-17) — `project`
+User felt Spectra was "not versatile or good sounding." Diagnosis: every partial got fixed RANDOM phase
+(no attack transient → washy), partials were static (no movement → frozen pads), and the only shaper was a
+monotonic `1/n^tilt` rolloff (no formants; velocity only scaled volume). Fixes, all in `synth-additive.glsl`
++ `iadditive.ts` (NO renderer/multi-pass change, voices stay mono):
+- **Coherence** at the previously-unused `p2.w`: `phi = mix(rnd, 0.0, coher)` — 1 = coherent strike (defined,
+  click-free attack; reducer tanh + per-partial detune bound the onset spike, the proven piano-strike approach),
+  0 = the legacy random-phase wash.
+- **Shimmer** (`p3.x`): per-partial decorrelated amplitude LFO (rate 0.5–6 Hz) on absolute note time → alive pads.
+- **Formant** (`p3.y` pos 150–5000 Hz, `p3.z` amt [0=off], `p3.w` BW octaves): a movable log-frequency Gaussian
+  boost → vowels/body. Two new presets (Vowel Choir, Talking Pad) + a woody formant on Clarinet.
+- **Velocity→brightness**: folds into the tilt exponent, ANCHORED at full velocity (`vel==1` neutral) so only
+  softer notes darken. Always-on (no knob), matching the Pipi/Gigi playbook.
+- **Backward-compat**: shimmer/formant branches are gated on `>0` (skipped = bit-identical AND free at default/old
+  patches). Default `p3` shimmer/formant = 0 so songs that omit p3 (back-filled from descriptor defaults) stay
+  identical; the shipped demo "Tantric Spectral Edging" sets `p2[3]=0` explicitly so its phase is unchanged too.
+  Only deviation from bit-identical there is the always-on velocity→brightness on its sub-unity-velocity notes
+  (accepted, like Pipi/Gigi). Fresh `+Add` instances get default coherence 0.5 (livelier attack); the rich
+  shimmer/formant character lives in the presets. Verified: build green, glsl-check ALL_OK, additive-check
+  ALL_OK (NaN=0, peak tanh-bounded ~1.0 across 64→2048; one extra `mix` per partial, negligible on real GPU).
+- **KNOWN LIMITATION / follow-up:** Coherence (p2.w) + Shimmer/Formant (p3) are **knob-only, NOT automatable**.
+  Inst-scope automation only supports the p0/p1 banks — `engine._applyAutomation` (and the autoLive merge) hardcode
+  `bank==='p1' ? p1 : p0`, so a p2/p3 autoTarget would silently write to p0 and corrupt Partials/Tilt; the
+  `ParamTarget.bank` type is also `'p0'|'p1'` only. Same limitation 888State has. Automating these (esp. Formant
+  Pos for vowel morphs) needs that apply path + autoLive + the type widened to p2/p3 — a clean scoped follow-up.
+
 ### Theming / light theme (2026-06-17) — ✅ DONE — `reference`
 The palette is **CSS custom properties** in `index.html` `:root`; a light theme is the override
 block `:root[data-theme="light"] { … }`. Switching = `document.documentElement.dataset.theme`

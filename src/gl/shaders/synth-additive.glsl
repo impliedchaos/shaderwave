@@ -19,7 +19,11 @@
 // Params (per voice):
 //   uP0 = (Partials 1..2048, Tilt 0..1 [dark..bright], Stretch 0..1 [inharmonicity], Morph 0..1 [formula↔analyzed])
 //   uP1 = (Decay s [0 = sustain], DecayTilt 0..1 [highs die faster], Detune 0..1 [partial spread], Comb 0..1)
-//   uP2 = (Attack s, Release s, OddEven 0..1, _)
+//   uP2 = (Attack s, Release s, OddEven 0..1, Coherence 0..1 [0 = random phase wash, 1 = coherent strike])
+//   uP3 = (Shimmer 0..1 [per-partial animation], Formant pos 0..1 [150..5000 Hz], Formant amt [0 = off], Formant BW octaves)
+//
+// Velocity opens the spectrum (folds into the tilt exponent, anchored at full velocity).
+// Coherence / Shimmer / Formant default to 0 → bit-identical to the legacy formula sound.
 //
 // RESYNTHESIS (Phase 2): if this voice's instance has an analyzed sample, uSpectra holds
 // its harmonic amplitude profile (row uAddSlot[v], harmonic n at texel n-1) and Morph
@@ -62,11 +66,18 @@ void main(){
   float atk     = max(uP2[v].x, 0.0005);
   float rel     = max(uP2[v].y, 0.005);
   float oddeven = clamp(uP2[v].z, 0.0, 1.0);
+  float coher   = clamp(uP2[v].w, 0.0, 1.0);            // 0 = decorrelated phase (legacy), 1 = coherent strike
+  float shimmer = clamp(uP3[v].x, 0.0, 1.0);            // per-partial amplitude animation depth
+  float fmtPos  = clamp(uP3[v].y, 0.0, 1.0);            // formant centre (0..1 → 150..5000 Hz)
+  float fmtAmt  = max(uP3[v].z, 0.0);                   // formant peak boost (0 = off → branch skipped)
+  float fmtW    = uP3[v].w;                             // formant width in octaves
   int   slot    = int(uAddSlot[v] + 0.5);
   bool  resynth = uAddSlot[v] > -0.5 && morph > 0.0;   // analyzed spectrum available + dialed in
 
   float B       = stretch * stretch * 0.0015;           // inharmonicity (string → bell/metallic)
-  float tiltExp = mix(1.6, 0.25, tilt);                 // amplitude rolloff: dark → bright
+  // Velocity opens the spectrum (harder = brighter), anchored at full velocity so vel==1 is neutral.
+  float tiltAmt = clamp(tilt + (vel - 1.0) * 0.4, 0.0, 1.0);
+  float tiltExp = mix(1.6, 0.25, tiltAmt);              // amplitude rolloff: dark → bright
   float nyq     = uSampleRate * 0.45;
 
   // One global amplitude envelope (attack → sustain → release) shared by every partial,
@@ -90,12 +101,22 @@ void main(){
       float aAmp = (n <= ADD_SPECTRA_K) ? texelFetch(uSpectra, ivec2(n - 1, slot), 0).r : 0.0;
       amp = mix(amp, aAmp, morph);
     }
+    if (fmtAmt > 0.0) {                                             // movable formant resonance (vowel / body)
+      float lf = log2(fn / mix(150.0, 5000.0, fmtPos)) / max(fmtW, 0.05);
+      amp *= 1.0 + fmtAmt * exp(-lf * lf * 0.5);
+    }
+    if (shimmer > 0.0) {                                            // per-partial amplitude animation → alive pad
+      float rate = mix(0.5, 6.0, hash11(float(n) * 2.3));           // decorrelated Hz per partial
+      float sph  = hash11(float(n) * 4.1 + float(v) * 1.7);
+      amp *= 1.0 + shimmer * 0.5 * sin(TAU * (rate * t + sph));
+    }
     float env = aenv;
     if (decay > 0.0) {                                              // per-partial decay; highs die faster
       float tau = decay / (1.0 + decayT * 6.0 * float(n - 1) / float(max(N - 1, 1)));
       env *= exp(-t / tau);
     }
-    float phi = hash11(float(n) * 0.731 + float(v) * 5.17);         // decorrelated phase → no onset spike, bounded RMS
+    float rnd = hash11(float(n) * 0.731 + float(v) * 5.17);         // decorrelated phase (legacy) → bounded RMS
+    float phi = mix(rnd, 0.0, coher);                               // coher=1 → coherent strike (defined attack), click-free
     acc += amp * env * sin(TAU * (fn * te + phi));
   }
   outAudio = vec4(acc * vel * 0.5, 0.0, 0.0, 1.0);    // *0.5 once overall (tiles sum in the reducer; final tanh there)

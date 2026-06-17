@@ -17,8 +17,12 @@ export const iadditive: InstrumentDef = {
   blurb: 'A GPU-parallel additive synth: up to 2048 partials per voice summed across the chip (one tile of partials per fragment, then a log-reduce). A stretched harmonic series shaped by Partials, Tilt (dark↔bright), Stretch (inharmonicity → bell/metallic), a pluck Comb, Odd/Even, per-partial Decay/DecayTilt and a Detune spread. RESYNTHESIS: give an instance a sample and the Morph knob crossfades the synthetic spectrum into the sample\'s analyzed harmonic profile (click-free, automatable/LFO-able — the marquee spectral movement). Organ, bell, choir, metallic and "what does a kalimba pad sound like" tones.',
   shader,
   additive: true,
-  // p0 = (partials, tilt, stretch, MORPH 0=formula↔1=analyzed); p1 = (decay, decayTilt, detune, comb); p2 = (attack, release, odd/even)
-  defaults: { p0: [512, 0.5, 0.0, 0.0], p1: [0, 0.5, 0.2, 0.0], p2: [0.02, 0.4, 0.0, 0] },
+  // p0 = (partials, tilt, stretch, MORPH 0=formula↔1=analyzed); p1 = (decay, decayTilt, detune, comb);
+  // p2 = (attack, release, odd/even, COHERENCE 0=random-phase wash↔1=coherent strike);
+  // p3 = (shimmer, formant pos, formant amt [0=off], formant BW). Default p3 is NEUTRAL (shimmer/formant off)
+  // so songs that omit p3 (the bank is back-filled from here) stay bit-identical; a fresh +Add gets a touch of
+  // coherence for a defined attack. The lively shimmer/formant character lives in the presets.
+  defaults: { p0: [512, 0.5, 0.0, 0.0], p1: [0, 0.5, 0.2, 0.0], p2: [0.02, 0.4, 0.0, 0.5], p3: [0.0, 0.0, 0.0, 0.5] },
   paramDefs: [
     { label: 'Partials',  bank: 'p0', i: 0, min: 1, max: 2048, step: 1 },
     { label: 'Tilt',      bank: 'p0', i: 1, min: 0, max: 1,    step: 0.01 },
@@ -31,6 +35,11 @@ export const iadditive: InstrumentDef = {
     { label: 'Attack',    bank: 'p2', i: 0, min: 0.0005, max: 2, step: 0.005 },
     { label: 'Release',   bank: 'p2', i: 1, min: 0.005,  max: 4, step: 0.005 },
     { label: 'Odd/Even',  bank: 'p2', i: 2, min: 0, max: 1,    step: 0.01 },
+    { label: 'Coherence', bank: 'p2', i: 3, min: 0, max: 1,    step: 0.01 },
+    { label: 'Shimmer',   bank: 'p3', i: 0, min: 0, max: 1,    step: 0.01 },
+    { label: 'Formant',   bank: 'p3', i: 1, min: 0, max: 1,    step: 0.01 },
+    { label: 'Fmt Amt',   bank: 'p3', i: 2, min: 0, max: 3,    step: 0.01 },
+    { label: 'Fmt BW',    bank: 'p3', i: 3, min: 0.1, max: 3,  step: 0.05 },
   ],
   autoTargets: [
     { code: 'PRT', label: 'Partials',  bank: 'p0', index: 0, min: 1, max: 2048, curve: 'log' },
@@ -41,28 +50,36 @@ export const iadditive: InstrumentDef = {
     { code: 'DCT', label: 'DecayTilt', bank: 'p1', index: 1, min: 0, max: 1, curve: 'lin' },
     { code: 'DET', label: 'Detune',    bank: 'p1', index: 2, min: 0, max: 1, curve: 'lin' },
     { code: 'CMB', label: 'Comb',      bank: 'p1', index: 3, min: 0, max: 1, curve: 'lin' },
+    // NOTE: Coherence (p2.w) + Shimmer/Formant (p3) are knob-only — inst-scope automation
+    // currently only supports the p0/p1 banks (engine._applyAutomation hardcodes p1?p1:p0).
+    // Automating these (esp. Formant Pos for vowel morphs) needs that path widened to p2/p3.
   ],
+  // p2[3] = Coherence (struck/plucked voices want it high for a defined attack; pads stay low/washy);
+  // p3 = [Shimmer, Formant pos, Formant amt (0 = off), Formant BW].
   presets: [
-    { name: 'Glass Organ',    p0: [1024, 0.7, 0.0,  0.0], p1: [0,   0.5, 0.15, 0.0], p2: [0.02, 0.5, 0.0, 0] },
-    { name: 'Cathedral Bell', p0: [800,  0.55, 0.6, 0.0], p1: [6.0, 0.7, 0.25, 0.0], p2: [0.003, 1.2, 0.3, 0] },
-    { name: 'Choir Pad',      p0: [1536, 0.45, 0.04, 0.0], p1: [0,  0.5, 0.5,  0.0], p2: [0.4, 1.0, 0.0, 0] },
-    { name: 'Metallic',       p0: [1200, 0.6, 0.85, 0.0], p1: [4.0, 0.8, 0.4,  0.4], p2: [0.005, 0.8, 0.5, 0] },
-    { name: 'Saw-ish 2048',   p0: [2048, 0.5, 0.0,  0.0], p1: [0,   0.5, 0.1,  0.0], p2: [0.01, 0.3, 0.0, 0] },
-    { name: 'Hollow Comb',    p0: [1024, 0.6, 0.0,  0.0], p1: [0,   0.5, 0.2,  0.8], p2: [0.05, 0.6, 0.0, 0] },
+    { name: 'Glass Organ',    p0: [1024, 0.7, 0.0,  0.0], p1: [0,   0.5, 0.15, 0.0], p2: [0.02, 0.5, 0.0, 0.5],  p3: [0.15, 0.0,  0.0, 0.5] },
+    { name: 'Cathedral Bell', p0: [800,  0.55, 0.6, 0.0], p1: [6.0, 0.7, 0.25, 0.0], p2: [0.003, 1.2, 0.3, 0.9], p3: [0.0,  0.0,  0.0, 0.5] },
+    { name: 'Choir Pad',      p0: [1536, 0.45, 0.04, 0.0], p1: [0,  0.5, 0.5,  0.0], p2: [0.4, 1.0, 0.0, 0.2],   p3: [0.5,  0.35, 0.8, 0.8] },
+    { name: 'Metallic',       p0: [1200, 0.6, 0.85, 0.0], p1: [4.0, 0.8, 0.4,  0.4], p2: [0.005, 0.8, 0.5, 0.85], p3: [0.0, 0.0,  0.0, 0.5] },
+    { name: 'Saw-ish 2048',   p0: [2048, 0.5, 0.0,  0.0], p1: [0,   0.5, 0.1,  0.0], p2: [0.01, 0.3, 0.0, 0.7],  p3: [0.1,  0.0,  0.0, 0.5] },
+    { name: 'Hollow Comb',    p0: [1024, 0.6, 0.0,  0.0], p1: [0,   0.5, 0.2,  0.8], p2: [0.05, 0.6, 0.0, 0.5],  p3: [0.2,  0.0,  0.0, 0.5] },
     // — more formula voicings —
-    { name: 'Pure Sine',      p0: [1,    0.5, 0.0,  0.0], p1: [0,   0.5, 0.0,  0.0], p2: [0.01,  0.4, 0.0, 0] },  // single partial → clean fundamental
-    { name: 'Drawbar Organ',  p0: [16,   0.5, 0.0,  0.0], p1: [0,   0.5, 0.05, 0.0], p2: [0.004, 0.12, 0.0, 0] }, // few harmonics, snappy
-    { name: 'Soft Pad',       p0: [1536, 0.32, 0.02, 0.0], p1: [0,  0.5, 0.6,  0.0], p2: [0.8,   1.6, 0.0, 0] },  // dark, slow, wide detune
-    { name: 'Bowed Glass',    p0: [1024, 0.62, 0.15, 0.0], p1: [0,  0.5, 0.4,  0.0], p2: [1.0,   1.2, 0.0, 0] },  // slow swell, faint inharmonicity
-    { name: 'Tubular Bells',  p0: [600,  0.5, 0.75, 0.0], p1: [7.0, 0.6, 0.15, 0.0], p2: [0.002, 2.2, 0.4, 0] },  // long inharmonic ring
-    { name: 'Music Box',      p0: [400,  0.72, 0.4, 0.0], p1: [2.5, 0.85, 0.1, 0.0], p2: [0.001, 1.0, 0.3, 0] },  // bright, short, sparse
-    { name: 'Glass Pluck',    p0: [1024, 0.7, 0.1,  0.0], p1: [1.2, 0.7, 0.2,  0.3], p2: [0.002, 0.5, 0.0, 0] },  // bright comb pluck
-    { name: 'Clarinet (odd)', p0: [768,  0.55, 0.0, 0.0], p1: [0,   0.5, 0.15, 0.25], p2: [0.03, 0.4, 1.0, 0] },  // odd-harmonic hollow reed
-    { name: 'Saw Swarm',      p0: [2048, 0.45, 0.0, 0.0], p1: [0,   0.5, 0.85, 0.0], p2: [0.02,  0.5, 0.0, 0] },  // heavy-detune supersaw wall
+    { name: 'Pure Sine',      p0: [1,    0.5, 0.0,  0.0], p1: [0,   0.5, 0.0,  0.0], p2: [0.01,  0.4, 0.0, 1.0], p3: [0.0,  0.0,  0.0, 0.5] },  // single partial → clean fundamental
+    { name: 'Drawbar Organ',  p0: [16,   0.5, 0.0,  0.0], p1: [0,   0.5, 0.05, 0.0], p2: [0.004, 0.12, 0.0, 0.85], p3: [0.1, 0.0, 0.0, 0.5] }, // few harmonics, snappy
+    { name: 'Soft Pad',       p0: [1536, 0.32, 0.02, 0.0], p1: [0,  0.5, 0.6,  0.0], p2: [0.8,   1.6, 0.0, 0.15], p3: [0.5, 0.0,  0.0, 0.5] },  // dark, slow, wide detune, breathing
+    { name: 'Bowed Glass',    p0: [1024, 0.62, 0.15, 0.0], p1: [0,  0.5, 0.4,  0.0], p2: [1.0,   1.2, 0.0, 0.3],  p3: [0.4, 0.0,  0.0, 0.5] },  // slow swell, faint inharmonicity
+    { name: 'Tubular Bells',  p0: [600,  0.5, 0.75, 0.0], p1: [7.0, 0.6, 0.15, 0.0], p2: [0.002, 2.2, 0.4, 0.9], p3: [0.0,  0.0,  0.0, 0.5] },  // long inharmonic ring
+    { name: 'Music Box',      p0: [400,  0.72, 0.4, 0.0], p1: [2.5, 0.85, 0.1, 0.0], p2: [0.001, 1.0, 0.3, 0.95], p3: [0.0, 0.0,  0.0, 0.5] },  // bright, short, sparse
+    { name: 'Glass Pluck',    p0: [1024, 0.7, 0.1,  0.0], p1: [1.2, 0.7, 0.2,  0.3], p2: [0.002, 0.5, 0.0, 0.9], p3: [0.05, 0.0,  0.0, 0.5] },  // bright comb pluck
+    { name: 'Clarinet (odd)', p0: [768,  0.55, 0.0, 0.0], p1: [0,   0.5, 0.15, 0.25], p2: [0.03, 0.4, 1.0, 0.6], p3: [0.1,  0.25, 0.6, 0.7] },  // odd-harmonic hollow reed + woody formant
+    { name: 'Saw Swarm',      p0: [2048, 0.45, 0.0, 0.0], p1: [0,   0.5, 0.85, 0.0], p2: [0.02,  0.5, 0.0, 0.4], p3: [0.3,  0.0,  0.0, 0.5] },  // heavy-detune supersaw wall
+    // — formant-driven voices (sweep/automate Formant for vowel morphs) —
+    { name: 'Vowel Choir',    p0: [1024, 0.5, 0.0,  0.0], p1: [0,   0.5, 0.35, 0.0], p2: [0.2, 1.0, 0.0, 0.25], p3: [0.45, 0.35, 1.2, 0.6] },  // resonant "aah" choir
+    { name: 'Talking Pad',    p0: [1280, 0.45, 0.02, 0.0], p1: [0,  0.5, 0.4,  0.0], p2: [0.3, 1.2, 0.0, 0.2],  p3: [0.5,  0.5,  1.0, 0.5] },  // shimmer + sweepable formant
     // — resynthesis: load a sample, Morph crossfades the synth spectrum into its analyzed profile —
-    { name: 'Kalimba (resynth)', p0: [768, 0.55, 0.0, 0.85], p1: [1.8, 0.6, 0.12, 0.0], p2: [0.004, 0.9, 0.0, 0],
+    { name: 'Kalimba (resynth)', p0: [768, 0.55, 0.0, 0.85], p1: [1.8, 0.6, 0.12, 0.0], p2: [0.004, 0.9, 0.0, 0.85], p3: [0.0, 0.0, 0.0, 0.5],
       sample: { name: 'Kalimba', url: '/samples/kalimba.ogg', rootNote: 60, loopStart: 0, loopEnd: 0, loopMode: 0 } },
-    { name: 'Vox Pad (resynth)', p0: [1024, 0.5, 0.0, 0.9], p1: [0, 0.5, 0.35, 0.0], p2: [0.3, 1.1, 0.0, 0],
+    { name: 'Vox Pad (resynth)', p0: [1024, 0.5, 0.0, 0.9], p1: [0, 0.5, 0.35, 0.0], p2: [0.3, 1.1, 0.0, 0.2], p3: [0.4, 0.4, 0.5, 0.8],
       sample: { name: 'Vox', url: '/samples/dvs-oh-1.ogg', rootNote: 60, loopStart: 0, loopEnd: 0, loopMode: 0 } },
   ],
   // Additive spectra love space + a touch of width; a freshly-added instance starts lush.
