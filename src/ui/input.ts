@@ -119,15 +119,47 @@ export function keyToNote(app: App, code: string): number | null {
 
 export function handleCursor(app: App, e: KeyboardEvent) {
   const c = app.view.cursor, p = app.view.pattern;
-  // Shift+Up/Down: fine nudge of the note's volume (±5%).
-  if (e.shiftKey && (e.code === 'ArrowUp' || e.code === 'ArrowDown')) {
-    const idx = p.idx(c.row, c.ch);
-    if (p.notes[idx] >= 0) {
-      const d = e.code === 'ArrowUp' ? 0.05 : -0.05;
-      p.vol[idx] = Math.min(1.0, Math.max(0.0, p.vol[idx] + d));
-      app.markDirty('volnudge', true);
+  const arrowDir = e.code === 'ArrowUp' ? 1 : (e.code === 'ArrowDown' ? -1 : 0);
+
+  // Shift+Up/Down: fine nudge volume (±5%) of the cursor note — or every note in the
+  // selection block if one is active.
+  if (e.shiftKey && !e.ctrlKey && !e.metaKey && arrowDir !== 0) {
+    const d = arrowDir * 0.05;
+    const bump = (idx: number) => { if (p.notes[idx] >= 0) p.vol[idx] = Math.min(1, Math.max(0, p.vol[idx] + d)); };
+    const sel = app.view.selection;
+    if (sel) {
+      for (let r = sel.r0; r <= sel.r1; r++)
+        for (let ch = sel.c0; ch <= Math.min(sel.c1, p.channels - 1); ch++) bump(p.idx(r, ch));
+    } else if (c.ch < p.channels) {
+      bump(p.idx(c.row, c.ch));
     }
+    app.markDirty('volnudge', true);
+    app.view.draw();
     return true;
+  }
+
+  // Ctrl/⌘+Up/Down: transpose the cursor note — or every note in the selection — by a
+  // semitone. Pitched engines only: drums (808) and the Locked Groove drone ignore
+  // pitch, so notes playing them are skipped.
+  if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && arrowDir !== 0) {
+    const transposable = (idx: number) => {
+      if (p.notes[idx] < 0) return false;                       // EMPTY / OFF, not a pitch
+      const def = byType(app.engine.instruments[p.inst[idx]]?.type);
+      return !!def && !def.drum && !def.pitchless;
+    };
+    const shift = (idx: number) => { p.notes[idx] = Math.max(0, Math.min(127, p.notes[idx] + arrowDir)); };
+    const sel = app.view.selection;
+    let any = false;
+    if (sel) {
+      for (let r = sel.r0; r <= sel.r1; r++)
+        for (let ch = sel.c0; ch <= Math.min(sel.c1, p.channels - 1); ch++) {
+          const idx = p.idx(r, ch); if (transposable(idx)) { shift(idx); any = true; }
+        }
+    } else if (c.ch < p.channels) {
+      const idx = p.idx(c.row, c.ch); if (transposable(idx)) { shift(idx); any = true; }
+    }
+    if (any) { app.markDirty('transpose', true); app.view.draw(); }
+    return true;   // consume the key even on a no-op cell (it's a transpose command, not cursor movement)
   }
   switch (e.code) {
     case 'ArrowUp': c.row = (c.row - 1 + p.rows) % p.rows; app.view.revealCursor(); app._digitEntry = null; app._hexEntry = null; return true;

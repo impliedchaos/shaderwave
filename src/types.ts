@@ -315,6 +315,7 @@ export interface InstrumentDef {
   shader: string;          // GLSL source (?raw), concatenated after common.glsl
   recursive?: boolean;     // per-sample feedback → strip/subBlock rendering (303, moog)
   drum?: boolean;          // keyboard selects drum slots, not pitch (808)
+  pitchless?: boolean;     // note pitch is irrelevant to this engine (e.g. groove vinyl drone) — excluded from transpose
   additive?: boolean;      // multi-pass GPU-parallel additive (Spectra): tile-synth + log-reduce, see SynthRenderer._renderAdditive
   defaults: InstrumentParams;
   paramDefs: ParamDef[];   // sidebar knobs ([] when customControls)

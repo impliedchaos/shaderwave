@@ -7,7 +7,7 @@ import type { Engine } from '../tracker/engine.js';
 import { targetById } from '../tracker/automation.js';
 import { fxChar } from '../tracker/fx.js';
 import { byType } from '../instruments/index.js';
-import { themeVar } from './theme.js';
+import { themeVar, displayAccent } from './theme.js';
 
 const NOTE_NAMES = ['C-', 'C#', 'D-', 'D#', 'E-', 'F-', 'F#', 'G-', 'G#', 'A-', 'A#', 'B-'];
 
@@ -332,7 +332,7 @@ export class TrackerView {
     }
 
     // 3. Draw grid lines (horizontal and vertical lines)
-    ctx.strokeStyle = 'rgba(45, 58, 82, 0.12)';
+    ctx.strokeStyle = C('--grid-line');
     ctx.lineWidth = 0.5;
 
     // Horizontal lines for rows
@@ -347,7 +347,7 @@ export class TrackerView {
     ctx.stroke();
 
     // Vertical line separating row numbers and channel columns (1px lines)
-    ctx.strokeStyle = 'rgba(45, 58, 82, 0.28)';
+    ctx.strokeStyle = C('--grid-line-strong');
     ctx.lineWidth = 1;
     ctx.beginPath();
     for (let ch = 0; ch <= p.channels + p.autoTracks.length; ch++) {
@@ -366,7 +366,7 @@ export class TrackerView {
       const s = this.selection;
       const sx = this._trackX(s.c0);
       const sw = this._trackX(s.c1 + 1) - sx;
-      ctx.fillStyle = 'rgba(140, 175, 255, 0.18)';
+      ctx.fillStyle = C('--sel');
       for (let i = 0; i < viewRows; i++) {
         const row = first + i;
         if (row >= p.rows) break;
@@ -402,7 +402,7 @@ export class TrackerView {
     ctx.fillRect(0, 0, W, pad);
     
     // Bottom border and vertical dividers for header
-    ctx.strokeStyle = 'rgba(45, 58, 82, 0.3)';
+    ctx.strokeStyle = C('--grid-line-strong');
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(0, pad);
@@ -547,7 +547,7 @@ export class TrackerView {
       } else {
         const inst = this.engine.instruments[track.targetInstIdx!];
         if (inst) {
-          scopeColor = inst.color;
+          scopeColor = displayAccent(inst.color);
           scopeLabel = instShort(inst.type);
         } else {
           scopeLabel = '---';
@@ -558,7 +558,7 @@ export class TrackerView {
       ctx.font = 'bold 12px "JetBrains Mono", monospace';
       ctx.textAlign = 'center';
       ctx.fillText(scopeLabel, x + AUTO_W / 2, 16);
-      ctx.fillStyle = '#ffffff';
+      ctx.fillStyle = C('--text');
       ctx.fillText(t ? t.code : '---', x + AUTO_W / 2, 36);
       ctx.textAlign = 'left';
     }
@@ -582,7 +582,7 @@ export class TrackerView {
         const isMuted = this.engine.muted[ch];
 
         if (note === EMPTY) {
-          ctx.fillStyle = isMuted ? 'rgba(45, 58, 82, 0.15)' : C('--grid');
+          ctx.fillStyle = isMuted ? C('--cell-muted') : C('--grid');
           ctx.fillText('···', noteX, y + ROW_H / 2);
           ctx.fillText('··', instX, y + ROW_H / 2);
           ctx.fillText('··', volX, y + ROW_H / 2);
@@ -603,7 +603,7 @@ export class TrackerView {
             if (isMuted) {
               ctx.fillStyle = 'rgba(106, 124, 150, 0.25)';
             } else {
-              ctx.fillStyle = (instr && instr.color) || C('--accent');
+              ctx.fillStyle = (instr && displayAccent(instr.color)) || C('--accent');
             }
             // Normally show the engine short name; while the instrument column is
             // the cursor's column, show the numeric instance index instead — that's
@@ -619,12 +619,12 @@ export class TrackerView {
             if (isMuted) {
               ctx.fillStyle = 'rgba(106, 124, 150, 0.25)';
             } else {
-              ctx.fillStyle = '#a78bfa'; // Neon lavender for volume data
+              ctx.fillStyle = C('--vol'); // volume data (neon lavender / theme-tinted)
             }
             ctx.fillText(volStr, volX, y + ROW_H / 2);
           } else {
             // Note-off: draw empty placeholders for instrument and volume
-            ctx.fillStyle = isMuted ? 'rgba(45, 58, 82, 0.15)' : C('--grid');
+            ctx.fillStyle = isMuted ? C('--cell-muted') : C('--grid');
             ctx.fillText('··', instX, y + ROW_H / 2);
             ctx.fillText('··', volX, y + ROW_H / 2);
           }
@@ -635,7 +635,7 @@ export class TrackerView {
         const ci = p.idx(row, ch);
         const cmd = p.fxCmd[ci];
         if (cmd < 0) {
-          ctx.fillStyle = isMuted ? 'rgba(45, 58, 82, 0.15)' : C('--grid');
+          ctx.fillStyle = isMuted ? C('--cell-muted') : C('--grid');
           ctx.fillText('···', fxX, y + ROW_H / 2);
         } else {
           // Command in amber, value in cyan so the two read apart at a glance.

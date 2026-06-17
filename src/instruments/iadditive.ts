@@ -49,6 +49,21 @@ export const iadditive: InstrumentDef = {
     { name: 'Metallic',       p0: [1200, 0.6, 0.85, 0.0], p1: [4.0, 0.8, 0.4,  0.4], p2: [0.005, 0.8, 0.5, 0] },
     { name: 'Saw-ish 2048',   p0: [2048, 0.5, 0.0,  0.0], p1: [0,   0.5, 0.1,  0.0], p2: [0.01, 0.3, 0.0, 0] },
     { name: 'Hollow Comb',    p0: [1024, 0.6, 0.0,  0.0], p1: [0,   0.5, 0.2,  0.8], p2: [0.05, 0.6, 0.0, 0] },
+    // — more formula voicings —
+    { name: 'Pure Sine',      p0: [1,    0.5, 0.0,  0.0], p1: [0,   0.5, 0.0,  0.0], p2: [0.01,  0.4, 0.0, 0] },  // single partial → clean fundamental
+    { name: 'Drawbar Organ',  p0: [16,   0.5, 0.0,  0.0], p1: [0,   0.5, 0.05, 0.0], p2: [0.004, 0.12, 0.0, 0] }, // few harmonics, snappy
+    { name: 'Soft Pad',       p0: [1536, 0.32, 0.02, 0.0], p1: [0,  0.5, 0.6,  0.0], p2: [0.8,   1.6, 0.0, 0] },  // dark, slow, wide detune
+    { name: 'Bowed Glass',    p0: [1024, 0.62, 0.15, 0.0], p1: [0,  0.5, 0.4,  0.0], p2: [1.0,   1.2, 0.0, 0] },  // slow swell, faint inharmonicity
+    { name: 'Tubular Bells',  p0: [600,  0.5, 0.75, 0.0], p1: [7.0, 0.6, 0.15, 0.0], p2: [0.002, 2.2, 0.4, 0] },  // long inharmonic ring
+    { name: 'Music Box',      p0: [400,  0.72, 0.4, 0.0], p1: [2.5, 0.85, 0.1, 0.0], p2: [0.001, 1.0, 0.3, 0] },  // bright, short, sparse
+    { name: 'Glass Pluck',    p0: [1024, 0.7, 0.1,  0.0], p1: [1.2, 0.7, 0.2,  0.3], p2: [0.002, 0.5, 0.0, 0] },  // bright comb pluck
+    { name: 'Clarinet (odd)', p0: [768,  0.55, 0.0, 0.0], p1: [0,   0.5, 0.15, 0.25], p2: [0.03, 0.4, 1.0, 0] },  // odd-harmonic hollow reed
+    { name: 'Saw Swarm',      p0: [2048, 0.45, 0.0, 0.0], p1: [0,   0.5, 0.85, 0.0], p2: [0.02,  0.5, 0.0, 0] },  // heavy-detune supersaw wall
+    // — resynthesis: load a sample, Morph crossfades the synth spectrum into its analyzed profile —
+    { name: 'Kalimba (resynth)', p0: [768, 0.55, 0.0, 0.85], p1: [1.8, 0.6, 0.12, 0.0], p2: [0.004, 0.9, 0.0, 0],
+      sample: { name: 'Kalimba', url: '/samples/kalimba.ogg', rootNote: 60, loopStart: 0, loopEnd: 0, loopMode: 0 } },
+    { name: 'Vox Pad (resynth)', p0: [1024, 0.5, 0.0, 0.9], p1: [0, 0.5, 0.35, 0.0], p2: [0.3, 1.1, 0.0, 0],
+      sample: { name: 'Vox', url: '/samples/dvs-oh-1.ogg', rootNote: 60, loopStart: 0, loopEnd: 0, loopMode: 0 } },
   ],
   // Additive spectra love space + a touch of width; a freshly-added instance starts lush.
   fxDefaults: {

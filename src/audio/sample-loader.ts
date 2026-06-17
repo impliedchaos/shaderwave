@@ -18,8 +18,10 @@ export function resolveAssetUrl(url: string): string {
   return url;
 }
 
-export async function decodeSampleUrl(url: string): Promise<Float32Array> {
-  const buf = await (await fetch(resolveAssetUrl(url))).arrayBuffer();
+// Decode an encoded audio ArrayBuffer to mono Float32 PCM at the engine rate,
+// resampling + clamping to the atlas frame cap. The shared core of both the URL
+// loader and the user file loader ("Load Sample…").
+export async function decodeAudioBuffer(buf: ArrayBuffer): Promise<Float32Array> {
   const Ctx = window.AudioContext || (window as any).webkitAudioContext;
   const ctx = new Ctx({ sampleRate: ENGINE_SR });
   try {
@@ -41,4 +43,13 @@ export async function decodeSampleUrl(url: string): Promise<Float32Array> {
   } finally {
     ctx.close?.();
   }
+}
+
+export async function decodeSampleUrl(url: string): Promise<Float32Array> {
+  return decodeAudioBuffer(await (await fetch(resolveAssetUrl(url))).arrayBuffer());
+}
+
+// Decode a user-picked audio File (any format the browser supports) to engine PCM.
+export async function decodeAudioFile(file: Blob): Promise<Float32Array> {
+  return decodeAudioBuffer(await file.arrayBuffer());
 }

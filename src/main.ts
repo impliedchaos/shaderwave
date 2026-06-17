@@ -19,7 +19,7 @@ import { Pattern } from './tracker/pattern.js';
 import { targetsForType, TARGETS } from './tracker/automation.js';
 import { showExportDialog } from './audio/export.js';
 import { renderArranger } from './ui/arranger.js';
-import { invalidateTheme, themeVar } from './ui/theme.js';
+import { invalidateTheme, themeVar, toggleTheme, currentTheme, displayAccent } from './ui/theme.js';
 import { initHelp } from './ui/help.js';
 import pkg from '../package.json';
 import type { ParamTarget } from './types.js';
@@ -95,6 +95,7 @@ export class App {
   _freqData?: Uint8Array<ArrayBuffer>;
   _waveData?: Uint8Array<ArrayBuffer>;
   _recordEnabled = false;
+  _accentColor = '#00f0ff';   // selected instrument's base colour; re-themed for light mode via _applyAccent
   // Live-record arm bookkeeping (see ui/record.ts). `_armUntil` is the linger
   // deadline (Infinity while a knob is held); `_armPrevRow`/`_armLastByte` let
   // tickRecord latch the held value into every row the playhead crosses.
@@ -152,22 +153,9 @@ export class App {
       app: this,
       onSelect: (idx) => {
         const instr = this.engine.instruments[idx];
-        if (!instr) {
-          document.documentElement.style.setProperty('--accent', '#00f0ff');
-          document.documentElement.style.setProperty('--accent-glow', 'rgba(0, 240, 255, 0.2)');
-          document.documentElement.style.setProperty('--cursor-border', '#00f0ff');
-          invalidateTheme();
-          return;
-        }
-
-        // FX is per instrument INSTANCE — the panel edits the selected one's chain.
-        this._buildFxPanel();
-
-        // Theme the UI accent with this instance's colour.
-        document.documentElement.style.setProperty('--accent', instr.color);
-        document.documentElement.style.setProperty('--accent-glow', instGlow(instr.color, 0.2));
-        document.documentElement.style.setProperty('--cursor-border', instr.color);
-        invalidateTheme();
+        this._accentColor = instr ? instr.color : '#00f0ff';
+        if (instr) this._buildFxPanel();   // FX is per instance — the panel edits the selected one's chain
+        this._applyAccent();
       },
       onPresetChange: (instName, fx) => {
         // A preset carries its own fx chain → apply it to the SELECTED instance
@@ -192,6 +180,7 @@ export class App {
     bindKeys(this);
     this._bindBufferControl();
     initHelp();
+    this._bindTheme();
     initMidi(this);
     this._loop();
 
@@ -291,6 +280,29 @@ export class App {
         .catch((e) => console.error(`Failed to hydrate sample ${s.url}`, e))
         .finally(() => this._samplesLoading.delete(inst));
     }
+  }
+
+  // Light/dark theme toggle in the header. The saved theme is already applied by the
+  // inline <head> script (no flash); here we just flip + relabel + repaint the canvas
+  // grid (the DOM recolours via CSS vars; the visualizer repaints each frame anyway).
+  _bindTheme() {
+    const btn = document.getElementById('theme');
+    if (!btn) return;
+    const relabel = () => { btn.textContent = currentTheme() === 'light' ? '☀ Theme' : '🌙 Theme'; };
+    relabel();
+    btn.onclick = () => { toggleTheme(); relabel(); this._applyAccent(); this.controls._buildInstruments(); this.view.draw(); };
+  }
+
+  // Push the selected instrument's colour into the UI accent vars, darkened for light
+  // mode if it's a too-bright neon (see displayAccent). Re-run on instrument select AND
+  // on theme toggle so the accent stays readable on whichever theme is active.
+  _applyAccent() {
+    const a = displayAccent(this._accentColor);
+    const s = document.documentElement.style;
+    s.setProperty('--accent', a);
+    s.setProperty('--accent-glow', instGlow(a, 0.2));
+    s.setProperty('--cursor-border', a);
+    invalidateTheme();
   }
 
   _bindTransport() {

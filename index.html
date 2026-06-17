@@ -4,17 +4,19 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>ShaderWave — WebGL2 Tracker</title>
+<!-- Apply the saved theme before first paint to avoid a flash of the wrong palette. -->
+<script>try{var t=localStorage.getItem('shaderwave-theme');if(t)document.documentElement.dataset.theme=t;}catch(e){}</script>
 <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Orbitron:wght@700;800;900&family=JetBrains+Mono:wght@400;500;700&family=Rajdhani:wght@500;600;700&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root {
-    --bg: #060913;
-    --panel-solid: #0d1321;
-    --panel: rgba(13, 19, 33, 0.75);
+    --bg: rgb(var(--c-inset));
+    --panel-solid: rgb(var(--c-surface));
+    --panel: rgba(var(--c-surface), 0.75);
     --panel-border: rgba(255, 255, 255, 0.08);
-    --grid: #121a26;
+    --grid: rgb(var(--c-surface));
     --text: #ccd6f6;
     --dim: #6272a4;
     --accent: #00f0ff;          /* Starts as lead cyan */
@@ -27,11 +29,54 @@
     --playhead: rgba(0, 240, 255, 0.08);
     --playhead-border: rgba(0, 240, 255, 0.4);
     --purple: #7928ca;
+    /* Tracker-grid canvas colours (read via themeVar) — kept as vars so themes can recolour the grid. */
+    --grid-line: rgba(var(--c-border), 0.12);
+    --grid-line-strong: rgba(var(--c-border), 0.28);
+    --sel: rgba(140, 175, 255, 0.18);
+    --vol: #a78bfa;
+    --cell-muted: rgba(var(--c-border), 0.15);
+    /* Semantic surface/border/text tokens — panels/controls/dropdowns/modals read these
+       (as rgb()/rgba(), preserving the existing alphas), so a theme re-tints a handful of
+       colours instead of dozens of hardcoded literals. */
+    --c-border: 45, 60, 85;
+    --c-surface: 16, 22, 34;
+    --c-inset: 4, 6, 11;
+    --c-text-bright: #ffffff;
+    --c-text-dim: #b8c4d4;
 
     --font-ui: 'Inter', sans-serif;
     --font-heading: 'Orbitron', sans-serif;
   }
-  
+
+  /* Light theme — set on <html data-theme="light">. Only the palette changes; the
+     per-instrument --accent / --accent-glow / --cursor-border are inline-set in JS,
+     so they stay the instrument's colour on either theme. */
+  :root[data-theme="light"] {
+    --bg: #eef1f6;
+    --panel-solid: #ffffff;
+    --panel: rgba(255, 255, 255, 0.82);
+    --panel-border: rgba(20, 30, 50, 0.14);
+    --grid: #d6dde8;
+    --text: #1b2436;
+    --dim: #5a6680;
+    --hot: #d6006e;
+    --hot-glow: rgba(214, 0, 110, 0.18);
+    --row-beat: rgba(20, 30, 50, 0.04);
+    --cursor: rgba(20, 80, 120, 0.14);
+    --playhead: rgba(20, 80, 120, 0.10);
+    --playhead-border: rgba(20, 80, 120, 0.45);
+    --grid-line: rgba(30, 45, 70, 0.12);
+    --grid-line-strong: rgba(30, 45, 70, 0.22);
+    --sel: rgba(40, 100, 220, 0.18);
+    --vol: #6d28d9;
+    --cell-muted: rgba(20, 30, 50, 0.06);
+    --c-border: 35, 50, 78;
+    --c-surface: 255, 255, 255;
+    --c-inset: 222, 228, 238;
+    --c-text-bright: #16203a;
+    --c-text-dim: #46506a;
+  }
+
   * { box-sizing: border-box; }
   
   html, body {
@@ -54,7 +99,7 @@
   header {
     display: flex; align-items: center; flex-wrap: wrap; gap: 4px 20px;
     padding: 14px 24px;
-    background: rgba(8, 11, 18, 0.9);
+    background: rgba(var(--c-inset), 0.9);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     border-bottom: 1px solid var(--panel-border);
@@ -68,7 +113,7 @@
   header h1 {
     font-family: var(--font-heading);
     font-size: 22px; font-weight: 900;
-    margin: 0; color: #fff;
+    margin: 0; color: var(--c-text-bright);
     letter-spacing: 2px;
     display: flex; align-items: center; gap: 10px;
     text-shadow: 0 0 15px rgba(255, 255, 255, 0.2);
@@ -104,8 +149,8 @@
   
   .control-group {
     display: flex; align-items: center; gap: 8px;
-    background: rgba(16, 22, 34, 0.8);
-    border: 1px solid rgba(45, 60, 85, 0.5);
+    background: rgba(var(--c-surface), 0.8);
+    border: 1px solid rgba(var(--c-border), 0.5);
     padding: 4px 8px; border-radius: 8px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.3);
     flex-shrink: 0;
@@ -142,7 +187,7 @@
   .vol-meter .vu {
     height: 4px;
     background: rgba(0, 0, 0, 0.45);
-    border: 1px solid rgba(45, 60, 85, 0.5);
+    border: 1px solid rgba(var(--c-border), 0.5);
     border-radius: 2px;
     overflow: hidden;
   }
@@ -193,8 +238,8 @@
 
   /* Futuristic LCD screen styling for settings */
   .lcd-display {
-    background: #030508;
-    border: 1px solid rgba(45, 60, 85, 0.8);
+    background: rgb(var(--c-inset));
+    border: 1px solid rgba(var(--c-border), 0.8);
     border-radius: 8px;
     padding: 5px 16px;
     display: inline-flex;
@@ -278,7 +323,7 @@
        its top/left are set in JS from the trigger's bounding box on open. */
     position: fixed; z-index: 200;
     min-width: 260px; max-width: 360px; max-height: 60vh; overflow-y: auto;
-    background: var(--panel-solid); border: 1px solid rgba(45, 60, 85, 0.9);
+    background: var(--panel-solid); border: 1px solid rgba(var(--c-border), 0.9);
     border-radius: 8px; padding: 6px; box-shadow: 0 8px 28px rgba(0, 0, 0, 0.6);
   }
   .song-picker-menu[hidden] { display: none; }
@@ -321,11 +366,11 @@
   .lcd-divider {
     height: 16px;
     width: 1px;
-    background: rgba(45, 60, 85, 0.5);
+    background: rgba(var(--c-border), 0.5);
   }
   
   button {
-    background: rgba(22, 30, 46, 0.6);
+    background: rgba(var(--c-surface), 0.6);
     color: var(--text);
     border: 1px solid var(--panel-border);
     padding: 7px 16px; border-radius: 6px; cursor: pointer;
@@ -365,7 +410,7 @@
   
   button.primary.playing:hover {
     background: var(--hot);
-    color: #f0f6fc;
+    color: var(--c-text-bright);
     box-shadow: 0 0 18px var(--hot-glow);
   }
 
@@ -391,7 +436,7 @@
     flex: 1;
     min-width: 0;
     position: relative;
-    background: #040508;
+    background: rgb(var(--c-inset));
     border-right: 1px solid var(--panel-border);
     box-shadow: inset 10px 0 30px rgba(0, 0, 0, 0.8);
     display: flex;
@@ -402,7 +447,7 @@
   
   #sidebar {
     width: 380px;
-    background: rgba(8, 12, 20, 0.8);
+    background: rgba(var(--c-surface), 0.8);
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     padding: 20px;
@@ -452,7 +497,7 @@
   
   /* Modular Card layouts for racks */
   .visualizer-card {
-    background: rgba(3, 4, 6, 0.95);
+    background: rgba(var(--c-inset), 0.95);
     border: 1px solid var(--panel-border);
     border-radius: 8px;
     padding: 6px;
@@ -472,13 +517,13 @@
     width: 100%;
     height: 100%;
     min-height: 100px;
-    background: #030406;
+    background: rgb(var(--c-inset));
     border-radius: 4px;
   }
   
   .inst-add {
     float: right;
-    background: rgba(16, 22, 34, 0.6);
+    background: rgba(var(--c-surface), 0.6);
     color: var(--dim);
     border: 1px solid var(--panel-border);
     border-radius: 4px;
@@ -491,20 +536,20 @@
   }
   .inst-add:hover { border-color: var(--accent); color: var(--accent); }
   /* Dark the native dropdown popup (options render with OS-default light bg otherwise). */
-  .inst-add option { background: #0f1622; color: #e6e6f0; }
+  .inst-add option { background: rgb(var(--c-surface)); color: var(--c-text-bright); }
 
   .inst-list {
     display: grid;
     grid-template-columns: 1fr;
     gap: 4px;
-    background: rgba(16, 22, 34, 0.4);
-    border: 1px solid rgba(45, 60, 85, 0.2);
+    background: rgba(var(--c-surface), 0.4);
+    border: 1px solid rgba(var(--c-border), 0.2);
     border-radius: 10px;
     padding: 8px;
   }
 
   .inst-list button {
-    background: rgba(22, 30, 46, 0.6);
+    background: rgba(var(--c-surface), 0.6);
     color: var(--dim);
     border: 1px solid var(--panel-border);
     padding: 6px 10px;
@@ -555,8 +600,8 @@
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 12px;
-    background: rgba(16, 22, 34, 0.4);
-    border: 1px solid rgba(45, 60, 85, 0.2);
+    background: rgba(var(--c-surface), 0.4);
+    border: 1px solid rgba(var(--c-border), 0.2);
     border-radius: 10px;
     padding: 12px;
     box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.2);
@@ -566,8 +611,8 @@
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: 10px;
-    background: rgba(16, 22, 34, 0.4);
-    border: 1px solid rgba(45, 60, 85, 0.2);
+    background: rgba(var(--c-surface), 0.4);
+    border: 1px solid rgba(var(--c-border), 0.2);
     border-radius: 10px;
     padding: 12px;
     box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.2);
@@ -582,7 +627,7 @@
     text-transform: uppercase;
     letter-spacing: 1.2px;
     margin: 8px 0 2px 0;
-    border-bottom: 1px dashed rgba(45, 60, 85, 0.2);
+    border-bottom: 1px dashed rgba(var(--c-border), 0.2);
     padding-bottom: 3px;
     transition: color 0.5s ease, text-shadow 0.5s ease;
   }
@@ -592,8 +637,8 @@
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    background: rgba(20, 28, 40, 0.35);
-    border: 1px solid rgba(45, 60, 85, 0.15);
+    background: rgba(var(--c-surface), 0.35);
+    border: 1px solid rgba(var(--c-border), 0.15);
     border-radius: 8px;
     padding: 10px 4px;
     gap: 6px;
@@ -601,7 +646,7 @@
   }
   
   .param-control-block:hover {
-    border-color: rgba(45, 60, 85, 0.35);
+    border-color: rgba(var(--c-border), 0.35);
   }
 
   .param-control-block label {
@@ -631,8 +676,8 @@
     width: 36px;
     height: 36px;
     border-radius: 50%;
-    background: linear-gradient(135deg, #121824, #080a10);
-    border: 2px solid rgba(45, 60, 85, 0.4);
+    background: linear-gradient(135deg, rgb(var(--c-surface)), rgb(var(--c-inset)));
+    border: 2px solid rgba(var(--c-border), 0.4);
     position: relative;
     cursor: ns-resize;
     box-shadow: inset 0 2px 4px rgba(0,0,0,0.6), 0 2px 6px rgba(0,0,0,0.5);
@@ -662,9 +707,9 @@
     bottom: -6px;
     left: 50%;
     transform: translate(-50%, 0);
-    background: rgba(0,0,0,0.9);
-    border: 1px solid rgba(45, 60, 85, 0.5);
-    color: #fff;
+    background: rgba(var(--c-inset), 0.92);
+    border: 1px solid rgba(var(--c-border), 0.5);
+    color: var(--c-text-bright);
     font-family: 'JetBrains Mono', monospace;
     font-size: 9px;
     padding: 0px 4px;
@@ -681,8 +726,8 @@
     gap: 12px;
     align-items: stretch;
     width: 100%;
-    background: rgba(16, 22, 34, 0.25);
-    border: 1px solid rgba(45, 60, 85, 0.15);
+    background: rgba(var(--c-surface), 0.25);
+    border: 1px solid rgba(var(--c-border), 0.15);
     border-radius: 10px;
     padding: 10px;
     box-shadow: inset 0 2px 8px rgba(0,0,0,0.3);
@@ -692,8 +737,8 @@
     display: flex;
     gap: 10px;
     flex: 2;
-    background: rgba(10, 15, 24, 0.45);
-    border: 1px solid rgba(45, 60, 85, 0.2);
+    background: rgba(var(--c-surface), 0.45);
+    border: 1px solid rgba(var(--c-border), 0.2);
     border-radius: 8px;
     padding: 8px 6px;
     justify-content: space-around;
@@ -738,8 +783,8 @@
     z-index: 1;
     width: 6px;
     height: 62px;
-    background: rgba(10, 14, 22, 0.95);
-    border: 1.5px solid rgba(45, 60, 85, 0.35);
+    background: rgba(var(--c-surface), 0.95);
+    border: 1.5px solid rgba(var(--c-border), 0.35);
     border-radius: 3px;
     cursor: ns-resize;
     box-shadow: inset 0 1px 3px rgba(0,0,0,0.8);
@@ -776,7 +821,7 @@
   }
 
   .eq-slider-track:hover {
-    border-color: rgba(45, 60, 85, 0.6);
+    border-color: rgba(var(--c-border), 0.6);
   }
 
   .eq-slider-handle {
@@ -784,7 +829,7 @@
     left: 50%;
     width: 20px;
     height: 8px;
-    background: linear-gradient(to bottom, #1d2636, #0e121c);
+    background: linear-gradient(to bottom, rgb(var(--c-surface)), rgb(var(--c-surface)));
     border: 1.5px solid var(--accent);
     border-radius: 3px;
     cursor: ns-resize;
@@ -812,8 +857,8 @@
     -webkit-appearance: none;
     width: 100%;
     height: 5px;
-    background: rgba(20, 28, 40, 0.9);
-    border: 1px solid rgba(45, 60, 85, 0.3);
+    background: rgba(var(--c-surface), 0.9);
+    border: 1px solid rgba(var(--c-border), 0.3);
     border-radius: 3px;
     outline: none;
     margin: 6px 0;
@@ -827,7 +872,7 @@
     height: 14px;
     border-radius: 50%;
     background: var(--accent);
-    border: 2.5px solid #05060a;
+    border: 2.5px solid rgb(var(--c-inset));
     cursor: pointer;
     box-shadow: 0 0 8px var(--accent);
     transition: transform 0.15s ease, background-color 0.5s ease, box-shadow 0.5s ease;
@@ -841,7 +886,7 @@
   input[type="range"]::-moz-range-thumb {
     width: 10px;
     height: 10px;
-    border: 2.5px solid #05060a;
+    border: 2.5px solid rgb(var(--c-inset));
     border-radius: 50%;
     background: var(--accent);
     cursor: pointer;
@@ -855,7 +900,7 @@
   }
   
   #fx-toggle, .fx-cat-toggle {
-    background: rgba(16, 22, 34, 0.6);
+    background: rgba(var(--c-surface), 0.6);
     color: var(--dim);
     border: 1px solid var(--panel-border);
     border-radius: 4px;
@@ -887,14 +932,14 @@
   .fx-cat-move { display: inline-flex; gap: 2px; margin-left: 6px; vertical-align: middle; }
   .fx-move-btn {
     font-size: 9px; line-height: 1; padding: 1px 4px; cursor: pointer;
-    background: transparent; color: var(--fg, #ccc); border: 1px solid #444; border-radius: 2px;
+    background: transparent; color: var(--fg, var(--c-text-dim)); border: 1px solid #444; border-radius: 2px;
   }
   .fx-move-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
   .fx-move-btn:disabled { opacity: 0.25; cursor: default; }
   
   #status {
     padding: 8px 24px;
-    background: rgba(6, 8, 14, 0.95);
+    background: rgba(var(--c-inset), 0.95);
     border-top: 1px solid var(--panel-border);
     color: var(--dim);
     font-family: 'JetBrains Mono', monospace;
@@ -925,8 +970,8 @@
   .buffer-ctrl { display: flex; align-items: center; gap: 6px; }
   #prebuffer {
     width: 44px;
-    background: rgba(3, 5, 8, 0.6);
-    border: 1px solid rgba(45, 60, 85, 0.6);
+    background: rgba(var(--c-inset), 0.6);
+    border: 1px solid rgba(var(--c-border), 0.6);
     border-radius: 4px;
     color: var(--accent);
     font-family: 'JetBrains Mono', monospace;
@@ -955,8 +1000,8 @@
     color: var(--dim);
     font-family: 'Rajdhani', sans-serif;
     font-size: 14px; font-weight: 600;
-    background: rgba(16, 22, 34, 0.5);
-    border: 1px solid rgba(45, 60, 85, 0.3);
+    background: rgba(var(--c-surface), 0.5);
+    border: 1px solid rgba(var(--c-border), 0.3);
     padding: 4px 14px;
     border-radius: 20px;
     letter-spacing: 0.5px;
@@ -967,7 +1012,7 @@
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-    background: rgba(13, 19, 33, 0.4);
+    background: rgba(var(--c-surface), 0.4);
     border: 1px solid var(--panel-border);
     border-radius: 8px;
     padding: 6px 12px;
@@ -988,7 +1033,7 @@
   .preset-row select {
     background: transparent;
     border: none;
-    color: #fff;
+    color: var(--c-text-bright);
     font-size: 12px;
     font-family: var(--font-ui);
     font-weight: 500;
@@ -1005,7 +1050,7 @@
   /* Tracker Tabs & Song Editor UI */
   .tracker-tabs {
     display: flex;
-    background: rgba(10, 15, 28, 0.9);
+    background: rgba(var(--c-surface), 0.9);
     border-bottom: 1px solid var(--panel-border);
     padding: 0 10px;
     gap: 5px;
@@ -1026,7 +1071,7 @@
   }
   
   .tab-btn:hover {
-    color: #fff;
+    color: var(--c-text-bright);
     border-bottom: 2px solid rgba(0, 240, 255, 0.4);
   }
   
@@ -1047,7 +1092,7 @@
   .pattern-toolbar {
     display: flex;
     align-items: center;
-    background: rgba(14, 21, 37, 0.4);
+    background: rgba(var(--c-surface), 0.4);
     border-bottom: 1px solid var(--panel-border);
     padding: 8px 16px;
     gap: 16px;
@@ -1056,7 +1101,7 @@
   .toolbar-divider {
     height: 18px;
     width: 1px;
-    background: rgba(45, 60, 85, 0.5);
+    background: rgba(var(--c-border), 0.5);
   }
 
   .toolbar-label {
@@ -1072,8 +1117,8 @@
   }
 
   .toolbar-input {
-    background: rgba(3, 5, 8, 0.6);
-    border: 1px solid rgba(45, 60, 85, 0.6);
+    background: rgba(var(--c-inset), 0.6);
+    border: 1px solid rgba(var(--c-border), 0.6);
     border-radius: 4px;
     color: var(--accent);
     text-shadow: 0 0 6px var(--accent-glow);
@@ -1109,11 +1154,11 @@
   .fx-picker-overlay {
     position: fixed; inset: 0; z-index: 1000;
     display: flex; align-items: center; justify-content: center;
-    background: rgba(2, 4, 8, 0.55);
+    background: rgba(var(--c-inset), 0.55);
   }
   .fx-picker {
     width: 320px; max-height: 70vh; display: flex; flex-direction: column;
-    background: rgba(10, 15, 26, 0.98);
+    background: rgba(var(--c-surface), 0.98);
     border: 1px solid #ffb700;
     border-radius: 8px;
     box-shadow: 0 0 30px rgba(255, 183, 0, 0.25);
@@ -1124,7 +1169,7 @@
     color: #ffb700; letter-spacing: 0.8px; text-transform: uppercase;
   }
   .fx-picker-input {
-    background: rgba(3, 5, 8, 0.8); border: 1px solid rgba(45, 60, 85, 0.6);
+    background: rgba(var(--c-inset), 0.8); border: 1px solid rgba(var(--c-border), 0.6);
     border-radius: 4px; color: var(--text); font-family: 'JetBrains Mono', monospace;
     font-size: 13px; padding: 6px 8px; outline: none;
   }
@@ -1145,11 +1190,11 @@
   .fx-picker-item.sel { background: rgba(255, 183, 0, 0.16); }
   .fx-picker-hint {
     font-family: 'JetBrains Mono', monospace; font-size: 10px; color: var(--dim);
-    border-top: 1px solid rgba(45,60,85,0.4); padding-top: 6px;
+    border-top: 1px solid rgba(var(--c-border),0.4); padding-top: 6px;
   }
 
   .pat-nav-btn {
-    background: rgba(22, 30, 46, 0.6);
+    background: rgba(var(--c-surface), 0.6);
     border: 1px solid var(--panel-border);
     color: var(--text);
     border-radius: 4px;
@@ -1176,7 +1221,7 @@
   }
 
   .play-pattern-btn {
-    background: rgba(6, 9, 19, 0.85);
+    background: rgba(var(--c-inset), 0.85);
     border: 1px solid var(--accent);
     color: var(--accent);
     border-radius: 6px;
@@ -1210,7 +1255,7 @@
 
   .play-pattern-btn.playing:hover {
     background: var(--hot);
-    color: #fff;
+    color: var(--c-text-bright);
     box-shadow: 0 0 20px var(--hot);
   }
   
@@ -1227,7 +1272,7 @@
     flex-direction: column;
     flex: 1;
     min-height: 0;
-    background: rgba(13, 19, 33, 0.4);
+    background: rgba(var(--c-surface), 0.4);
     border: 1px solid var(--panel-border);
     border-radius: 8px;
     padding: 15px;
@@ -1248,34 +1293,34 @@
   #lfo-panels { display: flex; flex-direction: column; gap: 12px; }
   .lfo-panel {
     border: 1px solid var(--panel-border); border-radius: 6px; padding: 10px;
-    background: rgba(8, 12, 22, 0.5); display: flex; flex-direction: column; gap: 6px;
+    background: rgba(var(--c-surface), 0.5); display: flex; flex-direction: column; gap: 6px;
   }
   .lfo-head { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent, #36e0d6); }
-  .lfo-row { display: flex; align-items: center; gap: 8px; font-size: 12px; color: #b8c4d4; }
+  .lfo-row { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--c-text-dim); }
   .lfo-row select, .lfo-row input[type=range] { flex: 1; min-width: 0; }
-  .lfo-row select { background: #11202b; color: #cfe; border: 1px solid var(--panel-border); border-radius: 5px; padding: 4px 6px; font: inherit; }
+  .lfo-row select { background: rgb(var(--c-surface)); color: var(--c-text-bright); border: 1px solid var(--panel-border); border-radius: 5px; padding: 4px 6px; font: inherit; }
   .lfo-val { font-variant-numeric: tabular-nums; color: #ffb347; min-width: 44px; text-align: right; }
   .lfo-matrix { margin-top: 4px; display: flex; flex-direction: column; gap: 6px; }
-  .lfo-add { background: #11202b; color: var(--accent, #36e0d6); border: 1px solid #1f3a44; border-radius: 5px; padding: 2px 9px; font: inherit; font-size: 11px; cursor: pointer; margin-left: 8px; }
-  .lfo-add:hover { background: #163040; }
+  .lfo-add { background: rgb(var(--c-surface)); color: var(--accent, #36e0d6); border: 1px solid rgb(var(--c-surface)); border-radius: 5px; padding: 2px 9px; font: inherit; font-size: 11px; cursor: pointer; margin-left: 8px; }
+  .lfo-add:hover { background: rgb(var(--c-surface)); }
   .lfo-route { display: flex; align-items: center; gap: 5px; }
-  .lfo-route select { flex: 1 1 0; min-width: 0; background: #11202b; color: #cfe; border: 1px solid var(--panel-border); border-radius: 4px; padding: 3px 4px; font: inherit; font-size: 11px; }
+  .lfo-route select { flex: 1 1 0; min-width: 0; background: rgb(var(--c-surface)); color: var(--c-text-bright); border: 1px solid var(--panel-border); border-radius: 4px; padding: 3px 4px; font: inherit; font-size: 11px; }
   .lfo-route input[type=range] { flex: 0 0 54px; accent-color: var(--accent, #36e0d6); }
-  .lfo-route .lfo-bip { flex: 0 0 auto; font-size: 11px; color: #b8c4d4; display: flex; align-items: center; gap: 2px; }
-  .lfo-route button[data-k=del] { flex: 0 0 auto; background: transparent; color: #8a97a8; border: none; cursor: pointer; font-size: 12px; padding: 0 2px; }
+  .lfo-route .lfo-bip { flex: 0 0 auto; font-size: 11px; color: var(--c-text-dim); display: flex; align-items: center; gap: 2px; }
+  .lfo-route button[data-k=del] { flex: 0 0 auto; background: transparent; color: var(--c-text-dim); border: none; cursor: pointer; font-size: 12px; padding: 0 2px; }
   .lfo-route button[data-k=del]:hover { color: #ff6b6b; }
 
   /* Wavewright per-oscillator scopes (sidebar, under the knobs). */
   .wt-scopes { display: flex; flex-direction: column; gap: 8px; padding: 8px 10px 4px; }
   .wt-scope { display: flex; flex-direction: column; gap: 3px; }
-  .wt-scope-label { font-size: 10px; letter-spacing: 0.14em; color: var(--text-dim, #7d8aa0); }
-  .wt-scope canvas { width: 100%; height: 56px; background: #060a0f; border: 1px solid var(--panel-border); border-radius: 5px; }
+  .wt-scope-label { font-size: 10px; letter-spacing: 0.14em; color: var(--text-dim, var(--c-text-dim)); }
+  .wt-scope canvas { width: 100%; height: 56px; background: rgb(var(--c-inset)); border: 1px solid var(--panel-border); border-radius: 5px; }
   
   .song-editor-section h3 {
     margin: 0 0 15px 0;
     font-family: var(--font-heading);
     font-size: 16px;
-    color: #fff;
+    color: var(--c-text-bright);
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -1285,11 +1330,11 @@
   .song-meta-label {
     display: flex; flex-direction: column; gap: 4px;
     font-family: var(--font-heading); font-size: 11px; letter-spacing: 1px;
-    text-transform: uppercase; color: #8aa;
+    text-transform: uppercase; color: var(--c-text-dim);
   }
   .song-meta-label input, .song-meta-label textarea {
-    background: #11111e; border: 1px solid #2d3a52; border-radius: 4px;
-    color: #e6e6f0; font-family: 'Rajdhani', sans-serif; font-size: 14px;
+    background: rgb(var(--c-surface)); border: 1px solid rgb(var(--c-border)); border-radius: 4px;
+    color: var(--c-text-bright); font-family: 'Rajdhani', sans-serif; font-size: 14px;
     padding: 6px 8px; width: 100%; box-sizing: border-box; resize: vertical;
   }
   .song-meta-label input:focus, .song-meta-label textarea:focus {
@@ -1343,7 +1388,7 @@
   }
   
   .arranger-card {
-    background: rgba(20, 28, 45, 0.7);
+    background: rgba(var(--c-surface), 0.7);
     border: 1px solid rgba(255, 255, 255, 0.05);
     border-radius: 6px;
     padding: 12px;
@@ -1376,7 +1421,7 @@
   .arranger-card-title {
     font-weight: 600;
     font-size: 14px;
-    color: #fff;
+    color: var(--c-text-bright);
   }
   
   .arranger-card-sub {
@@ -1409,15 +1454,15 @@
   
   .arranger-btn.danger:hover {
     background: var(--hot);
-    color: #fff;
+    color: var(--c-text-bright);
     border-color: var(--hot);
     box-shadow: 0 0 8px var(--hot-glow);
   }
 
   .arranger-select {
-    background: #060913;
+    background: rgb(var(--c-inset));
     border: 1px solid rgba(255, 255, 255, 0.15);
-    color: #fff;
+    color: var(--c-text-bright);
     font-family: var(--font-ui);
     font-size: 12px;
     border-radius: 4px;
@@ -1487,6 +1532,7 @@
       <input type="file" id="load-song-input" accept=".json,application/json" style="display:none">
       <button id="export" title="Export audio (WAV)">📤 Export</button>
       <button id="help" title="Help & keyboard shortcuts (?)">❔ Help</button>
+      <button id="theme" title="Toggle light / dark theme">🌙 Theme</button>
     </div>
     <div class="header-break"></div>
     <div class="lcd-display">
@@ -1630,35 +1676,35 @@
     </div>
   </div>
   <!-- Export Overlay/Dialog Modal -->
-  <div id="export-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(3, 5, 8, 0.9); z-index: 1000; align-items: center; justify-content: center; flex-direction: column; font-family: var(--font-ui);">
+  <div id="export-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(var(--c-inset), 0.9); z-index: 1000; align-items: center; justify-content: center; flex-direction: column; font-family: var(--font-ui);">
     <!-- Stage 1: Configuration Form -->
     <div id="export-config-panel" style="background: var(--panel-solid); border: 2px solid var(--accent); box-shadow: 0 0 30px var(--accent-glow); border-radius: 12px; padding: 30px; width: 440px; display: flex; flex-direction: column; gap: 16px; text-align: left;">
-      <h2 style="margin: 0 0 8px 0; color: #fff; font-size: 18px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; font-family: var(--font-heading); text-align: center;">Export Song</h2>
+      <h2 style="margin: 0 0 8px 0; color: var(--c-text-bright); font-size: 18px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; font-family: var(--font-heading); text-align: center;">Export Song</h2>
       
       <!-- Metadata Inputs -->
       <div style="display: flex; flex-direction: column; gap: 6px;">
         <label style="font-size: 11px; font-weight: 700; color: var(--dim); text-transform: uppercase; letter-spacing: 1px;">Song Title</label>
-        <input id="export-song-title" type="text" style="background: #030508; border: 1px solid rgba(45, 60, 85, 0.6); color: #fff; padding: 8px 12px; border-radius: 6px; outline: none; font-size: 14px;" />
+        <input id="export-song-title" type="text" style="background: rgb(var(--c-inset)); border: 1px solid rgba(var(--c-border), 0.6); color: var(--c-text-bright); padding: 8px 12px; border-radius: 6px; outline: none; font-size: 14px;" />
       </div>
       
       <div style="display: flex; flex-direction: column; gap: 6px;">
         <label style="font-size: 11px; font-weight: 700; color: var(--dim); text-transform: uppercase; letter-spacing: 1px;">Author</label>
-        <input id="export-song-author" type="text" value="AI Slop" style="background: #030508; border: 1px solid rgba(45, 60, 85, 0.6); color: #fff; padding: 8px 12px; border-radius: 6px; outline: none; font-size: 14px;" />
+        <input id="export-song-author" type="text" value="AI Slop" style="background: rgb(var(--c-inset)); border: 1px solid rgba(var(--c-border), 0.6); color: var(--c-text-bright); padding: 8px 12px; border-radius: 6px; outline: none; font-size: 14px;" />
       </div>
       
       <div style="display: flex; flex-direction: column; gap: 6px;">
         <label style="font-size: 11px; font-weight: 700; color: var(--dim); text-transform: uppercase; letter-spacing: 1px;">Filename</label>
-        <input id="export-filename" type="text" style="background: #030508; border: 1px solid rgba(45, 60, 85, 0.6); color: #fff; padding: 8px 12px; border-radius: 6px; outline: none; font-size: 14px; font-family: 'JetBrains Mono', monospace;" />
+        <input id="export-filename" type="text" style="background: rgb(var(--c-inset)); border: 1px solid rgba(var(--c-border), 0.6); color: var(--c-text-bright); padding: 8px 12px; border-radius: 6px; outline: none; font-size: 14px; font-family: 'JetBrains Mono', monospace;" />
       </div>
       
       <!-- Format Selection -->
       <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 4px;">
         <label style="font-size: 11px; font-weight: 700; color: var(--dim); text-transform: uppercase; letter-spacing: 1px;">Format</label>
-        <div style="display: flex; gap: 24px; background: rgba(16, 22, 34, 0.4); padding: 8px 16px; border-radius: 8px; border: 1px solid rgba(45, 60, 85, 0.2);">
-          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; font-weight: 600; color: #fff;">
+        <div style="display: flex; gap: 24px; background: rgba(var(--c-surface), 0.4); padding: 8px 16px; border-radius: 8px; border: 1px solid rgba(var(--c-border), 0.2);">
+          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; font-weight: 600; color: var(--c-text-bright);">
             <input type="radio" name="export-format" value="wav" style="accent-color: var(--accent);" /> WAV (Audio)
           </label>
-          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; font-weight: 600; color: #fff;">
+          <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; font-weight: 600; color: var(--c-text-bright);">
             <input type="radio" name="export-format" value="webm" checked style="accent-color: var(--accent);" /> WebM (Video/Audio)
           </label>
         </div>
@@ -1667,7 +1713,7 @@
       <!-- Visualizer Row -->
       <div id="export-visualizer-row" style="display: flex; align-items: center; gap: 10px; margin-top: 4px;">
         <input id="export-include-visualizer" type="checkbox" checked style="width: 18px; height: 18px; accent-color: var(--accent); cursor: pointer;" />
-        <label for="export-include-visualizer" style="font-size: 13px; font-weight: 600; color: #fff; cursor: pointer;">Include circular GL visualizer track</label>
+        <label for="export-include-visualizer" style="font-size: 13px; font-weight: 600; color: var(--c-text-bright); cursor: pointer;">Include circular GL visualizer track</label>
       </div>
       
       <!-- Controls -->
@@ -1679,7 +1725,7 @@
     
     <!-- Stage 2: Progress Panel -->
     <div id="export-progress-panel" style="display: none; background: var(--panel-solid); border: 2px solid var(--accent); box-shadow: 0 0 30px var(--accent-glow); border-radius: 12px; padding: 30px; text-align: center; width: 400px; flex-direction: column; gap: 20px;">
-      <h2 id="export-progress-title" style="margin: 0; color: #fff; font-size: 18px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; font-family: var(--font-heading);">Exporting Song</h2>
+      <h2 id="export-progress-title" style="margin: 0; color: var(--c-text-bright); font-size: 18px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; font-family: var(--font-heading);">Exporting Song</h2>
       <div style="height: 10px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 5px; overflow: hidden; position: relative;">
         <div id="export-progress" style="width: 0%; height: 100%; background: var(--accent); box-shadow: 0 0 10px var(--accent); transition: width 0.1s ease;"></div>
       </div>

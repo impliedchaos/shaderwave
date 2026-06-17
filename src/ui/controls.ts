@@ -4,7 +4,8 @@
 import { INSTRUMENTS, instGlow, INSTRUMENT_COLORS } from '../constants.js';
 import { PRESETS } from './presets.js';
 import { byType } from '../instruments/index.js';
-import { resolveAssetUrl } from '../audio/sample-loader.js';
+import { resolveAssetUrl, decodeAudioFile } from '../audio/sample-loader.js';
+import { displayAccent } from './theme.js';
 import { recordKnob, disarmRecord, instParamTarget } from './record.js';
 import { WT_BANKS, WT_TABLES, WT_FRAMES, WT_SAMPLES, sampleTable } from '../instruments/wavetables.js';
 import type { Preset } from './presets.js';
@@ -255,11 +256,12 @@ export class Controls {
       b.className = sel ? 'sel' : '';
       // Each instance carries its own colour so duplicate engines are
       // distinguishable here and in the tracker grid.
-      b.style.color = instr.color;
+      const col = displayAccent(instr.color);   // darkened for light mode if it's a too-bright neon
+      b.style.color = col;
       if (sel) {
-        b.style.borderColor = instr.color;
-        b.style.boxShadow = `0 0 12px ${instGlow(instr.color)}, inset 0 0 8px ${instGlow(instr.color)}`;
-        b.style.textShadow = `0 0 8px ${instGlow(instr.color)}`;
+        b.style.borderColor = col;
+        b.style.boxShadow = `0 0 12px ${instGlow(col)}, inset 0 0 8px ${instGlow(col)}`;
+        b.style.textShadow = `0 0 8px ${instGlow(col)}`;
       }
       b.title = 'Click to select · right-click to remove';
       b.onclick = () => { this.select(i); };
@@ -752,6 +754,80 @@ export class Controls {
     if (this._wtScopeRaf) { cancelAnimationFrame(this._wtScopeRaf); this._wtScopeRaf = 0; }
     if (name === 'wvt') this._buildWtScopes(pr);
     if (name === 'sampler') this._buildSamplerUI(pr);
+    if (name === 'additive') this._buildAdditiveUI(pr);
+  }
+
+  // Spectra resynthesis: load your own sample for the Morph knob to crossfade into.
+  // The sample's harmonic profile is analyzed + uploaded by App._syncRendererFx →
+  // SynthRenderer.syncAdditiveSpectra; no sampler-style loop/tune controls needed.
+  _buildAdditiveUI(pr: InstrumentInstance) {
+    const wrap = document.createElement('div');
+    wrap.className = 'additive-resynth-ui';
+    wrap.style.gridColumn = '1 / -1';
+    wrap.style.marginTop = '4px';
+    wrap.style.padding = '8px';
+    wrap.style.background = 'rgba(0,0,0,0.2)';
+    wrap.style.borderRadius = '4px';
+    wrap.style.boxSizing = 'border-box';
+    wrap.style.width = '100%';
+    wrap.style.minWidth = '0';
+    wrap.style.overflow = 'hidden';
+
+    const info = document.createElement('div');
+    info.style.marginBottom = '8px';
+    info.style.whiteSpace = 'nowrap';
+    info.style.overflow = 'hidden';
+    info.style.textOverflow = 'ellipsis';
+    info.style.fontSize = '12px';
+    if (pr.sample && pr.sample.pcm.length > 0) {
+      info.textContent = `Resynth: ${pr.sample.name} (${(pr.sample.pcm.length / 48000).toFixed(2)}s) — raise Morph to blend in`;
+      info.title = info.textContent;
+    } else {
+      info.textContent = 'Resynthesis: load a sample, then raise Morph';
+    }
+    wrap.appendChild(info);
+
+    const btn = document.createElement('button');
+    btn.textContent = pr.sample ? 'Replace Sample…' : 'Load Sample…';
+    btn.style.width = pr.sample ? '68%' : '100%';
+    btn.onclick = () => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'audio/*';
+      input.onchange = async (e) => {
+        const file = (e.target as HTMLInputElement).files?.[0];
+        if (!file) return;
+        try {
+          const pcm = await decodeAudioFile(file);
+          pr.sample = { name: file.name, pcm, rootNote: 60, loopStart: 0, loopEnd: pcm.length, loopMode: 0 };
+          if (pr.p0[3] < 0.01) pr.p0[3] = 0.6;   // dial Morph in so the analyzed spectrum is audible immediately
+          this.app?._syncRendererFx();           // → syncAdditiveSpectra analyzes + uploads the profile
+          this.app?.markDirty('instrument');
+          this._buildParams();
+        } catch (err) {
+          console.error('Failed to load sample', err);
+          alert('Failed to load sample: ' + (err as Error).message);
+        }
+      };
+      input.click();
+    };
+    wrap.appendChild(btn);
+
+    if (pr.sample) {
+      const clr = document.createElement('button');
+      clr.textContent = 'Clear';
+      clr.style.width = '28%';
+      clr.style.marginLeft = '4%';
+      clr.onclick = () => {
+        pr.sample = undefined;
+        this.app?._syncRendererFx();
+        this.app?.markDirty('instrument');
+        this._buildParams();
+      };
+      wrap.appendChild(clr);
+    }
+
+    this.paramEl.appendChild(wrap);
   }
 
   _buildSamplerUI(pr: InstrumentInstance) {

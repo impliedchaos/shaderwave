@@ -14,6 +14,8 @@ export const igroove: InstrumentDef = {
   label: 'Locked Groove — Vinyl Noise',
   blurb: 'Vinyl record-noise texture — surface hiss, random crackle, dust pops, motor rumble, and a rotation-locked defect layer recurring every revolution (33⅓ RPM = 1.8 s, also 45/78). Hiss, Crackle, Pop, Wear, Cycle (random↔rotation-locked), Tone, Rumble, Drift, RPM, Defects, Color, Fade. Play as a drone.',
   shader,
+  pitchless: true,   // a vinyl drone — note pitch is irrelevant, so transpose skips it
+
   // p0=(hiss,crackle,pop,wear) p1=(cycle,tone,rumble,drift) p2=(rpm,defects,color,fade s)
   // Defaults tuned by matching statistics of real CC0 vinyl recordings (see
   // test/vinyl-analyze.html): ~18 clicks/s, dark low-tilted spectrum, 1.8s tick.

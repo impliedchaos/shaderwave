@@ -94,6 +94,27 @@ Spectra is the answer: it **parallelises over partials** so the GPU finally has 
   the 2048 case is well under the 10.7 ms realtime budget. **Phase 2 (not done):** uploaded spectral
   table → true additive *resynthesis* (analyse a sample → morph/freeze its partials).
 
+### Theming / light theme (2026-06-17) — ✅ DONE — `reference`
+The palette is **CSS custom properties** in `index.html` `:root`; a light theme is the override
+block `:root[data-theme="light"] { … }`. Switching = `document.documentElement.dataset.theme`
+('light'|'dark'), persisted to `localStorage['shaderwave-theme']`. An **inline `<head>` script
+applies the saved theme before first paint** (no flash). Toggle: header `#theme` button → `_bindTheme`
+in main.ts → `toggleTheme()` in `src/ui/theme.ts`. GOTCHA: the **tracker grid is canvas-drawn** and
+reads colours via `themeVar('--x')` (cached) — so (a) any new grid colour must be a CSS var added to
+BOTH `:root` blocks, not a hardcoded literal, and (b) after a theme switch you must `invalidateTheme()`
+(setTheme does) AND repaint (`view.draw()`; the visualizer repaints per-frame anyway). New grid vars
+added for this: `--grid-line`, `--grid-line-strong`, `--sel`, `--vol`, `--cell-muted`. The CHROME
+(panels/dropdowns/modals/LCD/FX-picker/LFO-panel/inputs) had ~60 hardcoded dark literals that ignored
+the theme — those were collapsed into **5 semantic tokens** read as `rgb()/rgba()` so existing alphas
+survive: `--c-surface` (raised panels), `--c-inset` (recessed/near-black), `--c-border`, `--c-text-bright`,
+`--c-text-dim`. Dark sets them to the originals (look unchanged); light flips them (white surfaces, dark
+text). So adding a new surface/border/text colour anywhere = use a `--c-*` token, never a literal. Vivid
+accents (cyan/amber/red/pink/purple, white overlays, black shadows) are intentionally left literal — they
+read on both themes. `--accent`/
+`--accent-glow`/`--cursor-border` are inline-set per selected instrument in main.ts (override both
+themes) → they stay the instrument's colour regardless of theme. The pan-slider + mute-badge colours
+in tracker-view.ts are still hardcoded (read acceptably on both); convert to vars if they ever clash.
+
 ### Piano (Pipi) realism overhaul + per-engine `fxDefaults` — ✅ DONE (1.34.0, 2026-06-16) — `project`
 `synth-pipi.glsl` model upgraded (user asked "improve the piano", chose "just make it better" =
 global sound change; existing songs using pipi now sound different/better — accepted): (1) partial cap

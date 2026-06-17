@@ -4,6 +4,7 @@ import type { App } from '../main.js';
 import { LFO_SHAPES, LFO_SHAPE_WAVETABLE, MAX_ROUTINGS, defaultRouting } from '../tracker/lfo.js';
 import { WT_BANKS } from '../instruments/wavetables.js';
 import { TARGETS, targetsForType } from '../tracker/automation.js';
+import { byType } from '../instruments/index.js';
 
 // Build the global-LFO control panels in the Song Editor. Rebuilds from
 // scratch (target options depend on the live instrument table); each control
@@ -21,9 +22,10 @@ export function buildLfoUI(app: App) {
   for (const t of TARGETS) if (t.scope === 'global' && t.code !== 'BPM') opts.push({ paramId: t.id, instIdx: null, label: `Global · ${t.label}` });
   for (let i = 0; i < eng.instruments.length; i++) {
     const instr = eng.instruments[i];
+    const short = byType(instr.type)?.short ?? instr.type.toUpperCase();   // 3-char engine code, consistent with the rest of the UI
     for (const t of targetsForType(instr.type)) {
-      if (t.scope === 'inst') opts.push({ paramId: t.id, instIdx: i, label: `${i}:${instr.type.toUpperCase()} · ${t.label}` });
-      else if (t.scope === 'fx') opts.push({ paramId: t.id, instIdx: i, label: `${i}:${instr.type.toUpperCase()} · FX ${t.label}` });
+      if (t.scope === 'inst') opts.push({ paramId: t.id, instIdx: i, label: `${i}:${short} · ${t.label}` });
+      else if (t.scope === 'fx') opts.push({ paramId: t.id, instIdx: i, label: `${i}:${short} · FX ${t.label}` });
     }
   }
   for (const t of TARGETS) if (t.scope === 'chan') for (let ch = 0; ch < voices; ch++) opts.push({ paramId: t.id, instIdx: ch, label: `Ch ${ch + 1} · ${t.label}` });
