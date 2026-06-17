@@ -315,6 +315,7 @@ export interface InstrumentDef {
   shader: string;          // GLSL source (?raw), concatenated after common.glsl
   recursive?: boolean;     // per-sample feedback → strip/subBlock rendering (303, moog)
   drum?: boolean;          // keyboard selects drum slots, not pitch (808)
+  additive?: boolean;      // multi-pass GPU-parallel additive (Spectra): tile-synth + log-reduce, see SynthRenderer._renderAdditive
   defaults: InstrumentParams;
   paramDefs: ParamDef[];   // sidebar knobs ([] when customControls)
   autoTargets: RawTarget[];// inst-scope automation targets

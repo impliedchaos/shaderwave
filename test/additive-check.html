@@ -1,0 +1,125 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>pending</title></head>
+<body><pre id="out">running…</pre>
+<script type="module">
+// Spectra (additive) engine check: renders the multi-pass tile-synth + log-reduce
+// path across the partial range (64 → 2048), confirming finite, bounded, energetic
+// audio at every size — AND timing ms/block so the partial count's cost is visible.
+// (Under headless SwiftShader this is SOFTWARE rasterisation, so the absolute times
+// are slow and only the SCALING is meaningful — on a real GPU the same fan-out is
+// what the silicon is actually for. It validates correctness; it does NOT measure
+// real-GPU performance.)
+import { createGL } from '../src/gl/context.js';
+import { SynthRenderer } from '../src/gl/synth-renderer.js';
+import { defaultParams } from '../src/tracker/song.js';
+import { BLOCK, VOICES, INSTRUMENTS } from '../src/constants.js';
+
+const out = document.getElementById('out');
+const lines = [];
+const log = (s) => { lines.push(s); out.textContent = lines.join('\n'); console.log(s); };
+
+function stats(buf) {
+  let peak = 0, sum = 0, nan = 0;
+  for (let i = 0; i < buf.length; i++) {
+    const v = buf[i];
+    if (!Number.isFinite(v)) { nan++; continue; }
+    peak = Math.max(peak, Math.abs(v));
+    sum += v * v;
+  }
+  return { peak, rms: Math.sqrt(sum / buf.length), nan };
+}
+
+function makeVD(instId, freq, blockStart, partials, params) {
+  const z4 = () => new Float32Array(VOICES * 4);
+  const p0 = z4(), p1 = z4(), p2 = z4(), p3 = z4();
+  const name = INSTRUMENTS[instId];
+  for (let k = 0; k < 4; k++) {
+    p0[k] = params[name].p0[k]; p1[k] = params[name].p1[k];
+    if (params[name].p2) p2[k] = params[name].p2[k];
+    if (params[name].p3) p3[k] = params[name].p3[k];
+  }
+  p0[0] = partials;                       // override the Partials knob
+  return {
+    active: Int32Array.of(1, 0, 0, 0, 0, 0, 0, 0),
+    inst: Int32Array.of(instId, 0, 0, 0, 0, 0, 0, 0),
+    instId: Int32Array.of(0, 0, 0, 0, 0, 0, 0, 0),
+    freq: Float32Array.of(freq, 0, 0, 0, 0, 0, 0, 0),
+    vel: Float32Array.of(1, 0, 0, 0, 0, 0, 0, 0),
+    onRel: Float32Array.of(-blockStart, 0, 0, 0, 0, 0, 0, 0),
+    offRel: Float32Array.of(1e9, 0, 0, 0, 0, 0, 0, 0),
+    p0, p1, p2, p3,
+    freqFrom: Float32Array.of(freq, 0, 0, 0, 0, 0, 0, 0),
+    phaseOff: new Float32Array(VOICES),
+    gain: new Float32Array(VOICES).fill(1),
+    pan: new Float32Array(VOICES).fill(0.5),
+    master: 1.0,
+  };
+}
+
+try {
+  const gl = createGL(document.createElement('canvas'));
+  const r = new SynthRenderer(gl, 48000);
+  const params = defaultParams();
+  const id = INSTRUMENTS.indexOf('additive');
+  if (id < 0) throw new Error('additive engine not in registry');
+
+  log(`Spectra engine id=${id}. Rendering A2 (110 Hz), 8 voices, per partial count:\n`);
+  let ok = true;
+  for (const P of [64, 256, 512, 1024, 2048]) {
+    let peak = 0, nan = 0, rmsLast = 0;
+    const NB = 24;
+    // warmup 4 blocks (program/texture upload), then time the rest
+    for (let b = 0; b < 4; b++) r.renderBlock(makeVD(id, 110, b * BLOCK, P, params), b * BLOCK);
+    const t0 = performance.now();
+    for (let b = 4; b < NB; b++) {
+      const o = r.renderBlock(makeVD(id, 110, b * BLOCK, P, params), b * BLOCK);
+      const s = stats(o); peak = Math.max(peak, s.peak); nan += s.nan; rmsLast = s.rms;
+    }
+    const ms = (performance.now() - t0) / (NB - 4);
+    const realtimeBudget = (BLOCK / 48000) * 1000;   // ms a block must beat for realtime
+    const energetic = peak > 1e-4 && nan === 0;
+    ok = ok && energetic;
+    log(`P=${String(P).padStart(4)}  peak=${peak.toFixed(3)} rms=${rmsLast.toFixed(3)} NaN=${nan}  ${ms.toFixed(2)} ms/block (RT budget ${realtimeBudget.toFixed(1)} ms)  ${energetic ? 'OK' : 'FAIL'}`);
+  }
+
+  // --- resynthesis (Phase 2): morphing into an analyzed spectrum changes the tone ---
+  log('\n--- resynthesis: Morph formula → analyzed spectrum ---');
+  {
+    // A deliberately HOLLOW sample (only harmonics 1, 5, 9 of 220 Hz) so the analyzed
+    // profile is unmistakably different from the dense default formula spectrum.
+    const SR = 48000, n = 24000, fakePcm = new Float32Array(n);
+    for (let i = 0; i < n; i++)
+      fakePcm[i] = 0.3 * (Math.sin(2*Math.PI*220*i/SR) + 0.6*Math.sin(2*Math.PI*1100*i/SR) + 0.4*Math.sin(2*Math.PI*1980*i/SR));
+    // Hand the renderer one additive instance carrying this sample → it analyzes + uploads.
+    r.syncAdditiveSpectra([{ type: 'additive', sample: { pcm: fakePcm, rootNote: 60, loopStart: 0, loopEnd: 0, loopMode: 0 } }]);
+
+    const renderMorph = (morph) => {
+      let last = null;
+      for (let b = 0; b < 8; b++) {
+        const vd = makeVD(id, 220, b * BLOCK, 1024, params);
+        vd.p0[3] = morph;                 // Morph (p0.w): 0 = formula, 1 = analyzed
+        last = r.renderBlock(vd, b * BLOCK).slice();
+      }
+      return last;
+    };
+    const dry = renderMorph(0.0), wet = renderMorph(1.0);
+    let diff = 0, dn = 0, sd = dry.length, nan = 0;
+    for (let i = 0; i < dry.length; i++) {
+      if (!Number.isFinite(dry[i]) || !Number.isFinite(wet[i])) { nan++; continue; }
+      diff += (dry[i] - wet[i]) ** 2; dn += dry[i] * dry[i];
+    }
+    const diffRms = Math.sqrt(diff / sd), dryRms = Math.sqrt(dn / sd);
+    const wetStats = stats(wet);
+    const changed = diffRms > 1e-3 && dryRms > 1e-3 && wetStats.peak > 1e-3 && nan === 0;
+    ok = ok && changed;
+    log(`dryRms=${dryRms.toFixed(4)} wetPeak=${wetStats.peak.toFixed(4)} ‖dry−wet‖rms=${diffRms.toFixed(4)} NaN=${nan}  ${changed ? 'OK (resynth audibly changes the tone)' : 'FAIL'}`);
+  }
+
+  document.title = ok ? 'ALL_OK' : 'FAILED';
+  log(ok ? '\n=== ADDITIVE OK ===' : '\n=== ADDITIVE FAILED ===');
+} catch (e) {
+  document.title = 'ERROR';
+  log('FATAL: ' + e.message + '\n' + (e.stack || ''));
+}
+</script>
+</body></html>

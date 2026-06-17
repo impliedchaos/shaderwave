@@ -66,6 +66,34 @@ An attempt to implement a WebGL 16-band Vocoder effect was completely abandoned 
 
 ## Current work
 
+### Spectra — massive GPU-parallel additive engine (1.38.0, 2026-06-17) — ✅ DONE — `project`
+**Why it exists:** the user asked, honestly, whether GPU audio buys anything over CPU. For an
+8-voice synth it doesn't — the modal engines sum ~64 partials in a SERIAL inner loop, so the chip
+sits idle (SwiftShader keeping up in the harnesses is the tell the work was never compute-bound).
+Spectra is the answer: it **parallelises over partials** so the GPU finally has real work.
+**Design (registry type `additive`, `additive: true`):**
+- Up to **2048 partials/voice**, summed in PARALLEL. Pass 1 (`synth-additive.glsl`) renders a
+  `BLOCK × (ADD_TILES·VOICES)` texture, **one TILE of 32 partials per fragment**, row-packed
+  **tile-major / voice-minor** (`row = tile*VOICES + voice`). Pass 2 (`additive-reduce.glsl`) is a
+  **log-reduce**: halve the tile axis by summing adjacent row-pairs of the same voice, ping-ponging
+  `addA`/`addB`, the final pass (`uFinal` → tanh) landing in `it.audio` (BLOCK×VOICES). 64 tiles → 6
+  passes. At full poly ≈ 8M fragments/block.
+- It's the **first multi-pass engine**, so it breaks the "one descriptor + glsl + registry line" rule:
+  needs a renderer branch `SynthRenderer._renderAdditive` (gated on `def.additive`) + a reduce program
+  + 3 textures built in the ctor. The shared partial-tile/reduce constants `ADD_TILE=32`/`ADD_MAXN=2048`
+  live in BOTH `synth-renderer.ts` and `synth-additive.glsl` — keep them in sync.
+- Spectrum is **formula-driven, resynthesis-ready** (Phase 1): stretched harmonic series shaped by
+  Partials/Tilt/Stretch/Odd-Even/Comb + per-partial Decay/DecayTilt + Detune spread. **Decorrelated
+  per-partial phase** (`hash11`) keeps the summed RMS bounded (~1.3 for 1/n amps) and avoids an onset
+  spike from 2048 coherent partials. Params: p0=[Partials,Tilt,Stretch,OddEven] p1=[Decay,DecayTilt,
+  Detune,Comb] p2=[Attack,Release]. Tilt/Stretch are the marquee LFO/automation targets.
+- Effect-column pitch works (uses the same `te = t + uPhaseOff/f0` correction).
+- **Verified** by `test/additive-check.html`: finite/bounded across 64→2048 partials; ms/block scales
+  with P (12→20 ms under SwiftShader, sub-linear because fixed per-block overhead dominates at low P).
+  Under SwiftShader it's SOFTWARE so absolute times are slow + only scaling is meaningful — on real GPU
+  the 2048 case is well under the 10.7 ms realtime budget. **Phase 2 (not done):** uploaded spectral
+  table → true additive *resynthesis* (analyse a sample → morph/freeze its partials).
+
 ### Piano (Pipi) realism overhaul + per-engine `fxDefaults` — ✅ DONE (1.34.0, 2026-06-16) — `project`
 `synth-pipi.glsl` model upgraded (user asked "improve the piano", chose "just make it better" =
 global sound change; existing songs using pipi now sound different/better — accepted): (1) partial cap

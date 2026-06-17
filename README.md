@@ -215,6 +215,21 @@ A fully GPU-accelerated PCM sampler. Audio files loaded via the UI are decoded, 
 It supports **One-Shot** and **Forward Loop** modes.
 Parameters: **Tune(st)**, **Start**, **Gain**, **Attack**, **Decay**, **Sustain**, **Release**. Load a sample using the "Load Sample..." button in the instrument panel. Sample data is automatically persisted (base64 encoded) when saving songs to a file or IndexedDB.
 
+### Spectra — Massive Additive Synth (short name **SPC**)
+
+The engine built to actually *use* the GPU. Where the modal engines sum a few dozen
+partials in a serial inner loop (leaving the chip idle), Spectra **parallelises over
+partials**: up to **2048 partials per voice**, rendered as a tile of partials per
+fragment (`synth-additive.glsl`) and summed by a log-reduce pass
+(`additive-reduce.glsl`). At full polyphony that's ~8M fragments/block — the
+embarrassingly-parallel workload a GPU is for, and more than a CPU core wants in real
+time. It's the only **multi-pass** engine, so the renderer special-cases it
+(`SynthRenderer._renderAdditive`). The spectrum is formula-driven (resynthesis-ready):
+a stretched harmonic series shaped by **Partials**, **Tilt** (dark↔bright), **Stretch**
+(inharmonicity → bell/metallic), **Odd/Even**, a pluck **Comb**, per-partial
+**Decay**/**DecayTilt** and a **Detune** spread — organ, bell, choir and metallic pads.
+Tilt and Stretch make excellent LFO/automation targets for spectral movement.
+
 ## Effect column
 
 Each pattern cell has a fourth sub-column — a classic tracker **effect command**

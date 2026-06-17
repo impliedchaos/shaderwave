@@ -269,6 +269,7 @@ export class App {
     this.renderer?.setInstrumentFx(this.engine.instruments.map((i) => i.fx));
     this.renderer?.setInstrumentFxOrder(this.engine.instruments.map((i) => i.fxOrder));
     this.renderer?.syncSamplerSlots(this.engine.instruments);
+    this.renderer?.syncAdditiveSpectra(this.engine.instruments);   // analyze + upload Spectra resynthesis profiles
   }
 
   // Fetch + decode any sampler instance that carries a sample URL but no PCM yet

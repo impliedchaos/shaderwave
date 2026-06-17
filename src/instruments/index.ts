@@ -23,10 +23,11 @@ import { ipipi } from './ipipi.js';
 import { iguitar } from './iguitar.js';
 import { iwvt } from './iwvt.js';
 import { isampler } from './isampler.js';
+import { iadditive } from './iadditive.js';
 
 // Append-only: automation target ids are persisted by index, so new engines go at
-// the END (iwvt = Wavewright, the wavetable synth).
-export const REGISTRY: InstrumentDef[] = [i303, idx7, i808, imoog, itanpura, ie8e, igroove, itabla, ipipi, iguitar, iwvt, isampler];
+// the END (iadditive = Spectra, the massive GPU-parallel additive synth).
+export const REGISTRY: InstrumentDef[] = [i303, idx7, i808, imoog, itanpura, ie8e, igroove, itabla, ipipi, iguitar, iwvt, isampler, iadditive];
 
 // Engine-type ids, in registry order. The index is the shader-dispatch id.
 export const INSTRUMENTS: string[] = REGISTRY.map((d) => d.type);

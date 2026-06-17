@@ -48,8 +48,9 @@ There is **no unit-test framework**. Verification is done two ways:
    Key harnesses: `glsl-check` (all shaders compile/link), `render-check` (full GPU
    path produces finite, non-NaN audio), `phaseoff-check` (effect-column pitch stays
    click-free + bit-identical-when-unmodulated on the closed-form engines),
-   `instance-check`, `onset-check`, `drum-analyze`. `audio-check` needs a real audio
-   device and won't pass headless.
+   `additive-check` (Spectra renders finite/bounded across 64→2048 partials + prints
+   ms/block scaling), `instance-check`, `onset-check`, `drum-analyze`. `audio-check`
+   needs a real audio device and won't pass headless.
    **SwiftShader is software-rendered, so it validates correctness, NOT performance.**
 
 ### Running project logic under plain Node
@@ -85,7 +86,11 @@ and `git status` before committing** so they don't get swept into a commit.
   end — automation target ids are persisted). A song's `params` is a table of *instances*
   (e.g. three separate 303s); a pattern cell's `inst` indexes that table. Each engine:
   `303` & `moog` use a recursive ladder (per-sample loop, `recursive: true`); `dx7`, `808`
-  & `tanpura` are closed-form. See MEMORY.md for the full plug-in notes.
+  & `tanpura` are closed-form. **Exception to the one-line rule:** `additive` (Spectra) is
+  the first MULTI-PASS engine — partials are summed in parallel (one tile per fragment) then
+  log-reduced, so besides its descriptor + 2 `.glsl` files it needs a renderer branch
+  (`SynthRenderer._renderAdditive`, flagged by `additive: true`). See MEMORY.md for the full
+  plug-in notes.
 - **Param banks** (per voice, `vec4` each): `uP0`/`uP1`/`uP2`/`uP3` + `uFreqFrom` are
   **universal** — declared in `common.glsl` and uploaded for *every* engine (shaders that
   don't reference one strip the uniform → `p.u()` returns null → `gl.uniform*` is a silent

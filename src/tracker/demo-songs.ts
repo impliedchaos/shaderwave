@@ -6164,5 +6164,110 @@ export const DEMO_SONGS: SongDef[] = [
         pan: [0.5, 0.4, 0.6, 0.5, 0.45, 0.55, 0.62, 0.38],
       };
     }
+  },
+  {
+    // Showcase for the Spectra additive engine (+ Phase-2 resynthesis): three Spectra
+    // instances — a formula choir PAD (Tilt/Stretch drifting under LFOs), an inharmonic
+    // BELL, and a kalimba RESYNTHESIS lead whose Morph breathes between the synthetic
+    // spectrum and the analyzed kalimba harmonic profile under an LFO. Ambient A-minor.
+    name: "Tantric Spectral Edging",
+    author: "AI Slop",
+    note: "Spectra additive engine + Phase-2 resynthesis showcase: formula choir pad + inharmonic bell + a kalimba-resynthesis lead morphing under an LFO. Prompt: \"Phase 2 and then demo.\"",
+    bpm: 84,
+    master: DEFAULT_MASTER * 0.55,
+    params: [
+      { name: "Soft Kit",        type: "808",  p0: [0, 0.5, 0.5, 0.5], p1: [0, 0, 0, 0] },                                  // 0
+      { name: "Sub Bass",        type: "moog", p0: [140, 0.2, 0.7, 0], p1: [2, 0.95, 0.7, 1.0], p2: [1, 1, 1, 0], p3: [1, 1, 2, 0] }, // 1
+      { name: "Choir Pad",       type: "additive", p0: [768, 0.5, 0.04, 0.0], p1: [0, 0.5, 0.5, 0.0], p2: [0.5, 1.2, 0.0, 0] },       // 2 formula pad
+      { name: "Cathedral Bell",  type: "additive", p0: [800, 0.6, 0.6, 0.0], p1: [5.0, 0.7, 0.2, 0.0], p2: [0.003, 1.5, 0.3, 0] },    // 3 inharmonic decay
+      { name: "Kalimba Resynth", type: "additive", p0: [512, 0.55, 0.0, 0.45], p1: [1.8, 0.6, 0.15, 0.0], p2: [0.005, 0.8, 0.0, 0], sample: smp("Kalimba", "kalimba", 60) }, // 4 RESYNTH (Morph base 0.45)
+    ],
+    fxParams: {
+      '808':      Object.assign(defaultFxParams(), { delayOn: false, reverbOn: true, reverbMix: 0.15, master: 0.8 }),
+      'moog':     Object.assign(defaultFxParams(), { reverbOn: true, reverbMix: 0.18 }),
+      // All three Spectra instances share this (fx is per engine TYPE): a big lush space.
+      'additive': Object.assign(defaultFxParams(), { reverbOn: true, reverbDecay: 0.9, reverbDamp: 0.4, reverbMix: 0.38, chorusOn: true, chorusMix: 0.2, widthOn: true, width: 1.4, master: 0.7 }),
+    },
+    data: () => {
+      const N = 32;                                    // 2 bars of 4/4 (16 rows per chord)
+      const mk = () => new Pattern(N, 8);
+      const I_KIT = 0, I_BASS = 1, I_PAD = 2, I_BELL = 3, I_RES = 4;
+      const triad: Record<string, number[]> = { Am: [57, 60, 64], F: [53, 57, 60], C: [60, 64, 67], G: [55, 59, 62] };
+      const root:  Record<string, number>   = { Am: 33, F: 29, C: 36, G: 31 };
+
+      // Pad chord on ch3/4/5 (one Spectra instance, three voices → one reverb), held r0..r1.
+      const pad = (pat: Pattern, ch: string, r0: number, r1: number, vol = 0.5) => {
+        const c = triad[ch];
+        for (let k = 0; k < 3; k++) { pat.set(r0, 3 + k, c[k], I_PAD, vol); if (r1 < N) pat.set(r1, 3 + k, OFF, I_PAD); }
+      };
+      const bass = (pat: Pattern, ch: string, r0: number) => pat.set(r0, 2, root[ch], I_BASS, 0.7);
+      // Bell (ch6): a slow arpeggio of the chord, an octave up, inharmonic ring.
+      const bell = (pat: Pattern, ch: string, r0: number) => {
+        const c = triad[ch];
+        for (let j = 0; j < 4; j++) { const r = r0 + j * 3; if (r < N) pat.set(r, 6, c[j % 3] + 12, I_BELL, 0.4); }
+      };
+      const drums = (pat: Pattern) => {
+        for (let r = 0; r < N; r += 8) pat.set(r, 0, 36, I_KIT, 0.7);     // soft kick on the 1
+        for (let r = 4; r < N; r += 8) pat.set(r, 1, 38, I_KIT, 0.35);    // brush snare on the 3
+      };
+
+      // ── P0 — INTRO: just the choir pad, Tilt/Stretch drifting under the LFOs ───
+      const p0 = mk();
+      pad(p0, 'Am', 0, 16); pad(p0, 'F', 16, N);
+
+      // ── P1 — BUILD: pad + sub bass + bell ──────────────────────────────────────
+      const p1 = mk();
+      pad(p1, 'C', 0, 16); pad(p1, 'G', 16, N);
+      bass(p1, 'C', 0); bass(p1, 'G', 16);
+      bell(p1, 'C', 2); bell(p1, 'G', 18);
+
+      // ── P2 / P3 — FULL: + kalimba RESYNTH lead (Morph breathing under LFO 1) + beat
+      const fullLead = (pat: Pattern) => {
+        // pentatonic phrase; effect column shows Spectra responds to pitch fx too.
+        pat.set(0, 7, 69, I_RES, 0.6);  pat.setFx(2, 7, 0x4, 0x83);     // A4, vibrato
+        pat.set(8, 7, 72, I_RES, 0.6);  pat.setFx(8, 7, 0x3, 0x18);     // slide up to C5 (meend)
+        pat.set(16, 7, 67, I_RES, 0.6);
+        pat.set(24, 7, 64, I_RES, 0.6); pat.setFx(24, 7, 0x4, 0x73);    // E4, vibrato
+        pat.set(31, 7, OFF, I_RES);
+      };
+      const p2 = mk();
+      pad(p2, 'Am', 0, 16); pad(p2, 'F', 16, N);
+      bass(p2, 'Am', 0); bass(p2, 'F', 16); bell(p2, 'Am', 4); bell(p2, 'F', 20);
+      drums(p2); fullLead(p2);
+      const p3 = mk();
+      pad(p3, 'C', 0, 16); pad(p3, 'G', 16, N);
+      bass(p3, 'C', 0); bass(p3, 'G', 16); bell(p3, 'C', 4); bell(p3, 'G', 20);
+      drums(p3); fullLead(p3);
+
+      // ── P4 — OUTRO: pad resolves to Am and fades (volume slide), bell rings out ─
+      const p4 = mk();
+      pad(p4, 'Am', 0, N); bass(p4, 'Am', 0); bell(p4, 'Am', 2);
+      for (let k = 0; k < 3; k++) p4.setFx(16, 3 + k, 0xA, 0x03);       // pad fades out via volume slide
+
+      const killHang = (pat: Pattern) => {
+        for (let ch = 0; ch < 8; ch++) if (pat.note(0, ch) === EMPTY) pat.set(0, ch, OFF, 0);
+      };
+      [p0, p1, p2, p3, p4].forEach(killHang);
+
+      const TLT = tgt('additive', 'TLT'), STR = tgt('additive', 'STR'), MOR = tgt('additive', 'MOR');
+      return {
+        // intro ×2 · build · full A/B ×2 · build · full A/B · outro  ≈ 1¾ min @ 84 BPM
+        patterns: [p0, p1, p2, p3, p4],
+        order: [0, 0, 1, 2, 3, 2, 3, 1, 2, 3, 2, 3, 4],
+        rowsPerBeat: 4,
+        pan: [0.5, 0.5, 0.42, 0.58, 0.4, 0.6, 0.64, 0.36],
+        lfos: [
+          { ...defaultLfo(), shape: 0, sync: true, rateBeats: 16 },   // slow sine, 4 bars → pad Tilt
+          { ...defaultLfo(), shape: 1, sync: true, rateBeats: 8 },    // triangle, 2 bars → resynth Morph
+          { ...defaultLfo(), shape: 0, sync: true, rateBeats: 12 },   // → pad Stretch (subtle)
+          { ...defaultPumpLfo() },
+        ],
+        modRoutings: [
+          { source: 0, targetParamId: TLT.id, targetInstIdx: I_PAD, depth: 0.35, bipolar: true },   // pad brightness sweep
+          { source: 1, targetParamId: MOR.id, targetInstIdx: I_RES, depth: 0.5,  bipolar: false },  // kalimba morphs synth↔sampled
+          { source: 2, targetParamId: STR.id, targetInstIdx: I_PAD, depth: 0.15, bipolar: false },  // pad drifts toward inharmonic
+        ],
+      };
+    }
   }
 ];
