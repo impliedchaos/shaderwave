@@ -30,7 +30,11 @@ void main(){
   float atk    = uP1[v].x, dec = uP1[v].y, sus = uP1[v].z, rel = uP1[v].w;
 
   float rate = (uFreq[v] / max(uSmpRootFreq[v], 1.0)) * pow(2.0, tune / 12.0);
-  float pos  = start * uSmpLen[v] + t * uSampleRate * rate;   // read position in frames
+  // Effect-column pitch continuity (see engine._accumPhaseOff): te == t for a steady
+  // note (uPhaseOff 0 → bit-identical read position), and keeps the read position
+  // continuous when a slide/porta/vibrato/arp changes the playback rate mid-note.
+  float te   = t + uPhaseOff[v] / max(uFreq[v], 1e-6);
+  float pos  = start * uSmpLen[v] + te * uSampleRate * rate;   // read position in frames
 
   float ls = uSmpLoopStart[v], le = uSmpLoopEnd[v];
   if (uSmpLoopMode[v] > 0.5 && le > ls + 1.0) {

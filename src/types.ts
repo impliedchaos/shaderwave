@@ -215,6 +215,7 @@ export interface VoiceData {
   p2: Float32Array;       // moog-only banks
   p3: Float32Array;
   freqFrom: Float32Array; // glide source pitch (moog)
+  phaseOff: Float32Array; // fundamental-phase correction (cycles) for effect-column pitch on closed-form engines; 0 = no correction
   gain: Float32Array;
   pan: Float32Array;
   master: number;

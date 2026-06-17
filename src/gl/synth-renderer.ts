@@ -352,6 +352,7 @@ export class SynthRenderer {
       gl.uniform4fv(p.u('uP2[0]'), vd.p2);
       gl.uniform4fv(p.u('uP3[0]'), vd.p3);
       gl.uniform1fv(p.u('uFreqFrom[0]'), vd.freqFrom);
+      gl.uniform1fv(p.u('uPhaseOff[0]'), vd.phaseOff);
       // Engine-specific per-voice uniforms (e.g. dx7 operator banks).
       it.def.uploadVoiceUniforms?.(gl, p, vd);
 

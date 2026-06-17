@@ -39,6 +39,10 @@ void main(){
 
   float f0    = uFreq[v];
   float vel   = uVel[v];
+  // Effect-column pitch continuity (see engine._accumPhaseOff): te == t until the
+  // note's pitch is modulated (slide/porta/vibrato/arp), so the render is unchanged
+  // for steady notes and the phase stays click-free across a bend.
+  float te    = t + uPhaseOff[v] / max(f0, 1e-6);
   float decay = max(uP0[v].x, 0.05);
   float pluck = clamp(uP0[v].y, 0.02, 0.5);
   float tone  = clamp(uP0[v].z, 0.0, 1.0);
@@ -100,7 +104,7 @@ void main(){
     // (no onset click) and the harmonics sum to a defined, percussive pluck (random phases
     // smear it into a generic "synth strings" wash). vdet keeps stacked chord notes from
     // phase-locking without smearing the single-note timbre.
-    acc += a * env * sin(TAU * fn * vdet * t);
+    acc += a * env * sin(TAU * fn * vdet * te);
   }
 
   // Pick/finger attack: short broadband contact, sharper when electric; onset-locked.

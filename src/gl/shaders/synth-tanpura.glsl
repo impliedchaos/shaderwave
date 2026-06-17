@@ -35,6 +35,10 @@ void main(){
 
   float f0     = uFreq[v];
   float vel    = uVel[v];
+  // Effect-column pitch continuity (see engine._accumPhaseOff): te == t for a steady
+  // drone (uPhaseOff 0 → bit-identical), and keeps the partials phase-continuous if a
+  // slide/vibrato moves the pitch mid-note.
+  float te     = t + uPhaseOff[v] / max(f0, 1e-6);
   float decay  = max(uP0[v].x, 0.02);
   float jivari = uP0[v].y;
   float tilt   = uP0[v].z;     // how much faster high partials decay (0 = all equal)
@@ -77,7 +81,7 @@ void main(){
     float gain = a * (1.0 + jivari * bump * 5.0);
 
     float phi = hash11(float(n) + float(v) * 7.13);          // fixed per (partial, voice)
-    acc += gain * env * sin(TAU * (fn * t + phi));
+    acc += gain * env * sin(TAU * (fn * te + phi));
   }
 
   // Attack fade-in (a few ms, no click) + a short broadband pluck "chiff", seeded

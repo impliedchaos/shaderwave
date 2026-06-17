@@ -49,6 +49,10 @@ void main(){
     float pT = f0 * bendT + 0.5 * k * bendT * bendT;
     basePhase = pT + f1 * (t - bendT);
   }
+  // Effect-column pitch continuity (see engine._accumPhaseOff): every mode rides this
+  // fundamental phase (phase_n = ratio_n·basePhase), so shifting it by uPhaseOff cycles
+  // keeps them all continuous through a mid-note freq change. 0 → bit-identical.
+  basePhase += uPhaseOff[v];
 
   // Closed strokes mute fast: damp shortens the ring (te/ka vs open na/ge).
   float dampMul = mix(1.0, 0.12, damp);

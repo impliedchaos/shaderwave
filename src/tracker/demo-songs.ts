@@ -5960,5 +5960,209 @@ export const DEMO_SONGS: SongDef[] = [
         pan: [0.5, 0.42, 0.5, 0.58, 0.38, 0.62, 0.5, 0.55],
       };
     }
+  },
+  {
+    // A guided tour: every engine takes a turn doing an effect-column PITCH move
+    // (slide / tone-porta meend / vibrato / arpeggio), to show the lot now bend
+    // click-free — the closed-form ones (piano, guitar, tanpura, tabla, 888State,
+    // DX7, sampler) via the uPhaseOff correction, alongside the natively smooth
+    // 303 / Moog / Wavewright. Drums (808) keep time and swing with note-delay.
+    name: "Slide Into My Pitches",
+    author: "AI Slop",
+    note: "Effect-column showcase: every instrument bends/slides/vibratos a note. Prompt: \"Can you first write a new demo song that shows all of our instruments working with our effects columns?\"",
+    bpm: 96,
+    master: DEFAULT_MASTER * 0.6,
+    params: [
+      { name: "808 Kit",       type: "808",  p0: [0, 0.55, 0.5, 0.6], p1: [0, 0, 0, 0] },                                  // 0
+      { name: "Acid 303",      type: "303",  p0: [430, 0.82, 0.7, 0.5], p1: [0, 0.3, 0.4, 0.5] },                          // 1  (saw)
+      { name: "Moog Lead",     type: "moog", p0: [1000, 0.35, 0.5, 0.4], p1: [9, 0.6, 0.7, 0.5], p2: [1, 1, 2, 0.0], p3: [2, 2, 3, 0] }, // 2 (no internal glide — bends come from the fx column)
+      { name: "Gigi Guitar",   type: "guitar", p0: [2.6, 0.16, 0.62, 0.85], p1: [32, 0.05, 0.45, 0.35] },                  // 3
+      { name: "Grand Piano",   type: "pipi", p0: [4.5, 0.0004, 0.55, 0.3], p1: [26, 0.0015, 0.8, 0.45] },                  // 4
+      { name: "Tanpura Drone", type: "tanpura", p0: [3, 0.6, 0.06, 0.13], p1: [48, 0.00008, 0.25, 0.005] },                // 5
+      { name: "888 Arp",       type: "e8e",  p0: [0.004, 0.18, 0.0, 0.16], p1: [0.12, -12, 8, 0.15], p2: [2, 2, 3, 2], p3: [1, 0.8, 0.5, 0.5] }, // 6 (plucky, sustain 0)
+      { name: "Wavewright",    type: "wvt",  p0: [0.01, 0.4, 0.7, 0.4], p1: [0.0, 0.5, 0.07, 0.0], p2: [3, 0, 0, -1], p3: [0.8, 0.6, 0, 0] },     // 7 (formant bank)
+      {
+        name: "FM Bells", type: "dx7",
+        p0: [1, 1.5, 2.5, 0.4], p1: [5, 0.6, 0.8, 3],
+        ops: [
+          { coarse: 1.0, fine: 0, level: 99, detune: 2,  decay: 3.5, mode: 0, sustain: 0.80, release: 2.5 },
+          { coarse: 2.0, fine: 1, level: 72, detune: -3, decay: 3.8, mode: 0, sustain: 0.75, release: 2.8 },
+          { coarse: 3.0, fine: 0, level: 55, detune: 7,  decay: 4.0, mode: 0, sustain: 0.70, release: 3.0 },
+          { coarse: 5.0, fine: 0, level: 40, detune: 0,  decay: 2.5, mode: 0, sustain: 0.55, release: 2.0 },
+          { coarse: 7.0, fine: 0, level: 26, detune: -1, decay: 1.5, mode: 0, sustain: 0.35, release: 1.5 },
+          { coarse: 11.0, fine: 0, level: 16, detune: 2, decay: 1.0, mode: 0, sustain: 0.25, release: 1.0 }
+        ]
+      },                                                                                                                    // 8
+      { name: "Tabla",         type: "tabla", p0: [0.55, 0.2, 0.6, 0.0], p1: [8, 0.0006, 0.05, 0.6] },                     // 9
+      { name: "Vinyl Crackle", type: "groove", p0: [0.4, 0.5, 0.35, 0.4], p1: [1.8, 0.5, 0.4, 0.3], p2: [33, 0.45, 0.5, 0.2] }, // 10
+      { name: "Vox Chop",      type: "sampler", p0: [0, 0, 1, 0], p1: [0.001, 1, 1, 0.3], sample: smp("Vox", "dvs-yeah-1", 60) }, // 11
+    ],
+    fxParams: {
+      '808':     Object.assign(defaultFxParams(), { delayOn: false, reverbOn: true, reverbMix: 0.10, master: 0.95 }),
+      '303':     Object.assign(defaultFxParams(), { distOn: true, dist: 3, delayOn: true, delayMix: 0.16, reverbOn: true, reverbMix: 0.14 }),
+      'moog':    Object.assign(defaultFxParams(), { chorusOn: true, chorusMix: 0.3, chorusRate: 0.4, reverbOn: true, reverbMix: 0.24, widthOn: true, width: 1.2 }),
+      'guitar':  Object.assign(defaultFxParams(), { odOn: true, odDrive: 1.7, odTone: 0.5, delayOn: true, delayMix: 0.12, reverbOn: true, reverbMix: 0.22 }),
+      'pipi':    Object.assign(defaultFxParams(), { reverbOn: true, reverbMix: 0.28, widthOn: true, width: 1.2 }),
+      'tanpura': Object.assign(defaultFxParams(), { reverbOn: true, reverbMix: 0.36, widthOn: true, width: 1.4 }),
+      'e8e':     Object.assign(defaultFxParams(), { delayOn: true, delayMix: 0.24, reverbOn: true, reverbMix: 0.18 }),
+      'wvt':     Object.assign(defaultFxParams(), { chorusOn: true, chorusMix: 0.2, reverbOn: true, reverbMix: 0.3, widthOn: true, width: 1.3 }),
+      'dx7':     Object.assign(defaultFxParams(), { delayOn: true, delayMix: 0.2, reverbOn: true, reverbMix: 0.34, widthOn: true, width: 1.3 }),
+      'tabla':   Object.assign(defaultFxParams(), { reverbOn: true, reverbMix: 0.18 }),
+      'groove':  Object.assign(defaultFxParams(), { reverbOn: false, master: 0.5 }),
+      'sampler': Object.assign(defaultFxParams(), { delayOn: true, delayMix: 0.2, reverbOn: true, reverbMix: 0.2 }),
+    },
+    data: () => {
+      const N = 32;                                    // 2 bars of 4/4 (rowsPerBeat 4)
+      const mk = () => new Pattern(N, 8);
+      const I_KIT = 0, I_BASS = 1, I_MOOG = 2, I_GTR = 3, I_PNO = 4, I_TAN = 5,
+            I_E8E = 6, I_WVT = 7, I_DX7 = 8, I_TAB = 9, I_VIN = 10, I_VOX = 11;
+      const BD = 36, SD = 38, HH = 42, OH = 46;
+
+      // Steady beat bed on ch0/1/2. Off-beat hats swing via note-delay (5xx) — the
+      // one effect-column trick the drums DO respond to (808 ignores pitch).
+      const drums = (pat: Pattern, kick = [0, 10, 16, 22, 26], snare = [8, 24], swing = 0x55) => {
+        for (const r of kick)  if (r < N) pat.set(r, 0, BD, I_KIT, 0.95);
+        for (const r of snare) if (r < N) pat.set(r, 1, SD, I_KIT, 0.82);
+        for (let r = 2; r < N; r += 4) { pat.set(r, 2, HH, I_KIT, 0.38); pat.setFx(r, 2, 0x5, swing); }
+        pat.set(14, 2, OH, I_KIT, 0.4);
+      };
+
+      // Acid 303 bass on ch3 with classic tone-porta slides (3xx) into a few notes.
+      const acidBass = (pat: Pattern) => {
+        const A1 = 33, C2 = 36, E2 = 40, G2 = 43;
+        const riff: [number, number, number, number][] = [   // [row, note, vol, portaRate(0=none)]
+          [0, A1, 0.95, 0], [4, A1, 0.7, 0], [6, C2, 0.7, 0x30], [8, A1, 0.85, 0],
+          [12, E2, 0.7, 0x28], [14, A1, 0.7, 0], [16, A1, 0.95, 0], [20, G2, 0.7, 0x30],
+          [22, A1, 0.8, 0], [24, A1, 0.7, 0], [28, C2, 0.7, 0x28], [30, A1, 0.7, 0],
+        ];
+        for (const [r, n, v, porta] of riff) {
+          pat.set(r, 3, n, I_BASS, v);
+          if (porta) pat.setFx(r, 3, 0x3, porta);          // glide INTO this note (meend), no re-attack
+        }
+      };
+
+      // ── P0 — INTRO: vinyl bed + tanpura drone meend + piano arpeggio ───────────
+      const p0 = mk();
+      {
+        const pat = p0;
+        pat.set(0, 7, 45, I_VIN, 0.6);                       // vinyl crackle drone (ch7; pitch ignored)
+        // Tanpura drone that slides up a whole tone mid-note (3xx meend) — the marquee
+        // "a long sustained closed-form tone now bends without a click" demo.
+        pat.set(0, 5, 45, I_TAN, 0.5);                       // A2 drone
+        pat.set(16, 5, 47, I_TAN, 0.5); pat.setFx(16, 5, 0x3, 0x06);   // … glides up to B2
+        // Piano: rolled Am then C, using arpeggio (0xy) to fan each chord out.
+        pat.set(0, 4, 57, I_PNO, 0.6);  pat.setFx(0, 4, 0x0, 0x37);    // Am: A + min3rd + 5th
+        pat.set(16, 4, 60, I_PNO, 0.6); pat.setFx(16, 4, 0x0, 0x47);   // C:  C + maj3rd + 5th
+      }
+
+      // ── P1 — GROOVE A: acid bass + Gigi guitar bends/vibrato ───────────────────
+      const p1 = mk();
+      {
+        const pat = p1;
+        drums(pat); acidBass(pat);
+        pat.set(0, 5, 45, I_TAN, 0.32);                      // tanpura holds the A drone under it
+        // Guitar lead: pick E4, bend up a 3rd to G4 (3xx), add vibrato (4xy) on the
+        // sustain, then bend G4→A4 and shake it.
+        pat.set(0, 4, 64, I_GTR, 0.8);  pat.setFx(2, 4, 0x4, 0x83);    // vibrato on the held E
+        pat.set(8, 4, 67, I_GTR, 0.8);  pat.setFx(8, 4, 0x3, 0x16);    // bend up to G4 (meend)
+        pat.setFx(12, 4, 0x4, 0x94);                                   // … then vibrato the G
+        pat.set(20, 4, 69, I_GTR, 0.8); pat.setFx(20, 4, 0x3, 0x16);   // bend up to A4
+        pat.setFx(24, 4, 0x4, 0xA5);                                   // wider vibrato
+        pat.set(31, 4, OFF, I_GTR);
+      }
+
+      // ── P2 — GROOVE B: Moog lead vibrato + 888State arp + Wavewright vibrato ───
+      const p2 = mk();
+      {
+        const pat = p2;
+        drums(pat); acidBass(pat);
+        // Moog lead: a little phrase, vibrato on the long notes + one porta slide.
+        pat.set(0, 4, 69, I_MOOG, 0.7);  pat.setFx(2, 4, 0x4, 0x84);   // A4, vibrato
+        pat.set(8, 4, 72, I_MOOG, 0.7);  pat.setFx(8, 4, 0x3, 0x20);   // slide up to C5
+        pat.setFx(11, 4, 0x4, 0x95);
+        pat.set(16, 4, 71, I_MOOG, 0.7); pat.setFx(18, 4, 0x4, 0x84);  // B4, vibrato
+        pat.set(24, 4, 69, I_MOOG, 0.7); pat.setFx(24, 4, 0x3, 0x18); pat.setFx(28, 4, 0x4, 0x95);
+        pat.set(31, 4, OFF, I_MOOG);
+        // 888State plucky arpeggio (ch6): hold a note, let 0xy walk the chord.
+        pat.set(0, 6, 60, I_E8E, 0.55);  pat.setFx(0, 6, 0x0, 0x37);   // Am arp
+        pat.set(8, 6, 60, I_E8E, 0.55);  pat.setFx(8, 6, 0x0, 0x37);
+        pat.set(16, 6, 62, I_E8E, 0.55); pat.setFx(16, 6, 0x0, 0x35);  // Dm-ish arp
+        pat.set(24, 6, 64, I_E8E, 0.55); pat.setFx(24, 6, 0x0, 0x38);  // E arp (maj 3rd + 5th)
+        // Wavewright (ch7) stabs with vibrato.
+        pat.set(4, 7, 76, I_WVT, 0.5);  pat.setFx(6, 7, 0x4, 0x73);
+        pat.set(20, 7, 79, I_WVT, 0.5); pat.setFx(22, 7, 0x4, 0x73);
+        pat.set(30, 7, OFF, I_WVT);
+      }
+
+      // ── P3 — BREAK: piano portamento + DX7 vibrato + tabla + sampler vox slide ─
+      const p3 = mk();
+      {
+        const pat = p3;
+        // sparse kick + tabla groove (ch1/ch2), swung with note-delay.
+        pat.set(0, 0, BD, I_KIT, 0.9); pat.set(16, 0, BD, I_KIT, 0.9);
+        for (let r = 0; r < N; r += 4) { pat.set(r, 1, 60, I_TAB, 0.7); if (r % 8 === 4) pat.setFx(r, 1, 0x5, 0x60); } // dayan, swung
+        pat.set(6, 2, 50, I_TAB, 0.7); pat.setFx(6, 2, 0x3, 0x20);     // a bayan stroke that bends (meend)
+        pat.set(22, 2, 50, I_TAB, 0.7); pat.setFx(22, 2, 0x1, 0x18);   // … and one that slides up
+        // Piano melody gliding between notes (3xx) — an "impossible" smooth piano slide.
+        pat.set(0, 4, 64, I_PNO, 0.6);
+        pat.set(8, 4, 67, I_PNO, 0.6);  pat.setFx(8, 4, 0x3, 0x14);    // E4 → G4 glide
+        pat.set(16, 4, 69, I_PNO, 0.6); pat.setFx(16, 4, 0x3, 0x14);   // G4 → A4 glide
+        pat.set(24, 4, 72, I_PNO, 0.6); pat.setFx(24, 4, 0x3, 0x14);   // A4 → C5 glide
+        // DX7 bells (ch6) with vibrato.
+        pat.set(2, 6, 81, I_DX7, 0.5);  pat.setFx(5, 6, 0x4, 0x63);
+        pat.set(18, 6, 84, I_DX7, 0.5); pat.setFx(21, 6, 0x4, 0x63);
+        pat.set(30, 6, OFF, I_DX7);
+        // Sampler vox chop (ch7) pitched UP with a slide (1xx) — read-position continuity.
+        pat.set(4, 7, 60, I_VOX, 0.7);  pat.setFx(4, 7, 0x1, 0x10);    // "yeah" sliding up
+        pat.set(20, 7, 67, I_VOX, 0.7); pat.setFx(20, 7, 0x2, 0x10);   // … and one sliding down
+      }
+
+      // ── P4 — FULL BAND: guitar + moog + dx7 + bass + drums, all expressive ─────
+      const p4 = mk();
+      {
+        const pat = p4;
+        drums(pat, [0, 8, 10, 16, 24, 26], [8, 24], 0x40); acidBass(pat);
+        pat.set(0, 5, 45, I_TAN, 0.28);
+        // Guitar power bends (ch4).
+        pat.set(0, 4, 64, I_GTR, 0.85); pat.setFx(4, 4, 0x4, 0x94);
+        pat.set(8, 4, 67, I_GTR, 0.85); pat.setFx(8, 4, 0x3, 0x18); pat.setFx(12, 4, 0x4, 0xA5);
+        pat.set(16, 4, 69, I_GTR, 0.85); pat.setFx(16, 4, 0x3, 0x18); pat.setFx(22, 4, 0x4, 0xA6);
+        pat.set(31, 4, OFF, I_GTR);
+        // Moog octave-up answer with vibrato (ch7).
+        pat.set(4, 7, 76, I_MOOG, 0.6); pat.setFx(6, 7, 0x4, 0x95);
+        pat.set(20, 7, 79, I_MOOG, 0.6); pat.setFx(20, 7, 0x3, 0x20); pat.setFx(26, 7, 0x4, 0x95);
+        pat.set(31, 7, OFF, I_MOOG);
+        // DX7 bell sparkle.
+        pat.set(12, 6, 88, I_DX7, 0.4); pat.setFx(15, 6, 0x4, 0x53);
+        pat.set(28, 6, 91, I_DX7, 0.4); pat.setFx(30, 6, 0x4, 0x53);
+      }
+
+      // ── P5 — OUTRO: tanpura meend back down + piano Am + fade (volume slide) ───
+      const p5 = mk();
+      {
+        const pat = p5;
+        pat.set(0, 7, 45, I_VIN, 0.6);                       // vinyl crackle returns
+        pat.set(0, 5, 47, I_TAN, 0.5);                       // tanpura on B2 …
+        pat.set(8, 5, 45, I_TAN, 0.5); pat.setFx(8, 5, 0x3, 0x05);     // … glides back down to A2
+        pat.set(0, 4, 57, I_PNO, 0.55); pat.setFx(0, 4, 0x0, 0x37);    // final rolled Am
+        pat.set(0, 6, 69, I_WVT, 0.4);  pat.setFx(2, 6, 0x4, 0x63);    // a wvt pad note …
+        pat.setFx(16, 6, 0xA, 0x04);                                   // … fades out via volume slide (Axy, down)
+        pat.set(31, 6, OFF, I_WVT);
+      }
+
+      // Kill notes hanging across pattern boundaries (COMPOSING §10).
+      const killHang = (pat: Pattern) => {
+        for (let ch = 0; ch < 8; ch++) if (pat.note(0, ch) === EMPTY) pat.set(0, ch, OFF, 0);
+      };
+      [p0, p1, p2, p3, p4, p5].forEach(killHang);
+
+      return {
+        // intro · grooveA×2 · grooveB×2 · break · A · B · full×2 · break · A · B · full · A · B · break · full×2 · outro  ≈ 2 min @ 96 BPM (32-row patterns = 5 s each)
+        patterns: [p0, p1, p2, p3, p4, p5],
+        order: [0, 1, 1, 2, 2, 3, 1, 2, 4, 4, 3, 1, 2, 4, 1, 2, 3, 4, 4, 5],
+        rowsPerBeat: 4,
+        pan: [0.5, 0.4, 0.6, 0.5, 0.45, 0.55, 0.62, 0.38],
+      };
+    }
   }
 ];

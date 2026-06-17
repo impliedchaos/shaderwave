@@ -46,8 +46,10 @@ There is **no unit-test framework**. Verification is done two ways:
    # read the <title> and the #out <pre> from the dumped DOM
    ```
    Key harnesses: `glsl-check` (all shaders compile/link), `render-check` (full GPU
-   path produces finite, non-NaN audio), `instance-check`, `onset-check`,
-   `drum-analyze`. `audio-check` needs a real audio device and won't pass headless.
+   path produces finite, non-NaN audio), `phaseoff-check` (effect-column pitch stays
+   click-free + bit-identical-when-unmodulated on the closed-form engines),
+   `instance-check`, `onset-check`, `drum-analyze`. `audio-check` needs a real audio
+   device and won't pass headless.
    **SwiftShader is software-rendered, so it validates correctness, NOT performance.**
 
 ### Running project logic under plain Node

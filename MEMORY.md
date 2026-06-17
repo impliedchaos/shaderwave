@@ -93,8 +93,9 @@ instead of phase-locking; (3) **velocity→brightness** (`bright` folds tone+vel
 morphed in by `Body`. Added `fxDefaults` (EQ/comp/small room/width) + Jazz Box & Twangy Tele presets.
 **Lead-instrument lesson (demo "Te amo …"):** an exposed synth melody reads "synthetic" no matter the
 engine (user rejected dx7 FM → moog → wvt formant in turn). What actually fixed it: keep moog (saw-brass)
-but add EXPRESSION — effect-column **vibrato `4xy`** on held notes (smooth only on phase-accumulating
-303/moog) + a softer/darker patch. Static + perfectly-tuned = synthetic; vibrato = "played". No real
+but add EXPRESSION — effect-column **vibrato `4xy`** on held notes (was smooth only on phase-accumulating
+303/moog; now click-free on every pitched engine via `uPhaseOff` — see the effect-column section)
++ a softer/darker patch. Static + perfectly-tuned = synthetic; vibrato = "played". No real
 brass sample exists in `public/samples/` (percussion + vocal chops only).
 
 ### Record button — live note + automation recording — ✅ DONE + shipped (1.33.0, 2026-06-16, user-verified in-browser) — `project`
@@ -1057,12 +1058,23 @@ pitch slide, `3` tone-porta (meend, no re-attack), `4` vibrato (gamak), `A` volu
   by `_triggerCells`) handles note+fx, with `3xx`+note as the no-retrigger meend special
   case; `_modulateVoices(blockStart)` runs each block (after `_refreshVoiceData`) and
   overrides `vd.freq`/`vd.vel`. Tuning consts at top of engine.ts (`FX_SLIDE` etc.).
-- **WHY block-rate works with no shader changes:** modulation updates `vd.freq` once per
-  BLOCK (~93 Hz). Smooth ONLY on phase-accumulating engines (303 `synth-303.glsl:33`, moog
-  `synth-moog.glsl:109` — both `fract(phase + freq/SR)` from `uPrevPhase`). Closed-form
-  engines (tanpura/dx7/808, `sin(2π·f·t)` from absolute t) STEP/click on per-block pitch
-  changes → pitch fx are scoped to the leads; volume slide (vel) works everywhere. Pitch fx
-  on closed-form engines need a per-voice pitch uniform applied to phase (future phase).
+- **WHY block-rate works:** modulation updates `vd.freq` once per BLOCK (~93 Hz). Natively
+  smooth on phase-accumulating engines (303 `synth-303.glsl:33`, moog `synth-moog.glsl:109` —
+  both `fract(phase + freq/SR)` from `uPrevPhase`; wvt carries phase via its MRT texture too).
+- **Pitch fx now click-free on ALL pitched engines (2026-06-17).** The closed-form engines
+  (pipi/guitar/tanpura/tabla/e8e/sampler) compute phase as `f·t` from absolute note-on time, so a
+  per-block freq change USED to jump the analytic phase at the seam (click). Fix = a universal
+  per-voice **fundamental-phase correction** `uPhaseOff` (cycles): `engine._accumPhaseOff` (runs
+  right after `_modulateVoices`) accumulates `off += (f_prev − f_now)·tStart` and uploads it
+  (`vd.phaseOff` → `common.glsl uniform float uPhaseOff[VOICES]`); each closed-form shader adds it
+  back as `te = t + uPhaseOff/f0` and oscillates on `te` (tabla adds `uPhaseOff` straight to its
+  `basePhase`, since modes are `ratio_n·basePhase`). KEY PROPERTY: off stays EXACTLY 0 while a
+  voice's freq is steady (no slide/porta/vibrato/arp) → `te == t + 0.0 == t` → render bit-identical
+  to before; only modulated voices diverge. dx7 already carried phase via its MRT texture (each op
+  is a single sine → `fract` is fine), so it needed no change. Drums (808/groove) ignore pitch.
+  Verified by `test/phaseoff-check.html` (corrected seam ≈ interior step; uncorrected jump 7–25000×
+  bigger on tonal engines). Precision: `off` is in fundamental cycles, fine for melodic gestures;
+  a long held bend on a high partial loses some precision but those partials are near-silent.
 - **UI:** `tracker-view.ts` 4th sub-column (`COL_X/COL_W/COL_TEXT_PAD` 4 entries, `CH_W`
   124, `maxCol` 3); cmd amber / val cyan. Instrument column shows the numeric instance index
   (not short name) while `cursor.col===1`. Input in `main.ts._handleFxEdit` (col 3): a

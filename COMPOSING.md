@@ -99,8 +99,10 @@ pat.setFx(row, channel, cmd, val);             // effect-column command (per-cel
   up/down · `3` tone portamento (meend, slides without re-attack) · `4` vibrato · `5` **note
   delay** for swing/humanize (`val/255` of ONE step later — `0x00` none, `0x80` half a step,
   `0xFF` ≈ a full step; the voice holds its previous note through the gap) · `0xA` volume
-  slide. One command per cell. Pitch slides are smooth only on the phase-accumulating engines
-  (303, Moog).
+  slide. One command per cell. Pitch effects (`0`/`1`/`2`/`3`/`4`) now work click-free on **every
+  pitched engine** — the phase-accumulating ones (303, Moog, Wavewright) and the closed-form ones
+  (Pipi, Gigi, Tanpura, Tabla, 888State, DX7, Sampler), which follow the pitch change via a
+  fundamental-phase correction (`uPhaseOff`). The drum engines (808, Groove) ignore pitch.
 - A channel is monophonic: a new note on a channel replaces the previous. For a **chord**, use
   several channels with the same `instIdx`.
 - **channel index == voice index == pan index** (8 channels, 8 voices).

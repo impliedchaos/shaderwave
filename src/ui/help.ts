@@ -35,8 +35,9 @@ const MOUSE = [
 const INSTRUMENTS = REGISTRY.map((d) => [d.label, d.blurb]);
 
 // Per-cell effect-column commands (derived from the command registry). Pitch
-// effects are smooth on the melodic engines (303, Moog); volume slide works on
-// any. Slide into a note with 3 for a meend; 4 gives vibrato (gamak).
+// effects are now click-free on every pitched engine (closed-form ones follow the
+// change via the uPhaseOff correction); volume slide works on any. Slide into a
+// note with 3 for a meend; 4 gives vibrato (gamak).
 const PATTERN_FX = FX_CMDS.map((c) => [c.code.toString(16).toUpperCase(), c.label]);
 
 const EFFECTS = [

@@ -40,6 +40,10 @@ void main(){
 
   float f0     = uFreq[v];
   float vel    = uVel[v];
+  // Effect-column pitch continuity: te is t shifted so f0·te tracks the accumulated
+  // fundamental phase across a mid-note freq change (uPhaseOff is 0 → te == t when
+  // pitch isn't being modulated, so the render is bit-identical). See engine._accumPhaseOff.
+  float te     = t + uPhaseOff[v] / max(f0, 1e-6);
   float decay  = max(uP0[v].x, 0.05);     // aftersound (slow) decay of the fundamental
   float B      = max(uP0[v].y, 0.0);      // inharmonicity coefficient
   float hard   = clamp(uP0[v].z, 0.0, 1.0);
@@ -101,7 +105,7 @@ void main(){
     // tone (random phases smear it into a generic "synth strings" wash). The string
     // pair/trio beats via the detune spread; the per-voice vdet keeps CHORDS from
     // phase-locking (so stacked notes don't go harsh) without smearing the timbre.
-    float ph = TAU * fn * vdet * t;
+    float ph = TAU * fn * vdet * te;
     float s = sin(ph);                                          // reference string
     if (strands >= 2.0) s += sin(ph * (1.0 + det));             // sharp string
     if (strands >= 3.0) s += sin(ph * (1.0 - det * 0.7));       // flat string

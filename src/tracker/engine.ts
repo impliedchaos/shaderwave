@@ -34,6 +34,13 @@ interface Voice {
   fxVal: number;
   fxStart: number;       // frame the effect last (re)started — vibrato/arp timing
   targetFreq: number;    // tone-portamento (3xx) destination pitch
+  // Effect-column pitch continuity for CLOSED-FORM engines (pipi/guitar/tanpura/
+  // tabla/e8e/sampler): those compute phase as a function of absolute note-on time,
+  // so a mid-note frequency change (slide/porta/vibrato/arp) would jump the phase.
+  // We accumulate a per-block correction in fundamental cycles so phase stays
+  // continuous; it stays exactly 0 (→ bit-identical render) until pitch is modulated.
+  phaseOff: number;      // accumulated fundamental-phase offset, cycles
+  freqPrev: number;      // effective freq used last block (to derive the per-block delta)
 }
 
 // Effect modulation tuning (block-rate). Rates are per second; nibble/byte come
@@ -136,6 +143,7 @@ export class Engine {
       active: false, inst: 0, instrument: 0, freq: 440, vel: 0,
       onFrame: 0, offFrame: HELD,
       fxCmd: -1, fxVal: 0, fxStart: 0, targetFreq: 440,
+      phaseOff: 0, freqPrev: 440,
     }));
 
     this.muted = new Array(VOICES).fill(false);
@@ -172,6 +180,7 @@ export class Engine {
       p2: new Float32Array(VOICES * 4),
       p3: new Float32Array(VOICES * 4),
       freqFrom: new Float32Array(VOICES),
+      phaseOff: new Float32Array(VOICES),
       gain: new Float32Array(VOICES).fill(1),
       pan: new Float32Array(VOICES).fill(0.5),
       master: DEFAULT_MASTER,
@@ -369,11 +378,14 @@ export class Engine {
     v.offFrame = HELD;
     v.fxCmd = -1;                                      // a fresh note clears any prior effect
     v.fxStart = frame;
+    v.phaseOff = 0;                                    // fresh note: phase starts from note-on, no correction yet
     if (byType(instr.type)?.drum) {
       v.freq = 220; // unused by drum engines, but keep sane
+      v.freqPrev = v.freq;
       this._writeParams(ch, instr, idx, DRUM_MAP[note] ?? 0);
     } else {
       v.freq = noteToFreq(note);
+      v.freqPrev = v.freq;
       // Glide starts from the voice's previous pitch (Moog reads uFreqFrom);
       // a fresh voice glides from its own target = no glide.
       this.vd.freqFrom[ch] = wasActive ? prevFreq : v.freq;
@@ -536,6 +548,7 @@ export class Engine {
 
     this._refreshVoiceData(blockStart);
     this._modulateVoices(blockStart);
+    this._accumPhaseOff(blockStart);
     this._applyLfos(blockStart);
 
     // Refresh each active DX7 voice's operator config from ITS instrument, packed
@@ -762,7 +775,9 @@ export class Engine {
   // vibrato/arpeggio are transient multipliers on top of it; volume slide ramps
   // vc.vel. Block-rate is finer than a classic tick and keeps freq constant within
   // a block, so the recursive strip renderer + phase carry stay smooth on the
-  // phase-accumulating engines (303, moog). See src/tracker/fx.ts for the codes.
+  // phase-accumulating engines (303, moog). The closed-form engines stay click-free
+  // too, via the fundamental-phase correction in _accumPhaseOff (runs right after this).
+  // See src/tracker/fx.ts for the codes.
   _modulateVoices(blockStart: number) {
     const vd = this.vd;
     const dt = BLOCK / this.sampleRate;
@@ -796,6 +811,28 @@ export class Engine {
       }
       vd.freq[v] = vc.freq * pitchMult;
       vd.vel[v] = vc.vel;
+    }
+  }
+
+  // Maintain the fundamental-phase correction that lets the CLOSED-FORM engines
+  // (pipi/guitar/tanpura/tabla/e8e/sampler) follow an effect-column pitch change
+  // without a click. Those shaders compute phase as `f·t` from absolute note-on
+  // time, so when the per-block effective freq f changes, the analytic phase jumps
+  // by (f_new − f_old)·t at the seam. We accumulate the opposite shift in fundamental
+  // cycles — off += (f_prev − f_now)·t — and pass it as uPhaseOff; the shader adds
+  // it back (te = t + off/f) so the phase is continuous across the change. While a
+  // voice's freq is steady (no slide/porta/vibrato/arp) the delta is 0, so off stays
+  // exactly 0 and those engines render bit-identically to before. Runs AFTER
+  // _modulateVoices so vd.freq is the final per-block frequency.
+  _accumPhaseOff(blockStart: number) {
+    const vd = this.vd;
+    for (let v = 0; v < VOICES; v++) {
+      const vc = this.voices[v];
+      if (!vc.active) { vd.phaseOff[v] = 0; continue; }
+      const tStart = (blockStart - vc.onFrame) / this.sampleRate;   // seconds since note-on, at this block's first sample
+      if (tStart > 0) vc.phaseOff += (vc.freqPrev - vd.freq[v]) * tStart;
+      vc.freqPrev = vd.freq[v];
+      vd.phaseOff[v] = vc.phaseOff;
     }
   }
 

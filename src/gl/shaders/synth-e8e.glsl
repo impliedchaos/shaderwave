@@ -42,6 +42,11 @@ void main(){
 
   float f0  = uFreq[v];
   float vel = uVel[v];
+  // Effect-column pitch continuity (see engine._accumPhaseOff): te == t while the
+  // note holds a steady pitch (uPhaseOff 0 → bit-identical), and follows a mid-note
+  // slide/porta/vibrato/arp without a phase jump. All three oscillators ride the same
+  // fundamental correction (f2/f3 scale it via their detune ratio automatically).
+  float te  = t + uPhaseOff[v] / max(f0, 1e-6);
 
   float atk = uP0[v].x, dec = uP0[v].y, sus = uP0[v].z, rel = uP0[v].w;
 
@@ -61,9 +66,9 @@ void main(){
   float f2 = f0 * exp2(det2 / 12.0);
   float f3 = f0 * exp2(det3 / 12.0);
 
-  float acc = l1 * e8eOsc(w1, fract(f1 * t), f1 / sr, pw, frame);
-  if (nOsc >= 2) acc += l2 * e8eOsc(w2, fract(f2 * t), f2 / sr, pw, frame + 101.0);
-  if (nOsc >= 3) acc += l3 * e8eOsc(w3, fract(f3 * t), f3 / sr, pw, frame + 211.0);
+  float acc = l1 * e8eOsc(w1, fract(f1 * te), f1 / sr, pw, frame);
+  if (nOsc >= 2) acc += l2 * e8eOsc(w2, fract(f2 * te), f2 / sr, pw, frame + 101.0);
+  if (nOsc >= 3) acc += l3 * e8eOsc(w3, fract(f3 * te), f3 / sr, pw, frame + 211.0);
   acc *= 0.5;                         // headroom for three summed oscillators
 
   // The signature: quantize to 2^bits levels across [-1,1]. 8 bits → 256 steps.

@@ -235,10 +235,13 @@ Most of these modulate a *playing* voice once per render block (~93 Hz). **Note 
 (`5`) is different — it's a scheduler effect: the note's trigger frame is pushed later by
 `xx/255` of **one step** (sample-accurate, possibly into a later block), and the voice keeps
 playing its previous note until then. Use it for swing (nudge the off-beats) or humanized
-"drunken" timing. Pitch effects
-are smooth on the phase-accumulating melodic engines (**303**, **Moog**); the
-closed-form engines (Tanpura/DX7/808/E8E) step on per-block pitch changes, so pitch
-effects are best on the leads — volume slide works on any instrument.
+"drunken" timing. Pitch effects (`0`/`1`/`2`/`3`/`4`) are click-free on **every pitched
+engine**: the natively phase-accumulating ones (**303**, **Moog**, **Wavewright**) and the
+closed-form ones (**Pipi**, **Gigi**, **Tanpura**, **Tabla**, **888State**, **DX7**,
+**Sampler**), which follow a mid-note pitch change via a per-voice fundamental-phase
+correction (`uPhaseOff`, accumulated in `engine._accumPhaseOff` and added back in each
+shader as `te = t + uPhaseOff/f0`). The drum engines (**808**, **Groove**) ignore pitch.
+Volume slide works on any instrument.
 
 ## Presets
 
