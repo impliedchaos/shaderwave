@@ -24,7 +24,7 @@ export function renderArranger(app: App) {
 
       const title = document.createElement('div');
       title.className = 'arranger-card-title';
-      title.textContent = `#${i + 1} Slot`;
+      title.textContent = `${i.toString().padStart(2, '0')}: `;
 
       const select = document.createElement('select');
       select.className = 'arranger-select';

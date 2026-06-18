@@ -993,7 +993,9 @@ export class App {
     const cur = this.view.pattern;
     song.patterns.push(new Pattern(cur ? cur.rows : 64, cur ? cur.channels : 8));
     this.engine.currentPatternIdx = song.patterns.length - 1;
+    song.order.push(this.engine.currentPatternIdx);
     this.markDirty('pattern');
+    this.markDirty('order');
     this._renderSongEditor();
     this._updatePatternSelector();
     this.view.draw();
@@ -1019,7 +1021,9 @@ export class App {
     }));
     song.patterns.push(dup);
     this.engine.currentPatternIdx = song.patterns.length - 1;
+    song.order.push(this.engine.currentPatternIdx);
     this.markDirty('pattern');
+    this.markDirty('order');
     this._renderSongEditor();
     this._updatePatternSelector();
     this.view.draw();
