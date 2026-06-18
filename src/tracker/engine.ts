@@ -179,6 +179,9 @@ export class Engine {
       // each voice glides from. Other engines ignore these.
       p2: new Float32Array(VOICES * 4),
       p3: new Float32Array(VOICES * 4),
+      // Universal bank E — Spectra stereo spread (uploaded for every engine; ignored
+      // by those that don't reference uP4 in their shader).
+      p4: new Float32Array(VOICES * 4),
       freqFrom: new Float32Array(VOICES),
       phaseOff: new Float32Array(VOICES),
       gain: new Float32Array(VOICES).fill(1),
@@ -403,10 +406,11 @@ export class Engine {
     for (let k = 0; k < 4; k++) { this.vd.p0[o + k] = instr.p0[k]; this.vd.p1[o + k] = instr.p1[k]; }
     if (instr.p2) for (let k = 0; k < 4; k++) this.vd.p2[o + k] = instr.p2[k];
     if (instr.p3) for (let k = 0; k < 4; k++) this.vd.p3[o + k] = instr.p3[k];
+    if (instr.p4) for (let k = 0; k < 4; k++) this.vd.p4[o + k] = instr.p4[k];
     if (this.autoLive.inst.size) {
-      // Merge inst-scope automation overrides across every universal bank (p0..p3).
+      // Merge inst-scope automation overrides across every universal bank (p0..p4).
       const banks: [string, Float32Array][] = [
-        ['p0', this.vd.p0], ['p1', this.vd.p1], ['p2', this.vd.p2], ['p3', this.vd.p3],
+        ['p0', this.vd.p0], ['p1', this.vd.p1], ['p2', this.vd.p2], ['p3', this.vd.p3], ['p4', this.vd.p4],
       ];
       for (const [bank, vdArr] of banks) {
         for (let k = 0; k < 4; k++) {
@@ -428,10 +432,11 @@ export class Engine {
     const fx = fxDef ? Object.assign(neutralFxParams(), fxDef) : neutralFxParams();
     const e: InstrumentInstance = { name: byType(type)?.name ?? type.toUpperCase(), type, color, p0: [...dp.p0], p1: [...dp.p1], fx };
     if (dp.ops) e.ops = dp.ops.map((o) => ({ ...o }));
-    // defaultParams() already deep-clones the engine's extra banks (p2/p3) when
+    // defaultParams() already deep-clones the engine's extra banks (p2/p3/p4) when
     // its descriptor declares them, so just carry whatever it produced.
     if (dp.p2) e.p2 = [...dp.p2];
     if (dp.p3) e.p3 = [...dp.p3];
+    if (dp.p4) e.p4 = [...dp.p4];
     this.instruments.push(e);
     return this.instruments.length - 1;
   }
@@ -707,7 +712,7 @@ export class Engine {
           // (_writeParams merges these). NEVER write instr.p0/p1 — those are the
           // pristine base params; mutating them would persist past stop().
           this.autoLive.inst.set(`${track.targetInstIdx}:${t.bank}:${t.index}`, value);
-          const vdArr = t.bank === 'p1' ? this.vd.p1 : t.bank === 'p2' ? this.vd.p2 : t.bank === 'p3' ? this.vd.p3 : this.vd.p0;
+          const vdArr = t.bank === 'p1' ? this.vd.p1 : t.bank === 'p2' ? this.vd.p2 : t.bank === 'p3' ? this.vd.p3 : t.bank === 'p4' ? this.vd.p4 : this.vd.p0;
           for (let v = 0; v < VOICES; v++) {
             if (this.voices[v].active && this.voices[v].instrument === track.targetInstIdx) {
               vdArr[v * 4 + t.index!] = value;
@@ -728,7 +733,7 @@ export class Engine {
       if (target.code === 'BPM') this.bpm = value;
       else if (target.code === 'VOL') this.vd.master = value;
     } else if (target.scope === 'inst') {
-      const arr = target.bank === 'p1' ? this.vd.p1 : target.bank === 'p2' ? this.vd.p2 : target.bank === 'p3' ? this.vd.p3 : this.vd.p0;
+      const arr = target.bank === 'p1' ? this.vd.p1 : target.bank === 'p2' ? this.vd.p2 : target.bank === 'p3' ? this.vd.p3 : target.bank === 'p4' ? this.vd.p4 : this.vd.p0;
       arr[ch * 4 + target.index!] = value;
       this.autoLive.inst.set(`${instIdx}:${target.bank}:${target.index}`, value);
     } else if (target.scope === 'chan') {
@@ -746,8 +751,8 @@ export class Engine {
   // GPU-facing per-voice bank, mirroring how inst-automation/LFO update live voices.
   // Any LFO/automation targeting the same param will keep modulating around the new
   // base on subsequent blocks.
-  updateInstrumentParam(instrIdx: number, bank: 'p0' | 'p1' | 'p2' | 'p3', index: number, value: number) {
-    const arr = bank === 'p1' ? this.vd.p1 : bank === 'p2' ? this.vd.p2 : bank === 'p3' ? this.vd.p3 : this.vd.p0;
+  updateInstrumentParam(instrIdx: number, bank: 'p0' | 'p1' | 'p2' | 'p3' | 'p4', index: number, value: number) {
+    const arr = bank === 'p1' ? this.vd.p1 : bank === 'p2' ? this.vd.p2 : bank === 'p3' ? this.vd.p3 : bank === 'p4' ? this.vd.p4 : this.vd.p0;
     for (let v = 0; v < VOICES; v++) {
       if (this.voices[v].active && this.voices[v].instrument === instrIdx) arr[v * 4 + index] = value;
     }
@@ -881,10 +886,10 @@ export class Engine {
         if (t.scope === 'inst' && t.bank && t.index != null) {
           const key = `${r.targetInstIdx}:${t.bank}:${t.index}`;
           const auto = this.autoLive.inst.get(key);   // stacks with automation if present
-          const baseArr = t.bank === 'p1' ? instr.p1 : t.bank === 'p2' ? instr.p2 : t.bank === 'p3' ? instr.p3 : instr.p0;
+          const baseArr = t.bank === 'p1' ? instr.p1 : t.bank === 'p2' ? instr.p2 : t.bank === 'p3' ? instr.p3 : t.bank === 'p4' ? instr.p4 : instr.p0;
           const base = auto !== undefined ? auto : (baseArr ? baseArr[t.index] : 0);
           const value = denormUnit(t, normUnit(t, base) + offset);
-          const vdArr = t.bank === 'p1' ? this.vd.p1 : t.bank === 'p2' ? this.vd.p2 : t.bank === 'p3' ? this.vd.p3 : this.vd.p0;
+          const vdArr = t.bank === 'p1' ? this.vd.p1 : t.bank === 'p2' ? this.vd.p2 : t.bank === 'p3' ? this.vd.p3 : t.bank === 'p4' ? this.vd.p4 : this.vd.p0;
           for (let v = 0; v < VOICES; v++) {
             if (this.voices[v].active && this.voices[v].instrument === r.targetInstIdx) {
               vdArr[v * 4 + t.index] = value;

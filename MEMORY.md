@@ -129,6 +129,40 @@ monotonic `1/n^tilt` rolloff (no formants; velocity only scaled volume). Fixes, 
   prompts verbatim. Verified by `npm run build` + the demo-load/target-audit logic tests (no headless render, per the
   user's steer that the SwiftShader path hammers their laptop — they audition demos themselves).
 
+### Stereo instruments — stereo bus + Spectra stereo spread (2.3.0, 2026-06-18) — ✅ DONE — `project`
+The whole audio path was already stereo from the MIX pass onward (`mix.glsl` reads per-voice MONO `.r`,
+applies gain + equal-power pan → `vec4(l,r,..)`; FX chain + readback all stereo). The ONLY mono link was
+the instrument synth output itself: every engine writes `outAudio = vec4(sample,0,0,1)` (mono in `.r`),
+and pan merely PLACED that mono signal. "Make Spectra stereo" = let an engine emit a genuinely different
+L/R *before* the pan stage.
+- **Stereo bus convention (general, opt-in per engine):** new `InstrumentDef.stereo?: boolean`. Stereo
+  engines write independent L/R in `outAudio.rg`; mono engines leave `.g`=0. `mix.glsl` gained a `uStereo`
+  uniform (set per-instance in `SynthRenderer.mixInstance` from `src.def.stereo`): `uStereo==0` reads `.r`
+  for BOTH channels (the original mono path, literally bit-identical), `==1` reads `.rg`. **Pan is preserved**
+  — for mono it's the same equal-power pan; for stereo it acts as a BALANCE on the engine's own image (centre
+  = full image at −3 dB; hard pan favours one channel, its far content fades). Bit-identical for all existing
+  mono content (same code path) — verified `max|L-R|==0` for a mono source at centre.
+- **5th universal param bank `uP4`** (p0–p3 were ALL used by Spectra). Mirrors p2/p3 plumbing EXACTLY across
+  ~15 sites: `common.glsl` uniform, `types.ts` (InstrumentParams/ParamTarget.bank/VoiceData/ParamDef/Preset),
+  `engine.ts` (vd alloc, `_writeParams` copy+autoLive-merge loop, addInstrument clone, `_applyAutomation`,
+  `applyAutomationLive`, `updateInstrumentParam`, `_applyLfos`), `demo-songs.ts` (defaultParams/makeParams),
+  `song.ts` addExtraBanks, `song-io.ts` (SerializedInstrument + serialize), `controls.ts` loadPreset, and the
+  two `uniform4fv(uP4)` upload sites in `synth-renderer.ts`. **GOTCHA:** the 5 headless harnesses that hand-build
+  a `VoiceData` literal (`additive-check`, `render-check`, `phaseoff-check`, `sampler-check`, `vinyl-analyze`)
+  each needed a `p4` field added or `uniform4fv` throws "cannot be converted to a sequence" (undefined).
+- **Spectra stereo (`synth-additive.glsl`):** `spread = uP4.x` (0..1). Per partial, a voice-INDEPENDENT signed
+  position `d = (hash11(n*3.13)-0.5)*2*spread ∈ [-spread,spread]` fans partials L↔R via a BALANCE law that
+  preserves centre gain: `accL += s*(1-max(d,0)); accR += s*(1-max(-d,0))`. At spread=0 both gains are 1 →
+  `accL==accR` → bit-identical mono. `additive-reduce.glsl` now sums `.rg` (was `.r`) and tanh's both.
+  Voice-independent placement = a chord shares ONE coherent image. New "Stereo" knob (p4.0) + `SPR` autoTarget;
+  pad/swarm presets (Choir/Soft/Bowed/Vowel/Talking/Saw Swarm/Vox) got tasteful spread, plucks/bells stay mono.
+- **GOTCHA when testing stereo headless:** Spectra's `fxDefaults` enable REVERB, which decorrelates L/R for
+  even a mono input — so a post-FX render shows L≠R regardless. Bypass with `setInstrumentFx([neutralFxParams()])`
+  to measure the SYNTH's own stereo. Verified: build green, glsl/additive/render/phaseoff harnesses ALL_OK,
+  59/59 logic tests, and a throwaway harness confirmed spread=0 `max|L-R|==0`, spread=0.8 `max|L-R|≈0.13`.
+- **To make ANOTHER engine stereo:** set `stereo:true` on its descriptor + write `outAudio.rg`. Most engines
+  are inherently mono and need no change. Nothing else in the bus/pan path requires touching.
+
 ### Theming / light theme (2026-06-17) — ✅ DONE — `reference`
 The palette is **CSS custom properties** in `index.html` `:root`; a light theme is the override
 block `:root[data-theme="light"] { … }`. Switching = `document.documentElement.dataset.theme`

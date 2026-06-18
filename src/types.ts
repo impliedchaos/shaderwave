@@ -45,12 +45,14 @@ export interface SampleData {
 }
 
 // A per-engine-type param bank as authored in songs (defaultParams / makeParams).
-// p0/p1 are the universal banks; moog adds p2/p3; dx7 carries operator config.
+// p0/p1 are the universal banks; moog adds p2/p3; Spectra adds p4 (stereo spread);
+// dx7 carries operator config.
 export interface InstrumentParams {
   p0: number[];
   p1: number[];
   p2?: number[];
   p3?: number[];
+  p4?: number[];
   ops?: DX7Op[];
   sample?: SampleData;
 }
@@ -81,7 +83,7 @@ export type ParamCurve = 'log' | 'lin' | 'enum';
 export type ParamScope = 'inst' | 'fx' | 'chan' | 'global';
 
 // One automatable parameter. `scope` selects which fields are meaningful:
-//   inst → bank + index (into p0/p1/p2/p3) and a concrete engine `type`
+//   inst → bank + index (into p0/p1/p2/p3/p4) and a concrete engine `type`
 //   fx   → key (a FxParams field), type '*'
 //   chan → key (a per-channel mix param, e.g. pan), type '*'
 export interface ParamTarget {
@@ -94,7 +96,7 @@ export interface ParamTarget {
   scope: ParamScope;
   type: InstrumentType | '*';
   unit?: string;
-  bank?: 'p0' | 'p1' | 'p2' | 'p3';
+  bank?: 'p0' | 'p1' | 'p2' | 'p3' | 'p4';
   index?: number;
   key?: string;
   toggle?: boolean;   // fx on/off "stomp box": byte 0 = off, anything else = on (written as a bool)
@@ -214,6 +216,7 @@ export interface VoiceData {
   p1: Float32Array;
   p2: Float32Array;       // moog-only banks
   p3: Float32Array;
+  p4: Float32Array;       // universal bank E (Spectra stereo spread); uploaded for every engine
   freqFrom: Float32Array; // glide source pitch (moog)
   phaseOff: Float32Array; // fundamental-phase correction (cycles) for effect-column pitch on closed-form engines; 0 = no correction
   gain: Float32Array;
@@ -280,7 +283,7 @@ export interface ParamDef {
   max: number;
   step: number;
   type?: 'global' | 'op';
-  bank?: 'p0' | 'p1' | 'p2' | 'p3';
+  bank?: 'p0' | 'p1' | 'p2' | 'p3' | 'p4';
   i?: number;
   key?: string;
 }
@@ -296,6 +299,7 @@ export interface Preset {
   p1: number[];
   p2?: number[];
   p3?: number[];
+  p4?: number[];
   fx?: Partial<FxParams>;
   sample?: any; // SerializedSample to hydrate on load
 }
@@ -317,6 +321,7 @@ export interface InstrumentDef {
   drum?: boolean;          // keyboard selects drum slots, not pitch (808)
   pitchless?: boolean;     // note pitch is irrelevant to this engine (e.g. groove vinyl drone) — excluded from transpose
   additive?: boolean;      // multi-pass GPU-parallel additive (Spectra): tile-synth + log-reduce, see SynthRenderer._renderAdditive
+  stereo?: boolean;        // engine emits independent L/R in outAudio.rg (mix reads stereo); else mono .r is centre-summed then panned
   defaults: InstrumentParams;
   paramDefs: ParamDef[];   // sidebar knobs ([] when customControls)
   autoTargets: RawTarget[];// inst-scope automation targets

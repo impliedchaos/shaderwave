@@ -162,11 +162,16 @@ sampler (PCM)      p0=[Tune(st), Start, Gain, _]  p1=[Attack, Decay, Sustain, Re
                    on load (App._hydrateSampleUrls). One-shot vox: p1=[0.001,0.1,1,rel] (sustain=1, the
                    sample ends itself). Melodic samples: set rootNote to the recorded pitch (e.g. 69=A4).
                    See "Larynx Yard Sale" for a full example. (Or load a file in the UI + Save to embed PCM.)
-additive (Spectra) p0=[Partials 1..2048, Tilt 0..1 (dark↔bright), Stretch 0..1 (inharmonicity), Odd/Even 0..1]
+additive (Spectra) p0=[Partials 1..2048, Tilt 0..1 (dark↔bright), Stretch 0..1 (inharmonicity), Morph 0..1 (formula↔analyzed sample)]
                    p1=[Decay s (0=sustain), DecayTilt 0..1 (highs die faster), Detune 0..1 (spread), Comb 0..1]
-                   p2=[Attack s, Release s]   GPU-parallel additive, up to 2048 partials/voice. Big sustained
-                   pads/organs/bells/metallic. Tilt & Stretch are great LFO/automation targets (spectral movement).
-                   preset: p0=[1024,0.7,0,0] p1=[0,0.5,0.15,0] p2=[0.02,0.5]
+                   p2=[Attack s, Release s, Odd/Even 0..1, Coherence 0..1 (0=phase wash↔1=coherent strike)]
+                   p3=[Shimmer 0..1 (per-partial anim), Formant pos 0..1 (150–5000 Hz), Formant amt (0=off), Formant BW oct]
+                   p4=[STEREO spread 0..1 (0=mono, partials fanned L↔R), -, -, -]   GPU-parallel additive, up to 2048
+                   partials/voice. The only STEREO engine — spread spatialises the partials (pad/swarm presets ship wide;
+                   plucks/bells stay mono). Big sustained pads/organs/bells/metallic. Tilt/Stretch/Morph/Formant/Shimmer/
+                   Stereo are all great LFO/automation targets (codes TLT/STR/MOR/FMP/SHM/SPR). Resynthesis: give an
+                   instance a `sample` and Morph crossfades the synth spectrum into its analyzed harmonic profile.
+                   preset: p0=[1536,0.45,0.04,0] p1=[0,0.5,0.5,0] p2=[0.4,1.0,0,0.2] p3=[0.5,0.35,0.8,0.8] p4=[0.7,0,0,0] (wide choir pad)
 ```
 For the exact, current truth on any engine see its descriptor `paramDefs` + `presets` in
 `src/instruments/i<type>.ts`. New engines added later will appear there.

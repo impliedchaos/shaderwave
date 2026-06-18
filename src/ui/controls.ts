@@ -455,6 +455,7 @@ export class Controls {
         const def = byType(instName);
         if (def?.defaults.p2) prDst.p2 = preset.p2 ? [...preset.p2] : [...def.defaults.p2];
         if (def?.defaults.p3) prDst.p3 = preset.p3 ? [...preset.p3] : [...def.defaults.p3];
+        if (def?.defaults.p4) prDst.p4 = preset.p4 ? [...preset.p4] : [...def.defaults.p4];
         if (preset.sample) {
           if (preset.sample.url) {
             // Load over HTTP

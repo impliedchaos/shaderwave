@@ -31,6 +31,7 @@ export function defaultParams(): Record<InstrumentType, InstrumentParams> {
     const p: InstrumentParams = { p0: [...dp.p0], p1: [...dp.p1] };
     if (dp.p2) p.p2 = [...dp.p2];
     if (dp.p3) p.p3 = [...dp.p3];
+    if (dp.p4) p.p4 = [...dp.p4];
     if (dp.ops) p.ops = dp.ops.map((o) => ({ ...o }));
     out[d.type] = p;
   }
@@ -49,6 +50,7 @@ export function makeParams(
     if (ov.p1) p[k].p1 = [...ov.p1];
     if (ov.p2) p[k].p2 = [...ov.p2];
     if (ov.p3) p[k].p3 = [...ov.p3];
+    if (ov.p4) p[k].p4 = [...ov.p4];
     if (ov.ops) p[k].ops = ov.ops.map(o => ({ ...o }));
   }
   return p;

@@ -41,6 +41,7 @@ export interface SerializedInstrument {
   p1: number[];
   p2?: number[];
   p3?: number[];
+  p4?: number[];
   ops?: DX7Op[];
   sample?: {
     name: string;
@@ -150,6 +151,7 @@ export function serializeSong(s: SongIOInput): SerializedSong {
         p1: [...i.p1],
         ...(i.p2 ? { p2: [...i.p2] } : {}),
         ...(i.p3 ? { p3: [...i.p3] } : {}),
+        ...(i.p4 ? { p4: [...i.p4] } : {}),
         ...(i.ops ? { ops: i.ops.map((o) => ({ ...o })) } : {}),
         ...(sample ? { sample } : {}),
         fx: { ...i.fx },                     // v2+: per-instance effect chain

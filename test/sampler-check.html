@@ -25,8 +25,8 @@ function stats(buf, len = buf.length) {
 // Build a voice-data object for the sampler engine
 function makeSamplerVD(freq, blockStart, instId) {
   const z4 = () => new Float32Array(VOICES * 4);
-  const p0 = z4(), p1 = z4(), p2 = z4(), p3 = z4();
-  
+  const p0 = z4(), p1 = z4(), p2 = z4(), p3 = z4(), p4 = z4();
+
   // Default sampler params: tune=0, start=0, gain=1; atk=0.001, dec=1, sus=1, rel=0
   p0[0] = 0; p0[1] = 0; p0[2] = 1.0; 
   p1[0] = 0.001; p1[1] = 1.0; p1[2] = 1.0; p1[3] = 0.0;
@@ -39,7 +39,7 @@ function makeSamplerVD(freq, blockStart, instId) {
     vel: Float32Array.of(1, 0, 0, 0, 0, 0, 0, 0),
     onRel: Float32Array.of(-blockStart, 0, 0, 0, 0, 0, 0, 0), // note-on at frame 0
     offRel: Float32Array.of(1e9, 0, 0, 0, 0, 0, 0, 0),
-    p0, p1, p2, p3,
+    p0, p1, p2, p3, p4,
     freqFrom: Float32Array.of(freq, 0, 0, 0, 0, 0, 0, 0),
     phaseOff: new Float32Array(VOICES),
     gain: new Float32Array(VOICES).fill(1),

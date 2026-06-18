@@ -91,10 +91,10 @@ and `git status` before committing** so they don't get swept into a commit.
   log-reduced, so besides its descriptor + 2 `.glsl` files it needs a renderer branch
   (`SynthRenderer._renderAdditive`, flagged by `additive: true`). See MEMORY.md for the full
   plug-in notes.
-- **Param banks** (per voice, `vec4` each): `uP0`/`uP1`/`uP2`/`uP3` + `uFreqFrom` are
+- **Param banks** (per voice, `vec4` each): `uP0`/`uP1`/`uP2`/`uP3`/`uP4` + `uFreqFrom` are
   **universal** — declared in `common.glsl` and uploaded for *every* engine (shaders that
   don't reference one strip the uniform → `p.u()` returns null → `gl.uniform*` is a silent
-  no-op). So a new engine gets 16 param floats with zero new plumbing. DX7's 6-operator
+  no-op). So a new engine gets 20 param floats with zero new plumbing. DX7's 6-operator
   banks (`uOpA–D`) stay engine-specific, uploaded via the descriptor's `uploadVoiceUniforms`
   hook.
 - **Effects**: the chain is a data-driven registry (`FX_EFFECTS` in `src/gl/effects.ts`)
@@ -134,6 +134,14 @@ and `git status` before committing** so they don't get swept into a commit.
   from `uPan`, so the whole audio path is stereo end-to-end. **Reverb decode must keep
   both stereo taps zero-sum** (`fx-fdn-tap.glsl`) or the mono reverb send leaks into one
   channel (was a +4.6 dB right bias).
+- **Stereo instruments**: engines are mono by default (write `outAudio.r`; pan PLACES that
+  mono signal). An engine can opt into being a true stereo SOURCE by setting `stereo: true`
+  on its descriptor and writing independent L/R into `outAudio.rg` — `mix.glsl`'s `uStereo`
+  (set per-instance from `def.stereo`) then reads `.rg` and pan becomes a BALANCE on the
+  engine's own image (mono engines stay bit-identical: `.r` is read for both channels).
+  **Spectra** is the first stereo engine (partials fanned L↔R by the new universal `uP4`
+  bank's `.x` "spread"; spread=0 → mono, bit-identical). See MEMORY.md for the full notes
+  + the 5th-bank (`uP4`) plumbing checklist.
 - **Global volume** is `vd.master` — the render-level output gain, baked into the audio
   (so it affects recordings), default `DEFAULT_MASTER` (`constants.ts`). Per-song
   (`SongData.master`, applied in `loadSong`; absent → default, so New Song resets it).

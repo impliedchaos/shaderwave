@@ -25,6 +25,7 @@ function addExtraBanks(e: InstrumentInstance, pr: InstrumentParams): InstrumentI
   const def = byType(e.type);
   if (def?.defaults.p2) e.p2 = pr.p2 ? [...pr.p2] : [...def.defaults.p2];
   if (def?.defaults.p3) e.p3 = pr.p3 ? [...pr.p3] : [...def.defaults.p3];
+  if (def?.defaults.p4) e.p4 = pr.p4 ? [...pr.p4] : [...def.defaults.p4];
   return e;
 }
 

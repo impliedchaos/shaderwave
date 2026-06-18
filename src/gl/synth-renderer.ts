@@ -442,6 +442,7 @@ export class SynthRenderer {
       // reference them strip the uniform, so u() is null → these are no-ops there.
       gl.uniform4fv(p.u('uP2[0]'), vd.p2);
       gl.uniform4fv(p.u('uP3[0]'), vd.p3);
+      gl.uniform4fv(p.u('uP4[0]'), vd.p4);
       gl.uniform1fv(p.u('uFreqFrom[0]'), vd.freqFrom);
       gl.uniform1fv(p.u('uPhaseOff[0]'), vd.phaseOff);
       // Engine-specific per-voice uniforms (e.g. dx7 operator banks).
@@ -519,6 +520,9 @@ export class SynthRenderer {
       gl.useProgram(this.mixProg);
       gl.uniform1fv(this.mixProg.u('uGain[0]'), this._maskGain);
       gl.uniform1fv(this.mixProg.u('uPan[0]'), vd.pan);
+      // Stereo engines emit independent L/R in .rg; mono ones leave .g = 0, so the
+      // mix must centre-sum .r for both channels (uStereo = 0) to stay bit-identical.
+      gl.uniform1i(this.mixProg.u('uStereo'), src.def.stereo ? 1 : 0);
       gl.drawBuffers([gl.COLOR_ATTACHMENT0]);
       gl.activeTexture(gl.TEXTURE0);
       gl.bindTexture(gl.TEXTURE_2D, src.audio);
@@ -585,6 +589,7 @@ export class SynthRenderer {
     gl.uniform4fv(p.u('uP1[0]'), vd.p1);
     gl.uniform4fv(p.u('uP2[0]'), vd.p2);
     gl.uniform4fv(p.u('uP3[0]'), vd.p3);
+    gl.uniform4fv(p.u('uP4[0]'), vd.p4);
     gl.uniform1fv(p.u('uFreqFrom[0]'), vd.freqFrom);
     gl.uniform1fv(p.u('uPhaseOff[0]'), vd.phaseOff);
     // Per-voice spectral slot (resynthesis): map each active voice's instance to its

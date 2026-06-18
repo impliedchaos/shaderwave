@@ -21,9 +21,11 @@ void main(){
   int outRow = int(gl_FragCoord.y);
   int k = outRow / VOICES;
   int v = outRow - k * VOICES;
-  float a = texelFetch(uSrc, ivec2(x, (2 * k)     * VOICES + v), 0).r;
-  float b = texelFetch(uSrc, ivec2(x, (2 * k + 1) * VOICES + v), 0).r;
-  float s = a + b;
+  // .rg carry the independent L/R partial sums (Spectra is stereo); mono content
+  // has g == r throughout, so the final L/R land identical → bit-identical.
+  vec2 a = texelFetch(uSrc, ivec2(x, (2 * k)     * VOICES + v), 0).rg;
+  vec2 b = texelFetch(uSrc, ivec2(x, (2 * k + 1) * VOICES + v), 0).rg;
+  vec2 s = a + b;
   if (uFinal == 1) s = tanh(s);
-  outColor = vec4(s, 0.0, 0.0, 1.0);
+  outColor = vec4(s, 0.0, 1.0);
 }

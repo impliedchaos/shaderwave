@@ -21,9 +21,10 @@
 //   uP1 = (Decay s [0 = sustain], DecayTilt 0..1 [highs die faster], Detune 0..1 [partial spread], Comb 0..1)
 //   uP2 = (Attack s, Release s, OddEven 0..1, Coherence 0..1 [0 = random phase wash, 1 = coherent strike])
 //   uP3 = (Shimmer 0..1 [per-partial animation], Formant pos 0..1 [150..5000 Hz], Formant amt [0 = off], Formant BW octaves)
+//   uP4 = (Stereo spread 0..1 [partials fanned L↔R], -, -, -)
 //
 // Velocity opens the spectrum (folds into the tilt exponent, anchored at full velocity).
-// Coherence / Shimmer / Formant default to 0 → bit-identical to the legacy formula sound.
+// Coherence / Shimmer / Formant / Stereo default to 0 → bit-identical to the legacy mono formula sound.
 //
 // RESYNTHESIS (Phase 2): if this voice's instance has an analyzed sample, uSpectra holds
 // its harmonic amplitude profile (row uAddSlot[v], harmonic n at texel n-1) and Morph
@@ -71,6 +72,7 @@ void main(){
   float fmtPos  = clamp(uP3[v].y, 0.0, 1.0);            // formant centre (0..1 → 150..5000 Hz)
   float fmtAmt  = max(uP3[v].z, 0.0);                   // formant peak boost (0 = off → branch skipped)
   float fmtW    = uP3[v].w;                             // formant width in octaves
+  float spread  = clamp(uP4[v].x, 0.0, 1.0);            // stereo spread: 0 = mono (bit-identical), 1 = partials fanned L↔R
   int   slot    = int(uAddSlot[v] + 0.5);
   bool  resynth = uAddSlot[v] > -0.5 && morph > 0.0;   // analyzed spectrum available + dialed in
 
@@ -86,7 +88,7 @@ void main(){
   if (tRel >= 0.0) aenv *= max(0.0, 1.0 - tRel / rel);
 
   int first = tile * TILE_SZ;             // the partial indices this fragment owns
-  float acc = 0.0;
+  float accL = 0.0, accR = 0.0;           // independent L/R sums (stereo spread); equal when spread = 0
   for (int j = 0; j < TILE_SZ; j++){
     int n = first + j + 1;                // 1-based partial number
     if (n > N) break;
@@ -117,7 +119,14 @@ void main(){
     }
     float rnd = hash11(float(n) * 0.731 + float(v) * 5.17);         // decorrelated phase (legacy) → bounded RMS
     float phi = mix(rnd, 0.0, coher);                               // coher=1 → coherent strike (defined attack), click-free
-    acc += amp * env * sin(TAU * (fn * te + phi));
+    float s = amp * env * sin(TAU * (fn * te + phi));
+    // Stereo placement: fan each partial across the field by its index (voice-
+    // independent, so a chord shares ONE coherent image). Balance law preserves the
+    // centre gain (1,1), so spread=0 leaves accL==accR == the legacy mono sum.
+    float d = (hash11(float(n) * 3.13) - 0.5) * 2.0 * spread;       // signed position in [-spread, spread]
+    accL += s * (1.0 - max( d, 0.0));
+    accR += s * (1.0 - max(-d, 0.0));
   }
-  outAudio = vec4(acc * vel * 0.5, 0.0, 0.0, 1.0);    // *0.5 once overall (tiles sum in the reducer; final tanh there)
+  // *0.5 once overall (tiles sum in the reducer; final tanh there).
+  outAudio = vec4(accL * vel * 0.5, accR * vel * 0.5, 0.0, 1.0);
 }
