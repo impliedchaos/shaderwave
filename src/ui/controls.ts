@@ -835,19 +835,48 @@ export class Controls {
         refresh();
       } else {
         panel.innerHTML = `
-          <div class="mod-src-head">${INST_SOURCE_LABELS[si]} (note-gated)</div>
+          <div class="mod-src-head" style="display: flex; justify-content: space-between; align-items: center;">
+            <span>${INST_SOURCE_LABELS[si]} (note-gated)</span>
+            <canvas data-k="env-canvas" width="60" height="24" style="background: rgba(255,255,255,0.05); border-radius: 2px; margin-left: 8px; cursor: crosshair;" title="Envelope Shape"></canvas>
+          </div>
           <label class="mod-row">A <input type="range" data-k="a" min="0.001" max="2" step="0.001"></label>
           <label class="mod-row">D <input type="range" data-k="d" min="0.001" max="2" step="0.001"></label>
           <label class="mod-row">S <input type="range" data-k="s" min="0" max="1" step="0.01"></label>
           <label class="mod-row">R <input type="range" data-k="r" min="0.001" max="4" step="0.001"></label>`;
         wrap.appendChild(panel);
+
+        const canvas = q<HTMLCanvasElement>(panel, 'env-canvas');
+        const ctx = canvas?.getContext('2d');
+        const drawEnv = () => {
+          if (!ctx) return;
+          const { a, d, s, r } = src.env;
+          const w = canvas.width, h = canvas.height;
+          ctx.clearRect(0, 0, w, h);
+          
+          const maxTime = Math.max(1, a + d + r + 0.5);
+          const timeToX = (t: number) => (t / maxTime) * w;
+          const valToY = (v: number) => h - v * (h - 2) - 1;
+          
+          ctx.beginPath();
+          ctx.strokeStyle = displayAccent(pr.color);
+          ctx.lineWidth = 1.5;
+          ctx.lineJoin = 'round';
+          ctx.moveTo(timeToX(0), valToY(0));
+          ctx.lineTo(timeToX(a), valToY(1));
+          ctx.lineTo(timeToX(a + d), valToY(s));
+          ctx.lineTo(timeToX(a + d + 0.5), valToY(s));
+          ctx.lineTo(timeToX(a + d + 0.5 + r), valToY(0));
+          ctx.stroke();
+        };
+
         const bind = (k: 'a' | 'd' | 's' | 'r') => {
           const el = q<HTMLInputElement>(panel, k);
           el.value = String(src.env[k]);
-          el.oninput = () => { src.env[k] = +el.value; };
+          el.oninput = () => { src.env[k] = +el.value; drawEnv(); };
           el.onchange = dirty;
         };
         bind('a'); bind('d'); bind('s'); bind('r');
+        drawEnv();
       }
     });
 
