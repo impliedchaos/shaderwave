@@ -16,10 +16,14 @@ export function buildLfoUI(app: App) {
   const eng = app.engine;
   const voices = eng.voices.length;
 
-  // Flat target list: Off · Global (VOL) · per-instrument inst/fx · per-channel pan.
+  // Flat target list: Off · Global (VOL) · per-channel pan · per-instrument inst/fx.
+  // The per-instrument targets come LAST: instruments now have their OWN mod matrix
+  // (LFOs + env) for inst/fx/pitch, so song-wide LFOs are most often reached for the
+  // global/channel moves — keep those up top and demote the per-instrument rows.
   type Opt = { paramId: number; instIdx: number | null; label: string };
   const opts: Opt[] = [{ paramId: -1, instIdx: null, label: '— Off —' }];
   for (const t of TARGETS) if (t.scope === 'global' && t.code !== 'BPM') opts.push({ paramId: t.id, instIdx: null, label: `Global · ${t.label}` });
+  for (const t of TARGETS) if (t.scope === 'chan') for (let ch = 0; ch < voices; ch++) opts.push({ paramId: t.id, instIdx: ch, label: `Ch ${ch + 1} · ${t.label}` });
   for (let i = 0; i < eng.instruments.length; i++) {
     const instr = eng.instruments[i];
     const short = byType(instr.type)?.short ?? instr.type.toUpperCase();   // 3-char engine code, consistent with the rest of the UI
@@ -28,7 +32,6 @@ export function buildLfoUI(app: App) {
       else if (t.scope === 'fx') opts.push({ paramId: t.id, instIdx: i, label: `${i}:${short} · FX ${t.label}` });
     }
   }
-  for (const t of TARGETS) if (t.scope === 'chan') for (let ch = 0; ch < voices; ch++) opts.push({ paramId: t.id, instIdx: ch, label: `Ch ${ch + 1} · ${t.label}` });
 
   const BEATS: [number, string][] = [[16, '4 bars'], [8, '2 bars'], [4, '1 bar'], [2, '1/2 bar'], [1, '1 beat'], [0.5, '1/2'], [0.25, '1/4'], [0.125, '1/8']];
   const q = <T extends HTMLElement>(root: ParentNode, k: string) => root.querySelector(`[data-k="${k}"]`) as T;

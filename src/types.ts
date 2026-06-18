@@ -66,6 +66,7 @@ export interface InstrumentInstance extends InstrumentParams {
   color: string;
   fx: FxParams;          // this instance's OWN effect chain (per-instrument fx)
   fxOrder?: string[];    // per-instance effect-chain order (effect keys); absent → default
+  mod?: InstrumentMod;   // this instance's OWN modulation matrix (LFOs + env → its params)
 }
 
 // An instrument as *authored* in a song's `params` array: the engine type is
@@ -76,6 +77,7 @@ export interface InstrumentSpec extends InstrumentParams {
   color?: string;
   fx?: FxParams;         // optional authored fx (saved songs carry it; demos author per-type)
   fxOrder?: string[];    // optional per-instance effect-chain order
+  mod?: InstrumentMod;   // optional authored modulation matrix (saved songs carry it)
 }
 
 // ── Automation ────────────────────────────────────────────────────────────
@@ -100,6 +102,8 @@ export interface ParamTarget {
   index?: number;
   key?: string;
   toggle?: boolean;   // fx on/off "stomp box": byte 0 = off, anything else = on (written as a bool)
+  pitch?: boolean;    // special inst-scope target: modulates voice frequency (vibrato), not a param bank.
+                      // min/max are in semitones; only the per-instrument mod matrix routes to these.
 }
 
 // ── Effects ─────────────────────────────────────────────────────────────────
@@ -198,6 +202,47 @@ export interface ModRouting {
   targetInstIdx: number | null;  // instrument instance (inst/fx) or channel (chan); null otherwise
   depth: number;                 // 0..1 swing in normalized units
   bipolar: boolean;              // ±depth around center vs 0..+depth
+}
+
+// ── Per-instrument modulation matrix ────────────────────────────────────────
+// Distinct from the song-wide LFOs above: each instrument INSTANCE owns a small
+// fixed bank of sources (2 LFOs + 1 mod envelope) and routes wiring a source to
+// one of THIS instance's params (an inst bank, an fx param, or pitch). Because
+// the source config travels inline and the target is implicitly the owner, the
+// whole matrix drops cleanly into a Preset and serializes per-instrument — there
+// is no song-pool index to remap. See src/tracker/instmod.ts.
+export type ModSourceKind = 'lfo' | 'env';
+
+// A dedicated modulation envelope — NOT an engine's amp envelope (that lives in
+// the shader and the CPU can't read it). Evaluated on the CPU per block from each
+// voice's note-on/off frames. Times in seconds; sustain + output in 0..1.
+export interface ModEnv {
+  a: number;   // attack seconds
+  d: number;   // decay seconds
+  s: number;   // sustain level 0..1
+  r: number;   // release seconds
+}
+
+export interface ModSource {
+  kind: ModSourceKind;
+  retrigger: boolean;   // lfo: phase restarts at each voice's note-on (else free-runs on song time); env: always note-gated
+  lfo: LfoConfig;       // meaningful when kind === 'lfo'
+  env: ModEnv;          // meaningful when kind === 'env'
+}
+
+// One source→target wiring within an instance's matrix. targetParamId is a
+// ParamTarget id: an inst-bank or fx param of this instance's engine type, or a
+// pitch target (ParamTarget.pitch). -1 = inactive.
+export interface ModRoute {
+  source: number;          // index into InstrumentMod.sources
+  targetParamId: number;   // -1 inactive; else a ParamTarget id (inst / fx / pitch)
+  depth: number;           // 0..1 swing in normalized units (pitch: × the target's max semitones)
+  bipolar: boolean;        // lfo: ±depth vs 0..+depth · env: around centre vs 0..+depth
+}
+
+export interface InstrumentMod {
+  sources: ModSource[];
+  routes: ModRoute[];
 }
 
 // ── Voice data ──────────────────────────────────────────────────────────────
@@ -301,6 +346,7 @@ export interface Preset {
   p3?: number[];
   p4?: number[];
   fx?: Partial<FxParams>;
+  mod?: InstrumentMod;   // optional modulation matrix snapshot (LFOs + env → params)
   sample?: any; // SerializedSample to hydrate on load
 }
 

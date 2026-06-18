@@ -1363,6 +1363,26 @@
   .lfo-route button[data-k=del] { flex: 0 0 auto; background: transparent; color: var(--c-text-dim); border: none; cursor: pointer; font-size: 12px; padding: 0 2px; }
   .lfo-route button[data-k=del]:hover { color: #ff6b6b; }
 
+  /* Per-instrument modulation matrix (instrument sidebar). Stacks vertically in
+     the narrow sidebar; mirrors the global LFO panel's look. */
+  .mod-matrix-ui { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--panel-border); display: flex; flex-direction: column; gap: 8px; }
+  .mod-head { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent, #36e0d6); }
+  .mod-source { border: 1px solid var(--panel-border); border-radius: 6px; padding: 8px; background: rgba(var(--c-surface), 0.5); display: flex; flex-direction: column; gap: 5px; }
+  .mod-src-head { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--c-text-dim); }
+  .mod-row { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--c-text-dim); }
+  .mod-row select, .mod-row input[type=range] { flex: 1; min-width: 0; }
+  .mod-row select { background: rgb(var(--c-surface)); color: var(--c-text-bright); border: 1px solid var(--panel-border); border-radius: 5px; padding: 3px 5px; font: inherit; font-size: 11px; }
+  .mod-row input[type=range] { accent-color: var(--accent, #36e0d6); }
+  .mod-val { font-variant-numeric: tabular-nums; color: #ffb347; min-width: 44px; text-align: right; }
+  .mod-routes { display: flex; flex-direction: column; gap: 6px; }
+  .mod-add { background: rgb(var(--c-surface)); color: var(--accent, #36e0d6); border: 1px solid rgb(var(--c-surface)); border-radius: 5px; padding: 2px 9px; font: inherit; font-size: 11px; cursor: pointer; margin-left: 8px; }
+  .mod-route { display: flex; align-items: center; gap: 5px; }
+  .mod-route select { flex: 1 1 0; min-width: 0; background: rgb(var(--c-surface)); color: var(--c-text-bright); border: 1px solid var(--panel-border); border-radius: 4px; padding: 3px 4px; font: inherit; font-size: 11px; }
+  .mod-route input[type=range] { flex: 0 0 50px; accent-color: var(--accent, #36e0d6); }
+  .mod-route .mod-bip { flex: 0 0 auto; font-size: 11px; color: var(--c-text-dim); display: flex; align-items: center; gap: 2px; }
+  .mod-route button[data-k=del] { flex: 0 0 auto; background: transparent; color: var(--c-text-dim); border: none; cursor: pointer; font-size: 12px; padding: 0 2px; }
+  .mod-route button[data-k=del]:hover { color: #ff6b6b; }
+
   /* Wavewright per-oscillator scopes (sidebar, under the knobs). */
   .wt-scopes { display: flex; flex-direction: column; gap: 8px; padding: 8px 10px 4px; }
   .wt-scope { display: flex; flex-direction: column; gap: 3px; }

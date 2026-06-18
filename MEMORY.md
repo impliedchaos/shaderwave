@@ -86,6 +86,46 @@ An attempt to implement a WebGL 16-band Vocoder effect was completely abandoned 
 
 ## Current work
 
+### Per-instrument modulation matrix (2.5.0, 2026-06-18) — ✅ DONE — `project`
+Each instrument INSTANCE now owns its own mod matrix (`InstrumentInstance.mod`): a FIXED
+bank of **2 LFOs + 1 mod-envelope** + a list of routes. Distinct from the song-wide global
+LFOs (`engine.lfos`/`modRoutings`, Song Editor) — this travels WITH the instrument into
+presets and saves. Data shapes in `src/types.ts` (`ModSource`/`ModRoute`/`InstrumentMod`/
+`ModEnv`); factories + CPU ADSR + normalize in `src/tracker/instmod.ts`. Non-obvious bits:
+- **The "ADSR source" is a DEDICATED mod-envelope, NOT an engine's amp env.** Amp envelopes
+  live in the shaders (GPU-only, per-engine, not standardized) — the CPU literally can't read
+  them. So `modEnvValue()` is a fresh CPU ADSR evaluated from each voice's `onFrame`/`offFrame`
+  (release eases from the level reached at key-up via `t - tRel`, so a short note doesn't jump).
+- **Pitch is a SPECIAL target** (`ParamTarget.pitch`, appended per pitched engine — drum/
+  pitchless excluded — at the very END of `TARGETS`, id-stable). It modulates `vd.freq`
+  (vibrato), not a param bank. `instModTargetsForType()` is the destination list (inst + fx +
+  pitch); plain `targetsForType()` EXCLUDES pitch (`!t.pitch`) so it never shows in the
+  automation picker or global-LFO dropdown (pitch automation would fight note triggers).
+- **`_applyInstMod` runs BEFORE `_accumPhaseOff`** (engine block order: refresh → modulate →
+  applyInstMod → accumPhaseOff → applyLfos). That's the whole trick for click-free vibrato on
+  CLOSED-FORM engines: pitch routes multiply `vd.freq`, then `_accumPhaseOff` corrects the
+  phase generically (same path the fx-column `4xy` vibrato uses). Pitch routes stack
+  multiplicatively with the fx column + each other. With NO routes the pass early-returns →
+  `vd.freq` untouched → `phaseOff` stays 0 → render is **bit-identical** (verified via fround).
+- **Source value scope:** a free-running LFO yields ONE value for all voices; envelopes +
+  retriggered LFOs are per-voice (phase from the voice's `onFrame`). For SHARED fx targets a
+  per-voice source uses the NEWEST active voice as representative (none active → leave fx alone).
+- **fx base-tracking is SEPARATE** (`_instModFxBase`/`_instModFxLast`, keyed `${ii}:${key}`)
+  from the global-LFO maps so the two don't corrupt each other's re-baselining; both restored
+  on play/stop in `_restoreLfoFx`. Routing BOTH a global LFO and an instance route at the same
+  instance+fx field is unsupported (they fight; last writer per block wins).
+- **Persistence:** `instrumentsFromParams` attaches a default (inert, no-routes) matrix to every
+  instance; `song-io` serializes `mod` per instrument ONLY when it has wired routes
+  (`instModHasContent`); `loadPreset` adopts `preset.mod` if present, else leaves the existing
+  matrix (built-in presets predate mod, so loading one must not silently wipe a user's routings).
+- **UI:** `Controls._buildModMatrix` renders the "Modulation" panel in the instrument sidebar
+  (source slots + routes table); global-LFO target dropdown reordered so per-instrument targets
+  come LAST (`lfo-panel.ts`) now that instruments have their own matrix. CSS `.mod-*` in index.html.
+- Verified: build clean, `phaseoff-check`/`glsl-check` ALL_OK, custom CPU harness (vibrato ±depth
+  finite, env ramp+release, unrouted instance bit-identical). `render-check`'s dx7/sampler FAILs
+  are pre-existing (no ROM/sample → silent), confirmed identical on the clean tree. NOT yet
+  user-verified by ear in-browser. COMPOSING.md §8 updated with `InstrumentSpec.mod` authoring.
+
 ### Roadmap (`ROADMAP.md`) + Phase 0 real-GPU perf measured (2026-06-18) — `project`
 The repo now has a `ROADMAP.md` (flexible, dependency-ordered): Phase 0 real-GPU perf
 harness → Phase 1 instrument editor → Phase 2 Spectra resynthesis → Phase 3 reach

@@ -12,9 +12,10 @@ import { defaultParams, instrumentsFromParams, DRUM_MAP } from './song.js';
 import { neutralFxParams } from '../gl/effects.js';
 import { targetById, denorm, normUnit, denormUnit } from './automation.js';
 import { defaultLfos, lfoOffset, lfoPeriodSec, LFO_COUNT } from './lfo.js';
+import { modEnvValue } from './instmod.js';
 import { byType } from '../instruments/index.js';
 import type {
-  FxParamsByType, InstrumentInstance, InstrumentType, LfoConfig, ModRouting, SongData, VoiceData,
+  FxParamsByType, InstrumentInstance, InstrumentType, LfoConfig, ModRoute, ModRouting, ModSource, SongData, VoiceData,
 } from '../types.js';
 
 export const HELD = 1e9; // offRel sentinel: note is still held
@@ -98,6 +99,13 @@ export class Engine {
   // wrote, we re-baseline `_lfoFxBase` to the new value so the LFO re-centres on it
   // (otherwise the frozen play-start snapshot clobbers live volume/cutoff edits).
   _lfoFxLast: Map<string, number>;
+  // Same base/last-write tracking for the PER-INSTRUMENT mod matrix's fx-scope
+  // routes (keyed `${instIdx}:${key}`). Kept SEPARATE from the global-LFO maps so
+  // the two systems don't corrupt each other's bookkeeping; restored on play/stop
+  // alongside them. (Routing both a global LFO and an instance route at the same
+  // instance+fx field is unsupported — they'd fight; last writer per block wins.)
+  _instModFxBase: Map<string, number>;
+  _instModFxLast: Map<string, number>;
   vd: VoiceData;
   _preview: number;
 
@@ -163,6 +171,8 @@ export class Engine {
     this.modRoutings = [];
     this._lfoFxBase = new Map();
     this._lfoFxLast = new Map();
+    this._instModFxBase = new Map();
+    this._instModFxLast = new Map();
 
     // GPU-facing buffers, updated in place every block.
     this.vd = {
@@ -244,14 +254,17 @@ export class Engine {
   // then clear the snapshots. Called on play()/stop()/loadSong so fx-scope LFO
   // overrides never persist past a run (inst/chan/global self-heal elsewhere).
   _restoreLfoFx() {
-    if (!this._lfoFxBase.size) return;
-    for (const [key, base] of this._lfoFxBase) {
-      const [idxStr, fxKey] = key.split(/:(.+)/);
-      const instr = this.instruments[+idxStr];
-      if (instr?.fx) instr.fx[fxKey] = base;
-    }
-    this._lfoFxBase.clear();
-    this._lfoFxLast.clear();
+    const restore = (baseMap: Map<string, number>, lastMap: Map<string, number>) => {
+      for (const [key, base] of baseMap) {
+        const [idxStr, fxKey] = key.split(/:(.+)/);
+        const instr = this.instruments[+idxStr];
+        if (instr?.fx) instr.fx[fxKey] = base;
+      }
+      baseMap.clear();
+      lastMap.clear();
+    };
+    if (this._lfoFxBase.size) restore(this._lfoFxBase, this._lfoFxLast);
+    if (this._instModFxBase.size) restore(this._instModFxBase, this._instModFxLast);
   }
 
   // Set the song's base global volume from the UI (the Song Editor's Volume knob).
@@ -557,7 +570,8 @@ export class Engine {
 
     this._refreshVoiceData(blockStart);
     this._modulateVoices(blockStart);
-    this._accumPhaseOff(blockStart);
+    this._applyInstMod(blockStart);     // per-instrument matrix (incl. pitch) BEFORE phaseOff
+    this._accumPhaseOff(blockStart);    // so closed-form engines stay click-free on vibrato
     this._applyLfos(blockStart);
 
     // Refresh each active DX7 voice's operator config from ITS instrument, packed
@@ -927,5 +941,112 @@ export class Engine {
     // Advance the beat clock once per block, using the post-automation bpm — so synced
     // LFOs accrue phase smoothly through tempo changes. Deterministic for export.
     this._songBeats += (BLOCK / this.sampleRate) * (this.bpm / 60);
+  }
+
+  // The normalized offset one mod ROUTE contributes for a given voice (v = -1 for
+  // the song-time / free-run value, used by non-retriggered LFOs + shared fx with
+  // no active voice). Envelopes + retriggered LFOs derive their phase from the
+  // voice's own note-on/off frames; free-running LFOs from song time/beats (same
+  // clock the global LFOs use). Output is in normalized param space, like lfoOffset.
+  _modSourceOffset(src: ModSource, r: ModRoute, v: number, blockStart: number, songSec: number, songBeats: number): number {
+    if (src.kind === 'env') {
+      if (v < 0) return 0;                       // env at rest (no voice) → no contribution
+      const vc = this.voices[v];
+      const t = (blockStart - vc.onFrame) / this.sampleRate;
+      const tRel = vc.offFrame === HELD ? -1 : (blockStart - vc.offFrame) / this.sampleRate;
+      const e = modEnvValue(src.env, t, tRel);
+      return r.bipolar ? r.depth * (2 * e - 1) : r.depth * e;
+    }
+    // LFO: per-voice phase when retriggered, else the shared song clock.
+    let sec = songSec, beats = songBeats;
+    if (src.retrigger && v >= 0) {
+      sec = Math.max(0, (blockStart - this.voices[v].onFrame) / this.sampleRate);
+      beats = sec * (this.bpm / 60);
+    }
+    const cfg = src.lfo;
+    const cyclePos = cfg.sync ? beats / Math.max(1e-3, cfg.rateBeats) : sec / lfoPeriodSec(cfg, this.bpm);
+    const cycle = Math.floor(cyclePos);
+    return lfoOffset(cfg, r.depth, r.bipolar, cyclePos - cycle, cycle);
+  }
+
+  // Apply each instrument INSTANCE's own modulation matrix, once per block, in the
+  // same transient-offset-above-centre spirit as _applyLfos but scoped to the
+  // instance that owns the matrix. Three destination kinds:
+  //   pitch → multiplies vd.freq for each active voice (vibrato); runs BEFORE
+  //           _accumPhaseOff so closed-form engines stay click-free, and stacks
+  //           multiplicatively with the effect column + other pitch routes.
+  //   inst  → writes the param bank per active voice (centre = autoLive or base).
+  //   fx    → writes the shared instance fx field (one representative source value:
+  //           song-time for a free-running LFO, else the newest active voice).
+  // A matrix with no routes does nothing → instances render bit-identically.
+  _applyInstMod(blockStart: number) {
+    if (!this.playing) return;
+    const start = this.startFrame ?? blockStart;
+    const songSec = (blockStart - start) / this.sampleRate;
+    const songBeats = this._songBeats;
+    const vd = this.vd;
+    for (let ii = 0; ii < this.instruments.length; ii++) {
+      const instr = this.instruments[ii];
+      const mod = instr.mod;
+      if (!mod || !mod.routes.length) continue;
+      // The newest active voice of this instance — the representative for shared
+      // (fx) targets driven by a per-voice source (env / retriggered LFO).
+      let newestV = -1, newestOn = -Infinity;
+      for (let v = 0; v < VOICES; v++) {
+        const vc = this.voices[v];
+        if (vc.active && vc.instrument === ii && vc.onFrame > newestOn) { newestOn = vc.onFrame; newestV = v; }
+      }
+      for (const r of mod.routes) {
+        if (r.targetParamId < 0 || r.depth === 0) continue;
+        const src = mod.sources[r.source];
+        if (!src) continue;
+        const t = targetById(r.targetParamId);
+        if (!t) continue;
+        // A free-running LFO yields one value for every voice; envelopes and
+        // retriggered LFOs are per-voice.
+        const shared = src.kind === 'lfo' && !src.retrigger;
+
+        if (t.pitch) {
+          for (let v = 0; v < VOICES; v++) {
+            const vc = this.voices[v];
+            if (!vc.active || vc.instrument !== ii) continue;
+            const off = this._modSourceOffset(src, r, shared ? -1 : v, blockStart, songSec, songBeats);
+            if (off !== 0) vd.freq[v] *= Math.pow(2, off * t.max / 12);   // off·max = semitones
+          }
+        } else if (t.scope === 'inst' && t.bank && t.index != null) {
+          const key = `${ii}:${t.bank}:${t.index}`;
+          const auto = this.autoLive.inst.get(key);                       // stacks with automation if present
+          const baseArr = t.bank === 'p1' ? instr.p1 : t.bank === 'p2' ? instr.p2 : t.bank === 'p3' ? instr.p3 : t.bank === 'p4' ? instr.p4 : instr.p0;
+          const center = normUnit(t, auto !== undefined ? auto : (baseArr ? baseArr[t.index] : 0));
+          const vdArr = t.bank === 'p1' ? vd.p1 : t.bank === 'p2' ? vd.p2 : t.bank === 'p3' ? vd.p3 : t.bank === 'p4' ? vd.p4 : vd.p0;
+          for (let v = 0; v < VOICES; v++) {
+            const vc = this.voices[v];
+            if (!vc.active || vc.instrument !== ii) continue;
+            const off = this._modSourceOffset(src, r, shared ? -1 : v, blockStart, songSec, songBeats);
+            vdArr[v * 4 + t.index] = denormUnit(t, center + off);
+          }
+        } else if (t.scope === 'fx' && t.key && instr.fx) {
+          // One value drives the shared chain: song-time for a free-running LFO,
+          // else the newest active voice (env/retrigger). No active voice + a
+          // per-voice source → leave the field alone (source is at rest).
+          if (!shared && newestV < 0) continue;
+          const off = this._modSourceOffset(src, r, shared ? -1 : newestV, blockStart, songSec, songBeats);
+          const sk = `${ii}:${t.key}`;
+          // Same live-edit re-baselining as the global-LFO fx path (see _applyLfos):
+          // if the field no longer matches what we last wrote, the user/preset
+          // changed it → re-centre on the new value rather than clobbering it.
+          const last = this._instModFxLast.get(sk);
+          let base = this._instModFxBase.get(sk);
+          if (base === undefined || last === undefined || (instr.fx[t.key] as number) !== last) {
+            base = instr.fx[t.key] as number;
+            this._instModFxBase.set(sk, base);
+          }
+          const nv = denormUnit(t, normUnit(t, base) + off);
+          const out = t.toggle ? (nv > 0.5) : nv;
+          instr.fx[t.key] = out;
+          this._instModFxLast.set(sk, out as number);
+        }
+      }
+    }
   }
 }

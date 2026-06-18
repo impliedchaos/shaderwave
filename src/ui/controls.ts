@@ -7,6 +7,10 @@ import { byType } from '../instruments/index.js';
 import { resolveAssetUrl, decodeAudioFile } from '../audio/sample-loader.js';
 import { displayAccent } from './theme.js';
 import { recordKnob, disarmRecord, instParamTarget } from './record.js';
+import { normalizeInstMod, INST_SOURCE_LABELS, INST_MOD_MAX_ROUTES } from '../tracker/instmod.js';
+import { instModTargetsForType } from '../tracker/automation.js';
+import { LFO_SHAPES, LFO_SHAPE_WAVETABLE } from '../tracker/lfo.js';
+import type { ModRoute } from '../types.js';
 import { WT_BANKS, WT_TABLES, WT_FRAMES, WT_SAMPLES, sampleTable } from '../instruments/wavetables.js';
 import type { Preset } from './presets.js';
 import type { DX7Op, FxParams, InstrumentInstance, InstrumentType } from '../types.js';
@@ -456,6 +460,10 @@ export class Controls {
         if (def?.defaults.p2) prDst.p2 = preset.p2 ? [...preset.p2] : [...def.defaults.p2];
         if (def?.defaults.p3) prDst.p3 = preset.p3 ? [...preset.p3] : [...def.defaults.p3];
         if (def?.defaults.p4) prDst.p4 = preset.p4 ? [...preset.p4] : [...def.defaults.p4];
+        // Adopt the preset's modulation matrix if it carries one; otherwise leave
+        // the instance's existing matrix untouched (built-in presets predate mod,
+        // so loading one shouldn't silently wipe a user's LFO/env routings).
+        if (preset.mod) prDst.mod = normalizeInstMod(preset.mod);
         if (preset.sample) {
           if (preset.sample.url) {
             // Load over HTTP
@@ -756,6 +764,135 @@ export class Controls {
     if (name === 'wvt') this._buildWtScopes(pr);
     if (name === 'sampler') this._buildSamplerUI(pr);
     if (name === 'additive') this._buildAdditiveUI(pr);
+    this._buildModMatrix(pr);
+  }
+
+  // Per-instrument modulation matrix: this instance's OWN sources (2 LFOs + 1 mod
+  // envelope) and the routes wiring them to its params (inst banks, fx, or pitch).
+  // Distinct from the song-wide global LFOs (Song Editor) — this travels with the
+  // instrument into presets/saves. Mutates pr.mod in place; the engine reads it live
+  // each block, so no re-push is needed. Native controls, modeled on the LFO panel.
+  _buildModMatrix(pr: InstrumentInstance) {
+    const name = this._type;
+    if (!name) return;
+    const mod = pr.mod ?? (pr.mod = normalizeInstMod(undefined));
+    const q = <T extends HTMLElement>(root: ParentNode, k: string) => root.querySelector(`[data-k="${k}"]`) as T;
+    const dirty = () => this.app?.markDirty('instrument');
+
+    const BEATS: [number, string][] = [[16, '4 bars'], [8, '2 bars'], [4, '1 bar'], [2, '1/2'], [1, '1 beat'], [0.5, '1/2'], [0.25, '1/4'], [0.125, '1/8']];
+
+    const wrap = document.createElement('div');
+    wrap.className = 'mod-matrix-ui';
+    wrap.style.gridColumn = '1 / -1';
+    wrap.appendChild(Object.assign(document.createElement('div'), { className: 'mod-head', textContent: 'Modulation' }));
+
+    // ── Source slots (2 LFOs + 1 env), fixed layout ──
+    const beatOpts = BEATS.map(([v, l]) => `<option value="${v}">${l}</option>`).join('');
+    const shapeOpts = LFO_SHAPES.map((s, k) => `<option value="${k}">${s}</option>`).join('');
+    const bankOpts = WT_BANKS.map((b, k) => `<option value="${k}">${b.name}</option>`).join('');
+    mod.sources.forEach((src, si) => {
+      const panel = document.createElement('div');
+      panel.className = 'mod-source';
+      if (src.kind === 'lfo') {
+        panel.innerHTML = `
+          <div class="mod-src-head">${INST_SOURCE_LABELS[si]}</div>
+          <label class="mod-row">Shape <select data-k="shape">${shapeOpts}</select></label>
+          <label class="mod-row"><input type="checkbox" data-k="sync"> Sync</label>
+          <label class="mod-row" data-when="sync">Rate <select data-k="beats">${beatOpts}</select></label>
+          <label class="mod-row" data-when="free">Hz <input type="range" data-k="hz" min="0.05" max="20" step="0.05"><span data-k="hzv" class="mod-val"></span></label>
+          <label class="mod-row" data-when="wt">Bank <select data-k="wtbank">${bankOpts}</select></label>
+          <label class="mod-row" data-when="wt">Pos <input type="range" data-k="wtpos" min="0" max="1" step="0.01"></label>
+          <label class="mod-row"><input type="checkbox" data-k="retrig"> Retrigger</label>`;
+        wrap.appendChild(panel);
+        const shape = q<HTMLSelectElement>(panel, 'shape');
+        const sync = q<HTMLInputElement>(panel, 'sync');
+        const beats = q<HTMLSelectElement>(panel, 'beats');
+        const hz = q<HTMLInputElement>(panel, 'hz'); const hzv = q<HTMLSpanElement>(panel, 'hzv');
+        const wtbank = q<HTMLSelectElement>(panel, 'wtbank');
+        const wtpos = q<HTMLInputElement>(panel, 'wtpos');
+        const retrig = q<HTMLInputElement>(panel, 'retrig');
+        const refresh = () => {
+          shape.value = String(src.lfo.shape); sync.checked = src.lfo.sync;
+          beats.value = String(src.lfo.rateBeats);
+          hz.value = String(src.lfo.rateHz); hzv.textContent = src.lfo.rateHz.toFixed(2) + 'Hz';
+          wtbank.value = String(src.lfo.wtBank); wtpos.value = String(src.lfo.wtPos);
+          retrig.checked = src.retrigger;
+          const isWt = src.lfo.shape === LFO_SHAPE_WAVETABLE;
+          panel.querySelectorAll<HTMLElement>('[data-when]').forEach((el) => {
+            const w = el.dataset.when;
+            el.style.display = (w === 'sync' ? src.lfo.sync : w === 'free' ? !src.lfo.sync : w === 'wt' ? isWt : true) ? '' : 'none';
+          });
+        };
+        shape.onchange = () => { src.lfo.shape = +shape.value; refresh(); dirty(); };
+        sync.onchange = () => { src.lfo.sync = sync.checked; refresh(); dirty(); };
+        beats.onchange = () => { src.lfo.rateBeats = +beats.value; dirty(); };
+        hz.oninput = () => { src.lfo.rateHz = +hz.value; hzv.textContent = src.lfo.rateHz.toFixed(2) + 'Hz'; };
+        hz.onchange = dirty;
+        wtbank.onchange = () => { src.lfo.wtBank = +wtbank.value; dirty(); };
+        wtpos.oninput = () => { src.lfo.wtPos = +wtpos.value; };
+        wtpos.onchange = dirty;
+        retrig.onchange = () => { src.retrigger = retrig.checked; dirty(); };
+        refresh();
+      } else {
+        panel.innerHTML = `
+          <div class="mod-src-head">${INST_SOURCE_LABELS[si]} (note-gated)</div>
+          <label class="mod-row">A <input type="range" data-k="a" min="0.001" max="2" step="0.001"></label>
+          <label class="mod-row">D <input type="range" data-k="d" min="0.001" max="2" step="0.001"></label>
+          <label class="mod-row">S <input type="range" data-k="s" min="0" max="1" step="0.01"></label>
+          <label class="mod-row">R <input type="range" data-k="r" min="0.001" max="4" step="0.001"></label>`;
+        wrap.appendChild(panel);
+        const bind = (k: 'a' | 'd' | 's' | 'r') => {
+          const el = q<HTMLInputElement>(panel, k);
+          el.value = String(src.env[k]);
+          el.oninput = () => { src.env[k] = +el.value; };
+          el.onchange = dirty;
+        };
+        bind('a'); bind('d'); bind('s'); bind('r');
+      }
+    });
+
+    // ── Routes: source → this instance's target, depth, polarity ──
+    const targets = instModTargetsForType(name);
+    const tgtOpts = '<option value="-1">— Off —</option>' +
+      targets.map((t) => `<option value="${t.id}">${t.pitch ? 'Pitch' : t.scope === 'fx' ? 'FX ' + t.label : t.label}</option>`).join('');
+    const srcOpts = mod.sources.map((_, i) => `<option value="${i}">${INST_SOURCE_LABELS[i]}</option>`).join('');
+
+    const matrix = document.createElement('div');
+    matrix.className = 'mod-routes';
+    const addBtn = mod.routes.length < INST_MOD_MAX_ROUTES ? '<button class="mod-add" data-k="add">+ Route</button>' : '';
+    matrix.innerHTML = `<div class="mod-head">Routes ${addBtn}</div>`;
+    mod.routes.forEach((r, ri) => {
+      const row = document.createElement('div');
+      row.className = 'mod-route';
+      row.innerHTML = `
+        <select data-k="src" title="source">${srcOpts}</select>
+        <select data-k="tgt" title="destination">${tgtOpts}</select>
+        <input type="range" data-k="depth" min="0" max="1" step="0.01" title="depth">
+        <label class="mod-bip" title="bipolar"><input type="checkbox" data-k="bip"> ±</label>
+        <button data-k="del" title="remove route">✕</button>`;
+      matrix.appendChild(row);
+      const srcSel = q<HTMLSelectElement>(row, 'src');
+      const tgt = q<HTMLSelectElement>(row, 'tgt');
+      const depth = q<HTMLInputElement>(row, 'depth');
+      const bip = q<HTMLInputElement>(row, 'bip');
+      srcSel.value = String(Math.min(r.source, mod.sources.length - 1));
+      tgt.value = String(r.targetParamId);
+      depth.value = String(r.depth);
+      bip.checked = r.bipolar;
+      srcSel.onchange = () => { r.source = +srcSel.value; dirty(); };
+      tgt.onchange = () => { r.targetParamId = +tgt.value; dirty(); };
+      depth.oninput = () => { r.depth = +depth.value; };
+      depth.onchange = dirty;
+      bip.onchange = () => { r.bipolar = bip.checked; dirty(); };
+      q<HTMLButtonElement>(row, 'del').onclick = () => { mod.routes.splice(ri, 1); dirty(); this._buildParams(); };
+    });
+    const add = q<HTMLButtonElement>(matrix, 'add');
+    if (add) add.onclick = () => {
+      const r: ModRoute = { source: 0, targetParamId: -1, depth: 0.3, bipolar: true };
+      mod.routes.push(r); dirty(); this._buildParams();
+    };
+    wrap.appendChild(matrix);
+    this.paramEl.appendChild(wrap);
   }
 
   // Spectra resynthesis: load your own sample for the Morph knob to crossfade into.

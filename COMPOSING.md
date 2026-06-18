@@ -283,6 +283,45 @@ return {
   (instrument index for inst/fx, channel for chan/PAN, `null` for global), `depth` 0..1, `bipolar`.
 - BPM is excluded as an LFO target (keeps export length exact).
 
+### 8.1 Per-instrument mod matrix (LFOs + envelope, incl. vibrato)
+
+Separate from the song-wide LFOs above: **each instrument INSTANCE** can carry its OWN matrix —
+a fixed bank of **2 LFOs + 1 mod-envelope** + routes to that instance's own params. It travels with
+the instrument (into presets/saves), so reach for it when the movement is part of the *patch* (a
+wavetable that breathes, vibrato on a lead) rather than an arrangement-wide sweep. Author it on an
+`InstrumentSpec` (the `params: InstrumentSpec[]` form — NOT the keyed-record form) via `mod`:
+
+```ts
+// targets come from instModTargetsForType(type): this engine's inst params + all fx + Pitch.
+params: [
+  { type: 'wvt', /* p0/p1/... */ mod: {
+    sources: [
+      { kind: 'lfo', retrigger: false, lfo: { ...defaultLfo(), sync: true, rateBeats: 8 }, env: { a:0.01,d:0.3,s:0.6,r:0.4 } }, // LFO 1
+      { kind: 'lfo', retrigger: true,  lfo: { ...defaultLfo(), sync: false, rateHz: 5.5 }, env: { a:0.01,d:0.3,s:0.6,r:0.4 } },  // LFO 2 (per-note)
+      { kind: 'env', retrigger: false, lfo: { ...defaultLfo() }, env: { a:0.4, d:0.8, s:0.0, r:0.5 } },                          // mod-env
+    ],
+    routes: [
+      { source: 0, targetParamId: tgt('wvt','PS1').id, depth: 0.5, bipolar: true },   // LFO1 → wavetable Pos
+      { source: 1, targetParamId: PITCH_WVT, depth: 0.03, bipolar: true },            // LFO2 → vibrato (see below)
+      { source: 2, targetParamId: tgt('wvt','RVM').id, depth: 0.6, bipolar: false },  // mod-env → reverb mix
+    ],
+  } },
+],
+```
+- **Slot layout is FIXED:** `sources[0]` & `[1]` are the LFOs, `sources[2]` is the envelope. Always
+  provide all three (`normalizeInstMod` forces the kinds by position). Easiest: import `defaultInstMod()`
+  from `tracker/instmod.ts` and mutate the slots you want.
+- **`kind:'env'`** is a dedicated mod-envelope (its own A/D/S/R, 0..1), note-gated — it always
+  retriggers and releases per voice (the `retrigger` flag is ignored for env). It is NOT the engine's
+  amp envelope.
+- **`retrigger`** (LFOs only): `true` = phase restarts at each note-on (per-patch feel); `false` =
+  free-runs on song time like the global LFOs.
+- **Vibrato:** route to the engine's **Pitch** target. There's one per pitched engine (drums excluded);
+  get its id with `instModTargetsForType(type).find(t => t.pitch)!.id`. `depth` is a fraction of
+  ±12 semitones (so `depth 0.03` ≈ ±0.36 st — a gentle vibrato). Pitch is intentionally NOT a
+  `tgt(...)` automation target (it'd fight note triggers), so it's only reachable from this matrix.
+- Routes with no target / `depth 0` are inert; an instance with no wired routes renders bit-identically.
+
 ---
 
 ## 9. Order & duration

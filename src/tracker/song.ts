@@ -6,6 +6,7 @@ import { byType } from '../instruments/index.js';
 import { targetById } from './automation.js';
 import { defaultFxParams } from '../gl/effects.js';
 import { DEMO_SONGS, defaultParams, makeParams, makeFx } from './demo-songs.js';
+import { defaultInstMod, normalizeInstMod } from './instmod.js';
 import type { InstrumentInstance, InstrumentParams, InstrumentSpec, InstrumentType, SongData, SongDef } from '../types.js';
 
 // MIDI note → 808 drum slot (GM-ish drum map). The 808 shader reads the slot
@@ -44,6 +45,7 @@ export function instrumentsFromParams(
       };
       if (pr.ops) e.ops = pr.ops.map((o) => ({ ...o }));
       if (pr.fxOrder) e.fxOrder = [...pr.fxOrder];     // per-instance chain order (saved songs)
+      e.mod = pr.mod ? normalizeInstMod(pr.mod) : defaultInstMod();   // per-instance mod matrix
       if (pr.sample) e.sample = cloneSample(pr.sample);   // sampler PCM/URL (saved songs + demos)
       return addExtraBanks(e, pr);
     });
@@ -51,7 +53,7 @@ export function instrumentsFromParams(
   return INSTRUMENTS.map((type, i) => {
     const pr = params[type];
     if (!pr) throw new Error(`Song params missing engine type "${type}"`);
-    const e: InstrumentInstance = { name: byType(type)?.name ?? type.toUpperCase(), type, color: INSTRUMENT_COLORS[i % INSTRUMENT_COLORS.length], p0: [...pr.p0], p1: [...pr.p1], fx: defaultFxParams() };
+    const e: InstrumentInstance = { name: byType(type)?.name ?? type.toUpperCase(), type, color: INSTRUMENT_COLORS[i % INSTRUMENT_COLORS.length], p0: [...pr.p0], p1: [...pr.p1], fx: defaultFxParams(), mod: defaultInstMod() };
     if (pr.ops) e.ops = pr.ops.map((o) => ({ ...o }));
     if (pr.sample) e.sample = cloneSample(pr.sample);
     return addExtraBanks(e, pr);

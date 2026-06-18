@@ -17,7 +17,8 @@
 //     file omits, e.g. engines added in a later version).
 import { Pattern } from './pattern.js';
 import { defaultLfos, normalizeLfo, normalizeRouting, LFO_COUNT } from './lfo.js';
-import type { AutoTrack, DX7Op, FxParams, InstrumentInstance, InstrumentSpec, LfoConfig, ModRouting } from '../types.js';
+import { cloneInstMod, instModHasContent } from './instmod.js';
+import type { AutoTrack, DX7Op, FxParams, InstrumentInstance, InstrumentMod, InstrumentSpec, LfoConfig, ModRouting } from '../types.js';
 
 export const SONG_FORMAT = 'shaderwave-song';
 export const SONG_FORMAT_VERSION = 1;   // reset: single current schema (unreleased; no legacy saves)
@@ -54,6 +55,7 @@ export interface SerializedInstrument {
   };
   fx?: FxParams;          // v2+: this instance's own effect chain
   fxOrder?: string[];     // optional per-instance chain order (absent → default)
+  mod?: InstrumentMod;    // optional per-instance mod matrix (omitted when it has no wired routes)
 }
 
 export interface SerializedSong {
@@ -156,6 +158,7 @@ export function serializeSong(s: SongIOInput): SerializedSong {
         ...(sample ? { sample } : {}),
         fx: { ...i.fx },                     // v2+: per-instance effect chain
         ...(i.fxOrder ? { fxOrder: [...i.fxOrder] } : {}),   // per-instance chain order
+        ...(instModHasContent(i.mod) ? { mod: cloneInstMod(i.mod!) } : {}),   // per-instance mod matrix (only when wired)
       };
     }),
     order: [...s.order],
