@@ -6166,21 +6166,22 @@ export const DEMO_SONGS: SongDef[] = [
     }
   },
   {
-    // Showcase for the Spectra additive engine (+ Phase-2 resynthesis): three Spectra
-    // instances — a formula choir PAD (Tilt/Stretch drifting under LFOs), an inharmonic
-    // BELL, and a kalimba RESYNTHESIS lead whose Morph breathes between the synthetic
-    // spectrum and the analyzed kalimba harmonic profile under an LFO. Ambient A-minor.
+    // Showcase for the Spectra additive engine, reworked for the 2.1 expressivity params:
+    // a "vowel" CHOIR PAD with a baked formant whose Formant-position + Shimmer sweep under
+    // LFOs (the p3 bank is now automatable), a coherent-strike Cathedral BELL (real struck
+    // attack), and a coherent kalimba RESYNTHESIS lead whose Morph breathes synth↔sampled
+    // under an LFO. Ambient A-minor.
     name: "Tantric Spectral Edging",
     author: "AI Slop",
-    note: "Spectra additive engine + Phase-2 resynthesis showcase: formula choir pad + inharmonic bell + a kalimba-resynthesis lead morphing under an LFO. Prompt: \"Phase 2 and then demo.\"",
+    note: "Spectra showcase, reworked for the 2.1 expressivity params: a formant 'vowel' choir pad whose Formant + Shimmer sweep under LFOs (now that the p3 bank is automatable), a coherent-strike cathedral bell, and a coherent kalimba-resynthesis lead morphing synth↔sampled. Ambient A-minor. Prompts: \"Phase 2 and then demo.\" / \"Can we do what it takes to make p3 automatable? And redo Tantric Spectral Edging to use the new hotness?\"",
     bpm: 84,
     master: DEFAULT_MASTER * 0.55,
     params: [
       { name: "Soft Kit",        type: "808",  p0: [0, 0.5, 0.5, 0.5], p1: [0, 0, 0, 0] },                                  // 0
       { name: "Sub Bass",        type: "moog", p0: [140, 0.2, 0.7, 0], p1: [2, 0.95, 0.7, 1.0], p2: [1, 1, 1, 0], p3: [1, 1, 2, 0] }, // 1
-      { name: "Choir Pad",       type: "additive", p0: [768, 0.5, 0.04, 0.0], p1: [0, 0.5, 0.5, 0.0], p2: [0.5, 1.2, 0.0, 0] },       // 2 formula pad
-      { name: "Cathedral Bell",  type: "additive", p0: [800, 0.6, 0.6, 0.0], p1: [5.0, 0.7, 0.2, 0.0], p2: [0.003, 1.5, 0.3, 0] },    // 3 inharmonic decay
-      { name: "Kalimba Resynth", type: "additive", p0: [512, 0.55, 0.0, 0.45], p1: [1.8, 0.6, 0.15, 0.0], p2: [0.005, 0.8, 0.0, 0], sample: smp("Kalimba", "kalimba", 60) }, // 4 RESYNTH (Morph base 0.45)
+      { name: "Choir Pad",       type: "additive", p0: [768, 0.5, 0.04, 0.0], p1: [0, 0.5, 0.5, 0.0], p2: [0.5, 1.2, 0.0, 0.2], p3: [0.45, 0.4, 1.1, 0.6] }, // 2 vowel choir: soft attack, formant + shimmer base (both swept by LFOs)
+      { name: "Cathedral Bell",  type: "additive", p0: [800, 0.6, 0.6, 0.0], p1: [5.0, 0.7, 0.2, 0.0], p2: [0.003, 1.5, 0.3, 0.9], p3: [0.0, 0.0, 0.0, 0.5] }, // 3 coherent struck bell (defined attack)
+      { name: "Kalimba Resynth", type: "additive", p0: [512, 0.55, 0.0, 0.45], p1: [1.8, 0.6, 0.15, 0.0], p2: [0.005, 0.8, 0.0, 0.85], p3: [0.12, 0.0, 0.0, 0.5], sample: smp("Kalimba", "kalimba", 60) }, // 4 coherent pluck RESYNTH (Morph base 0.45)
     ],
     fxParams: {
       '808':      Object.assign(defaultFxParams(), { delayOn: false, reverbOn: true, reverbMix: 0.15, master: 0.8 }),
@@ -6249,7 +6250,7 @@ export const DEMO_SONGS: SongDef[] = [
       };
       [p0, p1, p2, p3, p4].forEach(killHang);
 
-      const TLT = tgt('additive', 'TLT'), STR = tgt('additive', 'STR'), MOR = tgt('additive', 'MOR');
+      const TLT = tgt('additive', 'TLT'), MOR = tgt('additive', 'MOR'), FMP = tgt('additive', 'FMP'), SHM = tgt('additive', 'SHM');
       return {
         // intro ×2 · build · full A/B ×2 · build · full A/B · outro  ≈ 1¾ min @ 84 BPM
         patterns: [p0, p1, p2, p3, p4],
@@ -6259,13 +6260,14 @@ export const DEMO_SONGS: SongDef[] = [
         lfos: [
           { ...defaultLfo(), shape: 0, sync: true, rateBeats: 16 },   // slow sine, 4 bars → pad Tilt
           { ...defaultLfo(), shape: 1, sync: true, rateBeats: 8 },    // triangle, 2 bars → resynth Morph
-          { ...defaultLfo(), shape: 0, sync: true, rateBeats: 12 },   // → pad Stretch (subtle)
-          { ...defaultPumpLfo() },
+          { ...defaultLfo(), shape: 0, sync: true, rateBeats: 12 },   // sine, 3 bars → pad Formant (vowel morph)
+          { ...defaultLfo(), shape: 1, sync: true, rateBeats: 24 },   // slow triangle, 6 bars → pad Shimmer depth
         ],
         modRoutings: [
-          { source: 0, targetParamId: TLT.id, targetInstIdx: I_PAD, depth: 0.35, bipolar: true },   // pad brightness sweep
-          { source: 1, targetParamId: MOR.id, targetInstIdx: I_RES, depth: 0.5,  bipolar: false },  // kalimba morphs synth↔sampled
-          { source: 2, targetParamId: STR.id, targetInstIdx: I_PAD, depth: 0.15, bipolar: false },  // pad drifts toward inharmonic
+          { source: 0, targetParamId: TLT.id, targetInstIdx: I_PAD, depth: 0.30, bipolar: true },   // pad brightness sweep (p0)
+          { source: 1, targetParamId: MOR.id, targetInstIdx: I_RES, depth: 0.5,  bipolar: false },  // kalimba morphs synth↔sampled (p0)
+          { source: 2, targetParamId: FMP.id, targetInstIdx: I_PAD, depth: 0.45, bipolar: true },   // pad formant sweeps → vowel morph (p3, now automatable)
+          { source: 3, targetParamId: SHM.id, targetInstIdx: I_PAD, depth: 0.40, bipolar: true },   // pad shimmer depth breathes (p3, now automatable)
         ],
       };
     }

@@ -114,11 +114,20 @@ monotonic `1/n^tilt` rolloff (no formants; velocity only scaled volume). Fixes, 
   (accepted, like Pipi/Gigi). Fresh `+Add` instances get default coherence 0.5 (livelier attack); the rich
   shimmer/formant character lives in the presets. Verified: build green, glsl-check ALL_OK, additive-check
   ALL_OK (NaN=0, peak tanh-bounded ~1.0 across 64→2048; one extra `mix` per partial, negligible on real GPU).
-- **KNOWN LIMITATION / follow-up:** Coherence (p2.w) + Shimmer/Formant (p3) are **knob-only, NOT automatable**.
-  Inst-scope automation only supports the p0/p1 banks — `engine._applyAutomation` (and the autoLive merge) hardcode
-  `bank==='p1' ? p1 : p0`, so a p2/p3 autoTarget would silently write to p0 and corrupt Partials/Tilt; the
-  `ParamTarget.bank` type is also `'p0'|'p1'` only. Same limitation 888State has. Automating these (esp. Formant
-  Pos for vowel morphs) needs that apply path + autoLive + the type widened to p2/p3 — a clean scoped follow-up.
+- **Coherence/Shimmer/Formant ARE automatable (done, same 2.1.0 branch).** Inst-scope automation used to support
+  only p0/p1 — `ParamTarget.bank` was typed `'p0'|'p1'` and the apply path hardcoded `bank==='p1'?p1:p0`, so a p2/p3
+  target would have silently written to p0 and corrupted Partials/Tilt. Widened to p0..p3 in FIVE places: the type
+  (`types.ts`), and in `engine.ts` the live-apply (`_applyAutomation` ~708), `applyAutomationLive` (~727), the
+  LFO apply + autoLive-base read (`_applyLfos` ~880/882), and the note-on autoLive merge in `_writeParams` (now
+  loops all 4 banks). The UI/recording/`updateInstrumentParam` paths were ALREADY bank-string-generic — no change.
+  Spectra's COH/SHM/FMP/FMA/FMW autoTargets are restored. Regression tests in `automation.test.ts` drive a real
+  Engine + additive instance and assert SHM→vd.p3 / COH→vd.p2 (and that p0 is left untouched), plus the note-on
+  merge. 888State could opt its p2/p3 in too now (not done). 59/59 logic tests green.
+- **Demo "Tantric Spectral Edging" reworked (same branch)** to exercise it all: the choir pad got a baked formant +
+  shimmer with LFOs sweeping **Formant pos (FMP)** and **Shimmer (SHM)** — both p3, the new-automatable bank — for a
+  vowel morph; the cathedral bell is now a coherent strike; the kalimba lead a coherent pluck. Its `note` keeps both
+  prompts verbatim. Verified by `npm run build` + the demo-load/target-audit logic tests (no headless render, per the
+  user's steer that the SwiftShader path hammers their laptop — they audition demos themselves).
 
 ### Theming / light theme (2026-06-17) — ✅ DONE — `reference`
 The palette is **CSS custom properties** in `index.html` `:root`; a light theme is the override

@@ -50,9 +50,11 @@ export const iadditive: InstrumentDef = {
     { code: 'DCT', label: 'DecayTilt', bank: 'p1', index: 1, min: 0, max: 1, curve: 'lin' },
     { code: 'DET', label: 'Detune',    bank: 'p1', index: 2, min: 0, max: 1, curve: 'lin' },
     { code: 'CMB', label: 'Comb',      bank: 'p1', index: 3, min: 0, max: 1, curve: 'lin' },
-    // NOTE: Coherence (p2.w) + Shimmer/Formant (p3) are knob-only — inst-scope automation
-    // currently only supports the p0/p1 banks (engine._applyAutomation hardcodes p1?p1:p0).
-    // Automating these (esp. Formant Pos for vowel morphs) needs that path widened to p2/p3.
+    { code: 'COH', label: 'Coherence', bank: 'p2', index: 3, min: 0, max: 1, curve: 'lin' },
+    { code: 'SHM', label: 'Shimmer',   bank: 'p3', index: 0, min: 0, max: 1, curve: 'lin' },
+    { code: 'FMP', label: 'Formant',   bank: 'p3', index: 1, min: 0, max: 1, curve: 'lin' },
+    { code: 'FMA', label: 'Fmt Amt',   bank: 'p3', index: 2, min: 0, max: 3, curve: 'lin' },
+    { code: 'FMW', label: 'Fmt BW',    bank: 'p3', index: 3, min: 0.1, max: 3, curve: 'lin' },
   ],
   // p2[3] = Coherence (struck/plucked voices want it high for a defined attack; pads stay low/washy);
   // p3 = [Shimmer, Formant pos, Formant amt (0 = off), Formant BW].

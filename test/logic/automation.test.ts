@@ -4,6 +4,7 @@ import { test, assert, assertEq, assertClose } from './_harness.js';
 import {
   TARGETS, targetById, targetByCode, denorm, normByte, normUnit, denormUnit,
 } from '../../src/tracker/automation.js';
+import { Engine } from '../../src/tracker/engine.js';
 
 test('target ids are contiguous and self-consistent', () => {
   for (let i = 0; i < TARGETS.length; i++) assertEq(TARGETS[i].id, i, `TARGETS[${i}].id`);
@@ -63,4 +64,34 @@ test('normByte ↔ denorm endpoints land on the rails', () => {
   const lin = targetByCode('303', 'VOL')!;
   assertEq(normByte(lin, denorm(lin, 0)), 0, 'byte 0 stable');
   assertEq(normByte(lin, denorm(lin, 255)), 255, 'byte 255 stable');
+});
+
+test('inst automation routes to the p2/p3 banks (not just p0/p1)', () => {
+  // Regression: the apply path used to hardcode `bank==='p1' ? p1 : p0`, so a p2/p3
+  // target silently wrote to p0 — corrupting Partials/Tilt. Spectra's Coherence (p2.w)
+  // and Shimmer (p3.x) must land in their own banks and leave p0 untouched.
+  const COH = targetByCode('additive', 'COH')!;   // p2 index 3
+  const SHM = targetByCode('additive', 'SHM')!;   // p3 index 0
+  assertEq(COH.bank, 'p2', 'COH bank'); assertEq(COH.index, 3, 'COH index');
+  assertEq(SHM.bank, 'p3', 'SHM bank'); assertEq(SHM.index, 0, 'SHM index');
+
+  const eng = new Engine(48000);
+  const inst = eng.addInstrument('additive');
+  const ch = 0;
+  eng.applyAutomationLive(SHM, inst, ch, 255);
+  eng.applyAutomationLive(COH, inst, ch, 255);
+  assertClose(eng.vd.p3[ch * 4 + 0], denorm(SHM, 255), 1e-6, 'SHM → vd.p3[0]');
+  assertClose(eng.vd.p2[ch * 4 + 3], denorm(COH, 255), 1e-6, 'COH → vd.p2[3]');
+  assertEq(eng.vd.p0[ch * 4 + 0], 0, 'p0[0] (Partials) left untouched');
+});
+
+test('p2/p3 inst automation is snapshotted onto a freshly-triggered voice', () => {
+  // autoLive carries an inst-scope override onto the NEXT note of that instance
+  // (_writeParams merge). Must cover p2/p3, not just p0/p1.
+  const SHM = targetByCode('additive', 'SHM')!;
+  const eng = new Engine(48000);
+  const inst = eng.addInstrument('additive');
+  eng.applyAutomationLive(SHM, inst, 0, 255);                 // sets autoLive[`inst:p3:0`]
+  eng._writeParams(1, eng.instruments[inst], inst, null);     // a new voice on another channel
+  assertClose(eng.vd.p3[1 * 4 + 0], denorm(SHM, 255), 1e-6, 'p3 autoLive merged on note-on');
 });

@@ -81,7 +81,7 @@ export type ParamCurve = 'log' | 'lin' | 'enum';
 export type ParamScope = 'inst' | 'fx' | 'chan' | 'global';
 
 // One automatable parameter. `scope` selects which fields are meaningful:
-//   inst → bank + index (into p0/p1) and a concrete engine `type`
+//   inst → bank + index (into p0/p1/p2/p3) and a concrete engine `type`
 //   fx   → key (a FxParams field), type '*'
 //   chan → key (a per-channel mix param, e.g. pan), type '*'
 export interface ParamTarget {
@@ -94,7 +94,7 @@ export interface ParamTarget {
   scope: ParamScope;
   type: InstrumentType | '*';
   unit?: string;
-  bank?: 'p0' | 'p1';
+  bank?: 'p0' | 'p1' | 'p2' | 'p3';
   index?: number;
   key?: string;
   toggle?: boolean;   // fx on/off "stomp box": byte 0 = off, anything else = on (written as a bool)
