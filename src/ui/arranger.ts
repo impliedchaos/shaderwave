@@ -50,7 +50,7 @@ export function renderArranger(app: App) {
 
       const upBtn = document.createElement('button');
       upBtn.className = 'arranger-btn';
-      upBtn.textContent = '▲';
+      upBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 4 4 20 20 20"></polygon></svg>';
       upBtn.disabled = i === 0;
       upBtn.onclick = (e) => {
         e.stopPropagation();
@@ -66,7 +66,7 @@ export function renderArranger(app: App) {
 
       const downBtn = document.createElement('button');
       downBtn.className = 'arranger-btn';
-      downBtn.textContent = '▼';
+      downBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="12 20 4 4 20 4"></polygon></svg>';
       downBtn.disabled = i === song.order.length - 1;
       downBtn.onclick = (e) => {
         e.stopPropagation();
@@ -83,7 +83,7 @@ export function renderArranger(app: App) {
       if (song.order.length > 1) {
         const rmBtn = document.createElement('button');
         rmBtn.className = 'arranger-btn danger';
-        rmBtn.textContent = '✖';
+        rmBtn.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>';
         rmBtn.onclick = (e) => {
           e.stopPropagation();
           song.order.splice(i, 1);

@@ -135,6 +135,9 @@ export class TrackerView {
     const r = this.canvas.getBoundingClientRect();
     const x = e.clientX - r.left, y = e.clientY - r.top;
     const p = this.pattern;
+    const scrollX = this.canvas.parentElement?.scrollLeft || 0;
+
+    if (x < scrollX + NUM_W) return;
 
     // Header: the pan-slider strip drags pan; elsewhere toggles mute.
     if (y >= 0 && y < this._topPad()) {
@@ -290,7 +293,15 @@ export class TrackerView {
   }
 
   draw() {
-    const ctx = this.ctx, dpr = this.dpr, p = this.pattern, cw = this.chW;
+    const p = this.pattern;
+    const reqW = NUM_W + p.channels * this.chW + p.autoTracks.length * AUTO_W;
+    const minWStr = `${reqW}px`;
+    if (this.canvas.style.minWidth !== minWStr) {
+      this.canvas.style.minWidth = minWStr;
+      this._resize();
+    }
+
+    const ctx = this.ctx, dpr = this.dpr, cw = this.chW;
     ctx.save();
     ctx.scale(dpr, dpr);
     const W = this.canvas.width / dpr, H = this.canvas.height / dpr;
@@ -569,10 +580,6 @@ export class TrackerView {
       if (row >= p.rows) break;
       const y = pad + i * ROW_H;
 
-      // Row number
-      ctx.fillStyle = C('--dim');
-      ctx.fillText(String(row).padStart(2, '0'), 8, y + ROW_H / 2);
-
       for (let ch = 0; ch < p.channels; ch++) {
         const x = NUM_W + ch * cw;
         const noteX = x + COL_X[0] + COL_TEXT_PAD[0];
@@ -665,6 +672,78 @@ export class TrackerView {
         ctx.textAlign = 'left';
       }
     }
+
+    const scrollX = this.canvas.parentElement?.scrollLeft || 0;
+    
+    // Clear the background for the numbers column
+    ctx.fillStyle = C('--bg');
+    ctx.fillRect(scrollX, pad, NUM_W, H - pad);
+    
+    // Re-draw row backgrounds for the numbers column
+    for (let i = 0; i < viewRows; i++) {
+      const row = first + i;
+      if (row >= p.rows) break;
+      const y = pad + i * ROW_H;
+      if (row === playRow) {
+        ctx.fillStyle = C('--playhead');
+        ctx.fillRect(scrollX, y, NUM_W, ROW_H);
+        ctx.strokeStyle = C('--playhead-border');
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(scrollX, y); ctx.lineTo(scrollX + NUM_W, y);
+        ctx.moveTo(scrollX, y + ROW_H); ctx.lineTo(scrollX + NUM_W, y + ROW_H);
+        ctx.stroke();
+      } else if (row % this.engine.rowsPerBeat === 0) {
+        ctx.fillStyle = C('--row-beat');
+        ctx.fillRect(scrollX, y, NUM_W, ROW_H);
+      }
+    }
+
+    // Horizontal grid lines
+    ctx.strokeStyle = C('--grid-line');
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    for (let i = 0; i <= viewRows; i++) {
+      const row = first + i;
+      if (row > p.rows) break;
+      const y = pad + i * ROW_H;
+      ctx.moveTo(scrollX, y);
+      ctx.lineTo(scrollX + NUM_W, y);
+    }
+    ctx.stroke();
+
+    // Vertical divider
+    ctx.strokeStyle = C('--grid-line-strong');
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(scrollX + NUM_W, pad);
+    ctx.lineTo(scrollX + NUM_W, H);
+    ctx.stroke();
+
+    // Row numbers
+    ctx.font = '14px "JetBrains Mono", "Fira Code", monospace';
+    ctx.fillStyle = C('--dim');
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    for (let i = 0; i < viewRows; i++) {
+      const row = first + i;
+      if (row >= p.rows) break;
+      const y = pad + i * ROW_H;
+      ctx.fillText(String(row).padStart(2, '0'), scrollX + 8, y + ROW_H / 2);
+    }
+    
+    // Top-left header block
+    ctx.fillStyle = C('--panel-solid');
+    ctx.fillRect(scrollX, 0, NUM_W, pad);
+    ctx.strokeStyle = C('--grid-line-strong');
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(scrollX, pad);
+    ctx.lineTo(scrollX + NUM_W, pad);
+    ctx.moveTo(scrollX + NUM_W, 0);
+    ctx.lineTo(scrollX + NUM_W, pad);
+    ctx.stroke();
+
     ctx.restore();
   }
 }

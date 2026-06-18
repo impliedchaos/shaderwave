@@ -36,6 +36,10 @@ export function buildLfoUI(app: App) {
   host.innerHTML = '';
 
   // ── LFO SOURCE panels (waveform generators; no target — see the matrix below) ──
+  const sourcesContainer = document.createElement('div');
+  sourcesContainer.className = 'lfo-sources';
+  host.appendChild(sourcesContainer);
+
   eng.lfos.forEach((cfg, i) => {
     const panel = document.createElement('div');
     panel.className = 'lfo-panel';
@@ -50,7 +54,7 @@ export function buildLfoUI(app: App) {
       <label class="lfo-row" data-when="free">Hz <input type="range" data-k="hz" min="0.05" max="20" step="0.05"><span data-k="hzv" class="lfo-val"></span></label>
       <label class="lfo-row" data-when="wt">Bank <select data-k="wtbank">${bankOpts}</select></label>
       <label class="lfo-row" data-when="wt">Pos <input type="range" data-k="wtpos" min="0" max="1" step="0.01"><span data-k="wtposv" class="lfo-val"></span></label>`;
-    host.appendChild(panel);
+    sourcesContainer.appendChild(panel);
 
     const shape = q<HTMLSelectElement>(panel, 'shape');
     const sync = q<HTMLInputElement>(panel, 'sync');
