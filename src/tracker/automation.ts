@@ -145,18 +145,6 @@ const FX_VOC_TARGETS: RawTarget[] = [
 ];
 for (const t of FX_VOC_TARGETS) TARGETS.push({ ...t, scope: 'fx', type: '*', id: TARGETS.length });
 
-// Pitch modulation targets — one per PITCHED engine (drum/pitchless excluded).
-// inst-scope but handled specially in Engine._applyInstMod (these modulate the
-// voice frequency for vibrato, not a param bank). Appended at the very END so ids
-// stay stable. Routed ONLY from the per-instrument mod matrix; deliberately kept
-// out of the automation picker + global-LFO dropdown (targetsForType excludes
-// them via `t.pitch`) — pitch automation would fight note triggers.
-for (const type of autoTypes) {
-  const def = byType(type);
-  if (!def || def.drum || def.pitchless) continue;
-  TARGETS.push({ code: 'PCH', label: 'Pitch', min: -12, max: 12, curve: 'lin', unit: 'st', scope: 'inst', type, id: TARGETS.length, pitch: true });
-}
-
 // Distortion Tone + Level fx targets — appended at the very end (id-stable). The
 // distortion drive (`dist`/DRV) has always been targetable, but its `tone`/`level`
 // were never exposed, so they were missing from automation AND both LFO matrices.
@@ -185,6 +173,20 @@ const FX_MISC_TARGETS: RawTarget[] = [
   { code: 'FMD', label: 'Filter Mode',   key: 'filterMode',  min: 0,    max: 2,    curve: 'enum' },
 ];
 for (const t of FX_MISC_TARGETS) TARGETS.push({ ...t, scope: 'fx', type: '*', id: TARGETS.length });
+
+// Pitch modulation targets — one per PITCHED engine (drum/pitchless excluded).
+// inst-scope but handled specially in Engine._applyInstMod (these modulate the
+// voice frequency for vibrato, not a param bank). Kept LAST: they're a per-engine
+// dynamic block, so their ids can shift as engines are (de)registered — fine,
+// since ONLY the per-instrument mod matrix references them (a 2.5.0 addition) and
+// no static fx/inst id depends on them. Deliberately kept out of the automation
+// picker + global-LFO dropdown (targetsForType excludes them via `t.pitch`) —
+// pitch automation would fight note triggers.
+for (const type of autoTypes) {
+  const def = byType(type);
+  if (!def || def.drum || def.pitchless) continue;
+  TARGETS.push({ code: 'PCH', label: 'Pitch', min: -12, max: 12, curve: 'lin', unit: 'st', scope: 'inst', type, id: TARGETS.length, pitch: true });
+}
 
 export function targetById(id: number): ParamTarget | null {
   return (id >= 0 && id < TARGETS.length) ? TARGETS[id] : null;
