@@ -33,7 +33,7 @@ export function defaultLfos(): LfoConfig[] {
   return arr;
 }
 export function defaultRouting(): ModRouting {
-  return { source: 0, targetParamId: -1, targetInstIdx: null, depth: 0, bipolar: true };
+  return { source: 0, targetParamId: -1, targetInstIdx: null, depth: 0, bipolar: true, invert: false };
 }
 
 // Coerce a possibly-partial/legacy record into a complete config (used by song
@@ -59,6 +59,7 @@ export function normalizeRouting(raw: Partial<ModRouting> | undefined): ModRouti
     targetInstIdx: raw.targetInstIdx ?? d.targetInstIdx,
     depth: raw.depth ?? d.depth,
     bipolar: raw.bipolar ?? d.bipolar,
+    invert: raw.invert ?? d.invert,
   };
 }
 

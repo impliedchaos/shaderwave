@@ -75,6 +75,7 @@ export function normalizeInstMod(raw: Partial<InstrumentMod> | undefined): Instr
       targetParamId: r?.targetParamId ?? -1,
       depth: r?.depth ?? 0,
       bipolar: r?.bipolar ?? true,
+      invert: r?.invert ?? false,
     }));
   return base;
 }

@@ -202,6 +202,7 @@ export interface ModRouting {
   targetInstIdx: number | null;  // instrument instance (inst/fx) or channel (chan); null otherwise
   depth: number;                 // 0..1 swing in normalized units
   bipolar: boolean;              // ±depth around center vs 0..+depth
+  invert?: boolean;              // negate the offset (one source can push two targets in opposite directions)
 }
 
 // ── Per-instrument modulation matrix ────────────────────────────────────────
@@ -238,6 +239,7 @@ export interface ModRoute {
   targetParamId: number;   // -1 inactive; else a ParamTarget id (inst / fx / pitch)
   depth: number;           // 0..1 swing in normalized units (pitch: × the target's max semitones)
   bipolar: boolean;        // lfo: ±depth vs 0..+depth · env: around centre vs 0..+depth
+  invert?: boolean;        // negate the offset (one source can push two targets in opposite directions)
 }
 
 export interface InstrumentMod {

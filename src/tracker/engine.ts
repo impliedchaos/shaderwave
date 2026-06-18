@@ -893,7 +893,8 @@ export class Engine {
         ? this._songBeats / Math.max(1e-3, src.rateBeats)
         : songSec / lfoPeriodSec(src, this.bpm);
       const cycle = Math.floor(cyclePos);
-      const offset = lfoOffset(src, r.depth, r.bipolar, cyclePos - cycle, cycle);
+      const rawOffset = lfoOffset(src, r.depth, r.bipolar, cyclePos - cycle, cycle);
+      const offset = r.invert ? -rawOffset : rawOffset;   // invert → one source drives two targets opposite ways
 
       if (t.scope === 'global') {
         if (t.code === 'BPM') continue;            // excluded → keeps export length exact
@@ -955,7 +956,8 @@ export class Engine {
       const t = (blockStart - vc.onFrame) / this.sampleRate;
       const tRel = vc.offFrame === HELD ? -1 : (blockStart - vc.offFrame) / this.sampleRate;
       const e = modEnvValue(src.env, t, tRel);
-      return r.bipolar ? r.depth * (2 * e - 1) : r.depth * e;
+      const off = r.bipolar ? r.depth * (2 * e - 1) : r.depth * e;
+      return r.invert ? -off : off;
     }
     // LFO: per-voice phase when retriggered, else the shared song clock.
     let sec = songSec, beats = songBeats;
@@ -966,7 +968,8 @@ export class Engine {
     const cfg = src.lfo;
     const cyclePos = cfg.sync ? beats / Math.max(1e-3, cfg.rateBeats) : sec / lfoPeriodSec(cfg, this.bpm);
     const cycle = Math.floor(cyclePos);
-    return lfoOffset(cfg, r.depth, r.bipolar, cyclePos - cycle, cycle);
+    const off = lfoOffset(cfg, r.depth, r.bipolar, cyclePos - cycle, cycle);
+    return r.invert ? -off : off;
   }
 
   // Apply each instrument INSTANCE's own modulation matrix, once per block, in the

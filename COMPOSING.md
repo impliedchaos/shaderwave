@@ -280,7 +280,9 @@ return {
   Level/amp) to sidechain them to the beat; leave the kick/drum unrouted so it punches through. It
   always ducks down regardless of the routing's `bipolar` flag. `rateBeats: 1` = one duck per beat.
 - Routing fields: `source` (index into `lfos`, 0–3), `targetParamId` (a `tgt(...).id`), `targetInstIdx`
-  (instrument index for inst/fx, channel for chan/PAN, `null` for global), `depth` 0..1, `bipolar`.
+  (instrument index for inst/fx, channel for chan/PAN, `null` for global), `depth` 0..1, `bipolar`,
+  `invert` (optional — negates the offset; route ONE source to two targets, invert one, and they move
+  in opposite directions: e.g. cutoff up while reverb mix down).
 - BPM is excluded as an LFO target (keeps export length exact).
 
 ### 8.1 Per-instrument mod matrix (LFOs + envelope, incl. vibrato)
@@ -320,6 +322,8 @@ params: [
   get its id with `instModTargetsForType(type).find(t => t.pitch)!.id`. `depth` is a fraction of
   ±12 semitones (so `depth 0.03` ≈ ±0.36 st — a gentle vibrato). Pitch is intentionally NOT a
   `tgt(...)` automation target (it'd fight note triggers), so it's only reachable from this matrix.
+- Route fields: `source` (0–2), `targetParamId`, `depth` 0..1, `bipolar`, `invert` (optional — negates
+  the offset; route one source to two targets and invert one for opposite motion).
 - Routes with no target / `depth 0` are inert; an instance with no wired routes renders bit-identically.
 
 ---

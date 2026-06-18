@@ -108,24 +108,28 @@ export function buildLfoUI(app: App) {
       <select data-k="src" title="LFO source">${srcOpts}</select>
       <select data-k="tgt" title="target">${tgtOpts}</select>
       <input type="range" data-k="depth" min="0" max="1" step="0.01" title="depth">
-      <label class="lfo-bip" title="bipolar"><input type="checkbox" data-k="bip"> ±</label>
+      <label class="lfo-bip" title="bipolar (±swing vs one-sided)"><input type="checkbox" data-k="bip"> ±</label>
+      <label class="lfo-bip" title="invert (flip the sign — pair with another routing for opposite motion)"><input type="checkbox" data-k="inv"> ∓</label>
       <button data-k="del" title="remove routing">✕</button>`;
     matrix.appendChild(row);
     const src = q<HTMLSelectElement>(row, 'src');
     const tgt = q<HTMLSelectElement>(row, 'tgt');
     const depth = q<HTMLInputElement>(row, 'depth');
     const bip = q<HTMLInputElement>(row, 'bip');
+    const inv = q<HTMLInputElement>(row, 'inv');
     const del = q<HTMLButtonElement>(row, 'del');
     src.value = String(Math.min(r.source, eng.lfos.length - 1));
     const ti = opts.findIndex((o) => o.paramId === r.targetParamId && o.instIdx === r.targetInstIdx);
     tgt.value = String(ti >= 0 ? ti : 0);
     depth.value = String(r.depth);
     bip.checked = r.bipolar;
+    inv.checked = !!r.invert;
     src.onchange = () => { r.source = +src.value; app.markDirty('lfo'); };
     tgt.onchange = () => { const o = opts[+tgt.value]; r.targetParamId = o.paramId; r.targetInstIdx = o.instIdx; app.markDirty('lfo'); };
     depth.oninput = () => { r.depth = +depth.value; };
     depth.onchange = () => app.markDirty('lfo');      // commit (drag end) → one undo step
     bip.onchange = () => { r.bipolar = bip.checked; app.markDirty('lfo'); };
+    inv.onchange = () => { r.invert = inv.checked; app.markDirty('lfo'); };
     del.onclick = () => { eng.modRoutings.splice(ri, 1); app.markDirty('lfo'); buildLfoUI(app); };
   });
 

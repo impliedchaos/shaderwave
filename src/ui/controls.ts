@@ -868,27 +868,31 @@ export class Controls {
         <select data-k="src" title="source">${srcOpts}</select>
         <select data-k="tgt" title="destination">${tgtOpts}</select>
         <input type="range" data-k="depth" min="0" max="1" step="0.01" title="depth">
-        <label class="mod-bip" title="bipolar"><input type="checkbox" data-k="bip"> ±</label>
+        <label class="mod-bip" title="bipolar (±swing vs one-sided)"><input type="checkbox" data-k="bip"> ±</label>
+        <label class="mod-bip" title="invert (flip the sign — pair with another route for opposite motion)"><input type="checkbox" data-k="inv"> ∓</label>
         <button data-k="del" title="remove route">✕</button>`;
       matrix.appendChild(row);
       const srcSel = q<HTMLSelectElement>(row, 'src');
       const tgt = q<HTMLSelectElement>(row, 'tgt');
       const depth = q<HTMLInputElement>(row, 'depth');
       const bip = q<HTMLInputElement>(row, 'bip');
+      const inv = q<HTMLInputElement>(row, 'inv');
       srcSel.value = String(Math.min(r.source, mod.sources.length - 1));
       tgt.value = String(r.targetParamId);
       depth.value = String(r.depth);
       bip.checked = r.bipolar;
+      inv.checked = !!r.invert;
       srcSel.onchange = () => { r.source = +srcSel.value; dirty(); };
       tgt.onchange = () => { r.targetParamId = +tgt.value; dirty(); };
       depth.oninput = () => { r.depth = +depth.value; };
       depth.onchange = dirty;
       bip.onchange = () => { r.bipolar = bip.checked; dirty(); };
+      inv.onchange = () => { r.invert = inv.checked; dirty(); };
       q<HTMLButtonElement>(row, 'del').onclick = () => { mod.routes.splice(ri, 1); dirty(); this._buildParams(); };
     });
     const add = q<HTMLButtonElement>(matrix, 'add');
     if (add) add.onclick = () => {
-      const r: ModRoute = { source: 0, targetParamId: -1, depth: 0.3, bipolar: true };
+      const r: ModRoute = { source: 0, targetParamId: -1, depth: 0.3, bipolar: true, invert: false };
       mod.routes.push(r); dirty(); this._buildParams();
     };
     wrap.appendChild(matrix);
