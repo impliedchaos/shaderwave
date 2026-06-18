@@ -169,6 +169,23 @@ const FX_DIST_TARGETS: RawTarget[] = [
 ];
 for (const t of FX_DIST_TARGETS) TARGETS.push({ ...t, scope: 'fx', type: '*', id: TARGETS.length });
 
+// Remaining continuous fx params that had no target — appended at the very end
+// (id-stable). Fills the gaps surfaced by the FxParams-vs-targets audit: tremolo
+// had NO continuous target at all (only its on/off), chorus only had Mix, reverb
+// only Mix+Decay, delay only Mix+Feedback. Ranges mirror the fx-panel sliders.
+// (compSource/vocSource stay OUT — discrete instance indices, not continuous.)
+const FX_MISC_TARGETS: RawTarget[] = [
+  { code: 'DLT', label: 'Delay Time',    key: 'delayTime',   min: 0.02, max: 1.2,  curve: 'lin', unit: 's' },
+  { code: 'RVP', label: 'Reverb Damp',   key: 'reverbDamp',  min: 0,    max: 0.95, curve: 'lin' },
+  { code: 'RVS', label: 'Reverb Send',   key: 'reverbSend',  min: 0,    max: 1,    curve: 'lin' },
+  { code: 'CHR', label: 'Chorus Rate',   key: 'chorusRate',  min: 0.1,  max: 5,    curve: 'lin', unit: 'Hz' },
+  { code: 'CHD', label: 'Chorus Depth',  key: 'chorusDepth', min: 0.5,  max: 5,    curve: 'lin' },
+  { code: 'TRM', label: 'Tremolo Mix',   key: 'tremoloMix',  min: 0,    max: 1,    curve: 'lin' },
+  { code: 'TRR', label: 'Tremolo Rate',  key: 'tremoloRate', min: 0.5,  max: 15,   curve: 'lin', unit: 'Hz' },
+  { code: 'FMD', label: 'Filter Mode',   key: 'filterMode',  min: 0,    max: 2,    curve: 'enum' },
+];
+for (const t of FX_MISC_TARGETS) TARGETS.push({ ...t, scope: 'fx', type: '*', id: TARGETS.length });
+
 export function targetById(id: number): ParamTarget | null {
   return (id >= 0 && id < TARGETS.length) ? TARGETS[id] : null;
 }
