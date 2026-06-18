@@ -58,6 +58,12 @@ interface InstRender {
   phase2Read: WebGLTexture;
   phase2Write: WebGLTexture;
   fbo: WebGLFramebuffer | null;
+  // True once this engine has rendered a block with an active voice since the last
+  // resetState. Recursive engines (303/moog) carry filter state across blocks, so once
+  // touched they must keep rendering even when momentarily idle to preserve the exact
+  // decay (bit-identical); until touched their state is the reset-zero, so an idle block
+  // is safe to skip. Closed-form engines are stateless → always skippable when idle.
+  touched?: boolean;
   // Additive (Spectra) only: the log-reduce program + the tile texture the synth pass
   // writes + two ping-pong scratch textures the reduction halves through.
   reduceProg?: GLProgram;
@@ -70,6 +76,8 @@ export class SynthRenderer {
   gl: WebGL2RenderingContext;
   sampleRate: number;
   subBlock: number;
+  skipIdleEngines: boolean;     // skip the synth pass for engine types with no active voice
+  _typeActive: Uint8Array;      // scratch: which engine types have an active voice this block
   inst: InstRender[];
   instFx: EffectsChain[];               // lazily-built effects chain per instrument INSTANCE
   instFxParams: FxParams[];             // per-instance fx params (set by the app)
@@ -110,8 +118,16 @@ export class SynthRenderer {
     this.gl = gl;
     this.sampleRate = sampleRate;
     // Strip width for the recursive ladder (303/Moog). Smaller = fewer filter
-    // recomputes but more draw calls; BLOCK = the old single-pass behaviour.
-    this.subBlock = 64;
+    // recomputes but more draw calls; BLOCK = the old single-pass behaviour. Tuned to
+    // 256 via test/perf-check.html: in a low-jitter sweep both 303 and Moog bottomed out
+    // at sub=256 (2 strips) — fewer draw calls wins until sub=512 (1 strip), where the
+    // O(BLOCK²) recompute dominates and it regresses. Bit-identical at every width (the
+    // strip render is exact regardless), so this is a pure perf knob.
+    this.subBlock = 256;
+    // Skip the synth pass for engine types with no active voice this block (most of the
+    // 13 registered engines go unused by any given song). Bit-identical — see the loop
+    // in _renderToMix. Toggleable so the perf harness can A/B it.
+    this.skipIdleEngines = true;
 
     this.inst = REGISTRY.map((def, id) => {
       const name = def.type;
@@ -128,6 +144,7 @@ export class SynthRenderer {
         fbo: gl.createFramebuffer(),
       };
     });
+    this._typeActive = new Uint8Array(this.inst.length);
 
     // Per-CHANNEL effect chains (channel == voice). Each voice routes through its
     // own insert chain with its own reverb/delay state — the params for each are
@@ -354,7 +371,7 @@ export class SynthRenderer {
       gl.clear(gl.COLOR_BUFFER_BIT);
       gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, it.phase2Write, 0);
       gl.clear(gl.COLOR_BUFFER_BIT);
-
+      it.touched = false;   // state textures are zero again → idle-skip is safe until re-touched
     }
     for (const fx of this.instFx) if (fx) fx.reset();
     gl.deleteFramebuffer(fbo);
@@ -417,7 +434,22 @@ export class SynthRenderer {
     //    (state at the strip edge = the prior strip's last column). That turns the
     //    per-block cost from O(BLOCK^2) into O(BLOCK*SUB) with identical output.
     //    Closed-form engines (dx7, 808) need no recursion → one full-width pass.
+    // Which engine TYPES have an active voice this block (type index == registry id).
+    // An engine with none can skip its synth pass: the mix only ever reads an engine's
+    // audio with the gains of the voices that PLAY it (zero for inactive voices), so a
+    // stale/zero texture can't leak into the output. Closed-form engines are stateless,
+    // so skipping is bit-identical; recursive engines (303/moog) carry filter state
+    // across blocks, so we only skip them while still UNTOUCHED (state == the reset
+    // zero). Once a recursive engine has played a note we keep rendering it even when
+    // idle, so its cross-block decay stays exactly as before (bit-identical).
+    const typeActive = this._typeActive;
+    typeActive.fill(0);
+    for (let v = 0; v < VOICES; v++) if (vd.active[v]) typeActive[vd.inst[v]] = 1;
+
     for (const it of this.inst) {
+      const activeType = typeActive[it.id] === 1;
+      if (activeType) it.touched = true;
+      else if (this.skipIdleEngines && (!it.def.recursive || !it.touched)) continue;
       // Additive (Spectra) is multi-pass (tile-synth → log-reduce) — its own path.
       if (it.def.additive) { this._renderAdditive(it, vd, blockStart); continue; }
       gl.useProgram(it.prog);

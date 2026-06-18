@@ -47,6 +47,26 @@ to audition songs themselves in their own browser.
 
 ## Historic Failures & Warnings
 
+### Arpeggio NaN on a mid-block note trigger — ✅ FIXED (2026-06-18) — `project`
+Symptom (demo "Slide Into My Pitches", P0 piano): the arp note at row 0 played fine, the
+arp note at row 16 was a permanent click, repeating every loop. Root cause in
+`engine._modulateVoices`: a sample-accurate note-on lands `fxStart > blockStart` for any
+row NOT aligned to a 512-frame boundary (row 0 at frame 0 is the lone exception → why the
+first note alone was clean). Seconds-since-effect-start `t = (blockStart - fxStart)/SR`
+then went NEGATIVE, and the arpeggio evaluated `steps[Math.floor(t/FX_ARP_SEC) % 3]` with
+`floor(neg) % 3 == -1` → `steps[-1] === undefined` → `Math.pow(2, NaN)` → NaN freq. The NaN
+flowed into `vc.freqPrev` and then the `phaseOff` accumulator (`_accumPhaseOff`), so EVERY
+subsequent block of that note rendered NaN = a stuck click. **Fix:** clamp at zero —
+`t = Math.max(0, (blockStart - vc.fxStart)/SR)` (no modulation applies before the effect
+starts; bit-identical for the normal `fxStart <= blockStart` case). This was a GENERAL bug
+for arpeggio (and the milder wrong-first-block phase for vibrato) on ANY mid-block-triggered
+note, not specific to pipi or that song. Regression test: `test/logic/arp-trigger.test.ts`
+(drives real `engine.advance`, asserts freq/phaseOff stay finite for arp+vibrato notes that
+trigger mid-block; verified it fails on the pre-fix form — the probe showed 798 NaN blocks).
+**Debugging method that nailed it fast:** drive the Engine headlessly under node (esbuild
+bundle) and dump per-block `vd.freq`/`vd.phaseOff`/`vd.onRel` for the voice — no GPU needed,
+the NaN originates in the tracker layer. 62/62 logic tests green.
+
 ### Vocoder Implementation Disaster (2026-06-09) — SUPERSEDED by the working build (1.22.0)
 **A working vocoder shipped 2026-06-15** (see "Vocoder — DONE" under Current work). This entry is kept
 only as a record of the four failure modes a GPU vocoder hits, each of which the working build designs
@@ -65,6 +85,67 @@ An attempt to implement a WebGL 16-band Vocoder effect was completely abandoned 
 **CRITICAL REMINDER:** If the user ever asks a Gemini model to do deep, non-UI architectural or DSP-level work on the ShaderWave engine again, strongly advise them to rethink the decision. The architecture is unforgiving, and trial-and-error state leakage or DSP math errors will immediately cripple the entire application.
 
 ## Current work
+
+### Roadmap (`ROADMAP.md`) + Phase 0 real-GPU perf measured (2026-06-18) — `project`
+The repo now has a `ROADMAP.md` (flexible, dependency-ordered): Phase 0 real-GPU perf
+harness → Phase 1 instrument editor → Phase 2 Spectra resynthesis → Phase 3 reach
+(compact binary save format + gist/permalink sharing; mobile dropped — mobile GPUs can't
+run this). "Solid-artifact" hardening runs as a track through all phases. Sharing decision
+recorded there: **secret GitHub Gists, written with a user-supplied fine-grained PAT**
+(reads anonymous via `raw_url`; `api.github.com` is CORS-OK so it works from static Pages),
+permalink as default. **Dead end noted:** OAuth Device Flow is CORS-blocked at GitHub's
+`github.com` token endpoints → needs a proxy = a backend; don't re-investigate.
+
+**Phase 0 DONE — `test/perf-check.html`** (NEW). Times the full render path on REAL hardware
+(the SwiftShader harnesses validate correctness, NOT speed). Method: wall-clock around the
+SYNC `renderBlock` (its blocking `readPixels` forces GPU completion) — conservative vs the
+shipped PBO-pipelined `renderBlockAsync`. **MUST run in the user's real browser** (open
+`localhost:5173/test/perf-check.html`); do NOT run headless (SwiftShader = meaningless perf
++ pegs the laptop). Per-engine + Spectra partial-sweep + FX-overhead + real-song sections,
+med/p95/max vs the 10.67 ms budget. GPU-only timer-query column came up empty on the user's
+ANGLE/Mesa Intel (returns `GPU_DISJOINT`) — wall-clock stands; that's expected, not a bug.
+
+**FINDINGS (Intel ARL / Mesa, 2026-06-18) — the GPU premise does NOT currently pay off:**
+- **Spectra's partial curve is FLAT:** 64→2048 partials at 8 voices costs 1.7→2.2 ms median.
+  32× the partial work ≈ +0.5 ms. The parallel partial-sum — the whole justification for GPU
+  audio — is invisible against fixed per-block overhead. The chip is idle even at the cap.
+- **Cost drivers are overhead + the recursive engines, NOT parallel compute.** A ~1.5 ms
+  fixed floor (readback stall + per-block uniform uploads) is hit by even the cheapest engine.
+  The **recursive ladders are the most expensive — more than 2048 partials**: 303 = 3.3 ms,
+  moog = 2.5 ms (8 strip-passes + state ping-pong/block) vs additive@2048 = 2.2 ms. The acid
+  bass costs more than the "massive additive synth."
+- **Idle-engine skip — ✅ SHIPPED, bit-identical (2026-06-18).** `_renderToMix` used to render
+  all 13 engine shaders every block regardless of active voices; now it skips an engine type
+  with zero active voices this block. Closed-form engines are stateless → skip whenever idle
+  (the mix masks their texture to 0 gain, so a stale/zero texture can't leak). Recursive engines
+  (303/moog) carry filter state → skip only while UNTOUCHED since `resetState` (state == reset
+  zero); a per-engine `touched` flag flips on first active block and then they always render so
+  the cross-block decay stays exact. Toggle `renderer.skipIdleEngines` (default true). **Verified
+  bit-identical: `maxDiff(on vs off) = 0` over 220 blocks of "Antiseptik USA" (perf-check §5).**
+  Win SCALES with how many engines a song leaves unused: huge in isolation (per-engine §1 medians
+  ~halved — 303 3.3→1.8 ms — since 12 engines skip), ~nil on engine-dense songs like Antiseptik.
+- **subBlock tuned 64 → 256 (2026-06-18).** Strip width for the recursive ladder. A low-jitter
+  perf-check §6 sweep (16–512) had BOTH 303 and Moog bottom out at **sub=256** (p95 ≈2.3/2.5 ms),
+  clearly below 128 (3.2/3.6) and 512 (3.4/3.9) — both engines agreeing = real signal. Shape:
+  fewer strips win (draw-call/state-switch overhead dominates) until sub=512 = 1 strip, where the
+  O(BLOCK²) per-fragment recompute dominates and it regresses; 256 = 2 strips is the sweet spot.
+  Bit-identical at every width (`303 sub=64 vs 512 maxDiff=0`) — pure perf knob. (Tuned for this
+  Intel ARL / Mesa class; the huge 3.68× headroom means it's not worth per-GPU autotuning.)
+  Clean-run idle-skip win on Antiseptik was a real **1.28×** (2.50 vs 3.20 ms), bit-identical.
+- **METHOD GOTCHA — wall-clock p95/max is main-thread JITTER, not GPU cost.** A noisy 2nd run showed
+  medians DOWN (idle-skip working) but p95/max EXPLODED uniformly across all scenarios (303 p95
+  5.6→11.5, "OVER budget" verdicts) while §6 ran clean in the same page — i.e. GC/scheduler/thermal
+  spikes, not the code. The shipped path (`renderBlockAsync` PBO pipeline + `PREBUFFER_BLOCKS` queued
+  ahead) absorbs these, so **median is the real GPU-cost signal**; perf-check's verdict now keys off
+  median (p95/max shown but labelled jitter). GPU-only timer-query stays empty on this ANGLE/Mesa
+  (DISJOINT). Median worst across everything ≈ 3.9 ms (Antiseptik) → ~2.7× headroom; realtime safe.
+- **Realtime CONFIRMED, measured not asserted:** worst-case p95 6.8 ms vs 10.67 ms (1.57×),
+  0/548 real-song blocks over budget (Antiseptik USA, Tantric Spectral Edging). Async path has
+  more headroom still. Worst single block 8.6 ms (busy transient) — absorbed by prebuffer.
+- **Roadmap consequences:** (1) **WebGPU shelved** — it'd optimize a non-bottleneck. (2) Phase 2
+  resynthesis is justified by SOUND, not speed — set expectations. (3) To make the GPU premise
+  actually pay off as a showcase, push Spectra FAR past 2048 partials / more voices to find the
+  genuine GPU-bound crossover (there's 4–5× headroom). The current cap is too low to make the case.
 
 ### Spectra — massive GPU-parallel additive engine (1.38.0, 2026-06-17) — ✅ DONE — `project`
 **Why it exists:** the user asked, honestly, whether GPU audio buys anything over CPU. For an

@@ -546,6 +546,13 @@ google-chrome --headless=new --enable-unsafe-swiftshader --dump-dom \
 # a drum sounds identical on every trigger:         test/onset-check.html
 ```
 
+**`test/perf-check.html` is the exception** — it measures real-GPU ms/block (per engine,
+the Spectra partial sweep, FX overhead, real songs) against the realtime budget, so it
+must run in a **real, hardware-accelerated browser** (open
+`http://localhost:5173/test/perf-check.html`), *not* headless SwiftShader (whose software
+rasterisation makes the timings meaningless). Wall-clock around the sync `renderBlock` is the
+trustworthy number; the GPU-only timer-query column is a bonus where the driver supports it.
+
 The Locked Groove engine was tuned by **matching the measured statistics of real
 CC0 vinyl recordings** (click rate ≈18/s, dark low-tilted spectrum, ~1.8 s
 rotation tick), the same objective approach used for the 808 drums.

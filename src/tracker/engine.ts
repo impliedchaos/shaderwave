@@ -793,7 +793,14 @@ export class Engine {
     for (let v = 0; v < VOICES; v++) {
       const vc = this.voices[v];
       if (!vc.active || vc.fxCmd < 0) continue;
-      const t = (blockStart - vc.fxStart) / this.sampleRate;   // seconds since effect start
+      // Clamp at 0: a note (or effect) can START later within THIS block — a
+      // sample-accurate trigger lands fxStart > blockStart for any row not aligned to a
+      // 512-frame boundary (i.e. almost all of them; row 0 at frame 0 is the exception).
+      // Then seconds-since-start goes negative and arpeggio indexes steps[floor(t/sec)%3]
+      // at -1 → undefined → Math.pow(2, NaN) → NaN freq, which poisons freqPrev and the
+      // phaseOff accumulator for the rest of the note (a permanent click). No modulation
+      // applies before the effect starts anyway, so clamp.
+      const t = Math.max(0, (blockStart - vc.fxStart) / this.sampleRate);   // seconds since effect start
       const xx = vc.fxVal & 0xff, x = (vc.fxVal >> 4) & 0xf, y = vc.fxVal & 0xf;
       let pitchMult = 1;
       switch (vc.fxCmd) {

@@ -1,0 +1,301 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>ShaderWave — perf-check</title>
+<style>
+  body { font: 13px/1.5 ui-monospace, Menlo, Consolas, monospace; background:#11151c; color:#cdd6e4; margin:0; padding:20px; }
+  h1 { font-size:15px; color:#7fd0ff; margin:0 0 4px; }
+  .sub { color:#7a8699; margin:0 0 16px; }
+  pre { white-space:pre; margin:0; }
+  .ok { color:#7fe0a0; } .tight { color:#ffd479; } .over { color:#ff7a7a; }
+  .hdr { color:#7a8699; }
+  b { color:#e8eef7; }
+</style>
+</head>
+<body>
+<h1>ShaderWave — real-GPU performance harness</h1>
+<p class="sub">
+  Phase 0 ground-truth. <b>Open this in a real browser on real hardware</b> — under
+  headless SwiftShader the numbers are software-rasterised and meaningless. Each block
+  must render in under the realtime budget (one block of audio time) or playback underruns.
+</p>
+<pre id="out">running… (first run bakes the wavetable atlas, ~1s)</pre>
+<script type="module">
+// Measures ms/block of the full GPU render path (synth → mix → per-instance FX →
+// readback) on REAL hardware, the one thing the SwiftShader harnesses can't tell us.
+//
+// METHOD: SynthRenderer.renderBlock ends in a BLOCKING readPixels — it flushes the
+// pipeline and stalls until the mix texture is in client memory — so wall-clock around
+// each sync renderBlock call is a trustworthy end-to-end per-block GPU time. (The
+// realtime producer uses the PBO-pipelined renderBlockAsync, which HIDES the readback
+// latency; the sync number here is therefore conservative — it counts readback the
+// async path overlaps away. If the sync number fits the budget, the shipped path does
+// too.) If EXT_disjoint_timer_query_webgl2 is available we ALSO report GPU-only time.
+import { createGL } from '../src/gl/context.js';
+import { SynthRenderer } from '../src/gl/synth-renderer.js';
+import { Engine } from '../src/tracker/engine.js';
+import { loadSongInstruments, defaultParams } from '../src/tracker/song.js';
+import { DEMO_SONGS } from '../src/tracker/song.js';
+import { defaultFxParams } from '../src/gl/effects.js';
+import { BLOCK, VOICES, INSTRUMENTS } from '../src/constants.js';
+
+const out = document.getElementById('out');
+const lines = [];
+// Lines carry <span> color markup, so render via innerHTML (a <pre> shows textContent
+// tags literally). Content has no stray </> beyond the intended spans; strip them for
+// the console mirror.
+const log = (s = '') => { lines.push(s); out.innerHTML = lines.join('\n'); console.log(s.replace(/<[^>]+>/g, '')); };
+
+const SR = 48000;
+const BUDGET = (BLOCK / SR) * 1000;            // ms a block must beat for realtime
+
+function stats(buf) {
+  let peak = 0, nan = 0;
+  for (let i = 0; i < buf.length; i++) {
+    const v = buf[i];
+    if (!Number.isFinite(v)) { nan++; continue; }
+    const a = Math.abs(v); if (a > peak) peak = a;
+  }
+  return { peak, nan };
+}
+const pct = (arr, p) => {
+  if (!arr.length) return NaN;
+  const s = [...arr].sort((a, b) => a - b);
+  return s[Math.min(s.length - 1, Math.max(0, Math.floor(p * (s.length - 1))))];
+};
+const median = (a) => pct(a, 0.5);
+
+// A full-polyphony voice-data block: nVoices of engine `typeId`, all on instance 0
+// (one shared FX chain), spread across a chord so it's a realistic load.
+const CHORD = [1, 1.26, 1.5, 2, 2.52, 3, 3.78, 4];
+function makeVD(typeId, nVoices, blockStart, params, opts = {}) {
+  const z4 = () => new Float32Array(VOICES * 4);
+  const p0 = z4(), p1 = z4(), p2 = z4(), p3 = z4(), p4 = z4();
+  const name = INSTRUMENTS[typeId];
+  const A = (f) => new Float32Array(VOICES).fill(f);
+  const active = new Int32Array(VOICES), inst = new Int32Array(VOICES), instId = new Int32Array(VOICES);
+  const freq = new Float32Array(VOICES), freqFrom = new Float32Array(VOICES);
+  const vel = new Float32Array(VOICES), onRel = new Float32Array(VOICES), offRel = A(1e9);
+  for (let v = 0; v < nVoices; v++) {
+    active[v] = 1; inst[v] = typeId; instId[v] = 0;
+    const f = 110 * CHORD[v % CHORD.length];
+    freq[v] = f; freqFrom[v] = f; vel[v] = 0.9; onRel[v] = -blockStart;
+    for (let k = 0; k < 4; k++) {
+      p0[v * 4 + k] = params[name].p0[k]; p1[v * 4 + k] = params[name].p1[k];
+      if (params[name].p2) p2[v * 4 + k] = params[name].p2[k];
+      if (params[name].p3) p3[v * 4 + k] = params[name].p3[k];
+      if (params[name].p4) p4[v * 4 + k] = params[name].p4[k];
+    }
+    if (opts.partials !== undefined) p0[v * 4 + 0] = opts.partials;  // Spectra Partials (p0.x)
+  }
+  return {
+    active, inst, instId, freq, vel, onRel, offRel, p0, p1, p2, p3, p4, freqFrom,
+    phaseOff: new Float32Array(VOICES), gain: A(1), pan: A(0.5), master: 1.0,
+  };
+}
+
+const FX_OFF = defaultFxParams();                                  // every effect bypassed
+const FX_ON = Object.assign(defaultFxParams(),                     // a typical "polish" chain
+  { compOn: true, eqOn: true, delayOn: true, reverbOn: true, limitOn: true });
+
+let gl, r, TQ;
+let worstMed = 0, worstP95 = 0;
+const verdict = (ms) => ms <= BUDGET ? 'ok' : (ms <= BUDGET * 1.5 ? 'tight' : 'over');
+const cls = (v) => `<span class="${v}">${v.toUpperCase()}</span>`;
+
+// Time `blocks` renders of renderFn(blockIdx), after `warmup` untimed blocks. Returns
+// wall-clock per-block samples + (if supported) GPU-only samples + an output peak/NaN.
+function timed(renderFn, { warmup = 6, blocks = 40 } = {}) {
+  r.resetState();
+  for (let b = 0; b < warmup; b++) renderFn(b);
+  const wall = [], queries = [];
+  let peak = 0, nan = 0;
+  for (let b = warmup; b < warmup + blocks; b++) {
+    let q;
+    if (TQ) { q = gl.createQuery(); gl.beginQuery(TQ.TIME_ELAPSED_EXT, q); }
+    const t0 = performance.now();
+    const o = renderFn(b);                       // renderBlock's blocking readPixels syncs the GPU
+    wall.push(performance.now() - t0);
+    if (TQ) { gl.endQuery(TQ.TIME_ELAPSED_EXT); queries.push(q); }
+    const s = stats(o); if (s.peak > peak) peak = s.peak; nan += s.nan;
+  }
+  let gpu = [];
+  if (TQ && queries.length) {
+    let tries = 0;
+    const last = queries[queries.length - 1];
+    while (tries++ < 500000 && !gl.getQueryParameter(last, gl.QUERY_RESULT_AVAILABLE)) { /* spin */ }
+    if (!gl.getParameter(TQ.GPU_DISJOINT_EXT)) {
+      for (const q of queries) if (gl.getQueryParameter(q, gl.QUERY_RESULT_AVAILABLE)) gpu.push(gl.getQueryParameter(q, gl.QUERY_RESULT) / 1e6);
+    }
+    for (const q of queries) gl.deleteQuery(q);
+  }
+  return { wall, gpu, peak, nan };
+}
+
+function row(label, res) {
+  const med = median(res.wall), p95 = pct(res.wall, 0.95), mx = Math.max(...res.wall);
+  const gpuMed = res.gpu.length ? median(res.gpu).toFixed(2) : '  — ';
+  const pctBudget = (med / BUDGET * 100).toFixed(0);
+  const flag = res.nan ? 'over' : verdict(med);   // GPU-cost verdict from the stable median
+  if (res.nan) { worstMed = worstP95 = 1e9; } else { worstMed = Math.max(worstMed, med); worstP95 = Math.max(worstP95, p95); }
+  log(`${label.padEnd(22)} ${med.toFixed(2).padStart(7)} ${p95.toFixed(2).padStart(7)} ${mx.toFixed(2).padStart(7)} ${gpuMed.padStart(7)} ${(pctBudget + '%').padStart(6)}  ${cls(flag)}${res.nan ? ' NaN!' : ''}`);
+  return Math.max(p95, res.nan ? 1e9 : 0);
+}
+const TABLE_HDR = `<span class="hdr">${'scenario'.padEnd(22)} ${'med'.padStart(7)} ${'p95'.padStart(7)} ${'max'.padStart(7)} ${'gpu'.padStart(7)} ${'bud%'.padStart(6)}  verdict   (ms/block)</span>`;
+
+try {
+  gl = createGL(document.createElement('canvas'));
+  TQ = gl.getExtension('EXT_disjoint_timer_query_webgl2');
+  r = new SynthRenderer(gl, SR);
+  const params = defaultParams();
+  const renderer = gl.getParameter(gl.RENDERER), vendor = gl.getParameter(gl.VENDOR);
+  let dbg = gl.getExtension('WEBGL_debug_renderer_info');
+  const realRenderer = dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : renderer;
+
+  log(`GPU: ${realRenderer}`);
+  log(`realtime budget: ${BUDGET.toFixed(2)} ms/block  (BLOCK=${BLOCK} @ ${SR} Hz, ${VOICES} voices)`);
+  log(`GPU-only timing: ${TQ ? 'available (EXT_disjoint_timer_query_webgl2)' : 'unavailable — wall-clock only'}`);
+  log(`<span class="hdr">NOTE: med = the GPU-cost signal (verdicts key off it). p95/max include main-thread`);
+  log(`jitter (GC, scheduler, thermal) that the shipped async-readback + prebuffer path absorbs.</span>`);
+  if (/swiftshader|llvmpipe|software/i.test(String(realRenderer)))
+    log(`\n*** WARNING: software renderer detected — these numbers are NOT real-GPU. Run in a hardware-accelerated browser. ***`);
+
+  let worst = 0;
+
+  // ── 1. Per-engine synth cost (8 voices, FX bypassed) ───────────────────────
+  log(`\n--- 1. per-engine synth cost (${VOICES} voices, FX off) ---`);
+  log(TABLE_HDR);
+  r.setInstrumentFx([FX_OFF]);
+  for (let id = 0; id < INSTRUMENTS.length; id++) {
+    if (INSTRUMENTS[id] === 'additive') continue;            // swept separately below
+    const res = timed((b) => r.renderBlock(makeVD(id, VOICES, b * BLOCK, params), b * BLOCK));
+    worst = Math.max(worst, row(INSTRUMENTS[id], res));
+  }
+
+  // ── 2. Spectra (additive) partial sweep (8 voices, FX bypassed) — the headline ─
+  const addId = INSTRUMENTS.indexOf('additive');
+  if (addId >= 0) {
+    log(`\n--- 2. Spectra partial sweep (${VOICES} voices, FX off) — the GPU-bound case ---`);
+    log(TABLE_HDR);
+    r.setInstrumentFx([FX_OFF]);
+    for (const P of [64, 256, 512, 1024, 2048]) {
+      const res = timed((b) => r.renderBlock(makeVD(addId, VOICES, b * BLOCK, params, { partials: P }), b * BLOCK));
+      worst = Math.max(worst, row(`additive P=${P}`, res));
+    }
+  }
+
+  // ── 3. Per-instance FX-chain overhead (comp+eq+delay+reverb+limit) ──────────
+  log(`\n--- 3. FX-chain overhead (${VOICES} voices, comp+eq+delay+reverb+limit) ---`);
+  log(`<span class="hdr">(FX runs PER instance — multiply this delta by the instance count for a full mix)</span>`);
+  log(TABLE_HDR);
+  for (const id of [INSTRUMENTS.indexOf('e8e'), addId].filter((i) => i >= 0)) {
+    const label = INSTRUMENTS[id] === 'additive' ? 'additive P=1024' : INSTRUMENTS[id];
+    const opts = INSTRUMENTS[id] === 'additive' ? { partials: 1024 } : {};
+    r.setInstrumentFx([FX_OFF]);
+    const off = timed((b) => r.renderBlock(makeVD(id, VOICES, b * BLOCK, params, opts), b * BLOCK));
+    r.setInstrumentFx([FX_ON]);
+    const on = timed((b) => r.renderBlock(makeVD(id, VOICES, b * BLOCK, params, opts), b * BLOCK));
+    worst = Math.max(worst, row(`${label} (fx off)`, off));
+    worst = Math.max(worst, row(`${label} (fx on)`, on));
+    log(`<span class="hdr">  → chain overhead ≈ ${(median(on.wall) - median(off.wall)).toFixed(2)} ms/block</span>`);
+  }
+
+  // ── 4. Realistic mixed load — drive real demo songs through the engine ──────
+  log(`\n--- 4. realistic songs (real engine + per-instance FX, 3 s each) ---`);
+  log(TABLE_HDR);
+  const pickSong = (name) => DEMO_SONGS.find((s) => s.name === name) || null;
+  for (const name of ['Antiseptik USA', 'Tantric Spectral Edging']) {
+    const songDef = pickSong(name);
+    if (!songDef) { log(`(song "${name}" not found — skipped)`); continue; }
+    r.resetState();
+    const eng = new Engine(SR);
+    const init = loadSongInstruments(songDef);
+    eng.instruments = init.instruments;
+    eng.loadSong(init.data);
+    eng.bpm = songDef.bpm;
+    r.setInstrumentFx(init.instruments.map((i) => i.fx));
+    r.setInstrumentFxOrder(init.instruments.map((i) => i.fxOrder));
+    eng.play();
+    const total = Math.ceil(3 * SR / BLOCK);
+    const wall = []; let over = 0, peak = 0, nan = 0, maxAct = 0;
+    for (let b = 0; b < total; b++) {
+      const bs = b * BLOCK;
+      const vd = eng.advance(bs);
+      const t0 = performance.now();
+      const o = r.renderBlock(vd, bs);
+      const dt = performance.now() - t0;
+      if (b >= 8) { wall.push(dt); if (dt > BUDGET) over++; }
+      const s = stats(o); if (s.peak > peak) peak = s.peak; nan += s.nan;
+      let a = 0; for (let v = 0; v < VOICES; v++) a += vd.active[v]; if (a > maxAct) maxAct = a;
+    }
+    const med = median(wall), p95 = pct(wall, 0.95), mx = Math.max(...wall);
+    const flag = (nan || mx > BUDGET) ? (p95 > BUDGET ? 'over' : 'tight') : 'ok';
+    log(`${name.slice(0, 22).padEnd(22)} ${med.toFixed(2).padStart(7)} ${p95.toFixed(2).padStart(7)} ${mx.toFixed(2).padStart(7)} ${'  —'.padStart(7)} ${((med / BUDGET * 100).toFixed(0) + '%').padStart(6)}  ${cls(flag)}`);
+    log(`<span class="hdr">  → ${over}/${wall.length} blocks over budget (incl. jitter) · maxActiveVoices=${maxAct} · peak=${peak.toFixed(3)} · NaN=${nan}</span>`);
+    worstMed = Math.max(worstMed, med); worstP95 = Math.max(worstP95, p95);
+  }
+
+  // ── 5. idle-engine skip: bit-identical A/B + speedup ────────────────────────
+  log(`\n--- 5. idle-engine skip — bit-identical check + speedup ---`);
+  {
+    const songDef = pickSong('Antiseptik USA');
+    const renderSong = (skip) => {
+      r.skipIdleEngines = skip;
+      r.resetState();
+      const eng = new Engine(SR);
+      const init = loadSongInstruments(songDef);
+      eng.instruments = init.instruments;
+      eng.loadSong(init.data); eng.bpm = songDef.bpm;
+      r.setInstrumentFx(init.instruments.map((i) => i.fx));
+      r.setInstrumentFxOrder(init.instruments.map((i) => i.fxOrder));
+      eng.play();
+      const N = 220, buf = new Float32Array(N * BLOCK * 2), times = [];
+      for (let b = 0; b < N; b++) {
+        const bs = b * BLOCK, vd = eng.advance(bs);
+        const t0 = performance.now(); const o = r.renderBlock(vd, bs); const dt = performance.now() - t0;
+        if (b >= 12) times.push(dt);
+        buf.set(o, b * BLOCK * 2);
+      }
+      return { buf, med: median(times) };
+    };
+    const on = renderSong(true), off = renderSong(false);
+    r.skipIdleEngines = true;
+    let maxDiff = 0;
+    for (let i = 0; i < on.buf.length; i++) { const d = Math.abs(on.buf[i] - off.buf[i]); if (d > maxDiff) maxDiff = d; }
+    const bitId = maxDiff === 0;
+    log(`skip ON :  ${on.med.toFixed(2)} ms/block      skip OFF (old all-13 behaviour): ${off.med.toFixed(2)} ms/block`);
+    log(`speedup ≈ ${(off.med / on.med).toFixed(2)}× · maxDiff(on vs off) = ${maxDiff.toExponential(2)}  ${bitId ? cls('ok') + ' (bit-identical)' : cls('over') + ' DIFFERS — investigate!'}`);
+  }
+
+  // ── 6. subBlock strip-width sweep (recursive engines) ───────────────────────
+  log(`\n--- 6. subBlock sweep (303 + moog, ${VOICES} voices; bit-identical at every width) ---`);
+  log(TABLE_HDR);
+  const savedSub = r.subBlock;
+  r.setInstrumentFx([FX_OFF]);
+  for (const sub of [16, 32, 64, 128, 256, 512]) {
+    r.subBlock = sub;
+    for (const name of ['303', 'moog']) {
+      const id = INSTRUMENTS.indexOf(name);
+      const res = timed((b) => r.renderBlock(makeVD(id, VOICES, b * BLOCK, params), b * BLOCK));
+      row(`${name} sub=${String(sub).padStart(3)}`, res);
+    }
+  }
+  // bit-identical sanity: 303 at sub=64 vs sub=512 must match (strip render is exact)
+  const renderN = (sub, n) => { r.subBlock = sub; r.resetState(); let last; for (let b = 0; b < n; b++) last = r.renderBlock(makeVD(INSTRUMENTS.indexOf('303'), VOICES, b * BLOCK, params), b * BLOCK).slice(); return last; };
+  const a = renderN(64, 8), b512 = renderN(512, 8);
+  let sd = 0; for (let i = 0; i < a.length; i++) { const d = Math.abs(a[i] - b512[i]); if (d > sd) sd = d; }
+  r.subBlock = savedSub;
+  log(`<span class="hdr">  bit-identical (303 sub=64 vs sub=512): maxDiff=${sd.toExponential(2)} ${sd === 0 ? cls('ok') : '(float reassoc — expected ≈0)'} · subBlock is a pure perf knob, pick the fastest above</span>`);
+
+  // ── Verdict ─────────────────────────────────────────────────────────────────
+  log(`\n=== GPU-cost verdict (median): worst ${worstMed.toFixed(2)} ms vs ${BUDGET.toFixed(2)} ms budget → ${(BUDGET / worstMed).toFixed(2)}× headroom ===`);
+  log(`<span class="hdr">  worst p95 = ${worstP95.toFixed(2)} ms — p95/max are main-thread jitter the async + prebuffer path absorbs, not GPU cost.</span>`);
+  const ok = worstMed <= BUDGET;
+  document.title = ok ? 'ALL_OK' : 'OVER_BUDGET';
+  log(ok
+    ? 'Median GPU cost fits the realtime budget with headroom on this GPU.'
+    : 'Median GPU cost exceeds budget — a real bottleneck, not jitter (see OVER rows).');
+} catch (e) {
+  document.title = 'ERROR';
+  log('FATAL: ' + e.message + '\n' + (e.stack || ''));
+}
+</script>
+</body></html>
