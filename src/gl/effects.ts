@@ -671,6 +671,11 @@ export function normalizeFxOrder(order: string[] | undefined): string[] {
 export function defaultFxParams(): FxParams {
   const p: Record<string, number | boolean> = { enabled: true, master: 1.0 };
   for (const def of FX_EFFECTS) Object.assign(p, def.defaults);
+  // Every effect defaults OFF — a song/preset/instance opts in explicitly via its
+  // `…On` flag. The registry param values are kept as sensible baselines, so enabling
+  // an effect needs only the flag (e.g. `reverbOn: true` → reverb at the default mix).
+  p.distOn = p.odOn = p.filterOn = p.eqOn = p.vocoderOn = p.compOn = p.limitOn =
+    p.chorusOn = p.tremoloOn = p.delayOn = p.reverbOn = p.widthOn = p.bitcrushOn = false;
   return p as unknown as FxParams;
 }
 

@@ -106,11 +106,11 @@ export const DEMO_SONGS: SongDef[] = [
       { name: "Popper Pluck", type: "wvt", p0: [0.005, 0.2, 0.1, 0.15], p1: [0.0, 0.6, 0.05, 0.0], p2: [7, 8, 0.0, -1], p3: [0.9, 0.5, 0, 0] }
     ],
     fxParams: {
-      'moog': Object.assign(defaultFxParams(), { distOn: true, dist: 4.0, tone: 0.5, chorusMix: 0.35, chorusRate: 0.4, delayMix: 0.2, reverbMix: 0.3, reverbDecay: 0.85 }),
-      'wvt': Object.assign(defaultFxParams(), { chorusMix: 0.5, delayMix: 0.4, delayTime: 0.375, delayFeedback: 0.5, reverbMix: 0.45, reverbDecay: 0.9, width: 1.4 }),
-      '303': Object.assign(defaultFxParams(), { distOn: true, dist: 12.0, tone: 0.6, delayMix: 0.3, delayTime: 0.375, delayFeedback: 0.6, reverbMix: 0.25 }),
-      'dx7': Object.assign(defaultFxParams(), { chorusMix: 0.6, delayMix: 0.2, reverbMix: 0.6, reverbDecay: 0.95, width: 1.5 }),
-      '808': Object.assign(defaultFxParams(), { distOn: true, dist: 3.0, tone: 0.4, delayOn: false, master: 0.9, reverbMix: 0.15, reverbDecay: 0.7 }),
+      'moog': Object.assign(defaultFxParams(), { chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true, distOn: true, dist: 4.0, tone: 0.5, chorusMix: 0.35, chorusRate: 0.4, delayMix: 0.2, reverbMix: 0.3, reverbDecay: 0.85 }),
+      'wvt': Object.assign(defaultFxParams(), { distOn: true, chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true, chorusMix: 0.5, delayMix: 0.4, delayTime: 0.375, delayFeedback: 0.5, reverbMix: 0.45, reverbDecay: 0.9, width: 1.4 }),
+      '303': Object.assign(defaultFxParams(), { chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true, distOn: true, dist: 12.0, tone: 0.6, delayMix: 0.3, delayTime: 0.375, delayFeedback: 0.6, reverbMix: 0.25 }),
+      'dx7': Object.assign(defaultFxParams(), { distOn: true, chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true, chorusMix: 0.6, delayMix: 0.2, reverbMix: 0.6, reverbDecay: 0.95, width: 1.5 }),
+      '808': Object.assign(defaultFxParams(), { chorusOn: true, reverbOn: true, tremoloOn: true, widthOn: true, distOn: true, dist: 3.0, tone: 0.4, delayOn: false, master: 0.9, reverbMix: 0.15, reverbDecay: 0.7 }),
     },
     data: () => {
       const ROWS = 128;
@@ -349,10 +349,10 @@ export const DEMO_SONGS: SongDef[] = [
       { name: "Moog Lead B", type: "moog", p0: [1400, 0.2, 0.3, 0.4], p1: [16, 0.4, 0.8, 0.3], p2: [1, 3, 2, 0.04], p3: [2, 3, 2, 0] }
     ],
     fxParams: {
-      '303': Object.assign(defaultFxParams(), { dist: 12.0, tone: 0.6, level: 1.0, master: 0.85, delayMix: 0.3, delayFeedback: 0.45 }),
+      '303': Object.assign(defaultFxParams(), { distOn: true, chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true, dist: 12.0, tone: 0.6, level: 1.0, master: 0.85, delayMix: 0.3, delayFeedback: 0.45 }),
       'dx7': defaultFxParams(),
-      '808': Object.assign(defaultFxParams(), { dist: 6.0, tone: 0.5, level: 1.0, master: 0.9 }),
-      'moog': Object.assign(defaultFxParams(), { dist: 10.0, tone: 0.5, level: 1.0, master: 0.8, reverbMix: 0.4, reverbDecay: 0.9 }),
+      '808': Object.assign(defaultFxParams(), { distOn: true, chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true, dist: 6.0, tone: 0.5, level: 1.0, master: 0.9 }),
+      'moog': Object.assign(defaultFxParams(), { distOn: true, chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true, dist: 10.0, tone: 0.5, level: 1.0, master: 0.8, reverbMix: 0.4, reverbDecay: 0.9 }),
     },
     data: () => {
       const p0 = new Pattern(128, 8);
@@ -585,10 +585,10 @@ export const DEMO_SONGS: SongDef[] = [
       }
     ],
     fxParams: {
-      '303': Object.assign(defaultFxParams(), { chorusMix: 0.4, delayMix: 0.35, delayTime: 0.375, delayFeedback: 0.5 }),
-      'dx7': Object.assign(defaultFxParams(), { chorusMix: 0.3, delayMix: 0.25, reverbMix: 0.25 }),
-      '808': Object.assign(defaultFxParams(), { dist: 1.0, tone: 0.5, level: 1.0, master: 0.95 }),
-      'moog': Object.assign(defaultFxParams(), { chorusMix: 0.5, delayMix: 0.3, delayTime: 0.5, reverbMix: 0.4 }),
+      '303': Object.assign(defaultFxParams(), { distOn: true, chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true, chorusMix: 0.4, delayMix: 0.35, delayTime: 0.375, delayFeedback: 0.5 }),
+      'dx7': Object.assign(defaultFxParams(), { distOn: true, chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true, chorusMix: 0.3, delayMix: 0.25, reverbMix: 0.25 }),
+      '808': Object.assign(defaultFxParams(), { distOn: true, chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true, dist: 1.0, tone: 0.5, level: 1.0, master: 0.95 }),
+      'moog': Object.assign(defaultFxParams(), { distOn: true, chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true, chorusMix: 0.5, delayMix: 0.3, delayTime: 0.5, reverbMix: 0.4 }),
     },
     data: () => {
       const p0 = new Pattern(128, 8);
@@ -814,14 +814,14 @@ export const DEMO_SONGS: SongDef[] = [
       { name: "Moog Ethereal Sub", type: "moog", p0: [120, 0.08, 0.85, 0.1], p1: [1.0, 0.98, 1.2, 1.5], p2: [1, 1, 0, 0], p3: [2, 2, 2, 0.04] },
     ],
     fxParams: {
-      '303': Object.assign(defaultFxParams(), { chorusMix: 0.6, chorusRate: 0.5, chorusDepth: 3.5, delayMix: 0.45, delayTime: 0.6, delayFeedback: 0.55, reverbMix: 0.7, reverbDecay: 0.95 }),
-      'dx7': Object.assign(defaultFxParams(), { chorusMix: 0.5, chorusRate: 0.4, chorusDepth: 3.0, delayMix: 0.4, delayTime: 0.5, delayFeedback: 0.45, reverbMix: 0.75, reverbDecay: 0.95 }),
+      '303': Object.assign(defaultFxParams(), { distOn: true, chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true, chorusMix: 0.6, chorusRate: 0.5, chorusDepth: 3.5, delayMix: 0.45, delayTime: 0.6, delayFeedback: 0.55, reverbMix: 0.7, reverbDecay: 0.95 }),
+      'dx7': Object.assign(defaultFxParams(), { distOn: true, chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true, chorusMix: 0.5, chorusRate: 0.4, chorusDepth: 3.0, delayMix: 0.4, delayTime: 0.5, delayFeedback: 0.45, reverbMix: 0.75, reverbDecay: 0.95 }),
       '808': defaultFxParams(),
       // Bass was drowning: a reverb-soaked bass loses its fundamental + attack. Dry the
       // chain (less reverb/delay/chorus) so the Moog cuts through. Shared by bass + sub,
       // but a tighter sub also un-muddies the low end. Per-bass loudness is raised via the
       // note vols below (the sub keeps its own quieter levels).
-      'moog': Object.assign(defaultFxParams(), { chorusMix: 0.22, chorusRate: 0.3, chorusDepth: 2.0, delayMix: 0.16, delayTime: 0.45, delayFeedback: 0.3, reverbMix: 0.32, reverbDecay: 0.88 }),
+      'moog': Object.assign(defaultFxParams(), { distOn: true, chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true, chorusMix: 0.22, chorusRate: 0.3, chorusDepth: 2.0, delayMix: 0.16, delayTime: 0.45, delayFeedback: 0.3, reverbMix: 0.32, reverbDecay: 0.88 }),
     },
     data: () => {
       const CH = 8;
@@ -1037,10 +1037,10 @@ export const DEMO_SONGS: SongDef[] = [
       { name: "Moog Soaring Lead", type: "moog", p0: [900, 0.35, 0.45, 0.45], p1: [15.0, 0.6, 0.8, 0.6], p2: [1, 1, 2, 0.07], p3: [2, 3, 2, 0] }
     ],
     fxParams: {
-      '303': Object.assign(defaultFxParams(), { distOn: false, bitcrushOn: false, delayMix: 0.4, chorusMix: 0.4 }),
-      'dx7': Object.assign(defaultFxParams(), { chorusMix: 0.55, chorusRate: 1.2, delayMix: 0.35, reverbMix: 0.6, reverbDecay: 0.93 }),
-      '808': Object.assign(defaultFxParams(), { distOn: false, bitcrushOn: false, delayOn: false }),
-      'moog': Object.assign(defaultFxParams(), { distOn: false, bitcrushOn: false, chorusMix: 0.3, delayMix: 0.3, reverbMix: 0.35 }),
+      '303': Object.assign(defaultFxParams(), { chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true, distOn: false, bitcrushOn: false, delayMix: 0.4, chorusMix: 0.4 }),
+      'dx7': Object.assign(defaultFxParams(), { distOn: true, chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true, chorusMix: 0.55, chorusRate: 1.2, delayMix: 0.35, reverbMix: 0.6, reverbDecay: 0.93 }),
+      '808': Object.assign(defaultFxParams(), { chorusOn: true, reverbOn: true, tremoloOn: true, widthOn: true, distOn: false, bitcrushOn: false, delayOn: false }),
+      'moog': Object.assign(defaultFxParams(), { chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true, distOn: false, bitcrushOn: false, chorusMix: 0.3, delayMix: 0.3, reverbMix: 0.35 }),
     },
     data: () => {
       const p: Pattern[] = [];
@@ -1295,10 +1295,10 @@ export const DEMO_SONGS: SongDef[] = [
       { name: "Moog Rock Lead", type: "moog", p0: [950, 0.3, 0.5, 0.45], p1: [15.0, 0.7, 0.75, 0.5], p2: [1, 1, 2, 0.06], p3: [2, 3, 2, 0] }
     ],
     fxParams: {
-      '303': Object.assign(defaultFxParams(), { distOn: true, dist: 15.0, tone: 0.4, bitcrushOn: false, delayMix: 0.2, delayFeedback: 0.3, reverbMix: 0.3 }),
-      'dx7': Object.assign(defaultFxParams(), { chorusMix: 0.5, chorusRate: 1.0, delayMix: 0.3, reverbMix: 0.45, reverbDecay: 0.88 }),
-      '808': Object.assign(defaultFxParams(), { distOn: false, bitcrushOn: false, reverbMix: 0.4, reverbDecay: 0.85 }),
-      'moog': Object.assign(defaultFxParams(), { distOn: true, dist: 6.0, tone: 0.5, chorusMix: 0.35, delayMix: 0.3, reverbMix: 0.35 }),
+      '303': Object.assign(defaultFxParams(), { chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true, distOn: true, dist: 15.0, tone: 0.4, bitcrushOn: false, delayMix: 0.2, delayFeedback: 0.3, reverbMix: 0.3 }),
+      'dx7': Object.assign(defaultFxParams(), { distOn: true, chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true, chorusMix: 0.5, chorusRate: 1.0, delayMix: 0.3, reverbMix: 0.45, reverbDecay: 0.88 }),
+      '808': Object.assign(defaultFxParams(), { chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true, distOn: false, bitcrushOn: false, reverbMix: 0.4, reverbDecay: 0.85 }),
+      'moog': Object.assign(defaultFxParams(), { chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true, distOn: true, dist: 6.0, tone: 0.5, chorusMix: 0.35, delayMix: 0.3, reverbMix: 0.35 }),
     },
     data: () => {
       const p: Pattern[] = [];
@@ -1560,10 +1560,10 @@ export const DEMO_SONGS: SongDef[] = [
       { name: "Moog Pulse Lead", type: "moog", p0: [1000, 0.25, 0.45, 0.4], p1: [12.0, 0.6, 0.75, 0.5], p2: [3, 4, 3, 0.05], p3: [2, 2, 3, 0] }
     ],
     fxParams: {
-      '303': Object.assign(defaultFxParams(), { distOn: false, bitcrushOn: true, bitcrushBits: 8.0, bitcrushRate: 8000.0, chorusMix: 0.3, delayMix: 0.35, delayFeedback: 0.4 }),
-      'dx7': Object.assign(defaultFxParams(), { bitcrushOn: true, bitcrushBits: 10.0, bitcrushRate: 12000.0, chorusMix: 0.4, delayMix: 0.3, reverbMix: 0.45 }),
-      '808': Object.assign(defaultFxParams(), { distOn: false, bitcrushOn: true, bitcrushBits: 6.0, bitcrushRate: 6000.0 }),
-      'moog': Object.assign(defaultFxParams(), { distOn: false, bitcrushOn: false, chorusMix: 0.3, delayMix: 0.25 }),
+      '303': Object.assign(defaultFxParams(), { chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true, distOn: false, bitcrushOn: true, bitcrushBits: 8.0, bitcrushRate: 8000.0, chorusMix: 0.3, delayMix: 0.35, delayFeedback: 0.4 }),
+      'dx7': Object.assign(defaultFxParams(), { distOn: true, chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true, bitcrushOn: true, bitcrushBits: 10.0, bitcrushRate: 12000.0, chorusMix: 0.4, delayMix: 0.3, reverbMix: 0.45 }),
+      '808': Object.assign(defaultFxParams(), { chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true, distOn: false, bitcrushOn: true, bitcrushBits: 6.0, bitcrushRate: 6000.0 }),
+      'moog': Object.assign(defaultFxParams(), { chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true, distOn: false, bitcrushOn: false, chorusMix: 0.3, delayMix: 0.25 }),
     },
     data: () => {
       const p: Pattern[] = [];
@@ -1817,11 +1817,11 @@ export const DEMO_SONGS: SongDef[] = [
       { name: "Vinyl Crackle", type: "groove", p0: [0.22, 0.12, 0.5, 0.45], p1: [0.5, 0.4, 0.32, 0.4], p2: [33.333, 6, 0.5, 0.03], p3: [0.35, 1.5, 0, 0] }
     ],
     fxParams: {
-      '303': Object.assign(defaultFxParams(), { delayMix: 0.35, delayTime: 0.375, reverbMix: 0.4 }),
-      'dx7': Object.assign(defaultFxParams(), { chorusMix: 0.45, chorusRate: 0.6, chorusDepth: 3.5, delayMix: 0.4, delayTime: 0.5, delayFeedback: 0.4, reverbMix: 0.5, reverbDecay: 0.9 }),
-      '808': Object.assign(defaultFxParams(), { distOn: true, dist: 1.4, tone: 0.38, master: 0.9, bitcrushOn: false, bitcrushBits: 12.0, bitcrushRate: 18000.0, delayMix: 0.05, delayTime: 0.33, delayFeedback: 0.4, reverbMix: 0.06, reverbDecay: 0.7 }),
-      'moog': Object.assign(defaultFxParams(), { dist: 1.6, tone: 0.45, chorusMix: 0.3, chorusRate: 0.8, chorusDepth: 2.0, master: 0.85 }),
-      'groove': Object.assign(defaultFxParams(), { reverbOn: true, reverbMix: 0.15, reverbDecay: 0.6, master: 0.8 })
+      '303': Object.assign(defaultFxParams(), { distOn: true, chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true, delayMix: 0.35, delayTime: 0.375, reverbMix: 0.4 }),
+      'dx7': Object.assign(defaultFxParams(), { distOn: true, chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true, chorusMix: 0.45, chorusRate: 0.6, chorusDepth: 3.5, delayMix: 0.4, delayTime: 0.5, delayFeedback: 0.4, reverbMix: 0.5, reverbDecay: 0.9 }),
+      '808': Object.assign(defaultFxParams(), { chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true, distOn: true, dist: 1.4, tone: 0.38, master: 0.9, bitcrushOn: false, bitcrushBits: 12.0, bitcrushRate: 18000.0, delayMix: 0.05, delayTime: 0.33, delayFeedback: 0.4, reverbMix: 0.06, reverbDecay: 0.7 }),
+      'moog': Object.assign(defaultFxParams(), { distOn: true, chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true, dist: 1.6, tone: 0.45, chorusMix: 0.3, chorusRate: 0.8, chorusDepth: 2.0, master: 0.85 }),
+      'groove': Object.assign(defaultFxParams(), { distOn: true, chorusOn: true, delayOn: true, tremoloOn: true, widthOn: true, reverbOn: true, reverbMix: 0.15, reverbDecay: 0.6, master: 0.8 })
     },
     data: () => {
       const p = Array.from({ length: 7 }, () => new Pattern(128, 8));
@@ -2043,10 +2043,10 @@ export const DEMO_SONGS: SongDef[] = [
       { name: "Axe Bass", type: "moog", p0: [600, 0.6, 0.7, 0.2], p1: [12.0, 0.8, 0.6, 0.8], p2: [2, 1, 2, 0.02], p3: [2, 2, 2, 0] }
     ],
     fxParams: {
-      '303': Object.assign(defaultFxParams(), { distOn: true, dist: 15.0, tone: 0.45, chorusMix: 0.4, delayMix: 0.35, delayTime: 0.375, reverbMix: 0.4 }),
-      'dx7': Object.assign(defaultFxParams(), { chorusMix: 0.55, chorusRate: 1.2, delayMix: 0.4, delayTime: 0.5, delayFeedback: 0.45, reverbMix: 0.5, reverbDecay: 0.9 }),
-      '808': Object.assign(defaultFxParams(), { distOn: true, dist: 8.0, tone: 0.35, master: 0.9, bitcrushOn: true, bitcrushBits: 6, bitcrushRate: 6000, bitcrushMix: 0.35 }),
-      'moog': Object.assign(defaultFxParams(), { distOn: true, dist: 12.0, tone: 0.4, level: 1.0, master: 0.85, delayMix: 0.2, reverbMix: 0.35 })
+      '303': Object.assign(defaultFxParams(), { chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true, distOn: true, dist: 15.0, tone: 0.45, chorusMix: 0.4, delayMix: 0.35, delayTime: 0.375, reverbMix: 0.4 }),
+      'dx7': Object.assign(defaultFxParams(), { distOn: true, chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true, chorusMix: 0.55, chorusRate: 1.2, delayMix: 0.4, delayTime: 0.5, delayFeedback: 0.45, reverbMix: 0.5, reverbDecay: 0.9 }),
+      '808': Object.assign(defaultFxParams(), { chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true, distOn: true, dist: 8.0, tone: 0.35, master: 0.9, bitcrushOn: true, bitcrushBits: 6, bitcrushRate: 6000, bitcrushMix: 0.35 }),
+      'moog': Object.assign(defaultFxParams(), { chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true, distOn: true, dist: 12.0, tone: 0.4, level: 1.0, master: 0.85, delayMix: 0.2, reverbMix: 0.35 })
     },
     data: () => {
       const p = Array.from({ length: 8 }, () => new Pattern(128, 8));
@@ -2248,10 +2248,10 @@ export const DEMO_SONGS: SongDef[] = [
       }
     ],
     fxParams: {
-      '303': Object.assign(defaultFxParams(), { dist: 7.0, tone: 0.58, level: 1.0, master: 0.6, delayMix: 0.18, delayFeedback: 0.40, delayTime: 0.234, reverbMix: 0.10, reverbDecay: 0.80 }),
-      'dx7': Object.assign(defaultFxParams(), { dist: 10.0, tone: 0.0, level: 2.0, master: 1.0, delayMix: 0.24, delayFeedback: 0.38, delayTime: 0.3515, reverbMix: 0.22, reverbDecay: 0.82, chorusMix: 0.30, chorusRate: 0.9, chorusDepth: 2.5 }),
-      '808': Object.assign(defaultFxParams(), { dist: 2.0, tone: 0.5, level: 1.0, master: 0.7, reverbMix: 0.06, width: 1.12 }),
-      'moog': Object.assign(defaultFxParams(), { dist: 1.0, tone: 0.5, level: 1.0, master: 1.5, width: 1.0 }),
+      '303': Object.assign(defaultFxParams(), { distOn: true, chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true, dist: 7.0, tone: 0.58, level: 1.0, master: 0.6, delayMix: 0.18, delayFeedback: 0.40, delayTime: 0.234, reverbMix: 0.10, reverbDecay: 0.80 }),
+      'dx7': Object.assign(defaultFxParams(), { distOn: true, chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true, dist: 10.0, tone: 0.0, level: 2.0, master: 1.0, delayMix: 0.24, delayFeedback: 0.38, delayTime: 0.3515, reverbMix: 0.22, reverbDecay: 0.82, chorusMix: 0.30, chorusRate: 0.9, chorusDepth: 2.5 }),
+      '808': Object.assign(defaultFxParams(), { distOn: true, chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true, dist: 2.0, tone: 0.5, level: 1.0, master: 0.7, reverbMix: 0.06, width: 1.12 }),
+      'moog': Object.assign(defaultFxParams(), { distOn: true, chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true, dist: 1.0, tone: 0.5, level: 1.0, master: 1.5, width: 1.0 }),
     },
     data: () => {
       const ROWS = 64, CH = 8;
@@ -2422,10 +2422,10 @@ export const DEMO_SONGS: SongDef[] = [
       }
     ],
     fxParams: {
-      '303': Object.assign(defaultFxParams(), { delayMix: 0.0 }),
-      'dx7': Object.assign(defaultFxParams(), { chorusMix: 0.3, chorusRate: 1.2, chorusDepth: 2.5, delayMix: 0.45, delayTime: 0.6, delayFeedback: 0.6, reverbMix: 0.5, reverbDecay: 0.92 }),
-      '808': Object.assign(defaultFxParams(), { distOn: false, tone: 0.3, level: 0.8, master: 0.8, delayMix: 0.0, reverbMix: 0.4, reverbDecay: 0.85 }),
-      'moog': Object.assign(defaultFxParams(), { chorusMix: 0.5, chorusRate: 0.8, chorusDepth: 4.0, delayMix: 0.25, delayTime: 0.8, delayFeedback: 0.4, reverbMix: 0.7, reverbDecay: 0.96 })
+      '303': Object.assign(defaultFxParams(), { distOn: true, chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true, delayMix: 0.0 }),
+      'dx7': Object.assign(defaultFxParams(), { distOn: true, chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true, chorusMix: 0.3, chorusRate: 1.2, chorusDepth: 2.5, delayMix: 0.45, delayTime: 0.6, delayFeedback: 0.6, reverbMix: 0.5, reverbDecay: 0.92 }),
+      '808': Object.assign(defaultFxParams(), { chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true, distOn: false, tone: 0.3, level: 0.8, master: 0.8, delayMix: 0.0, reverbMix: 0.4, reverbDecay: 0.85 }),
+      'moog': Object.assign(defaultFxParams(), { distOn: true, chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true, chorusMix: 0.5, chorusRate: 0.8, chorusDepth: 4.0, delayMix: 0.25, delayTime: 0.8, delayFeedback: 0.4, reverbMix: 0.7, reverbDecay: 0.96 })
     },
     data: () => {
       const p = Array.from({ length: 7 }, () => new Pattern(64, 8));
@@ -2569,10 +2569,10 @@ export const DEMO_SONGS: SongDef[] = [
       { name: "Sub Bass", type: "moog", p0: [180, 0.6, 0.7, 0], p1: [5, 0.7, 0.5, 0.6], p2: [2, 1, 1, 0], p3: [2, 2, 1, 0] }
     ],
     fxParams: {
-      '303': Object.assign(defaultFxParams(), { dist: 9.0, tone: 0.6, level: 0.9, master: 0.78, delayMix: 0.32, delayTime: 0.375, delayFeedback: 0.42, reverbMix: 0.15 }),
-      'dx7': Object.assign(defaultFxParams(), { chorusMix: 0.3, chorusRate: 1.0, chorusDepth: 2.0, delayMix: 0.2, delayTime: 0.5, delayFeedback: 0.35, reverbMix: 0.25, reverbDecay: 0.85, level: 1.0, master: 1.3 }),
-      '808': Object.assign(defaultFxParams(), { dist: 4.0, tone: 0.55, level: 1.0, master: 0.9 }),
-      'moog': Object.assign(defaultFxParams(), { dist: 3.0, tone: 0.5, level: 1.0, master: 0.9, reverbMix: 0.1 })
+      '303': Object.assign(defaultFxParams(), { distOn: true, chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true, dist: 9.0, tone: 0.6, level: 0.9, master: 0.78, delayMix: 0.32, delayTime: 0.375, delayFeedback: 0.42, reverbMix: 0.15 }),
+      'dx7': Object.assign(defaultFxParams(), { distOn: true, chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true, chorusMix: 0.3, chorusRate: 1.0, chorusDepth: 2.0, delayMix: 0.2, delayTime: 0.5, delayFeedback: 0.35, reverbMix: 0.25, reverbDecay: 0.85, level: 1.0, master: 1.3 }),
+      '808': Object.assign(defaultFxParams(), { distOn: true, chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true, dist: 4.0, tone: 0.55, level: 1.0, master: 0.9 }),
+      'moog': Object.assign(defaultFxParams(), { distOn: true, chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true, dist: 3.0, tone: 0.5, level: 1.0, master: 0.9, reverbMix: 0.1 })
     },
     data: () => {
       const I_303 = 0, I_dx7 = 1, I_808 = 2, I_moog = 3;
@@ -2750,10 +2750,10 @@ export const DEMO_SONGS: SongDef[] = [
       }
     ],
     fxParams: {
-      '303': Object.assign(defaultFxParams(), { dist: 6.0, tone: 0.55, level: 1.0, master: 0.85, delayMix: 0.25, delayTime: 0.33, delayFeedback: 0.4, reverbMix: 0.18 }),
-      'dx7': Object.assign(defaultFxParams(), { chorusMix: 0.3, chorusRate: 0.8, chorusDepth: 2.5, delayMix: 0.3, delayTime: 0.44, delayFeedback: 0.45, reverbMix: 0.4, reverbDecay: 0.9, master: 0.9 }),
-      '808': Object.assign(defaultFxParams(), { dist: 2.0, tone: 0.5, level: 1.0, master: 0.9, reverbMix: 0.12, delayMix: 0.13 }),
-      'moog': Object.assign(defaultFxParams(), { dist: 2.0, tone: 0.5, level: 1.0, master: 0.85, chorusMix: 0.3, reverbMix: 0.35, reverbDecay: 0.9 })
+      '303': Object.assign(defaultFxParams(), { distOn: true, chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true, dist: 6.0, tone: 0.55, level: 1.0, master: 0.85, delayMix: 0.25, delayTime: 0.33, delayFeedback: 0.4, reverbMix: 0.18 }),
+      'dx7': Object.assign(defaultFxParams(), { distOn: true, chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true, chorusMix: 0.3, chorusRate: 0.8, chorusDepth: 2.5, delayMix: 0.3, delayTime: 0.44, delayFeedback: 0.45, reverbMix: 0.4, reverbDecay: 0.9, master: 0.9 }),
+      '808': Object.assign(defaultFxParams(), { distOn: true, chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true, dist: 2.0, tone: 0.5, level: 1.0, master: 0.9, reverbMix: 0.12, delayMix: 0.13 }),
+      'moog': Object.assign(defaultFxParams(), { distOn: true, chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true, dist: 2.0, tone: 0.5, level: 1.0, master: 0.85, chorusMix: 0.3, reverbMix: 0.35, reverbDecay: 0.9 })
     },
     data: () => {
       const I_808 = 0, I_bass = 1, I_acid = 2, I_bell = 3, I_pad = 4;
@@ -2906,10 +2906,10 @@ export const DEMO_SONGS: SongDef[] = [
       }
     ],
     fxParams: {
-      '303': Object.assign(defaultFxParams(), { dist: 3.0, tone: 0.5, level: 1.0, master: 0.8, delayMix: 0.22, delayTime: 0.41, delayFeedback: 0.42, reverbMix: 0.32, reverbDecay: 0.92 }),
+      '303': Object.assign(defaultFxParams(), { distOn: true, chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true, dist: 3.0, tone: 0.5, level: 1.0, master: 0.8, delayMix: 0.22, delayTime: 0.41, delayFeedback: 0.42, reverbMix: 0.32, reverbDecay: 0.92 }),
       'dx7': defaultFxParams(),
-      '808': Object.assign(defaultFxParams(), { dist: 1.5, tone: 0.5, level: 1.0, master: 0.9, reverbMix: 0.16, reverbDecay: 0.85 }),
-      'moog': Object.assign(defaultFxParams(), { dist: 1.5, tone: 0.5, level: 1.0, master: 0.8, chorusMix: 0.3, reverbMix: 0.6, reverbDecay: 0.96 })
+      '808': Object.assign(defaultFxParams(), { distOn: true, chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true, dist: 1.5, tone: 0.5, level: 1.0, master: 0.9, reverbMix: 0.16, reverbDecay: 0.85 }),
+      'moog': Object.assign(defaultFxParams(), { distOn: true, chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true, dist: 1.5, tone: 0.5, level: 1.0, master: 0.8, chorusMix: 0.3, reverbMix: 0.6, reverbDecay: 0.96 })
     },
     data: () => {
       const I_808 = 0, I_sub = 1, I_acid = 2, I_noise = 3, I_pad = 4;
@@ -3051,11 +3051,11 @@ export const DEMO_SONGS: SongDef[] = [
       { name: "Greasy Lead", type: "moog", p0: [1300, 0.35, 0.5, 0.4], p1: [10, 0.5, 0.7, 0.6], p2: [1, 2, 1, 0.05], p3: [2, 2, 2, 0] }
     ],
     fxParams: {
-      '303': Object.assign(defaultFxParams(), { dist: 6.0, tone: 0.6, level: 1.0, master: 0.8, delayMix: 0.24, delayFeedback: 0.4, reverbMix: 0.14 }),
-      'dx7': Object.assign(defaultFxParams(), { distOn: false, level: 1.0, master: 0.78, delayMix: 0.3, delayFeedback: 0.45, reverbMix: 0.4, reverbDecay: 0.86 }),
+      '303': Object.assign(defaultFxParams(), { distOn: true, chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true, dist: 6.0, tone: 0.6, level: 1.0, master: 0.8, delayMix: 0.24, delayFeedback: 0.4, reverbMix: 0.14 }),
+      'dx7': Object.assign(defaultFxParams(), { chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true, distOn: false, level: 1.0, master: 0.78, delayMix: 0.3, delayFeedback: 0.45, reverbMix: 0.4, reverbDecay: 0.86 }),
       // Drums dry: distortion / delay / reverb / chorus / tremolo / width all off.
       '808': Object.assign(defaultFxParams(), { distOn: false, delayOn: false, reverbOn: false, chorusOn: false, tremoloOn: false, widthOn: false, master: 0.9 }),
-      'moog': Object.assign(defaultFxParams(), { dist: 3.0, tone: 0.5, level: 1.0, master: 0.82, delayMix: 0.15, reverbMix: 0.28, reverbDecay: 0.85 }),
+      'moog': Object.assign(defaultFxParams(), { distOn: true, chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true, dist: 3.0, tone: 0.5, level: 1.0, master: 0.82, delayMix: 0.15, reverbMix: 0.28, reverbDecay: 0.85 }),
     },
     data: () => {
       const p: Pattern[] = [];
@@ -3261,11 +3261,11 @@ export const DEMO_SONGS: SongDef[] = [
       { name: "Sitar",     type: "303",     p0: [2200, 0.82, 0.7, 0.4],  p1: [0, 0.15, 0.28, 0] },
     ],
     fxParams: makeFx({
-      tanpura: { dist: 0.001, delayMix: 0, reverbDecay: 0.9, reverbSend: 0.55, reverbMix: 0.3, master: 0.6 },
-      tabla:   { dist: 1.2, tone: 0.5, delayMix: 0, reverbDecay: 0.7, reverbSend: 0.35, reverbMix: 0.18, master: 0.85 },
-      '808':   { dist: 1.6, tone: 0.55, delayMix: 0, reverbDecay: 0.5, reverbSend: 0.25, reverbMix: 0.12, master: 0.85 },
-      moog:    { dist: 2.0, tone: 0.5, delayMix: 0, reverbDecay: 0.85, reverbSend: 0.4, reverbMix: 0.2, master: 0.8 },
-      '303':   { dist: 3.5, tone: 0.6, delayTime: 0.28, delayFeedback: 0.42, delayMix: 0.3, reverbDecay: 0.85, reverbSend: 0.4, reverbMix: 0.25, master: 0.75 },
+      tanpura: { distOn: true, chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true, dist: 0.001, delayMix: 0, reverbDecay: 0.9, reverbSend: 0.55, reverbMix: 0.3, master: 0.6 },
+      tabla:   { distOn: true, chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true, dist: 1.2, tone: 0.5, delayMix: 0, reverbDecay: 0.7, reverbSend: 0.35, reverbMix: 0.18, master: 0.85 },
+      '808':   { distOn: true, chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true, dist: 1.6, tone: 0.55, delayMix: 0, reverbDecay: 0.5, reverbSend: 0.25, reverbMix: 0.12, master: 0.85 },
+      moog:    { distOn: true, chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true, dist: 2.0, tone: 0.5, delayMix: 0, reverbDecay: 0.85, reverbSend: 0.4, reverbMix: 0.2, master: 0.8 },
+      '303':   { distOn: true, chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true, dist: 3.5, tone: 0.6, delayTime: 0.28, delayFeedback: 0.42, delayMix: 0.3, reverbDecay: 0.85, reverbSend: 0.4, reverbMix: 0.25, master: 0.75 },
     }),
     data: () => {
       const P = () => new Pattern(128, 8);
@@ -3428,10 +3428,13 @@ export const DEMO_SONGS: SongDef[] = [
       { name: "Sky Pad", type: "moog", p0: [350, 0.1, 0.2, 0.1], p1: [14.0, 0.85, 3.0, 3.0], p2: [1, 1, 0, 0], p3: [2, 2, 1, 0.04] }
     ],
     fxParams: makeFx({
-      tanpura: { dist: 0.001, delayMix: 0.2, reverbMix: 0.4, master: 0.8 },
-      '808': { dist: 1.5, tone: 0.4, reverbMix: 0.15, master: 0.85 },
-      moog: { dist: 1.2, tone: 0.5, chorusMix: 0.4, reverbMix: 0.35, reverbDecay: 0.9, master: 0.8 },
-      '303': { dist: 3.0, tone: 0.6, delayMix: 0.25, delayTime: 0.375, reverbMix: 0.2, master: 0.75 }
+      tanpura: { distOn: true, chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true, dist: 0.001, delayMix: 0.2, reverbMix: 0.4, master: 0.8 },
+      '808': { distOn: true, chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true, dist: 1.5, tone: 0.4, reverbMix: 0.15, master: 0.85 },
+      moog: { distOn: true, chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true, dist: 1.2, tone: 0.5, chorusMix: 0.4, reverbMix: 0.35, reverbDecay: 0.9, master: 0.8 },
+      '303': { distOn: true, chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true, dist: 3.0, tone: 0.6, delayMix: 0.25, delayTime: 0.375, reverbMix: 0.2, master: 0.75 },
+      // dx7 "Glitch Bell" wasn't listed here, so it used the (old) all-on default chain;
+      // make that explicit now that defaultFxParams() defaults everything off.
+      dx7: { distOn: true, chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true }
     }),
     data: () => {
       const P = () => new Pattern(128, 8);
@@ -3716,8 +3719,8 @@ export const DEMO_SONGS: SongDef[] = [
       { name: "E8E Bell",      type: "e8e", p0: [0.001, 0.7, 0.0, 0.5], p1: [7.0, 12, 9, 0.0], p2: [0, 0, 0, 2], p3: [1.0, 0.45, 0.0, 0.5] }
     ],
     fxParams: makeFx({
-      "808": { reverbOn: true, reverbDecay: 0.6, reverbSend: 0.25, reverbMix: 0.16, master: 0.5 },
-      e8e:   { reverbOn: true, reverbDecay: 0.8, reverbSend: 0.4, reverbMix: 0.32,
+      "808": { distOn: true, chorusOn: true, delayOn: true, tremoloOn: true, widthOn: true, reverbOn: true, reverbDecay: 0.6, reverbSend: 0.25, reverbMix: 0.16, master: 0.5 },
+      e8e:   { distOn: true, chorusOn: true, tremoloOn: true, reverbOn: true, reverbDecay: 0.8, reverbSend: 0.4, reverbMix: 0.32,
                delayOn: true, delayTime: 0.333, delayFeedback: 0.32, delayMix: 0.22,
                widthOn: true, width: 1.3, master: 0.5 }
     }),
@@ -3905,11 +3908,11 @@ export const DEMO_SONGS: SongDef[] = [
     fxParams: makeFx({
       // Shared across all E8E channels — a bite of distortion + an eighth-note delay
       // (≈0.214s at 140) make the chase aggressive; master pulled down for headroom.
-      e8e:    { distOn: true, dist: 1.6, tone: 0.5, level: 1.0,
+      e8e:    { chorusOn: true, tremoloOn: true, distOn: true, dist: 1.6, tone: 0.5, level: 1.0,
                 reverbOn: true, reverbDecay: 0.5, reverbSend: 0.25, reverbMix: 0.14,
                 delayOn: true, delayTime: 0.214, delayFeedback: 0.3, delayMix: 0.13,
                 widthOn: true, width: 1.25, master: 0.45 },
-      groove: { reverbOn: true, reverbDecay: 0.55, reverbMix: 0.12, master: 0.8 }
+      groove: { distOn: true, chorusOn: true, delayOn: true, tremoloOn: true, widthOn: true, reverbOn: true, reverbDecay: 0.55, reverbMix: 0.12, master: 0.8 }
     }),
     data: () => {
       const p = Array.from({ length: 8 }, () => new Pattern(128, 8));
@@ -4090,14 +4093,14 @@ export const DEMO_SONGS: SongDef[] = [
       { name: "Clockwork Tick", type: "e8e", p0: [0.001, 0.05, 0.0, 0.02], p1: [0.0, 0, 8, 0.0], p2: [2, 0, 0, 1], p3: [1.0, 0.0, 0.0, 0.2] }
     ],
     fxParams: makeFx({
-      '303': { distOn: true, dist: 8.0, tone: 0.6, level: 1.0, master: 0.8, delayOn: true, delayMix: 0.25, delayTime: 0.3, delayFeedback: 0.4 },
-      'dx7': { reverbOn: true, reverbDecay: 0.7, reverbMix: 0.2, master: 0.8 },
-      '808': { distOn: true, dist: 3.0, tone: 0.5, level: 1.0, master: 0.9 },
-      'moog': { distOn: true, dist: 2.0, tone: 0.4, level: 1.0, master: 0.75, reverbOn: true, reverbDecay: 0.8, reverbMix: 0.15 },
-      'pipi': { reverbOn: true, reverbDecay: 0.75, reverbMix: 0.25, chorusOn: true, chorusMix: 0.2, chorusDepth: 2.0, master: 0.75 },
-      'guitar': { reverbOn: true, reverbDecay: 0.85, reverbMix: 0.2, delayOn: true, delayMix: 0.15, delayTime: 0.4, master: 0.8 },
-      'e8e': { master: 0.5 },
-      'groove': { master: 0.6 }
+      '303': { chorusOn: true, reverbOn: true, tremoloOn: true, widthOn: true, distOn: true, dist: 8.0, tone: 0.6, level: 1.0, master: 0.8, delayOn: true, delayMix: 0.25, delayTime: 0.3, delayFeedback: 0.4 },
+      'dx7': { distOn: true, chorusOn: true, delayOn: true, tremoloOn: true, widthOn: true, reverbOn: true, reverbDecay: 0.7, reverbMix: 0.2, master: 0.8 },
+      '808': { chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true, distOn: true, dist: 3.0, tone: 0.5, level: 1.0, master: 0.9 },
+      'moog': { chorusOn: true, delayOn: true, tremoloOn: true, widthOn: true, distOn: true, dist: 2.0, tone: 0.4, level: 1.0, master: 0.75, reverbOn: true, reverbDecay: 0.8, reverbMix: 0.15 },
+      'pipi': { distOn: true, delayOn: true, tremoloOn: true, widthOn: true, reverbOn: true, reverbDecay: 0.75, reverbMix: 0.25, chorusOn: true, chorusMix: 0.2, chorusDepth: 2.0, master: 0.75 },
+      'guitar': { distOn: true, chorusOn: true, tremoloOn: true, widthOn: true, reverbOn: true, reverbDecay: 0.85, reverbMix: 0.2, delayOn: true, delayMix: 0.15, delayTime: 0.4, master: 0.8 },
+      'e8e': { distOn: true, chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true, master: 0.5 },
+      'groove': { distOn: true, chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true, master: 0.6 }
     }),
     data: () => {
       const p = Array.from({ length: 9 }, () => new Pattern(128, 8));
@@ -4348,8 +4351,8 @@ export const DEMO_SONGS: SongDef[] = [
       { name: "Sync Pluck", type: "wvt", p0: [0.002, 0.16, 0.0, 0.07],  p1: [0.0, 0.4, 0.04, 0.0],  p2: [9, 7, 0.0, 0],    p3: [0.8, 0.45, 0, 0] },
     ],
     fxParams: {
-      '808': Object.assign(defaultFxParams(), { distOn: false, tone: 0.5, level: 1.0, master: 0.9 }),
-      'wvt': Object.assign(defaultFxParams(), { level: 1.0, master: 0.8, reverbMix: 0.35, reverbDecay: 0.85, delayMix: 0.18, delayFeedback: 0.35, width: 1.3 }),
+      '808': Object.assign(defaultFxParams(), { chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true, distOn: false, tone: 0.5, level: 1.0, master: 0.9 }),
+      'wvt': Object.assign(defaultFxParams(), { distOn: true, chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true, level: 1.0, master: 0.8, reverbMix: 0.35, reverbDecay: 0.85, delayMix: 0.18, delayFeedback: 0.35, width: 1.3 }),
     },
     data: () => {
       const N = 64;
@@ -4457,14 +4460,14 @@ export const DEMO_SONGS: SongDef[] = [
       { name: "Turbo-Prop",     type: "e8e",     p0: [0.3, 0.5, 0.9, 0.8],   p1: [0.18, -7, 6, 0.35], p2: [1, 1, 1, 3], p3: [1.0, 0.85, 0.6, 0.5] },
     ],
     fxParams: {
-      'tanpura': Object.assign(defaultFxParams(), { distOn: false, chorusOn: true, chorusMix: 0.2, chorusRate: 0.4, chorusDepth: 3, delayOn: false, reverbOn: true, reverbDecay: 0.9, reverbSend: 0.6, reverbMix: 0.32, widthOn: true, width: 1.3, master: 0.7 }),
-      'tabla':   Object.assign(defaultFxParams(), { distOn: true, dist: 1.2, tone: 0.5, delayOn: false, reverbOn: true, reverbDecay: 0.55, reverbSend: 0.32, reverbMix: 0.16, master: 0.85 }),
-      '808':     Object.assign(defaultFxParams(), { distOn: true, dist: 2.5, tone: 0.55, delayOn: false, reverbOn: true, reverbDecay: 0.4, reverbSend: 0.2, reverbMix: 0.08, master: 0.9 }),
-      'pipi':    Object.assign(defaultFxParams(), { distOn: false, chorusOn: true, chorusMix: 0.15, chorusRate: 0.5, chorusDepth: 4, delayOn: true, delayTime: 0.34, delayFeedback: 0.28, delayMix: 0.18, reverbOn: true, reverbDecay: 0.85, reverbSend: 0.45, reverbMix: 0.28, widthOn: true, width: 1.2, master: 0.75 }),
-      'moog':    Object.assign(defaultFxParams(), { distOn: true, dist: 1.5, tone: 0.5, chorusOn: true, chorusMix: 0.18, chorusRate: 0.3, chorusDepth: 5, delayOn: false, reverbOn: true, reverbDecay: 0.8, reverbSend: 0.4, reverbMix: 0.2, widthOn: true, width: 1.2, master: 0.78 }),
-      '303':     Object.assign(defaultFxParams(), { distOn: true, dist: 8.0, tone: 0.6, level: 1.0, delayOn: true, delayTime: 0.28, delayFeedback: 0.4, delayMix: 0.28, reverbOn: true, reverbDecay: 0.7, reverbSend: 0.35, reverbMix: 0.18, master: 0.8 }),
-      'guitar':  Object.assign(defaultFxParams(), { distOn: false, chorusOn: true, chorusMix: 0.3, chorusRate: 0.8, chorusDepth: 4, delayOn: true, delayTime: 0.3, delayFeedback: 0.3, delayMix: 0.22, reverbOn: true, reverbDecay: 0.7, reverbSend: 0.35, reverbMix: 0.2, widthOn: true, width: 1.3, master: 0.78 }),
-      'e8e':     Object.assign(defaultFxParams(), { distOn: true, dist: 3.0, tone: 0.45, tremoloOn: true, tremoloMix: 0.85, tremoloRate: 9.0, delayOn: false, reverbOn: true, reverbDecay: 0.6, reverbSend: 0.4, reverbMix: 0.22, master: 0.7 }),
+      'tanpura': Object.assign(defaultFxParams(), { tremoloOn: true, distOn: false, chorusOn: true, chorusMix: 0.2, chorusRate: 0.4, chorusDepth: 3, delayOn: false, reverbOn: true, reverbDecay: 0.9, reverbSend: 0.6, reverbMix: 0.32, widthOn: true, width: 1.3, master: 0.7 }),
+      'tabla':   Object.assign(defaultFxParams(), { chorusOn: true, tremoloOn: true, widthOn: true, distOn: true, dist: 1.2, tone: 0.5, delayOn: false, reverbOn: true, reverbDecay: 0.55, reverbSend: 0.32, reverbMix: 0.16, master: 0.85 }),
+      '808':     Object.assign(defaultFxParams(), { chorusOn: true, tremoloOn: true, widthOn: true, distOn: true, dist: 2.5, tone: 0.55, delayOn: false, reverbOn: true, reverbDecay: 0.4, reverbSend: 0.2, reverbMix: 0.08, master: 0.9 }),
+      'pipi':    Object.assign(defaultFxParams(), { tremoloOn: true, distOn: false, chorusOn: true, chorusMix: 0.15, chorusRate: 0.5, chorusDepth: 4, delayOn: true, delayTime: 0.34, delayFeedback: 0.28, delayMix: 0.18, reverbOn: true, reverbDecay: 0.85, reverbSend: 0.45, reverbMix: 0.28, widthOn: true, width: 1.2, master: 0.75 }),
+      'moog':    Object.assign(defaultFxParams(), { tremoloOn: true, distOn: true, dist: 1.5, tone: 0.5, chorusOn: true, chorusMix: 0.18, chorusRate: 0.3, chorusDepth: 5, delayOn: false, reverbOn: true, reverbDecay: 0.8, reverbSend: 0.4, reverbMix: 0.2, widthOn: true, width: 1.2, master: 0.78 }),
+      '303':     Object.assign(defaultFxParams(), { chorusOn: true, tremoloOn: true, widthOn: true, distOn: true, dist: 8.0, tone: 0.6, level: 1.0, delayOn: true, delayTime: 0.28, delayFeedback: 0.4, delayMix: 0.28, reverbOn: true, reverbDecay: 0.7, reverbSend: 0.35, reverbMix: 0.18, master: 0.8 }),
+      'guitar':  Object.assign(defaultFxParams(), { tremoloOn: true, distOn: false, chorusOn: true, chorusMix: 0.3, chorusRate: 0.8, chorusDepth: 4, delayOn: true, delayTime: 0.3, delayFeedback: 0.3, delayMix: 0.22, reverbOn: true, reverbDecay: 0.7, reverbSend: 0.35, reverbMix: 0.2, widthOn: true, width: 1.3, master: 0.78 }),
+      'e8e':     Object.assign(defaultFxParams(), { chorusOn: true, widthOn: true, distOn: true, dist: 3.0, tone: 0.45, tremoloOn: true, tremoloMix: 0.85, tremoloRate: 9.0, delayOn: false, reverbOn: true, reverbDecay: 0.6, reverbSend: 0.4, reverbMix: 0.22, master: 0.7 }),
     },
     data: () => {
       const P = () => new Pattern(64, 8);
@@ -4679,11 +4682,11 @@ export const DEMO_SONGS: SongDef[] = [
         sample: { name: "Everybody (loop)", pcm: new Float32Array(0), rootNote: 60, loopStart: 0, loopEnd: 0, loopMode: 1, url: "/samples/dvs-everybody-1.ogg" } },
     ],
     fxParams: {
-      '808':     Object.assign(defaultFxParams(), { distOn: true, dist: 3, compOn: true, compThresh: -15, compRatio: 3, reverbMix: 0.06, master: 0.95 }),
-      '303':     Object.assign(defaultFxParams(), { distOn: true, dist: 8, delayOn: true, delayTime: 0.23, delayMix: 0.2, delayFeedback: 0.3, reverbOn: true, reverbMix: 0.16, master: 0.9 }),
-      'moog':    Object.assign(defaultFxParams(), { chorusOn: true, chorusMix: 0.4, reverbOn: true, reverbMix: 0.4, reverbDecay: 0.85, widthOn: true, width: 1.4, master: 0.8 }),
-      'dx7':     Object.assign(defaultFxParams(), { distOn: false, delayOn: true, delayTime: 0.23, delayMix: 0.2, delayFeedback: 0.28, reverbOn: true, reverbMix: 0.22, widthOn: true, width: 1.2, master: 0.85 }),
-      'sampler': Object.assign(defaultFxParams(), { delayOn: true, delayTime: 0.23, delayMix: 0.16, delayFeedback: 0.22, reverbOn: true, reverbMix: 0.14, master: 1.0 }),
+      '808':     Object.assign(defaultFxParams(), { chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true, distOn: true, dist: 3, compOn: true, compThresh: -15, compRatio: 3, reverbMix: 0.06, master: 0.95 }),
+      '303':     Object.assign(defaultFxParams(), { chorusOn: true, tremoloOn: true, widthOn: true, distOn: true, dist: 8, delayOn: true, delayTime: 0.23, delayMix: 0.2, delayFeedback: 0.3, reverbOn: true, reverbMix: 0.16, master: 0.9 }),
+      'moog':    Object.assign(defaultFxParams(), { distOn: true, delayOn: true, tremoloOn: true, chorusOn: true, chorusMix: 0.4, reverbOn: true, reverbMix: 0.4, reverbDecay: 0.85, widthOn: true, width: 1.4, master: 0.8 }),
+      'dx7':     Object.assign(defaultFxParams(), { chorusOn: true, tremoloOn: true, distOn: false, delayOn: true, delayTime: 0.23, delayMix: 0.2, delayFeedback: 0.28, reverbOn: true, reverbMix: 0.22, widthOn: true, width: 1.2, master: 0.85 }),
+      'sampler': Object.assign(defaultFxParams(), { distOn: true, chorusOn: true, tremoloOn: true, widthOn: true, delayOn: true, delayTime: 0.23, delayMix: 0.16, delayFeedback: 0.22, reverbOn: true, reverbMix: 0.14, master: 1.0 }),
     },
     data: () => {
       const N = 64;
@@ -5151,14 +5154,14 @@ export const DEMO_SONGS: SongDef[] = [
       { name: "Vox: Oww",         type: "sampler", p0: [0, 0, 1.0, 0], p1: [0.001, 0.1, 1.0, 0.1], sample: smp("Oww", "dvs-oww-1") },
     ],
     fxParams: {
-      '808':     Object.assign(defaultFxParams(), { distOn: true, dist: 3, odOn: false, delayOn: false, chorusOn: false, tremoloOn: false, reverbOn: true, reverbMix: 0.08, compOn: true, compThresh: -14, compRatio: 3, master: 0.95 }),
+      '808':     Object.assign(defaultFxParams(), { widthOn: true, distOn: true, dist: 3, odOn: false, delayOn: false, chorusOn: false, tremoloOn: false, reverbOn: true, reverbMix: 0.08, compOn: true, compThresh: -14, compRatio: 3, master: 0.95 }),
       '303':     Object.assign(defaultFxParams(), { distOn: true, dist: 7, tone: 0.55, chorusOn: false, tremoloOn: false, delayOn: true, delayTime: 0.30, delayFeedback: 0.32, delayMix: 0.20, reverbOn: true, reverbMix: 0.16, widthOn: true, width: 1.1, master: 0.80 }),
       'e8e':     Object.assign(defaultFxParams(), {
         distOn: false, odOn: false, chorusOn: false, tremoloOn: false, delayOn: false,
         vocoderOn: true, vocSource: 4, vocBands: 16, vocQ: 7, vocAttack: 3, vocRelease: 22, vocMix: 1.0, vocUnvoiced: 0.6, vocFormant: 0,   // carrier voiced by inst 4 (Freak loop)
         reverbOn: true, reverbMix: 0.22, reverbDecay: 0.8, widthOn: true, width: 1.4, master: 0.98,
       }),
-      'sampler': Object.assign(defaultFxParams(), { distOn: false, chorusOn: false, tremoloOn: false, delayOn: true, delayTime: 0.30, delayFeedback: 0.24, delayMix: 0.14, reverbOn: true, reverbMix: 0.14, master: 0.85 }),
+      'sampler': Object.assign(defaultFxParams(), { widthOn: true, distOn: false, chorusOn: false, tremoloOn: false, delayOn: true, delayTime: 0.30, delayFeedback: 0.24, delayMix: 0.14, reverbOn: true, reverbMix: 0.14, master: 0.85 }),
     },
     data: () => {
       const N = 64;
@@ -5284,17 +5287,19 @@ export const DEMO_SONGS: SongDef[] = [
   {
     name: "Vaffanculo in D Minor",
     author: "AI Slop",
-    note: "Slow-building cinematic adagio in D minor à la John Murphy's 'Adagio in D Minor' (Sunshine / 'Surface of the Sun'). A descending lament bass D–C–Bb–A under an e8e string ensemble, dx7 brass/organ swells, a moog cello-sub, 808 timpani rolls, and a soaring e8e violin descant at the peak — a relentless layered crescendo, a pull-back, a final surge, then a release into the reverb tail. 66 BPM. Prompt: 'make an orchestral demo track in the style of John Murphy's Adagio in D Minor — full build — called Vaffanculo in D Minor'.",
+    note: "John Murphy 'Adagio in D Minor' (Sunshine) homage, rebuilt around Spectra: the classic descending D-minor lament (Dm–C–Bb–A, bass D–C–Bb–A) carried by a huge WIDE-STEREO Spectra choir/string swell (slow-attack, formant 'aah', shimmer) and a second soaring Spectra descant at the peak, over a Moog cello-sub pedal, DX7 brass, and 808 timpani that grows from soft booms to driving accelerando rolls. A relentless layered crescendo → first climax → a pull-back → a bigger final surge → release into the reverb tail. 66 BPM, ~4:10. Prompt: 'Let's redo \"Vaffanculo in D Minor\" (it currently sucks). We're looking for John Murphy's \"Adagio in D Minor\". It should be 4:10 long, and probably use Spectra.'",
     bpm: 66,
-    master: DEFAULT_MASTER * 0.6,
+    master: DEFAULT_MASTER * 0.52,
     params: [
       // 0: Timpani / bass drum (808) — long, dark, boomy
       { name: "Timpani",       type: "808",  p0: [0, 0.7, 0.85, 0.3], p1: [0, 0, 0, 0] },
       // 1: Cello / sub pedal (Moog) — dark, sustained, the descending lament bass
       { name: "Cello Sub",     type: "moog", p0: [180, 0.35, 0.6, 0], p1: [6, 0.95, 0.7, 1.2], p2: [1, 1, 1, 0], p3: [1, 1, 1, 0.01] },
-      // 2: String ensemble (888State) — slow attack, high sustain, long release
-      { name: "String Ens.",   type: "e8e",  p0: [0.25, 0.5, 0.9, 0.7], p1: [0.18, -12, 8, 0], p2: [1, 1, 3, 3], p3: [1, 0.85, 0.6, 0.5] },
-      // 3: Brass / organ swell (DX7) — warm sustained 6-op pad (Bathhouse-pad voicing)
+      // 2: Choir/strings (Spectra) — slow-attack wide-stereo additive swell; formant "aah" +
+      //    shimmer + detune width, washy (low coherence). The orchestral centerpiece.
+      { name: "Spectra Choir", type: "additive",
+        p0: [1536, 0.42, 0.03, 0], p1: [0, 0.5, 0.45, 0], p2: [0.6, 2.2, 0.0, 0.2], p3: [0.42, 0.4, 1.0, 0.7], p4: [0.85, 0, 0, 0] },
+      // 3: Brass / organ swell (DX7) — warm sustained 6-op pad
       {
         name: "Brass Swell", type: "dx7",
         p0: [1, 1.5, 2.5, 0.4], p1: [5, 0.6, 0.8, 3],
@@ -5307,40 +5312,44 @@ export const DEMO_SONGS: SongDef[] = [
           { coarse: 4.0, fine: 0, level: 20, detune: 2,  decay: 1.0, mode: 0, sustain: 0.30, release: 1.0 }
         ]
       },
-      // 4: Soaring violin descant (888State) — brighter, faster attack, peak only
-      { name: "Violin Top",    type: "e8e",  p0: [0.12, 0.4, 0.85, 0.6], p1: [0.12, -7, 8, 0], p2: [1, 1, 3, 3], p3: [1, 0.8, 0.5, 0.5] },
+      // 4: Soaring descant (Spectra) — brighter, faster attack, narrower; the violin top at the peak.
+      { name: "Spectra Descant", type: "additive",
+        p0: [1024, 0.6, 0.0, 0], p1: [0, 0.5, 0.3, 0], p2: [0.35, 1.8, 0.0, 0.3], p3: [0.45, 0.3, 0.7, 0.6], p4: [0.6, 0, 0, 0] },
     ],
     fxParams: {
-      '808':  Object.assign(defaultFxParams(), { distOn: true, dist: 1.5, tone: 0.4, delayOn: false, reverbOn: true, reverbDecay: 0.72, reverbMix: 0.22, master: 0.9 }),
-      'moog': Object.assign(defaultFxParams(), { distOn: false, chorusOn: true, chorusMix: 0.15, chorusRate: 0.3, chorusDepth: 5, delayOn: false, reverbOn: true, reverbDecay: 0.85, reverbMix: 0.25, widthOn: true, width: 1.2, master: 0.8 }),
-      'e8e':  Object.assign(defaultFxParams(), { distOn: false, chorusOn: true, chorusMix: 0.4, chorusRate: 0.35, chorusDepth: 5, delayOn: false, reverbOn: true, reverbDecay: 0.92, reverbMix: 0.42, widthOn: true, width: 1.5, master: 0.78 }),
-      'dx7':  Object.assign(defaultFxParams(), { chorusOn: true, chorusMix: 0.5, chorusRate: 0.3, chorusDepth: 6, delayOn: false, reverbOn: true, reverbDecay: 0.95, reverbMix: 0.5, widthOn: true, width: 1.5, master: 0.8 }),
+      '808':  Object.assign(defaultFxParams(), { chorusOn: true, tremoloOn: true, widthOn: true, distOn: true, dist: 1.5, tone: 0.4, delayOn: false, reverbOn: true, reverbDecay: 0.72, reverbMix: 0.22, master: 0.9 }),
+      'moog': Object.assign(defaultFxParams(), { tremoloOn: true, distOn: false, chorusOn: true, chorusMix: 0.15, chorusRate: 0.3, chorusDepth: 5, delayOn: false, reverbOn: true, reverbDecay: 0.85, reverbMix: 0.25, widthOn: true, width: 1.2, master: 0.8 }),
+      // Spectra is already a stereo source; the reverb + a touch of width make it cathedral-huge.
+      'additive': Object.assign(defaultFxParams(), { tremoloOn: true, distOn: false, chorusOn: true, chorusMix: 0.3, chorusRate: 0.28, chorusDepth: 6, delayOn: false, reverbOn: true, reverbDecay: 0.93, reverbDamp: 0.35, reverbSend: 0.7, reverbMix: 0.46, widthOn: true, width: 1.4, master: 0.8 }),
+      'dx7':  Object.assign(defaultFxParams(), { distOn: true, tremoloOn: true, chorusOn: true, chorusMix: 0.5, chorusRate: 0.3, chorusDepth: 6, delayOn: false, reverbOn: true, reverbDecay: 0.95, reverbMix: 0.5, widthOn: true, width: 1.5, master: 0.8 }),
     },
     data: () => {
       const N = 64;                          // 4 bars/pattern (16 rows/bar) → ~14.5 s at 66 BPM
       const mk = () => new Pattern(N, 8);
-      const I_TIMP = 0, I_BASS = 1, I_STR = 2, I_BRASS = 3, I_HIGH = 4;
+      const I_TIMP = 0, I_CELLO = 1, I_CHOIR = 2, I_BRASS = 3, I_DESC = 4;
       const TIMP = 36;                       // 808 bass-drum slot, used as the timpani
 
-      // Descending lament in D minor: Dm – C – Bb – A(maj), one chord per bar.
-      const STR  = [[62, 65, 69], [60, 64, 67], [62, 65, 70], [61, 64, 69]];  // string triad ch2,3,4 (low→high)
-      const BRS  = [[50, 57], [48, 55], [46, 53], [45, 52]];                  // brass root+5th  ch5,6
-      const BASS = [38, 36, 34, 33];                                          // cello root      ch1  (D2 C2 Bb1 A1)
-      const HIGH = [81, 79, 77, 76];                                          // violin descant  ch7  (A5 G5 F5 E5)
+      // Descending lament in D minor: Dm – C – Bb – A(maj), one chord per bar (the
+      // classic falling-tetrachord bass D–C–Bb–A). Voices descend in parallel.
+      const CHOIR = [[62, 65, 69], [60, 64, 67], [58, 62, 65], [57, 61, 64]];  // choir triad ch2,3,4 (low→high)
+      const BRASS = [[50, 57], [48, 55], [46, 53], [45, 52]];                  // brass root+5th  ch5,6
+      const CELLO = [38, 36, 34, 33];                                          // cello root      ch1  (D2 C2 Bb1 A1)
+      const DESC  = [81, 79, 77, 76];                                          // descant         ch7  (A5 G5 F5 E5)
 
       // Layer helpers — each retriggers its chord at every bar downbeat and holds
-      // (legato; the next bar's note replaces it). killHang() cuts tails between sections.
-      const strings = (pat: Pattern, vol: number) => {
-        for (let bar = 0; bar < 4; bar++) { const r = bar * 16, c = STR[bar]; pat.set(r, 2, c[0], I_STR, vol); pat.set(r, 3, c[1], I_STR, vol); pat.set(r, 4, c[2], I_STR, vol); }
+      // (legato; the next bar's note replaces it, restarting Spectra's slow attack →
+      // a per-chord orchestral bloom). killHang() cuts tails between sections.
+      const choir = (pat: Pattern, vol: number) => {
+        for (let bar = 0; bar < 4; bar++) { const r = bar * 16, c = CHOIR[bar]; pat.set(r, 2, c[0], I_CHOIR, vol); pat.set(r, 3, c[1], I_CHOIR, vol); pat.set(r, 4, c[2], I_CHOIR, vol); }
       };
       const brass = (pat: Pattern, vol: number) => {
-        for (let bar = 0; bar < 4; bar++) { const r = bar * 16, c = BRS[bar]; pat.set(r, 5, c[0], I_BRASS, vol); pat.set(r, 6, c[1], I_BRASS, vol); }
+        for (let bar = 0; bar < 4; bar++) { const r = bar * 16, c = BRASS[bar]; pat.set(r, 5, c[0], I_BRASS, vol); pat.set(r, 6, c[1], I_BRASS, vol); }
       };
       const cello = (pat: Pattern, vol: number) => {
-        for (let bar = 0; bar < 4; bar++) pat.set(bar * 16, 1, BASS[bar], I_BASS, vol);
+        for (let bar = 0; bar < 4; bar++) pat.set(bar * 16, 1, CELLO[bar], I_CELLO, vol);
       };
       const descant = (pat: Pattern, vol: number) => {
-        for (let bar = 0; bar < 4; bar++) pat.set(bar * 16, 7, HIGH[bar], I_HIGH, vol);
+        for (let bar = 0; bar < 4; bar++) pat.set(bar * 16, 7, DESC[bar], I_DESC, vol);
       };
       // Timpani — gentle single booms → beats 1&3 + a roll → driving hits + accelerando roll.
       const timpSoft = (pat: Pattern, vol: number) => { for (let bar = 0; bar < 4; bar++) pat.set(bar * 16, 0, TIMP, I_TIMP, vol); };
@@ -5348,31 +5357,33 @@ export const DEMO_SONGS: SongDef[] = [
         for (let bar = 0; bar < 4; bar++) { const r = bar * 16; pat.set(r, 0, TIMP, I_TIMP, vol); pat.set(r + 8, 0, TIMP, I_TIMP, vol * 0.7); }
         for (let r = 56; r < 64; r++) pat.set(r, 0, TIMP, I_TIMP, 0.3 + (r - 56) * 0.07);   // roll into the next bar
       };
-      const timpPeak = (pat: Pattern, vol: number) => {
+      const timpRoll = (pat: Pattern, vol: number) => {
         for (let r = 0; r < 64; r++) if (r % 4 === 0) pat.set(r, 0, TIMP, I_TIMP, r % 16 === 0 ? vol : vol * 0.8);
-        for (let r = 56; r < 64; r++) pat.set(r, 0, TIMP, I_TIMP, 0.4 + (r - 56) * 0.07);   // crescendo roll
+        for (let r = 56; r < 64; r++) pat.set(r, 0, TIMP, I_TIMP, 0.45 + (r - 56) * 0.07);   // crescendo roll into the next surge
       };
 
-      // --- Sections ---------------------------------------------------------------
-      const pIntro = mk(); cello(pIntro, 0.6); strings(pIntro, 0.28);                                       // bass + a whisper of strings
-      const pStr   = mk(); cello(pStr, 0.7);  strings(pStr, 0.45); timpSoft(pStr, 0.4);                     // strings bloom + soft timpani
-      const pBuild = mk(); cello(pBuild, 0.75); strings(pBuild, 0.55); brass(pBuild, 0.5); timpBuild(pBuild, 0.6);  // brass enters, timpani drives
-      const pPeak  = mk(); cello(pPeak, 0.85); strings(pPeak, 0.7); brass(pPeak, 0.8); descant(pPeak, 0.7); timpPeak(pPeak, 0.9);  // fff: everything + soaring violins
-      const pOut   = mk();                                                                                  // final Dm, released into the reverb tail
-      pOut.set(0, 1, 38, I_BASS, 0.5); pOut.set(0, 2, 62, I_STR, 0.32); pOut.set(0, 3, 65, I_STR, 0.32); pOut.set(0, 4, 69, I_STR, 0.32); pOut.set(0, 0, TIMP, I_TIMP, 0.5);
-      for (let ch = 1; ch < 8; ch++) pOut.set(52, ch, OFF, 0);                                              // let releases + reverb fade to silence
+      // --- Sections (each = one full Dm–C–Bb–A cycle, rising in intensity) ---------
+      const pIntro  = mk(); cello(pIntro, 0.55); choir(pIntro, 0.22);                                                       // sub pedal + a whisper of choir
+      const pRise   = mk(); cello(pRise, 0.66);  choir(pRise, 0.42);  timpSoft(pRise, 0.35);                                // choir blooms + soft timpani
+      const pBuild  = mk(); cello(pBuild, 0.74); choir(pBuild, 0.56); brass(pBuild, 0.5);  timpBuild(pBuild, 0.55);         // brass enters, timpani drives
+      const pPeak   = mk(); cello(pPeak, 0.84);  choir(pPeak, 0.7);   brass(pPeak, 0.78); descant(pPeak, 0.66); timpBuild(pPeak, 0.78);  // first climax + descant
+      const pClimax = mk(); cello(pClimax, 0.92); choir(pClimax, 0.84); brass(pClimax, 0.88); descant(pClimax, 0.82); timpRoll(pClimax, 0.95);  // fff final surge
+      const pOut    = mk();                                                                                                 // final Dm, released into the reverb tail
+      pOut.set(0, 1, 38, I_CELLO, 0.5); pOut.set(0, 2, 62, I_CHOIR, 0.3); pOut.set(0, 3, 65, I_CHOIR, 0.3); pOut.set(0, 4, 69, I_CHOIR, 0.3); pOut.set(0, 0, TIMP, I_TIMP, 0.5);
+      for (let ch = 1; ch < 8; ch++) pOut.set(52, ch, OFF, 0);                                                              // let releases + reverb fade to silence
 
-      // Cut held string/brass/descant tails when a section drops a layer (e.g. peak → bridge/outro).
+      // Cut held choir/brass/descant tails when a section drops a layer (e.g. peak → pull-back/outro).
       const killHang = (pat: Pattern) => { for (let ch = 1; ch < 8; ch++) if (pat.note(0, ch) === EMPTY) pat.set(0, ch, OFF, 0); };
-      [pIntro, pStr, pBuild, pPeak, pOut].forEach(killHang);
+      [pIntro, pRise, pBuild, pPeak, pClimax, pOut].forEach(killHang);
 
-      const LVL_STR = tgt('e8e', 'LVL'), LVL_BRS = tgt('dx7', 'LVL'), CUT_BASS = tgt('moog', 'CUT');
+      const TLT_CHOIR = tgt('additive', 'TLT'), LVL_BRS = tgt('dx7', 'LVL'), CUT_BASS = tgt('moog', 'CUT');
       return {
-        patterns: [pIntro, pStr, pBuild, pPeak, pOut],
-        // intro·intro · strings·strings · build·build · peak·peak · strings(pull-back) · build · peak·peak · outro  ≈ 3:08
-        order: [0, 0, 1, 1, 2, 2, 3, 3, 1, 2, 3, 3, 4],
+        patterns: [pIntro, pRise, pBuild, pPeak, pClimax, pOut],
+        // intro·intro · rise·rise · build·build · peak·peak · rise·rise(pull-back) · build·build · peak · climax·climax·climax · outro  ≈ 4:07 + tail
+        order: [0, 0, 1, 1, 2, 2, 3, 3, 1, 1, 2, 2, 3, 4, 4, 4, 5],
         rowsPerBeat: 4,
-        pan: [0.5, 0.5, 0.35, 0.5, 0.65, 0.4, 0.6, 0.55],
+        // Wide orchestral seating; the Spectra choir is itself stereo, so its channels' pan just balances the image.
+        pan: [0.5, 0.5, 0.36, 0.5, 0.64, 0.42, 0.58, 0.5],
         lfos: [
           { ...defaultLfo(), shape: 0, sync: true, rateBeats: 8 },    // 0: slow sine (2 bars) — orchestral swell
           { ...defaultLfo(), shape: 0, sync: true, rateBeats: 16 },   // 1: very slow sine (4 bars) — sub filter drift
@@ -5380,9 +5391,9 @@ export const DEMO_SONGS: SongDef[] = [
           { ...defaultPumpLfo() },                                    // 3: pump (unused here)
         ],
         modRoutings: [
-          { source: 0, targetParamId: LVL_STR.id,  targetInstIdx: I_STR,   depth: 0.12, bipolar: true },  // swell → strings level
-          { source: 0, targetParamId: LVL_BRS.id,  targetInstIdx: I_BRASS, depth: 0.10, bipolar: true },  // swell → brass level
-          { source: 1, targetParamId: CUT_BASS.id, targetInstIdx: I_BASS,  depth: 0.30, bipolar: true },  // drift → cello-sub cutoff
+          { source: 0, targetParamId: TLT_CHOIR.id, targetInstIdx: I_CHOIR, depth: 0.10, bipolar: true },  // swell → choir brightness (spectral dig-in)
+          { source: 0, targetParamId: LVL_BRS.id,   targetInstIdx: I_BRASS, depth: 0.10, bipolar: true },  // swell → brass level
+          { source: 1, targetParamId: CUT_BASS.id,  targetInstIdx: I_CELLO, depth: 0.30, bipolar: true },  // drift → cello-sub cutoff
         ],
       };
     }
@@ -5399,9 +5410,9 @@ export const DEMO_SONGS: SongDef[] = [
       { name: "Upright Bass", type: "moog", p0: [450, 0.2, 0.5, 0.4], p1: [1.5, 0.1, 0.4, 0.55], p2: [1, 1, 1, 0.03], p3: [1, 1, 1, 0] },
     ],
     fxParams: {
-      '808':  Object.assign(defaultFxParams(), { distOn: false, delayOn: false, reverbOn: true, reverbDecay: 0.6, reverbDamp: 0.5, reverbSend: 0.4, reverbMix: 0.18, master: 0.8 }),
-      'pipi': Object.assign(defaultFxParams(), { compOn: true, compThresh: -20, compRatio: 2.5, compAttack: 8, compRelease: 160, compMakeup: 3, eqOn: true, eqLow: -2, eqHigh: 2, delayOn: false, reverbOn: true, reverbDecay: 0.78, reverbDamp: 0.5, reverbSend: 0.55, reverbMix: 0.18, widthOn: true, width: 1.15, master: 0.85 }),
-      'moog': Object.assign(defaultFxParams(), { distOn: false, chorusOn: false, delayOn: false, reverbOn: true, reverbDecay: 0.5, reverbSend: 0.3, reverbMix: 0.08, master: 0.85 }),
+      '808':  Object.assign(defaultFxParams(), { chorusOn: true, tremoloOn: true, widthOn: true, distOn: false, delayOn: false, reverbOn: true, reverbDecay: 0.6, reverbDamp: 0.5, reverbSend: 0.4, reverbMix: 0.18, master: 0.8 }),
+      'pipi': Object.assign(defaultFxParams(), { distOn: true, chorusOn: true, tremoloOn: true, compOn: true, compThresh: -20, compRatio: 2.5, compAttack: 8, compRelease: 160, compMakeup: 3, eqOn: true, eqLow: -2, eqHigh: 2, delayOn: false, reverbOn: true, reverbDecay: 0.78, reverbDamp: 0.5, reverbSend: 0.55, reverbMix: 0.18, widthOn: true, width: 1.15, master: 0.85 }),
+      'moog': Object.assign(defaultFxParams(), { tremoloOn: true, widthOn: true, distOn: false, chorusOn: false, delayOn: false, reverbOn: true, reverbDecay: 0.5, reverbSend: 0.3, reverbMix: 0.08, master: 0.85 }),
     },
     data: () => {
       const N = 64;                          // 4 bars/pattern (16 rows/bar) at 92 BPM
@@ -5504,11 +5515,11 @@ export const DEMO_SONGS: SongDef[] = [
       { name: "Glass Arp",  type: "wvt",  p0: [0.005, 0.22, 0.2, 0.18], p1: [0.0, 0.55, 0.06, 0.0], p2: [15, 8, 0, -1], p3: [0.9, 0.5, 0, 0] },
     ],
     fxParams: {
-      '808':  Object.assign(defaultFxParams(), { distOn: true, dist: 2.0, tone: 0.5, delayOn: false, reverbOn: true, reverbDecay: 0.72, reverbDamp: 0.4, reverbSend: 0.5, reverbMix: 0.26, master: 0.9 }),
-      'moog': Object.assign(defaultFxParams(), { distOn: true, dist: 2.0, tone: 0.5, chorusOn: false, delayOn: false, reverbOn: true, reverbDecay: 0.9, reverbSend: 0.2, reverbMix: 0.4, master: 0.85 }),  // "Muffled Noir Bass" preset fx
-      'e8e':  Object.assign(defaultFxParams(), { chorusOn: true, chorusMix: 0.4, chorusRate: 0.3, chorusDepth: 5, delayOn: false, reverbOn: true, reverbDecay: 0.9, reverbSend: 0.6, reverbMix: 0.4, widthOn: true, width: 1.5, master: 0.72 }),
-      'dx7':  Object.assign(defaultFxParams(), { chorusOn: true, chorusMix: 0.35, delayOn: true, delayTime: 0.3, delayFeedback: 0.4, delayMix: 0.3, reverbOn: true, reverbDecay: 0.9, reverbSend: 0.5, reverbMix: 0.32, widthOn: true, width: 1.4, master: 0.78 }),
-      'wvt':  Object.assign(defaultFxParams(), { filterOn: true, filterCutoff: 1800, filterReso: 0.35, filterMode: 0, delayOn: true, delayTime: 0.15, delayFeedback: 0.45, delayMix: 0.35, reverbOn: true, reverbDecay: 0.8, reverbSend: 0.5, reverbMix: 0.3, widthOn: true, width: 1.4, master: 0.7 }),
+      '808':  Object.assign(defaultFxParams(), { chorusOn: true, tremoloOn: true, widthOn: true, distOn: true, dist: 2.0, tone: 0.5, delayOn: false, reverbOn: true, reverbDecay: 0.72, reverbDamp: 0.4, reverbSend: 0.5, reverbMix: 0.26, master: 0.9 }),
+      'moog': Object.assign(defaultFxParams(), { tremoloOn: true, widthOn: true, distOn: true, dist: 2.0, tone: 0.5, chorusOn: false, delayOn: false, reverbOn: true, reverbDecay: 0.9, reverbSend: 0.2, reverbMix: 0.4, master: 0.85 }),  // "Muffled Noir Bass" preset fx
+      'e8e':  Object.assign(defaultFxParams(), { distOn: true, tremoloOn: true, chorusOn: true, chorusMix: 0.4, chorusRate: 0.3, chorusDepth: 5, delayOn: false, reverbOn: true, reverbDecay: 0.9, reverbSend: 0.6, reverbMix: 0.4, widthOn: true, width: 1.5, master: 0.72 }),
+      'dx7':  Object.assign(defaultFxParams(), { distOn: true, tremoloOn: true, chorusOn: true, chorusMix: 0.35, delayOn: true, delayTime: 0.3, delayFeedback: 0.4, delayMix: 0.3, reverbOn: true, reverbDecay: 0.9, reverbSend: 0.5, reverbMix: 0.32, widthOn: true, width: 1.4, master: 0.78 }),
+      'wvt':  Object.assign(defaultFxParams(), { distOn: true, chorusOn: true, tremoloOn: true, filterOn: true, filterCutoff: 1800, filterReso: 0.35, filterMode: 0, delayOn: true, delayTime: 0.15, delayFeedback: 0.45, delayMix: 0.35, reverbOn: true, reverbDecay: 0.8, reverbSend: 0.5, reverbMix: 0.3, widthOn: true, width: 1.4, master: 0.7 }),
     },
     data: () => {
       const N = 64;                          // 4 bars/pattern at 100 BPM
@@ -5595,10 +5606,10 @@ export const DEMO_SONGS: SongDef[] = [
       { name: "Dead Wax",   type: "groove", p0: [0.4, 0.5, 0.35, 0.5], p1: [0.5, 0.4, 0.45, 0.65], p2: [0, 0.5, 0.4, 0] },
     ],
     fxParams: {
-      '808':    Object.assign(defaultFxParams(), { distOn: false, delayOn: false, reverbOn: true, reverbDecay: 0.6, reverbSend: 0.4, reverbMix: 0.2, bitcrushOn: false, master: 0.8 }),
-      'moog':   Object.assign(defaultFxParams(), { distOn: false, delayOn: false, reverbOn: true, reverbDecay: 0.5, reverbSend: 0.25, reverbMix: 0.1, master: 0.82 }),
-      'pipi':   Object.assign(defaultFxParams(), { chorusOn: true, chorusMix: 0.45, chorusRate: 0.25, chorusDepth: 6, eqOn: true, eqLow: 0, eqMid: 0, eqHigh: -2.5, delayOn: true, delayTime: 0.4, delayFeedback: 0.3, delayMix: 0.2, reverbOn: true, reverbDecay: 0.9, reverbSend: 0.6, reverbMix: 0.4, bitcrushOn: true, bitcrushBits: 10, bitcrushMix: 0.2, widthOn: true, width: 1.4, master: 0.78 }),
-      'groove': Object.assign(defaultFxParams(), { distOn: false, delayOn: false, reverbOn: true, reverbDecay: 0.7, reverbSend: 0.4, reverbMix: 0.2, widthOn: true, width: 1.3, master: 0.55 }),
+      '808':    Object.assign(defaultFxParams(), { chorusOn: true, tremoloOn: true, widthOn: true, distOn: false, delayOn: false, reverbOn: true, reverbDecay: 0.6, reverbSend: 0.4, reverbMix: 0.2, bitcrushOn: false, master: 0.8 }),
+      'moog':   Object.assign(defaultFxParams(), { chorusOn: true, tremoloOn: true, widthOn: true, distOn: false, delayOn: false, reverbOn: true, reverbDecay: 0.5, reverbSend: 0.25, reverbMix: 0.1, master: 0.82 }),
+      'pipi':   Object.assign(defaultFxParams(), { distOn: true, tremoloOn: true, chorusOn: true, chorusMix: 0.45, chorusRate: 0.25, chorusDepth: 6, eqOn: true, eqLow: 0, eqMid: 0, eqHigh: -2.5, delayOn: true, delayTime: 0.4, delayFeedback: 0.3, delayMix: 0.2, reverbOn: true, reverbDecay: 0.9, reverbSend: 0.6, reverbMix: 0.4, bitcrushOn: true, bitcrushBits: 10, bitcrushMix: 0.2, widthOn: true, width: 1.4, master: 0.78 }),
+      'groove': Object.assign(defaultFxParams(), { chorusOn: true, tremoloOn: true, distOn: false, delayOn: false, reverbOn: true, reverbDecay: 0.7, reverbSend: 0.4, reverbMix: 0.2, widthOn: true, width: 1.3, master: 0.55 }),
     },
     data: () => {
       const N = 64;                          // 4 bars/pattern at 70 BPM (slow, half-time feel)
@@ -5668,11 +5679,11 @@ export const DEMO_SONGS: SongDef[] = [
       },
     ],
     fxParams: {
-      '808':  Object.assign(defaultFxParams(), { distOn: true, dist: 3.0, tone: 0.55, delayOn: false, reverbOn: true, reverbDecay: 0.4, reverbSend: 0.3, reverbMix: 0.1, master: 0.92 }),
-      'moog': Object.assign(defaultFxParams(), { distOn: true, dist: 5.0, tone: 0.5, chorusOn: false, delayOn: false, reverbOn: false, master: 0.85 }),
-      '303':  Object.assign(defaultFxParams(), { distOn: false, delayOn: false, reverbOn: false, master: 0.9 }),
-      'e8e':  Object.assign(defaultFxParams(), { distOn: false, delayOn: true, delayTime: 0.21, delayFeedback: 0.45, delayMix: 0.32, reverbOn: true, reverbDecay: 0.7, reverbSend: 0.4, reverbMix: 0.24, widthOn: true, width: 1.4, master: 0.72 }),
-      'dx7':  Object.assign(defaultFxParams(), { chorusOn: true, chorusMix: 0.4, delayOn: false, reverbOn: true, reverbDecay: 0.92, reverbSend: 0.5, reverbMix: 0.4, widthOn: true, width: 1.5, master: 0.6 }),
+      '808':  Object.assign(defaultFxParams(), { chorusOn: true, tremoloOn: true, widthOn: true, distOn: true, dist: 3.0, tone: 0.55, delayOn: false, reverbOn: true, reverbDecay: 0.4, reverbSend: 0.3, reverbMix: 0.1, master: 0.92 }),
+      'moog': Object.assign(defaultFxParams(), { tremoloOn: true, widthOn: true, distOn: true, dist: 5.0, tone: 0.5, chorusOn: false, delayOn: false, reverbOn: false, master: 0.85 }),
+      '303':  Object.assign(defaultFxParams(), { chorusOn: true, tremoloOn: true, widthOn: true, distOn: false, delayOn: false, reverbOn: false, master: 0.9 }),
+      'e8e':  Object.assign(defaultFxParams(), { chorusOn: true, tremoloOn: true, distOn: false, delayOn: true, delayTime: 0.21, delayFeedback: 0.45, delayMix: 0.32, reverbOn: true, reverbDecay: 0.7, reverbSend: 0.4, reverbMix: 0.24, widthOn: true, width: 1.4, master: 0.72 }),
+      'dx7':  Object.assign(defaultFxParams(), { distOn: true, tremoloOn: true, chorusOn: true, chorusMix: 0.4, delayOn: false, reverbOn: true, reverbDecay: 0.92, reverbSend: 0.5, reverbMix: 0.4, widthOn: true, width: 1.5, master: 0.6 }),
     },
     data: () => {
       const N = 128;                         // 8 bars/pattern at 174 BPM (~11 s)
@@ -6000,18 +6011,18 @@ export const DEMO_SONGS: SongDef[] = [
       { name: "Vox Chop",      type: "sampler", p0: [0, 0, 1, 0], p1: [0.001, 1, 1, 0.3], sample: smp("Vox", "dvs-yeah-1", 60) }, // 11
     ],
     fxParams: {
-      '808':     Object.assign(defaultFxParams(), { delayOn: false, reverbOn: true, reverbMix: 0.10, master: 0.95 }),
-      '303':     Object.assign(defaultFxParams(), { distOn: true, dist: 3, delayOn: true, delayMix: 0.16, reverbOn: true, reverbMix: 0.14 }),
-      'moog':    Object.assign(defaultFxParams(), { chorusOn: true, chorusMix: 0.3, chorusRate: 0.4, reverbOn: true, reverbMix: 0.24, widthOn: true, width: 1.2 }),
-      'guitar':  Object.assign(defaultFxParams(), { odOn: true, odDrive: 1.7, odTone: 0.5, delayOn: true, delayMix: 0.12, reverbOn: true, reverbMix: 0.22 }),
-      'pipi':    Object.assign(defaultFxParams(), { reverbOn: true, reverbMix: 0.28, widthOn: true, width: 1.2 }),
-      'tanpura': Object.assign(defaultFxParams(), { reverbOn: true, reverbMix: 0.36, widthOn: true, width: 1.4 }),
-      'e8e':     Object.assign(defaultFxParams(), { delayOn: true, delayMix: 0.24, reverbOn: true, reverbMix: 0.18 }),
-      'wvt':     Object.assign(defaultFxParams(), { chorusOn: true, chorusMix: 0.2, reverbOn: true, reverbMix: 0.3, widthOn: true, width: 1.3 }),
-      'dx7':     Object.assign(defaultFxParams(), { delayOn: true, delayMix: 0.2, reverbOn: true, reverbMix: 0.34, widthOn: true, width: 1.3 }),
-      'tabla':   Object.assign(defaultFxParams(), { reverbOn: true, reverbMix: 0.18 }),
-      'groove':  Object.assign(defaultFxParams(), { reverbOn: false, master: 0.5 }),
-      'sampler': Object.assign(defaultFxParams(), { delayOn: true, delayMix: 0.2, reverbOn: true, reverbMix: 0.2 }),
+      '808':     Object.assign(defaultFxParams(), { distOn: true, chorusOn: true, tremoloOn: true, widthOn: true, delayOn: false, reverbOn: true, reverbMix: 0.10, master: 0.95 }),
+      '303':     Object.assign(defaultFxParams(), { chorusOn: true, tremoloOn: true, widthOn: true, distOn: true, dist: 3, delayOn: true, delayMix: 0.16, reverbOn: true, reverbMix: 0.14 }),
+      'moog':    Object.assign(defaultFxParams(), { distOn: true, delayOn: true, tremoloOn: true, chorusOn: true, chorusMix: 0.3, chorusRate: 0.4, reverbOn: true, reverbMix: 0.24, widthOn: true, width: 1.2 }),
+      'guitar':  Object.assign(defaultFxParams(), { distOn: true, chorusOn: true, tremoloOn: true, widthOn: true, odOn: true, odDrive: 1.7, odTone: 0.5, delayOn: true, delayMix: 0.12, reverbOn: true, reverbMix: 0.22 }),
+      'pipi':    Object.assign(defaultFxParams(), { distOn: true, chorusOn: true, delayOn: true, tremoloOn: true, reverbOn: true, reverbMix: 0.28, widthOn: true, width: 1.2 }),
+      'tanpura': Object.assign(defaultFxParams(), { distOn: true, chorusOn: true, delayOn: true, tremoloOn: true, reverbOn: true, reverbMix: 0.36, widthOn: true, width: 1.4 }),
+      'e8e':     Object.assign(defaultFxParams(), { distOn: true, chorusOn: true, tremoloOn: true, widthOn: true, delayOn: true, delayMix: 0.24, reverbOn: true, reverbMix: 0.18 }),
+      'wvt':     Object.assign(defaultFxParams(), { distOn: true, delayOn: true, tremoloOn: true, chorusOn: true, chorusMix: 0.2, reverbOn: true, reverbMix: 0.3, widthOn: true, width: 1.3 }),
+      'dx7':     Object.assign(defaultFxParams(), { distOn: true, chorusOn: true, tremoloOn: true, delayOn: true, delayMix: 0.2, reverbOn: true, reverbMix: 0.34, widthOn: true, width: 1.3 }),
+      'tabla':   Object.assign(defaultFxParams(), { distOn: true, chorusOn: true, delayOn: true, tremoloOn: true, widthOn: true, reverbOn: true, reverbMix: 0.18 }),
+      'groove':  Object.assign(defaultFxParams(), { distOn: true, chorusOn: true, delayOn: true, tremoloOn: true, widthOn: true, reverbOn: false, master: 0.5 }),
+      'sampler': Object.assign(defaultFxParams(), { distOn: true, chorusOn: true, tremoloOn: true, widthOn: true, delayOn: true, delayMix: 0.2, reverbOn: true, reverbMix: 0.2 }),
     },
     data: () => {
       const N = 32;                                    // 2 bars of 4/4 (rowsPerBeat 4)
@@ -6186,10 +6197,10 @@ export const DEMO_SONGS: SongDef[] = [
       { name: "Kalimba Resynth", type: "additive", p0: [512, 0.55, 0.0, 0.45], p1: [1.8, 0.6, 0.15, 0.0], p2: [0.005, 0.8, 0.0, 0.85], p3: [0.12, 0.0, 0.0, 0.5], sample: smp("Kalimba", "kalimba", 60) }, // 4 coherent pluck RESYNTH (Morph base 0.45)
     ],
     fxParams: {
-      '808':      Object.assign(defaultFxParams(), { delayOn: false, reverbOn: true, reverbMix: 0.15, master: 0.8 }),
-      'moog':     Object.assign(defaultFxParams(), { reverbOn: true, reverbMix: 0.18 }),
+      '808':      Object.assign(defaultFxParams(), { distOn: true, chorusOn: true, tremoloOn: true, widthOn: true, delayOn: false, reverbOn: true, reverbMix: 0.15, master: 0.8 }),
+      'moog':     Object.assign(defaultFxParams(), { distOn: true, chorusOn: true, delayOn: true, tremoloOn: true, widthOn: true, reverbOn: true, reverbMix: 0.18 }),
       // All three Spectra instances share this (fx is per engine TYPE): a big lush space.
-      'additive': Object.assign(defaultFxParams(), { reverbOn: true, reverbDecay: 0.9, reverbDamp: 0.4, reverbMix: 0.38, chorusOn: true, chorusMix: 0.2, widthOn: true, width: 1.4, master: 0.7 }),
+      'additive': Object.assign(defaultFxParams(), { distOn: true, delayOn: true, tremoloOn: true, reverbOn: true, reverbDecay: 0.9, reverbDamp: 0.4, reverbMix: 0.38, chorusOn: true, chorusMix: 0.2, widthOn: true, width: 1.4, master: 0.7 }),
     },
     data: () => {
       const N = 32;                                    // 2 bars of 4/4 (16 rows per chord)

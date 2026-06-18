@@ -163,6 +163,25 @@ L/R *before* the pan stage.
 - **To make ANOTHER engine stereo:** set `stereo:true` on its descriptor + write `outAudio.rg`. Most engines
   are inherently mono and need no change. Nothing else in the bus/pan path requires touching.
 
+### defaultFxParams() now defaults every effect OFF (2.3.3, 2026-06-18) — ✅ DONE — `project`
+`defaultFxParams()` used to merge the FX_EFFECTS registry defaults, SIX of which were `…On: true`:
+**dist (1.4), delay (0.32 mix), reverb (0.26 mix), width (1.15)** were audible; **chorus & tremolo** were on
+but `mix: 0` so silent. Anything doing `Object.assign(defaultFxParams(), {…})` silently inherited those.
+Flipped it to force all 13 `…On` flags false (param baselines kept, so opting in needs only `reverbOn: true`
+etc.). To keep behavior identical, every consumer's reliance was made EXPLICIT first via a brace-matching
+codemod that injects the missing-of-six `…On: true`:
+- `demo-songs.ts`: 132 fx objects (both `Object.assign(defaultFxParams(),…)` AND `makeFx({…})` partials —
+  `makeFx` also builds on defaultFxParams). Latent bug found: "Shamanic Colonic"'s dx7 wasn't listed in its
+  `makeFx`, so it rode the bare 6-on default → added an explicit `dx7` entry.
+- 4 instrument descriptors (i303/i808/imoog/itanpura): 23 preset `fx:` snapshots — presets load via the same
+  `Object.assign(defaultFxParams(), preset.fx)` path (`main.ts` onPresetChange), so they'd have gone dry too.
+- `neutralFxParams()` (used by `+ Add`) was already all-off; unchanged.
+**Verification = provable, not vibes:** captured every demo song's + every preset's RESOLVED fx before/after
+and required a ZERO diff (34 songs + 23 presets byte-identical). Since the engine consumes exactly those
+resolved objects, identical objects ⇒ identical audio — no headless render needed. **Gotcha that bit me:**
+esbuild bundles a snapshot, so re-run the capture against a FRESHLY re-bundled script after editing or you
+diff against stale code. **To add a new fx-on effect to a song/preset now: set its `…On: true` explicitly.**
+
 ### Theming / light theme (2026-06-17) — ✅ DONE — `reference`
 The palette is **CSS custom properties** in `index.html` `:root`; a light theme is the override
 block `:root[data-theme="light"] { … }`. Switching = `document.documentElement.dataset.theme`

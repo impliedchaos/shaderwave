@@ -34,8 +34,8 @@ export const itanpura: InstrumentDef = {
     { code: 'PLK', label: 'Pluck',  bank: 'p0', index: 3, min: 0,   max: 0.5, curve: 'lin' },
   ],
   presets: [
-    { name: 'Drone Sa',       p0: [3.0, 0.6,  0.06, 0.13], p1: [48, 0.00008, 0.25, 0.005], fx: { reverbOn: true, reverbDecay: 0.9, reverbSend: 0.6, reverbMix: 0.35, master: 0.5 } },
-    { name: 'Bright Jivari',  p0: [3.5, 0.85, 0.04, 0.10], p1: [56, 0.00012, 0.15, 0.004], fx: { reverbOn: true, reverbDecay: 0.92, reverbSend: 0.7, reverbMix: 0.4, master: 0.45 } },
-    { name: 'Mellow Tanpura', p0: [4.5, 0.4,  0.10, 0.18], p1: [40, 0.00005, 0.4,  0.008], fx: { reverbOn: true, reverbDecay: 0.88, reverbSend: 0.5, reverbMix: 0.3, master: 0.55 } },
+    { name: 'Drone Sa',       p0: [3.0, 0.6,  0.06, 0.13], p1: [48, 0.00008, 0.25, 0.005], fx: { distOn: true, chorusOn: true, delayOn: true, tremoloOn: true, widthOn: true, reverbOn: true, reverbDecay: 0.9, reverbSend: 0.6, reverbMix: 0.35, master: 0.5 } },
+    { name: 'Bright Jivari',  p0: [3.5, 0.85, 0.04, 0.10], p1: [56, 0.00012, 0.15, 0.004], fx: { distOn: true, chorusOn: true, delayOn: true, tremoloOn: true, widthOn: true, reverbOn: true, reverbDecay: 0.92, reverbSend: 0.7, reverbMix: 0.4, master: 0.45 } },
+    { name: 'Mellow Tanpura', p0: [4.5, 0.4,  0.10, 0.18], p1: [40, 0.00005, 0.4,  0.008], fx: { distOn: true, chorusOn: true, delayOn: true, tremoloOn: true, widthOn: true, reverbOn: true, reverbDecay: 0.88, reverbSend: 0.5, reverbMix: 0.3, master: 0.55 } },
   ],
 };

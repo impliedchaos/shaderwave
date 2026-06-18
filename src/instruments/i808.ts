@@ -24,9 +24,9 @@ export const i808: InstrumentDef = {
     { code: 'SNP', label: 'Snappy', bank: 'p0', index: 3, min: 0, max: 1, curve: 'lin' },
   ],
   presets: [
-    { name: 'Classic 808 Kit', p0: [0, 0.6, 0.5, 0.6], p1: [0, 0, 0, 0], fx: { dist: 0.001, tone: 0.5, level: 1.0, width: 1.0, master: 0.32 } },
-    { name: 'Industrial Saturation Kit', p0: [0, 0.4, 0.7, 0.8], p1: [0, 0, 0, 0], fx: { dist: 14.0, tone: 0.5, level: 1.0, width: 0.8, master: 1.0, delayTime: 0.25, delayFeedback: 0.3, delayMix: 0.15, reverbDecay: 0.6, reverbDamp: 0.5, reverbSend: 0.4, reverbMix: 0.15 } },
-    { name: 'Cinematic Spatial Kit', p0: [0, 0.5, 0.8, 0.4], p1: [0, 0, 0, 0], fx: { dist: 2.0, tone: 0.55, level: 1.0, width: 0.9, master: 1.0, delayTime: 0.3, delayFeedback: 0.2, delayMix: 0.1, reverbDecay: 0.9, reverbDamp: 0.4, reverbSend: 0.7, reverbMix: 0.6 } },
+    { name: 'Classic 808 Kit', p0: [0, 0.6, 0.5, 0.6], p1: [0, 0, 0, 0], fx: { distOn: true, chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true, dist: 0.001, tone: 0.5, level: 1.0, width: 1.0, master: 0.32 } },
+    { name: 'Industrial Saturation Kit', p0: [0, 0.4, 0.7, 0.8], p1: [0, 0, 0, 0], fx: { distOn: true, chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true, dist: 14.0, tone: 0.5, level: 1.0, width: 0.8, master: 1.0, delayTime: 0.25, delayFeedback: 0.3, delayMix: 0.15, reverbDecay: 0.6, reverbDamp: 0.5, reverbSend: 0.4, reverbMix: 0.15 } },
+    { name: 'Cinematic Spatial Kit', p0: [0, 0.5, 0.8, 0.4], p1: [0, 0, 0, 0], fx: { distOn: true, chorusOn: true, delayOn: true, reverbOn: true, tremoloOn: true, widthOn: true, dist: 2.0, tone: 0.55, level: 1.0, width: 0.9, master: 1.0, delayTime: 0.3, delayFeedback: 0.2, delayMix: 0.1, reverbDecay: 0.9, reverbDamp: 0.4, reverbSend: 0.7, reverbMix: 0.6 } },
     { name: 'GoonerBoom', p0: [0, 0.5, 0.8, 0.8], p1: [0, 0, 0, 0] },
     { name: 'PerkyTitsKit', p0: [0, 0.6, 0.5, 0.6], p1: [0, 0, 0, 0] },
     { name: 'CuckGatedKit', p0: [0, 0.5, 0.8, 0.6], p1: [0, 0, 0, 0] },
