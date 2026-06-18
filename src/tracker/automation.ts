@@ -157,6 +157,18 @@ for (const type of autoTypes) {
   TARGETS.push({ code: 'PCH', label: 'Pitch', min: -12, max: 12, curve: 'lin', unit: 'st', scope: 'inst', type, id: TARGETS.length, pitch: true });
 }
 
+// Distortion Tone + Level fx targets — appended at the very end (id-stable). The
+// distortion drive (`dist`/DRV) has always been targetable, but its `tone`/`level`
+// were never exposed, so they were missing from automation AND both LFO matrices.
+// Ranges mirror the fx-panel sliders (tone 0..1, level 0..2). fx-scope → they
+// auto-appear in the automation picker, the global-LFO dropdown, and the
+// per-instrument mod matrix.
+const FX_DIST_TARGETS: RawTarget[] = [
+  { code: 'DTN', label: 'Dist Tone',  key: 'tone',  min: 0, max: 1, curve: 'lin' },
+  { code: 'DTL', label: 'Dist Level', key: 'level', min: 0, max: 2, curve: 'lin' },
+];
+for (const t of FX_DIST_TARGETS) TARGETS.push({ ...t, scope: 'fx', type: '*', id: TARGETS.length });
+
 export function targetById(id: number): ParamTarget | null {
   return (id >= 0 && id < TARGETS.length) ? TARGETS[id] : null;
 }
