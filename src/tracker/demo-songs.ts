@@ -1039,7 +1039,7 @@ export const DEMO_SONGS: SongDef[] = [
     fxParams: {
       '303': Object.assign(defaultFxParams(), { distOn: false, bitcrushOn: false, delayMix: 0.4, chorusMix: 0.4 }),
       'dx7': Object.assign(defaultFxParams(), { chorusMix: 0.55, chorusRate: 1.2, delayMix: 0.35, reverbMix: 0.6, reverbDecay: 0.93 }),
-      '808': Object.assign(defaultFxParams(), { distOn: false, bitcrushOn: false }),
+      '808': Object.assign(defaultFxParams(), { distOn: false, bitcrushOn: false, delayOn: false }),
       'moog': Object.assign(defaultFxParams(), { distOn: false, bitcrushOn: false, chorusMix: 0.3, delayMix: 0.3, reverbMix: 0.35 }),
     },
     data: () => {
