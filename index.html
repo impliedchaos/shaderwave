@@ -1129,6 +1129,43 @@
     cursor: default;
   }
 
+  .preset-morph {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 2px;
+  }
+  .preset-morph .ab-row,
+  .preset-morph .gen-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .preset-morph button {
+    background: rgba(var(--c-surface), 0.5);
+    border: 1px solid var(--panel-border);
+    border-radius: 6px;
+    color: var(--c-text-bright);
+    font-size: 11px;
+    font-weight: 700;
+    font-family: var(--font-heading);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 6px 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  .preset-morph .gen-row button { flex: 1; }
+  .preset-morph .ab-row button { min-width: 38px; }
+  .preset-morph button:hover:not(:disabled) {
+    border-color: var(--accent);
+    color: var(--accent);
+    box-shadow: 0 0 10px var(--accent-glow);
+  }
+  .preset-morph button:disabled { opacity: 0.35; cursor: default; }
+  .morph-slider { flex: 1; min-width: 0; accent-color: var(--accent); cursor: pointer; }
+  .morph-slider:disabled { opacity: 0.35; cursor: default; }
+
   /* Tracker Tabs & Song Editor UI */
   .tracker-tabs {
     display: flex;
@@ -1763,6 +1800,19 @@
               <button id="preset-export" title="Export the current instrument as a .json preset file">Export</button>
               <button id="preset-import" title="Import a .json preset file">Import</button>
               <input id="preset-import-file" type="file" accept="application/json,.json" style="display:none" />
+            </div>
+            <div id="preset-morph" class="preset-morph">
+              <div class="ab-row">
+                <button id="ab-copy-a" title="Store the current sound in slot A">Copy→A</button>
+                <button id="ab-recall-a" title="Recall slot A" disabled>A</button>
+                <input id="morph-slider" class="morph-slider" type="range" min="0" max="1" step="0.001" value="0" disabled title="Morph A → B (non-destructive — Copy→A/B to keep a result)" />
+                <button id="ab-recall-b" title="Recall slot B" disabled>B</button>
+                <button id="ab-copy-b" title="Store the current sound in slot B">Copy→B</button>
+              </div>
+              <div class="gen-row">
+                <button id="rand-full" title="Generate a random new patch">Randomize</button>
+                <button id="rand-nudge" title="Nudge current values for gentle variation">Nudge</button>
+              </div>
             </div>
             <div id="op-select-row" class="preset-row" style="display: none;">
               <span>Op Select</span>

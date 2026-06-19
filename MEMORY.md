@@ -86,6 +86,22 @@ An attempt to implement a WebGL 16-band Vocoder effect was completely abandoned 
 
 ## Current work
 
+### Preset explorer — A/B + morph + randomize/nudge (2.7.0, 2026-06-19) — ✅ DONE — `project`
+Phase 1's tail (the "nice-to-haves" deferred from 2.6.0). All in `src/ui/controls.ts` + the
+`#preset-morph` block in the Instrument tab — **no types/store/main changes**. Two A/B scratch
+slots (`_abSlots`, in-memory, each tagged with its engine `type`), a morph slider that blends
+A→B **live and non-destructively**, and Randomize (full-range) / Nudge (±15%) buttons.
+- Operates ONLY on the universal synth banks p0–p4 via `_synthDefs()` =
+  `paramDefs.filter(d => d.bank && d.type !== 'op')`. FX + mod matrix untouched (by design).
+- Reuses the existing knob plumbing: `_setSynthParam` quantizes to the param's `step`/range,
+  writes the bank, calls `engine.updateInstrumentParam` (audible on held voices), and
+  `paramKnobs[].el._extSet(v)` to move the dial — **no `_buildParams()` per frame**.
+- Recall/morph are enabled only when the slot's `type` matches the selected instrument
+  (`_updateMorphControls`, called from `select()`); morph slider needs both slots.
+- All actions `markDirty` → single undo step.
+- **DX7 limitation (intentional):** operator params are `type:'op'` so they're excluded —
+  Randomize/Morph/A-B only touch algo+feedback there. DX7 patch variety lives in presets.
+
 ### Instrument editor tab + user presets (2.6.0, 2026-06-19) — ✅ DONE — `project`
 Phase 1 of `ROADMAP.md` ("open the preset system"). Two parts:
 - **Instrument editor TAB (2.5.6):** the per-instrument params/fx/presets/mod-matrix moved

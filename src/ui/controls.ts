@@ -21,6 +21,14 @@ import type { App } from '../main.js';
 // A knob <div> the UI loop can drive externally (live automation tracking).
 type KnobEl = HTMLElement & { _extSet?: (v: number) => void };
 
+// An A/B explorer snapshot: the synth param banks + the engine type they came from
+// (so recall/morph can be disabled when the selected instrument is a different engine).
+interface BankSnap {
+  type: InstrumentType;
+  p0: number[]; p1: number[];
+  p2?: number[]; p3?: number[]; p4?: number[];
+}
+
 // One DX7 voice parsed from a SysEx ROM.
 interface SysexPatch {
   name: string;
@@ -73,6 +81,7 @@ export class Controls {
   activeRomFile: string;
   romCache: Record<string, SysexPatch[]>;
   paramKnobs: { el: KnobEl; bank?: string; i?: number }[] = [];
+  _abSlots: { A: BankSnap | null; B: BankSnap | null } = { A: null, B: null };   // preset explorer scratch
   _wtScopeRaf = 0;   // rAF handle for the live Wavewright oscilloscopes
 
   constructor(engine: Engine, { instEl, paramEl, onSelect, onPresetChange, app }: ControlsOpts) {
@@ -125,6 +134,7 @@ export class Controls {
       };
     }
     this._bindPresetActions();
+    this._bindMorphControls();
 
     // Preload all ROM banks
     this.loadAllRoms();
@@ -324,6 +334,7 @@ export class Controls {
     // Build params from current engine state (don't auto-load a preset,
     // which would overwrite any song-specific parameter values)
     this._buildParams();
+    this._updateMorphControls();
     if (this.onSelect) this.onSelect(i);
   }
 
@@ -723,6 +734,109 @@ export class Controls {
     a.href = url; a.download = filename;
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  // ── Preset explorer: A/B compare + morph + randomize/nudge ───────────────────
+  // All three operate ONLY on the universal synth param banks (p0–p4) described by
+  // paramDefs — fx chain and mod matrix are left alone. DX7 operator params are
+  // `type:'op'` and thus excluded, so on DX7 these touch only algo/feedback.
+
+  // The bank-backed knob params (i.e. excluding DX7 per-operator entries).
+  _synthDefs() {
+    return (byType(this._type ?? '')?.paramDefs ?? []).filter((d) => d.bank && d.type !== 'op');
+  }
+
+  _knobFor(bank: string, i: number): KnobEl | undefined {
+    return this.paramKnobs.find((k) => k.bank === bank && k.i === i)?.el;
+  }
+
+  // Write one synth param (quantized to its step + clamped), pushing it to live
+  // voices AND the on-screen knob without a DOM rebuild — cheap enough per-frame.
+  _setSynthParam(d: { bank?: string; i?: number; min: number; max: number; step: number }, v: number) {
+    const q = Math.max(d.min, Math.min(d.max, d.step ? Math.round(v / d.step) * d.step : v));
+    (this._instr as any)[d.bank!][d.i!] = q;
+    this.engine.updateInstrumentParam(this.selected, d.bank! as any, d.i!, q);
+    this._knobFor(d.bank!, d.i!)?._extSet?.(q);
+  }
+
+  // Snapshot the current instance's banks + engine type into an A/B slot.
+  _captureBanks(): BankSnap {
+    const pr = this._instr;
+    return {
+      type: pr.type,
+      p0: [...pr.p0], p1: [...pr.p1],
+      ...(pr.p2 ? { p2: [...pr.p2] } : {}),
+      ...(pr.p3 ? { p3: [...pr.p3] } : {}),
+      ...(pr.p4 ? { p4: [...pr.p4] } : {}),
+    };
+  }
+
+  _randomize(mode: 'full' | 'nudge') {
+    for (const d of this._synthDefs()) {
+      const cur = (this._instr as any)[d.bank!][d.i!] as number;
+      const v = mode === 'full'
+        ? d.min + Math.random() * (d.max - d.min)
+        : cur + (Math.random() * 2 - 1) * 0.15 * (d.max - d.min);
+      this._setSynthParam(d, v);
+    }
+    this._refreshPresetSelection();
+    this.app?.markDirty(mode === 'full' ? 'randomize' : 'nudge');
+  }
+
+  // Blend slot A → slot B into the live instance (t in [0,1]); slots untouched.
+  _morph(t: number, commit = false) {
+    const a = this._abSlots.A, b = this._abSlots.B;
+    if (!a || !b) return;
+    for (const d of this._synthDefs()) {
+      const av = (a as any)[d.bank!]?.[d.i!] ?? 0;
+      const bv = (b as any)[d.bank!]?.[d.i!] ?? 0;
+      this._setSynthParam(d, av + (bv - av) * t);
+    }
+    if (commit) { this._refreshPresetSelection(); this.app?.markDirty('morph'); }
+  }
+
+  // Restore a full bank snapshot (incl. non-knob slots), then sync knobs + voices.
+  _recall(slot: 'A' | 'B') {
+    const s = this._abSlots[slot];
+    if (!s || s.type !== this._type) return;
+    const pr = this._instr;
+    for (const bank of ['p0', 'p1', 'p2', 'p3', 'p4'] as const) {
+      if ((s as any)[bank]) (pr as any)[bank] = [...(s as any)[bank]];
+    }
+    for (const d of this._synthDefs()) {
+      this.engine.updateInstrumentParam(this.selected, d.bank! as any, d.i!, (pr as any)[d.bank!][d.i!]);
+      this._knobFor(d.bank!, d.i!)?._extSet?.((pr as any)[d.bank!][d.i!]);
+    }
+    this._refreshPresetSelection();
+    this.app?.markDirty('preset');
+  }
+
+  // Enable Recall only for a slot matching the current engine; the morph slider
+  // needs both slots present and matching.
+  _updateMorphControls() {
+    const type = this._type;
+    const okA = !!this._abSlots.A && this._abSlots.A.type === type;
+    const okB = !!this._abSlots.B && this._abSlots.B.type === type;
+    const set = (id: string, on: boolean) => {
+      const el = document.getElementById(id) as HTMLButtonElement | HTMLInputElement | null;
+      if (el) (el as any).disabled = !on;
+    };
+    set('ab-recall-a', okA);
+    set('ab-recall-b', okB);
+    set('morph-slider', okA && okB);
+  }
+
+  _bindMorphControls() {
+    const on = (id: string, ev: string, fn: (e: Event) => void) =>
+      document.getElementById(id)?.addEventListener(ev, fn);
+    on('ab-copy-a', 'click', () => { this._abSlots.A = this._captureBanks(); this._updateMorphControls(); });
+    on('ab-copy-b', 'click', () => { this._abSlots.B = this._captureBanks(); this._updateMorphControls(); });
+    on('ab-recall-a', 'click', () => this._recall('A'));
+    on('ab-recall-b', 'click', () => this._recall('B'));
+    on('rand-full', 'click', () => this._randomize('full'));
+    on('rand-nudge', 'click', () => this._randomize('nudge'));
+    on('morph-slider', 'input', (e) => this._morph(+(e.target as HTMLInputElement).value));
+    on('morph-slider', 'change', (e) => this._morph(+(e.target as HTMLInputElement).value, true));
   }
 
   async loadRom(filename: string, autoLoadFirstPreset = false) {
