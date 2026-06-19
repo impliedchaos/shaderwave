@@ -2,6 +2,7 @@
 import type { App } from '../main.js';
 import { EMPTY, OFF } from '../tracker/pattern.js';
 import { fxByKey } from '../tracker/fx.js';
+import { interpolate } from '../tracker/interpolate.js';
 import { byType } from '../instruments/index.js';
 import { recordNoteAtPlayhead } from './record.js';
 
@@ -27,8 +28,11 @@ const DRUM_KEYS = [36, 38, 42, 46, 39, 41, 45, 48, 56];
 
 export function bindKeys(app: App) {
   document.addEventListener('keydown', (e) => {
-    const tag = (e.target as HTMLElement | null)?.tagName;
-    if (tag === 'INPUT' || tag === 'SELECT') return;
+    const el = e.target as HTMLElement | null;
+    const tag = el?.tagName;
+    // Don't steal keystrokes meant for a text field (e.g. the song Note textarea) —
+    // otherwise typing a note name would trigger piano/pattern note entry.
+    if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA' || el?.isContentEditable) return;
     // Copy / cut / paste of a selected block (intercept before note entry,
     // since C/X/V are also piano keys).
     if ((e.ctrlKey || e.metaKey) && !e.altKey) {
@@ -38,6 +42,7 @@ export function bindKeys(app: App) {
       if (e.code === 'KeyC') { e.preventDefault(); copyBlock(app, false); return; }
       if (e.code === 'KeyX') { e.preventDefault(); copyBlock(app, true); return; }
       if (e.code === 'KeyV') { e.preventDefault(); pasteBlock(app); return; }
+      if (e.code === 'KeyL') { e.preventDefault(); interpolateSelection(app); return; }
       if (e.code === 'KeyA') {
         e.preventDefault();
         const p = app.view.pattern;
@@ -388,6 +393,16 @@ export function copyBlock(app: App, cut: boolean) {
 }
 
 // Paste the clipboard block with its top-left at the cursor, clipped to bounds.
+// Linearly ramp the selected box: automation-track values, or (for note channels) the
+// field under the cursor — Volume (col 2) or Effect value (col 3). No-op if the current
+// selection can't be interpolated. See src/tracker/interpolate.ts.
+export function interpolateSelection(app: App) {
+  if (interpolate(app.view.pattern, app.view.selection, app.view.cursor.col)) {
+    app.markDirty('interpolate');
+    app.view.draw();
+  }
+}
+
 export function pasteBlock(app: App) {
   const cb = app._clipboard;
   if (!cb) return;

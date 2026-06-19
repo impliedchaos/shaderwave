@@ -418,7 +418,12 @@ export class Controls {
     return { rom: null, index: -1 };
   }
 
-  _populatePresets() {
+  // allowRedirect: on a passive refresh (instrument select / initial load) we may
+  // auto-switch the DX7 bank to whichever ROM matches the current patch, to highlight
+  // it. But when loadRom() is the caller it has ALREADY set the bank deliberately, so
+  // it passes false — otherwise the "matching" old bank would yank the selection back
+  // (you'd be unable to switch banks). See loadRom().
+  _populatePresets(allowRedirect = true) {
     const presetSelect = document.getElementById('instrument-preset') as HTMLSelectElement | null;
     if (!presetSelect) return;
 
@@ -463,7 +468,7 @@ export class Controls {
     }
 
     const match = this._findMatchingPreset();
-    if (instName === 'dx7' && match.rom && match.rom !== this.activeRomFile) {
+    if (allowRedirect && instName === 'dx7' && match.rom && match.rom !== this.activeRomFile) {
       this.loadRom(match.rom, false);
       return;
     }
@@ -848,7 +853,7 @@ export class Controls {
         romSelect.value = filename;
       }
       if (this._type === 'dx7') {
-        this._populatePresets();
+        this._populatePresets(false);   // bank set explicitly here — don't auto-redirect away
         if (autoLoadFirstPreset) {
           this.loadPreset(0);
         }
@@ -868,7 +873,7 @@ export class Controls {
           romSelect.value = filename;
         }
         if (this._type === 'dx7') {
-          this._populatePresets();
+          this._populatePresets(false);   // bank set explicitly here — don't auto-redirect away
           if (autoLoadFirstPreset) {
             this.loadPreset(0);
           }

@@ -15,6 +15,7 @@ import { History } from './tracker/history.js';
 import { SongStore } from './tracker/song-store.js';
 import { PresetStore } from './tracker/preset-store.js';
 import { buildShareUrl, decodeShareHash } from './tracker/song-codec.js';
+import { publishGist, decodeGistHash, getToken as getGistToken, setToken as setGistToken, clearToken as clearGistToken, GistError, TOKEN_PAGE as GIST_TOKEN_PAGE } from './tracker/gist.js';
 import { instGlow, DEFAULT_MASTER } from './constants.js';
 import { byType } from './instruments/index.js';
 import { Pattern } from './tracker/pattern.js';
@@ -31,7 +32,8 @@ import { buildFxPanel, type KnobEl } from './ui/fx-panel.js';
 import { buildLfoUI } from './ui/lfo-panel.js';
 import { initMidi } from './ui/midi.js';
 import { tickRecord } from './ui/record.js';
-import { bindKeys, advanceCursorRow, closeFxPicker, type ClipCell } from './ui/input.js';
+import { bindKeys, advanceCursorRow, closeFxPicker, interpolateSelection, type ClipCell } from './ui/input.js';
+import { canInterpolate } from './tracker/interpolate.js';
 import {
   songDisplayName as _songDisplayName,
   snapshot as _snapshot,
@@ -217,9 +219,37 @@ export class App {
     this._tryLoadSharedSong();
   }
 
+  // Confirmation popup after a share is produced (currently the Gist publish): shows
+  // the link, with copy / open / close. Reusable for any share URL.
+  _showShareResult(url: string, opts: { title?: string; msg?: string } = {}) {
+    const $$ = (id: string) => document.getElementById(id);
+    const overlay = $$('share-result-overlay');
+    const linkEl = $$('share-result-link') as HTMLInputElement | null;
+    if (!overlay || !linkEl) return;
+    const titleEl = $$('share-result-title'), msgEl = $$('share-result-msg');
+    if (titleEl && opts.title) titleEl.textContent = opts.title;
+    if (msgEl && opts.msg) msgEl.textContent = opts.msg;
+    linkEl.value = url;
+    overlay.style.display = 'flex';
+    linkEl.focus(); linkEl.select();
+
+    const close = () => { overlay.style.display = 'none'; };
+    const copyBtn = $$('share-result-copy');
+    if (copyBtn) copyBtn.onclick = async () => {
+      try { await navigator.clipboard.writeText(url); copyBtn.textContent = 'Copied!'; setTimeout(() => { copyBtn.textContent = 'Copy link'; }, 1400); }
+      catch { linkEl.focus(); linkEl.select(); }
+    };
+    const openBtn = $$('share-result-open');
+    if (openBtn) openBtn.onclick = () => window.open(url, '_blank', 'noopener');
+    const closeBtn = $$('share-result-close');
+    if (closeBtn) closeBtn.onclick = close;
+    overlay.onclick = (e) => { if (e.target === overlay) close(); };   // click backdrop to dismiss
+  }
+
   async _tryLoadSharedSong() {
     let doc: SerializedSong | null = null;
-    try { doc = await decodeShareHash(); } catch { /* bad link → keep default */ }
+    // #s=… inline permalink, or #gist=… durable gist (both load transiently).
+    try { doc = (await decodeShareHash()) ?? (await decodeGistHash()); } catch { /* bad link → keep default */ }
     if (!doc) return;
     this.currentSong = { kind: 'shared' };
     this._applySerializedSong(doc);
@@ -396,6 +426,8 @@ export class App {
     if (addAutoTrackBtn) {
       addAutoTrackBtn.onclick = () => this._openAutoTrackPicker();
     }
+    const interpBtn = $('interpolate-btn');
+    if (interpBtn) interpBtn.onclick = () => interpolateSelection(this);
     const volInput = $<HTMLInputElement>('volume');
     const volVal = $('volume-val');
     if (volInput && volVal) {
@@ -565,19 +597,63 @@ export class App {
     }
 
     const shareBtn = $('share-song-btn');
-    if (shareBtn) shareBtn.onclick = async () => {
-      const doc = this._snapshot();
-      if (!doc) return;
-      const { url, tooBig } = await buildShareUrl(doc);
-      if (tooBig) {
-        alert('This song is too big to share by link (it has a large sample). Save it to a file and share that instead.');
-        return;
-      }
-      const label = shareBtn.querySelector('.btn-label');
-      const flash = (msg: string) => { if (label) { const t = label.textContent; label.textContent = msg; setTimeout(() => { label.textContent = t; }, 1400); } };
-      try { await navigator.clipboard.writeText(url); flash('Copied!'); }
-      catch { prompt('Copy this share link:', url); }
+    const shareMenu = $('share-menu');
+    const flashShare = (msg: string) => {
+      const label = shareBtn?.querySelector('.btn-label');
+      if (label) { const t = label.textContent; label.textContent = msg; setTimeout(() => { label.textContent = t; }, 1400); }
     };
+    const closeShareMenu = () => { if (shareMenu) shareMenu.hidden = true; shareBtn?.setAttribute('aria-expanded', 'false'); };
+    if (shareBtn && shareMenu) {
+      shareBtn.onclick = (e) => {
+        e.stopPropagation();
+        if (!shareMenu.hidden) { closeShareMenu(); return; }
+        const forget = $('share-forget-token'); if (forget) forget.hidden = !getGistToken();
+        const r = shareBtn.getBoundingClientRect();
+        shareMenu.style.left = `${Math.round(r.left)}px`;
+        shareMenu.style.top = `${Math.round(r.bottom + 6)}px`;
+        shareMenu.hidden = false;
+        shareBtn.setAttribute('aria-expanded', 'true');
+      };
+      document.addEventListener('click', (e) => {
+        if (!shareMenu.hidden && !shareMenu.contains(e.target as Node) && e.target !== shareBtn) closeShareMenu();
+      });
+
+      $('share-copy-link')?.addEventListener('click', async () => {
+        closeShareMenu();
+        const doc = this._snapshot(); if (!doc) return;
+        const { url, tooBig } = await buildShareUrl(doc);
+        if (tooBig) { alert('This song is too big to share by link (large sample). Try "Publish to Gist…", or save a file.'); return; }
+        try { await navigator.clipboard.writeText(url); flashShare('Copied!'); }
+        catch { prompt('Copy this share link:', url); }
+      });
+
+      $('share-publish-gist')?.addEventListener('click', async () => {
+        closeShareMenu();
+        const doc = this._snapshot(); if (!doc) return;
+        let token = getGistToken();
+        if (!token) {
+          if (!confirm('Publishing to a Gist needs a GitHub token (a classic token with ONLY the "gist" scope). Open the GitHub token page now?')) return;
+          window.open(GIST_TOKEN_PAGE, '_blank', 'noopener');
+          const entered = prompt('Paste your GitHub token (classic, "gist" scope):');
+          if (!entered || !entered.trim()) return;
+          token = entered.trim(); setGistToken(token);
+        }
+        flashShare('Publishing…');
+        try {
+          const loadUrl = await publishGist(doc, { version: pkg.version, name: this.songDisplayName(), author: this.songAuthor }, token);
+          try { await navigator.clipboard.writeText(loadUrl); } catch { /* show it in the dialog instead */ }
+          this._showShareResult(loadUrl, {
+            title: 'Published ✓',
+            msg: 'Your song is on a secret Gist — anyone with this link can open it. (Copied to your clipboard.)',
+          });
+        } catch (err) {
+          if (err instanceof GistError && err.status === 401) { clearGistToken(); alert(`${err.message} The saved token was cleared — try again.`); }
+          else alert(err instanceof Error ? err.message : 'Could not publish to Gist.');
+        }
+      });
+
+      $('share-forget-token')?.addEventListener('click', () => { closeShareMenu(); clearGistToken(); flashShare('Token forgotten'); });
+    }
 
     const exportBtn = $('export');
     if (exportBtn) {
@@ -885,6 +961,7 @@ export class App {
     const trackTimeEl = $('track-time');
     const vuLEl = $('vu-l');
     const vuREl = $('vu-r');
+    const interpBtn = $<HTMLButtonElement>('interpolate-btn');
 
     const tick = () => {
       tickRecord(this);
@@ -892,6 +969,8 @@ export class App {
       this._drawVisualizer();
       this._syncKnobs();
       this._drawVuMeters(vuLEl, vuREl);
+      // Enable the Interpolate button only when the current selection can be ramped.
+      if (interpBtn) interpBtn.disabled = !canInterpolate(this.view.pattern, this.view.selection, this.view.cursor.col);
 
       // Reflect play/pause state in button class/text
       if (playBtn) {

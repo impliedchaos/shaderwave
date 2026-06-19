@@ -580,10 +580,16 @@ sample PCM as raw typed-array blobs), gzipped for files (`*.shaderwave`) and Ind
 Loading **content-sniffs** the bytes (gzip → binary → legacy JSON), so older
 `*.shaderwave.json` files and previously-stored songs keep opening.
 
-**🔗 Share** copies a permalink: `binary → gzip → base64url` in the URL hash (`#s=…`).
-It's pure front-end (the fragment never hits a server), and opening such a link loads
-the song transiently (Save persists it). Songs with a large sample exceed the link
-ceiling and prompt you to share a file instead.
+**🔗 Share** opens a menu with two backend-less options:
+- **Copy link** — a permalink: `binary → gzip → base64url` in the URL hash (`#s=…`).
+  Pure front-end (the fragment never hits a server); opening it loads the song
+  transiently (Save persists it). Large-sample songs exceed the link ceiling.
+- **Publish to Gist…** — a durable link for bigger songs, published to a **secret
+  GitHub Gist** (`#gist=<id>`). Writes use *your own* classic PAT (scoped to `gist`
+  only, kept in `localStorage`); reads are anonymous off the gist CDN, so opening a
+  shared gist link needs no token. Each gist carries a readable header (version, song
+  name, author, and a one-click "Open ▶" link back into ShaderWave). Fully serverless —
+  see `src/tracker/gist.ts`.
 
 ## Known Limitations / Next Steps
 

@@ -1,0 +1,78 @@
+<!doctype html>
+<meta charset="utf8">
+<title>RUNNING</title>
+<pre id="out">running…</pre>
+<script type="module">
+import { Pattern, EMPTY } from '/src/tracker/pattern.ts';
+import { interpolate, canInterpolate } from '/src/tracker/interpolate.ts';
+
+const out = document.getElementById('out');
+const log = (m) => { out.textContent += '\n' + m; };
+const fail = (m) => { document.title = 'FAILED'; log('FAIL: ' + m); throw new Error(m); };
+const ok = (c, m) => { if (!c) fail(m); else log('ok: ' + m); };
+const near = (a, b, e = 1e-4) => Math.abs(a - b) <= e;
+
+function addAuto(p) {
+  const data = new Int16Array(p.rows).fill(-1);
+  p.autoTracks.push({ targetScope: 'inst', targetInstIdx: 0, targetParamId: 0, data });
+  return data;
+}
+
+try {
+  // ── A. automation track byte ramp ──
+  {
+    const p = new Pattern(16, 2);          // auto track is column index 2
+    const d = addAuto(p);
+    d[0] = 40; d[8] = 200;
+    const changed = interpolate(p, { r0: 0, c0: 2, r1: 8, c1: 2 }, 0);
+    ok(changed, 'auto: interpolate reported a change');
+    ok(d[0] === 40 && d[8] === 200, 'auto: endpoints preserved');
+    ok(d[4] === 120, `auto: midpoint = 120 (got ${d[4]})`);
+    ok(d[2] === 80 && d[6] === 160, 'auto: quarter points correct');
+    ok(d[9] === -1 && d[15] === -1, 'auto: rows outside the span untouched');
+  }
+
+  // ── B. effect value ramp (carries the command) ──
+  {
+    const p = new Pattern(16, 1);
+    p.fxCmd[p.idx(0, 0)] = 1; p.fxVal[p.idx(0, 0)] = 10;
+    p.fxCmd[p.idx(8, 0)] = 1; p.fxVal[p.idx(8, 0)] = 250;
+    interpolate(p, { r0: 0, c0: 0, r1: 8, c1: 0 }, 3);
+    ok(p.fxVal[p.idx(4, 0)] === 130, `fx: midpoint value = 130 (got ${p.fxVal[p.idx(4,0)]})`);
+    ok(p.fxCmd[p.idx(4, 0)] === 1 && p.fxCmd[p.idx(3, 0)] === 1, 'fx: command filled across the ramp');
+    ok(p.fxCmd[p.idx(9, 0)] === -1, 'fx: rows past the span left as none');
+  }
+
+  // ── C. volume fade — only note rows filled ──
+  {
+    const p = new Pattern(16, 2);          // use note channel 1
+    const ch = 1;
+    for (const r of [0, 2, 4, 6, 8]) p.notes[p.idx(r, ch)] = 60;   // notes
+    p.vol[p.idx(0, ch)] = 1.0; p.vol[p.idx(8, ch)] = 0.0;
+    p.vol[p.idx(1, ch)] = 0.33;                                    // a NO-note row, sentinel
+    interpolate(p, { r0: 0, c0: ch, r1: 8, c1: ch }, 2);
+    ok(near(p.vol[p.idx(4, ch)], 0.5), `vol: midpoint note = 0.5 (got ${p.vol[p.idx(4,ch)]})`);
+    ok(near(p.vol[p.idx(2, ch)], 0.75) && near(p.vol[p.idx(6, ch)], 0.25), 'vol: quarter note rows correct');
+    ok(near(p.vol[p.idx(1, ch)], 0.33), 'vol: a no-note row was NOT touched');
+  }
+
+  // ── D. canInterpolate gating ──
+  {
+    const p = new Pattern(16, 2);
+    const d = addAuto(p);
+    d[0] = 40; d[8] = 200;
+    ok(canInterpolate(p, { r0: 0, c0: 2, r1: 8, c1: 2 }, 0) === true, 'can: valid auto → true');
+    ok(canInterpolate(p, { r0: 3, c0: 2, r1: 3, c1: 2 }, 0) === false, 'can: single row → false');
+    const p2 = new Pattern(16, 2); const d2 = addAuto(p2); d2[0] = 40;   // only 1 defined
+    ok(canInterpolate(p2, { r0: 0, c0: 2, r1: 8, c1: 2 }, 0) === false, 'can: <2 defined rows → false');
+    p2.notes[p2.idx(0,0)] = 60; p2.notes[p2.idx(8,0)] = 60;
+    ok(canInterpolate(p2, { r0: 0, c0: 0, r1: 8, c1: 0 }, 0) === false, 'can: note column (col 0) → false');
+    ok(canInterpolate(p2, { r0: 0, c0: 0, r1: 8, c1: 0 }, 2) === true, 'can: vol column with 2 notes → true');
+  }
+
+  document.title = 'ALL_OK';
+  log('\nALL_OK');
+} catch (e) {
+  if (document.title !== 'FAILED') { document.title = 'ERROR'; log('ERROR: ' + (e && e.message) + '\n' + (e && e.stack)); }
+}
+</script>

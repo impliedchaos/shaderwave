@@ -86,6 +86,46 @@ An attempt to implement a WebGL 16-band Vocoder effect was completely abandoned 
 
 ## Current work
 
+### Box-selection interpolation / LERP (2.10.0, 2026-06-19) — ✅ DONE — `project`
+Box-select in the tracker → ramp values linearly first→last. Trigger: **Ctrl/Cmd+L** AND a
+pattern-toolbar **#interpolate-btn** (disabled unless `canInterpolate` — refreshed each frame
+in `main._loop`). Pure logic in `src/tracker/interpolate.ts` (`canInterpolate`/`interpolate`,
+no UI deps → tested by `test/interp-check.html`, ALL_OK); thin wrapper `interpolateSelection(app)`
+in `input.ts` (markDirty('interpolate') + view.draw()).
+- Per selected column, find the **first & last "defined" rows** in the selection, linear-fill
+  between (endpoints stay exact). Field is chosen by `view.cursor.col`:
+  - **automation track** (ch ≥ p.channels): defined = `data[r] >= 0`; fill all span rows; byte 0–255.
+  - **note · fx** (col 3): defined = `fxCmd[idx] != -1`; fill all span rows; ramps `fxVal` **and**
+    writes the **first endpoint's command** to every filled row (mismatched endpoint cmds → first wins).
+  - **note · vol** (col 2): defined = row has a note; fill **only note rows**; float 0–1, r4-rounded.
+  - note/inst columns aren't interpolatable; a column with <2 defined rows is skipped.
+- Selection model reused: `view.selection={r0,c0,r1,c1}` + `view.cursor.col` (0 note/1 inst/2 vol/3 fx),
+  mirroring `copyBlock`/`pasteBlock` in `input.ts`.
+
+### Gist publishing — durable share for big songs (2.9.0, 2026-06-19) — ✅ DONE — `project`
+ROADMAP Phase 3 extra, on top of 2.8.0's permalink. `src/tracker/gist.ts` publishes a song
+to a **secret GitHub Gist** (`public:false` — unlisted but link-readable, NOT access-
+controlled). Fully serverless:
+- **Writes** use the publisher's OWN classic PAT scoped to **`gist` only** (a leak touches
+  only their gists). Stored in `localStorage` (`shaderwave-gist-token`) — IndexedDB would NOT
+  reduce XSS (both are same-origin JS-readable); blast radius is controlled by the scope, not
+  the store. First publish opens `github.com/settings/tokens/new?scopes=gist&...` then prompts
+  for the paste. Share menu has a "Forget Gist token" item; a 401 clears the token + re-prompts.
+- **Reads are anonymous**: one `GET /gists/<id>` (counts against the 60/hr unauth limit) →
+  follow `raw_url` (CDN, doesn't). So opening a `#gist=` link needs no token.
+- **Gist body** = one text file: a `#`-commented header (version, Song, By, `Open ▶ <host>/#gist=<id>`)
+  + the SAME base64url payload the `#s=` permalink uses (`songToPayload`/`payloadToSong`,
+  factored out in song-codec). base64url has no `#`, so the loader strips header by dropping
+  leading `#`/blank lines. The deep-load link needs the id, which only exists after create →
+  **two calls: POST create, then PATCH** to backfill the `Open ▶` line (PATCH failure is non-fatal).
+- **UI**: the header Share button is now a menu (Copy link / Publish to Gist… / Forget token).
+  Startup `_tryLoadSharedSong` handles `#s=` (decodeShareHash) OR `#gist=` (decodeGistHash),
+  both via the transient `'shared'` CurrentSong kind.
+- **Size**: ~900KB payload guard (gist content ~1MB-practical); huge sampler songs → "save a
+  file" message. Device Flow stays a DEAD END (no CORS at github.com).
+- Verified: `test/gist-check.html` (ALL_OK) — pure header+payload round-trip for all 34 demos +
+  header shape. The live GitHub POST/GET is manual-only (needs a real PAT).
+
 ### Compact binary song format + permalink sharing (2.8.0, 2026-06-19) — ✅ DONE — `project`
 ROADMAP Phase 3 core. New `src/tracker/song-codec.ts` sits BENEATH the object model —
 `song-io.ts` still maps runtime ⇄ `SerializedSong` (+ `migrate`), and undo/history still

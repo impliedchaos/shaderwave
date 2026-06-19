@@ -142,15 +142,25 @@ export async function encodeSongGz(doc: SerializedSong): Promise<Uint8Array> {
   return gzip(encodeSongBinary(doc));
 }
 
+// ── shared share-payload codec (used by both permalinks and gist bodies) ─────────
+// A single base64url string of gzip(binary): URL-safe, line-safe (no '#'), so it
+// drops into a URL hash or after a '#'-commented gist header alike.
+export async function songToPayload(doc: SerializedSong): Promise<string> {
+  return b64urlEncode(await encodeSongGz(doc));
+}
+export async function payloadToSong(payload: string): Promise<SerializedSong> {
+  return decodeSongBytes(b64urlDecode(payload.trim()));
+}
+
 // ── permalinks ──────────────────────────────────────────────────────────────────
 export async function buildShareUrl(doc: SerializedSong): Promise<{ url: string; tooBig: boolean }> {
-  const url = location.origin + location.pathname + '#s=' + b64urlEncode(await encodeSongGz(doc));
+  const url = location.origin + location.pathname + '#s=' + await songToPayload(doc);
   return { url, tooBig: url.length > URL_MAX };
 }
 
 export async function decodeShareHash(): Promise<SerializedSong | null> {
   const m = location.hash.match(/^#s=(.+)$/);
   if (!m) return null;
-  try { return await decodeSongBytes(b64urlDecode(m[1])); }
+  try { return await payloadToSong(m[1]); }
   catch (e) { console.warn('Could not load shared song from URL:', e); return null; }
 }

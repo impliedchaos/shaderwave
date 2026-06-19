@@ -164,14 +164,19 @@
     flex-shrink: 0;
   }
 
-  /* Float a header group (New/Export/Help) to the far right of its row. */
+  /* Float the header button groups to the far right, stacked into two rows. */
   .control-group.header-right { margin-left: auto; }
+  .header-right-stack {
+    margin-left: auto;
+    display: flex; flex-direction: column; align-items: flex-end; gap: 4px;
+  }
 
-  @media (max-width: 1700px) {
-    .control-group.header-right button .btn-label {
+  /* Two rows buy a lot of horizontal room, so labels survive much further down. */
+  @media (max-width: 1360px) {
+    .header-right-stack button .btn-label {
       display: none;
     }
-    .control-group.header-right button {
+    .header-right-stack button {
       padding: 7px 12px;
     }
   }
@@ -344,6 +349,22 @@
     border-radius: 8px; padding: 6px; box-shadow: 0 8px 28px rgba(0, 0, 0, 0.6);
   }
   .song-picker-menu[hidden] { display: none; }
+
+  .share-menu {
+    position: fixed; z-index: 200;
+    min-width: 180px;
+    background: var(--panel-solid); border: 1px solid rgba(var(--c-border), 0.9);
+    border-radius: 8px; padding: 6px; box-shadow: 0 8px 28px rgba(0, 0, 0, 0.6);
+    display: flex; flex-direction: column; gap: 2px;
+  }
+  .share-menu[hidden] { display: none; }
+  .share-menu-item {
+    text-align: left; background: transparent; border: none; border-radius: 5px;
+    padding: 8px 10px; cursor: pointer; color: var(--text);
+    font-family: var(--font-ui); font-size: 13px;
+  }
+  .share-menu-item:hover { background: rgba(120, 140, 175, 0.14); color: var(--accent); }
+  .share-menu-item[hidden] { display: none; }
   .song-grp {
     font-family: var(--font-heading); font-size: 10px; font-weight: 700;
     letter-spacing: 1.2px; color: var(--dim); padding: 8px 8px 4px; text-transform: uppercase;
@@ -1682,17 +1703,26 @@
       </div>
       <span id="volume-val" class="vol-val">100%</span>
     </div>
-    <div class="control-group header-right">
+    <div class="header-right-stack">
+      <div class="control-group">
       <button id="undo-btn" title="Undo (Ctrl/Cmd+Z)" disabled><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 00-9-9 9 9 0 00-6 2.3L3 13"/></svg><span class="btn-label">Undo</span></button>
       <button id="redo-btn" title="Redo (Ctrl/Cmd+Shift+Z)" disabled><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 7v6h-6"/><path d="M3 17a9 9 0 019-9 9 9 0 016 2.3l3 2.7"/></svg><span class="btn-label">Redo</span></button>
       <button id="new-song-btn" title="Create a new blank song"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg><span class="btn-label">New</span></button>
       <button id="save-song-btn" title="Save song to a .shaderwave file"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg><span class="btn-label">Save</span></button>
       <button id="load-song-btn" title="Load song from a file (.shaderwave or .json)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg><span class="btn-label">Load</span></button>
-      <button id="share-song-btn" title="Copy a shareable link to this song"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg><span class="btn-label">Share</span></button>
+      </div>
+      <div class="control-group">
+      <button id="share-song-btn" title="Share this song" aria-haspopup="true" aria-expanded="false"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg><span class="btn-label">Share</span></button>
+      <div id="share-menu" class="share-menu" role="menu" hidden>
+        <button id="share-copy-link" class="share-menu-item" role="menuitem">Copy link</button>
+        <button id="share-publish-gist" class="share-menu-item" role="menuitem">Publish to Gist…</button>
+        <button id="share-forget-token" class="share-menu-item" role="menuitem" hidden>Forget Gist token</button>
+      </div>
       <input type="file" id="load-song-input" accept=".shaderwave,.json,application/json,application/octet-stream" style="display:none">
       <button id="export" title="Export audio (WAV)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg><span class="btn-label">Export</span></button>
       <button id="help" title="Help & keyboard shortcuts (?)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg><span class="btn-label">Help</span></button>
       <button id="theme" title="Toggle light / dark theme"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg><span class="btn-label">Theme</span></button>
+      </div>
     </div>
     <div class="header-break"></div>
     <div class="lcd-display">
@@ -1741,6 +1771,7 @@
 
           <div class="toolbar-divider"></div>
           <button id="add-auto-track-btn" class="plus-btn" style="border-radius: 4px; font-size: 11px; font-family: 'Rajdhani', sans-serif; width: auto; padding: 0 10px;" title="Add a dedicated automation track">+ Auto Track</button>
+          <button id="interpolate-btn" class="plus-btn" style="border-radius: 4px; font-size: 11px; font-family: 'Rajdhani', sans-serif; width: auto; padding: 0 10px;" title="Interpolate the selection — ramp values from first to last (Ctrl/Cmd+L). Box-select an automation track, or note cells with the cursor on the Volume or FX column." disabled>⟋ Interpolate</button>
         </div>
         <div class="pattern-editor-container">
           <canvas id="grid"></canvas>
@@ -1862,6 +1893,18 @@
     </div>
   </div>
   <!-- Export Overlay/Dialog Modal -->
+  <div id="share-result-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(var(--c-inset), 0.9); z-index: 1000; align-items: center; justify-content: center; flex-direction: column; font-family: var(--font-ui);">
+    <div style="background: var(--panel-solid); border: 2px solid var(--accent); box-shadow: 0 0 30px var(--accent-glow); border-radius: 12px; padding: 30px; width: 460px; max-width: 90vw; display: flex; flex-direction: column; gap: 16px; text-align: left;">
+      <h2 id="share-result-title" style="margin: 0; color: var(--c-text-bright); font-size: 18px; font-weight: 800; letter-spacing: 2px; text-transform: uppercase; font-family: var(--font-heading); text-align: center;">Link ready</h2>
+      <p id="share-result-msg" style="margin: 0; color: var(--dim); font-size: 13px; text-align: center;">Anyone with this link can open the song.</p>
+      <input id="share-result-link" type="text" readonly style="background: rgb(var(--c-inset)); border: 1px solid rgba(var(--c-border), 0.6); color: var(--c-text-bright); padding: 8px 12px; border-radius: 6px; outline: none; font-size: 13px; font-family: monospace; width: 100%; box-sizing: border-box;" />
+      <div style="display: flex; gap: 10px; justify-content: flex-end;">
+        <button id="share-result-open" style="border-color: var(--panel-border); color: var(--dim);">Open ↗</button>
+        <button id="share-result-copy">Copy link</button>
+        <button id="share-result-close" style="border-color: var(--panel-border); color: var(--dim);">Close</button>
+      </div>
+    </div>
+  </div>
   <div id="export-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(var(--c-inset), 0.9); z-index: 1000; align-items: center; justify-content: center; flex-direction: column; font-family: var(--font-ui);">
     <!-- Stage 1: Configuration Form -->
     <div id="export-config-panel" style="background: var(--panel-solid); border: 2px solid var(--accent); box-shadow: 0 0 30px var(--accent-glow); border-radius: 12px; padding: 30px; width: 440px; display: flex; flex-direction: column; gap: 16px; text-align: left;">

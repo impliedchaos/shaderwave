@@ -1,0 +1,76 @@
+<!doctype html>
+<meta charset="utf8">
+<title>RUNNING</title>
+<pre id="out">running…</pre>
+<script type="module">
+import { DEMO_SONGS } from '/src/tracker/demo-songs.ts';
+import { loadSongInstruments } from '/src/tracker/song.ts';
+import { serializeSong, deserializeSong } from '/src/tracker/song-io.ts';
+import { defaultLfos } from '/src/tracker/lfo.ts';
+import { songToPayload, payloadToSong } from '/src/tracker/song-codec.ts';
+import { buildGistHeader, stripGistHeader } from '/src/tracker/gist.ts';
+
+const out = document.getElementById('out');
+const log = (m) => { out.textContent += '\n' + m; };
+const fail = (m) => { document.title = 'FAILED'; log('FAIL: ' + m); throw new Error(m); };
+const ok = (c, m) => { if (!c) fail(m); else log('ok: ' + m); };
+
+function stable(v) {
+  if (Array.isArray(v)) return '[' + v.map(stable).join(',') + ']';
+  if (v && typeof v === 'object') return '{' + Object.keys(v).sort().map((k) => JSON.stringify(k) + ':' + stable(v[k])).join(',') + '}';
+  return JSON.stringify(v);
+}
+function canon(doc) {
+  const d = deserializeSong(JSON.parse(JSON.stringify(doc)));
+  for (const p of d.patterns) if (p.vol) p.vol = p.vol.map((v) => Math.round(v * 1e4) / 1e4);
+  return stable(d);
+}
+function docFor(song) {
+  const { instruments, data } = loadSongInstruments(song);
+  return serializeSong({
+    name: song.name, author: 'tester', note: '',
+    bpm: data.bpm ?? song.bpm ?? 120, rowsPerBeat: data.rowsPerBeat,
+    master: data.master ?? 1, pan: data.pan ?? new Array(8).fill(0),
+    instruments, order: data.order, patterns: data.patterns,
+    lfos: data.lfos ?? defaultLfos(), modRoutings: data.modRoutings ?? [],
+  });
+}
+
+(async () => {
+  try {
+    ok(DEMO_SONGS.length > 0, `loaded ${DEMO_SONGS.length} demo songs`);
+
+    // A. header build → strip → payload → song round-trips, for every demo.
+    for (const song of DEMO_SONGS) {
+      const doc = docFor(song);
+      const payload = await songToPayload(doc);
+      const meta = { version: '9.9.9', name: song.name, author: 'tester' };
+      const file = buildGistHeader(meta, 'https://host/#gist=deadbeef') + payload;
+      const recovered = stripGistHeader(file);
+      if (recovered !== payload) fail(`stripGistHeader didn't recover the payload for "${song.name}"`);
+      const back = await payloadToSong(recovered);
+      if (canon(doc) !== canon(back)) fail(`gist round-trip mismatch for "${song.name}"`);
+    }
+    ok(true, `all ${DEMO_SONGS.length} demos survive header+payload round-trip`);
+
+    // B. header shape: comment lines, song name, author, deep-load link; '#' never
+    //    collides with the base64url payload alphabet.
+    const h = buildGistHeader({ version: '9.9.9', name: 'My Track', author: 'dave' }, 'https://host/#gist=abc123');
+    ok(h.startsWith('# ShaderWave v9.9.9\n'), 'header line 1 is the version banner');
+    ok(h.includes('# Song: My Track'), 'header carries the song name');
+    ok(h.includes('# By: dave'), 'header carries the author when set');
+    ok(h.includes('# Open ▶ https://host/#gist=abc123'), 'header carries the deep-load link');
+    ok(!buildGistHeader({ version: '1', name: 'x' }).includes('# By:'), 'author line omitted when absent');
+    ok(!buildGistHeader({ version: '1', name: 'x' }).includes('# Open'), 'open line omitted before the id exists (create pass)');
+
+    // C. payload is one '#'-free line, so the strip is unambiguous.
+    const p = await songToPayload(docFor(DEMO_SONGS[0]));
+    ok(!p.includes('#') && !p.includes('\n'), 'payload is a single line with no "#" (clean split)');
+
+    document.title = 'ALL_OK';
+    log('\nALL_OK');
+  } catch (e) {
+    if (document.title !== 'FAILED') { document.title = 'ERROR'; log('ERROR: ' + (e && e.message) + '\n' + (e && e.stack)); }
+  }
+})();
+</script>

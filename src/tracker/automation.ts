@@ -24,7 +24,7 @@ import { REGISTRY, byType } from '../instruments/index.js';
 // fx-scope targets. `key` is a fxParams field; these apply to whichever engine
 // type the channel's instrument is, and are shared across that type's channels.
 const FX: RawTarget[] = [
-  { code: 'LVL', label: 'FX Level',      key: 'master',        min: 0,     max: 2,     curve: 'lin' },
+  { code: 'LVL', label: 'Level',         key: 'master',        min: 0,     max: 2,     curve: 'lin' },
   { code: 'DRV', label: 'Distortion',    key: 'dist',          min: 0.001, max: 20,    curve: 'log' },
   { code: 'OVD', label: 'Overdrive',     key: 'odDrive',       min: 1,     max: 30,    curve: 'log' },
   { code: 'OVT', label: 'OD Tone',       key: 'odTone',        min: 0,     max: 1,     curve: 'lin' },
