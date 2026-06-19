@@ -685,7 +685,8 @@ export class App {
       const targets = targetsForType(instr.type);
       for (const t of targets) {
         if (t.scope === 'inst' || t.scope === 'fx') {
-          allTargets.push({ target: t, instIdx: i, instName: `${i}: ${instr.type.toUpperCase()}` });
+          const typeName = instr.type === 'additive' ? 'SPECTRA' : instr.type.toUpperCase();
+          allTargets.push({ target: t, instIdx: i, instName: `${i}: ${typeName}` });
         }
       }
     }

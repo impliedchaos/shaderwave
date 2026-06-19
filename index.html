@@ -171,6 +171,14 @@
     display: flex; flex-direction: column; align-items: flex-end; gap: 4px;
   }
 
+  .header-left-stack {
+    display: flex; flex-direction: column; gap: 8px; align-items: flex-start;
+  }
+  
+  .header-top-row {
+    display: flex; align-items: center; gap: 20px;
+  }
+
   /* Two rows buy a lot of horizontal room, so labels survive much further down. */
   @media (max-width: 1360px) {
     .header-right-stack button .btn-label {
@@ -336,7 +344,7 @@
     color: var(--accent); text-shadow: 0 0 6px var(--accent-glow);
     font-size: 15px; font-weight: 700; font-family: var(--font-heading);
     display: inline-flex; align-items: center; gap: 6px; padding: 0;
-    max-width: 320px; transition: color 0.5s ease;
+    max-width: 295px; transition: color 0.5s ease;
   }
   #song-picker-current { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 290px; }
   .song-picker-caret { font-size: 10px; opacity: 0.7; }
@@ -1660,48 +1668,69 @@
 <body>
 <div id="app">
   <header>
-    <h1>
-      <svg class="sw-logo" viewBox="0 0 260 40" width="286" height="44" style="overflow: visible; margin-right: 12px;">
-        <defs>
-          <linearGradient id="sw-grad-combo" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" stop-color="#00f0ff" />
-            <stop offset="45%" stop-color="#0099ff" />
-            <stop offset="50%" stop-color="#ffffff" />
-            <stop offset="55%" stop-color="#ff007f" />
-            <stop offset="100%" stop-color="#5000ff" />
-          </linearGradient>
-          <filter id="sw-glow-combo" x="-20%" y="-20%" width="140%" height="140%">
-            <feGaussianBlur stdDeviation="2" result="blur" />
-            <feComposite in="SourceGraphic" in2="blur" operator="over" />
-          </filter>
-        </defs>
-        <!-- Chromatic Aberration: Magenta layer -->
-        <text x="0" y="32" font-family="var(--font-heading)" font-weight="900" font-size="34" font-style="italic" fill="none" stroke="#ff007f" stroke-width="2" letter-spacing="2" opacity="0.8">ShaderWave</text>
-        <!-- Chromatic Aberration: Cyan layer -->
-        <text x="6" y="32" font-family="var(--font-heading)" font-weight="900" font-size="34" font-style="italic" fill="none" stroke="#00f0ff" stroke-width="2" letter-spacing="2" opacity="0.8">ShaderWave</text>
-        <!-- Main text: Synthwave Gradient -->
-        <text x="3" y="32" font-family="var(--font-heading)" font-weight="900" font-size="34" font-style="italic" fill="url(#sw-grad-combo)" filter="url(#sw-glow-combo)" letter-spacing="2">ShaderWave</text>
-      </svg>
-    </h1>
-    <div class="control-group">
-      <button id="play" class="primary" title="Play"><svg class="icon" viewBox="0 0 16 16" width="14" height="14"><path d="M4 2.5v11l9-5.5-9-5.5z" fill="currentColor"/></svg></button>
-      <button id="stop" title="Stop"><svg class="icon" viewBox="0 0 16 16" width="14" height="14"><rect x="3" y="3" width="10" height="10" rx="1.5" fill="currentColor"/></svg></button>
-      <button id="record" title="Record"><svg class="icon" viewBox="0 0 16 16" width="14" height="14"><circle cx="8" cy="8" r="5" fill="currentColor"/></svg></button>
-      <span class="vol-label">VOL</span>
-      <div class="vol-meter">
-        <div class="vu"><div class="vu-fill" id="vu-l"></div></div>
-        <input id="volume" type="range" min="0" max="125" value="100" />
-        <div class="vu"><div class="vu-fill" id="vu-r"></div></div>
-        <div class="vol-ticks">
-          <span class="vol-tick" style="left: calc(7px + 0.0 * (100% - 14px));"></span>
-          <span class="vol-tick" style="left: calc(7px + 0.2 * (100% - 14px));"></span>
-          <span class="vol-tick" style="left: calc(7px + 0.4 * (100% - 14px));"></span>
-          <span class="vol-tick" style="left: calc(7px + 0.6 * (100% - 14px));"></span>
-          <span class="vol-tick" style="left: calc(7px + 0.8 * (100% - 14px));"></span>
-          <span class="vol-tick" style="left: calc(7px + 1.0 * (100% - 14px));"></span>
+    <div class="header-left-stack">
+      <div class="header-top-row">
+        <h1>
+          <svg class="sw-logo" viewBox="0 0 260 40" width="286" height="44" style="overflow: visible; margin-right: 12px;">
+            <defs>
+              <linearGradient id="sw-grad-combo" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stop-color="#00f0ff" />
+                <stop offset="45%" stop-color="#0099ff" />
+                <stop offset="50%" stop-color="#ffffff" />
+                <stop offset="55%" stop-color="#ff007f" />
+                <stop offset="100%" stop-color="#5000ff" />
+              </linearGradient>
+              <filter id="sw-glow-combo" x="-20%" y="-20%" width="140%" height="140%">
+                <feGaussianBlur stdDeviation="2" result="blur" />
+                <feComposite in="SourceGraphic" in2="blur" operator="over" />
+              </filter>
+            </defs>
+            <!-- Chromatic Aberration: Magenta layer -->
+            <text x="0" y="32" font-family="var(--font-heading)" font-weight="900" font-size="34" font-style="italic" fill="none" stroke="#ff007f" stroke-width="2" letter-spacing="2" opacity="0.8">ShaderWave</text>
+            <!-- Chromatic Aberration: Cyan layer -->
+            <text x="6" y="32" font-family="var(--font-heading)" font-weight="900" font-size="34" font-style="italic" fill="none" stroke="#00f0ff" stroke-width="2" letter-spacing="2" opacity="0.8">ShaderWave</text>
+            <!-- Main text: Synthwave Gradient -->
+            <text x="3" y="32" font-family="var(--font-heading)" font-weight="900" font-size="34" font-style="italic" fill="url(#sw-grad-combo)" filter="url(#sw-glow-combo)" letter-spacing="2">ShaderWave</text>
+          </svg>
+        </h1>
+        <div class="control-group">
+        <button id="play" class="primary" title="Play"><svg class="icon" viewBox="0 0 16 16" width="14" height="14"><path d="M4 2.5v11l9-5.5-9-5.5z" fill="currentColor"/></svg></button>
+        <button id="stop" title="Stop"><svg class="icon" viewBox="0 0 16 16" width="14" height="14"><rect x="3" y="3" width="10" height="10" rx="1.5" fill="currentColor"/></svg></button>
+        <button id="record" title="Record"><svg class="icon" viewBox="0 0 16 16" width="14" height="14"><circle cx="8" cy="8" r="5" fill="currentColor"/></svg></button>
+        <span class="vol-label">VOL</span>
+        <div class="vol-meter">
+          <div class="vu"><div class="vu-fill" id="vu-l"></div></div>
+          <input id="volume" type="range" min="0" max="125" value="100" />
+          <div class="vu"><div class="vu-fill" id="vu-r"></div></div>
+          <div class="vol-ticks">
+            <span class="vol-tick" style="left: calc(7px + 0.0 * (100% - 14px));"></span>
+            <span class="vol-tick" style="left: calc(7px + 0.2 * (100% - 14px));"></span>
+            <span class="vol-tick" style="left: calc(7px + 0.4 * (100% - 14px));"></span>
+            <span class="vol-tick" style="left: calc(7px + 0.6 * (100% - 14px));"></span>
+            <span class="vol-tick" style="left: calc(7px + 0.8 * (100% - 14px));"></span>
+            <span class="vol-tick" style="left: calc(7px + 1.0 * (100% - 14px));"></span>
+          </div>
         </div>
+        <span id="volume-val" class="vol-val">100%</span>
       </div>
-      <span id="volume-val" class="vol-val">100%</span>
+      </div>
+      <div class="lcd-display">
+        <label>SONG
+          <div id="song-picker" class="song-picker">
+            <button id="song-picker-btn" class="song-picker-btn" type="button" aria-haspopup="listbox" aria-expanded="false">
+              <span id="song-picker-current">Loading…</span>
+              <span class="song-picker-caret">▾</span>
+            </button>
+            <div id="song-picker-menu" class="song-picker-menu" role="listbox" hidden></div>
+          </div>
+        </label>
+        <div class="lcd-divider"></div>
+        <label>BPM <input id="bpm" type="number" value="174" min="40" max="300" /></label>
+        <div class="lcd-divider"></div>
+        <label>OCT <input id="octave" type="number" value="4" min="0" max="8" /></label>
+        <div class="lcd-divider"></div>
+        <label>TIME <span id="track-time" class="lcd-time">0:00 / 0:00</span></label>
+      </div>
     </div>
     <div class="header-right-stack">
       <div class="control-group">
@@ -1724,25 +1753,6 @@
       <button id="theme" title="Toggle light / dark theme"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg><span class="btn-label">Theme</span></button>
       </div>
     </div>
-    <div class="header-break"></div>
-    <div class="lcd-display">
-      <label>SONG
-        <div id="song-picker" class="song-picker">
-          <button id="song-picker-btn" class="song-picker-btn" type="button" aria-haspopup="listbox" aria-expanded="false">
-            <span id="song-picker-current">Loading…</span>
-            <span class="song-picker-caret">▾</span>
-          </button>
-          <div id="song-picker-menu" class="song-picker-menu" role="listbox" hidden></div>
-        </div>
-      </label>
-      <div class="lcd-divider"></div>
-      <label>BPM <input id="bpm" type="number" value="174" min="40" max="300" /></label>
-      <div class="lcd-divider"></div>
-      <label>OCT <input id="octave" type="number" value="4" min="0" max="8" /></label>
-      <div class="lcd-divider"></div>
-      <label>TIME <span id="track-time" class="lcd-time">0:00 / 0:00</span></label>
-    </div>
-    <div class="spacer"></div>
   </header>
   <div id="main">
     <div id="tracker">

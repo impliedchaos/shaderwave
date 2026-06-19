@@ -23,7 +23,7 @@ export function buildLfoUI(app: App) {
   type Opt = { paramId: number; instIdx: number | null; label: string };
   const opts: Opt[] = [{ paramId: -1, instIdx: null, label: '— Off —' }];
   for (const t of TARGETS) if (t.scope === 'global' && t.code !== 'BPM') opts.push({ paramId: t.id, instIdx: null, label: `Global · ${t.label}` });
-  for (const t of TARGETS) if (t.scope === 'chan') for (let ch = 0; ch < voices; ch++) opts.push({ paramId: t.id, instIdx: ch, label: `Ch ${ch + 1} · ${t.label}` });
+  for (const t of TARGETS) if (t.scope === 'chan') for (let ch = 0; ch < voices; ch++) opts.push({ paramId: t.id, instIdx: ch, label: `Ch ${ch} · ${t.label}` });
   for (let i = 0; i < eng.instruments.length; i++) {
     const instr = eng.instruments[i];
     const short = byType(instr.type)?.short ?? instr.type.toUpperCase();   // 3-char engine code, consistent with the rest of the UI

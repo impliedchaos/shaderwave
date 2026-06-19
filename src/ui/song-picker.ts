@@ -56,7 +56,7 @@ export function buildSongPicker(app: App) {
     const dot = document.createElement('span'); dot.className = 'song-dot'; dot.style.background = o.color;
     const nm = document.createElement('span'); nm.className = 'song-row-name'; nm.textContent = o.name;
     r.append(dot, nm);
-    r.onclick = () => { closeSongMenu(app); o.onClick(); };
+    r.onclick = (e) => { e.preventDefault(); e.stopPropagation(); closeSongMenu(app); o.onClick(); };
     if (o.onDelete) {
       const del = document.createElement('button');
       del.className = 'song-del'; del.textContent = '🗑'; del.title = 'Delete this saved song';

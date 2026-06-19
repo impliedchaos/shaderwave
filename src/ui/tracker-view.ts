@@ -173,9 +173,18 @@ export class TrackerView {
     }
 
     const hit = this._cellAt(e);
-    this.cursor.row = hit.row; this.cursor.ch = hit.ch; this.cursor.col = hit.col;
-    this._dragAnchor = { row: hit.row, ch: hit.ch };
-    this.selection = null;                          // a real selection appears once the drag moves
+    if (e.shiftKey) {
+      this._dragAnchor = { row: this.cursor.row, ch: this.cursor.ch };
+      this.cursor.row = hit.row; this.cursor.ch = hit.ch; this.cursor.col = hit.col;
+      this.selection = {
+        r0: Math.min(this._dragAnchor.row, hit.row), r1: Math.max(this._dragAnchor.row, hit.row),
+        c0: Math.min(this._dragAnchor.ch, hit.ch), c1: Math.max(this._dragAnchor.ch, hit.ch),
+      };
+    } else {
+      this.cursor.row = hit.row; this.cursor.ch = hit.ch; this.cursor.col = hit.col;
+      this._dragAnchor = { row: hit.row, ch: hit.ch };
+      this.selection = null;                          // a real selection appears once the drag moves
+    }
 
     const move = (ev: MouseEvent) => this._onMouseDrag(ev);
     const up = () => {

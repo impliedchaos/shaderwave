@@ -19,12 +19,14 @@ const KEYBOARD = [
   ['Home / End', 'Jump to the first / last row'],
   ['Ctrl / ⌘ + A', 'Select the whole pattern'],
   ['Ctrl / ⌘ + C / X / V', 'Copy / cut / paste the selection (or cursor cell)'],
+  ['Ctrl / ⌘ + L', 'Interpolate (ramp) values across a box-selection (automation tracks, or volume/FX columns)'],
   ['Esc', 'Clear the selection · close this dialog'],
   ['Space', 'Play / stop'],
 ];
 
 const MOUSE = [
   ['Click + drag', 'Select a rectangular block of cells'],
+  ['Shift + Click', 'Box-select from the previous cursor position to the clicked cell'],
   ['Mouse wheel', 'Scroll the pattern grid'],
   ['Click a channel header', 'Mute / unmute that channel (CH 1–8)'],
   ['Drag a knob up / down', 'Adjust a parameter — release snaps the preset list'],
