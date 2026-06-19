@@ -86,6 +86,33 @@ An attempt to implement a WebGL 16-band Vocoder effect was completely abandoned 
 
 ## Current work
 
+### Instrument editor tab + user presets (2.6.0, 2026-06-19) — ✅ DONE — `project`
+Phase 1 of `ROADMAP.md` ("open the preset system"). Two parts:
+- **Instrument editor TAB (2.5.6):** the per-instrument params/fx/presets/mod-matrix moved
+  out of `#sidebar` into a 3rd tab (`#instrument-editor-content`) inside `#tracker`, beside
+  Pattern/Song. Sidebar keeps only Monitor + the instrument list (the selector). Tab switching
+  is now `App.activateTab('pattern'|'song'|'instrument')` (single switch point; the instrument
+  list's sliders icon calls it). **Gotcha that bit us:** the pattern-grid CSS was `#tracker
+  canvas {width/height:100%}` — once the tab moved INTO `#tracker` it stretched the mod-matrix
+  envelope canvas + wavetable scopes. Fixed by scoping that rule to `#grid`. Section-header
+  styling was `#sidebar h2` → generalized to also match `#instrument-editor-content h2`.
+- **User presets (2.6.0):** save/load/rename/delete + single-preset `.json` import/export.
+  - `Preset` (`types.ts`) gained `ops?` (DX7 operators), `type?` (engine bucket), `fxOrder?`.
+    Built-ins omit `type`; user/exported presets set it.
+  - `PresetStore` (`src/tracker/preset-store.ts`) is a near-verbatim copy of `SongStore` but in
+    its OWN IndexedDB (`shaderwave-presets`) — zero migration risk to the song DB. Meta cache →
+    synchronous `list(type)`; gzip body == the export `.json` body. `app.presetStore`, init in main.ts.
+  - **Dropdown value scheme (the refactor surface):** user presets are prefixed **`u:<id>`**;
+    built-ins keep their BARE numeric index (so `_findMatchingPreset`/`_refreshPresetSelection`/
+    sampler callsites are untouched). `onchange` dispatches on the `u:` prefix.
+  - `loadPreset`'s non-dx7 body was extracted to **`_applyPreset(preset)`** (shared by built-in +
+    user load); `_capturePreset(name)` is its inverse (uses `serializeSample`, now exported from
+    `song-io.ts` and shared with song save). DX7 built-in ROM patches still load inline (`d:` is
+    the ROM list); DX7 USER presets round-trip via `_applyPreset` + `preset.ops`.
+  - Sample-based presets (sampler/Spectra) store/export resolved PCM as base64 Int16 — self-
+    contained, no URL dependency. Headless harness: `test/preset-check.html` (needs a LARGE
+    `--virtual-time-budget`, ~120000 — IDB+gzip-stream awaits crawl under virtual time).
+
 ### Per-instrument modulation matrix (2.5.0, 2026-06-18) — ✅ DONE — `project`
 Each instrument INSTANCE now owns its own mod matrix (`InstrumentInstance.mod`): a FIXED
 bank of **2 LFOs + 1 mod-envelope** + a list of routes. Distinct from the song-wide global

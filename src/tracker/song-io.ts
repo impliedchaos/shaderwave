@@ -18,7 +18,7 @@
 import { Pattern } from './pattern.js';
 import { defaultLfos, normalizeLfo, normalizeRouting, LFO_COUNT } from './lfo.js';
 import { cloneInstMod, instModHasContent } from './instmod.js';
-import type { AutoTrack, DX7Op, FxParams, InstrumentInstance, InstrumentMod, InstrumentSpec, LfoConfig, ModRouting } from '../types.js';
+import type { AutoTrack, DX7Op, FxParams, InstrumentInstance, InstrumentMod, InstrumentSpec, LfoConfig, ModRouting, SampleData } from '../types.js';
 
 export const SONG_FORMAT = 'shaderwave-song';
 export const SONG_FORMAT_VERSION = 1;   // reset: single current schema (unreleased; no legacy saves)
@@ -93,6 +93,40 @@ export interface SongIOInput {
 
 const r4 = (v: number) => Math.round(v * 1e4) / 1e4;   // tidy float (vol) for JSON
 
+// A sample serialized for JSON transport: float PCM packed as base64 Int16 @48k.
+export interface SerializedSample {
+  name: string;
+  rootNote: number;
+  loopStart: number;
+  loopEnd: number;
+  loopMode: number;
+  sr: number;
+  pcm: string;   // base64 Int16
+}
+
+// Float32 PCM → portable base64-Int16 record. Shared by song save and preset capture
+// so both encode samples identically (mirror: the inline decode in instrumentSpecs /
+// controls.loadPreset).
+export function serializeSample(s: SampleData): SerializedSample {
+  const pcm = s.pcm;
+  const i16 = new Int16Array(pcm.length);
+  for (let j = 0; j < pcm.length; j++) {
+    i16[j] = Math.max(-32768, Math.min(32767, Math.round(pcm[j] * 32767)));
+  }
+  const u8 = new Uint8Array(i16.buffer);
+  let binary = '';
+  for (let j = 0; j < u8.length; j++) binary += String.fromCharCode(u8[j]);
+  return {
+    name: s.name,
+    rootNote: s.rootNote,
+    loopStart: s.loopStart,
+    loopEnd: s.loopEnd,
+    loopMode: s.loopMode,
+    sr: 48000,
+    pcm: btoa(binary),
+  };
+}
+
 function serializePattern(p: Pattern): SerializedPattern {
   return {
     rows: p.rows,
@@ -123,28 +157,7 @@ export function serializeSong(s: SongIOInput): SerializedSong {
     master: r4(s.master),
     pan: s.pan.map(r4),
     instruments: s.instruments.map((i) => {
-      let sample;
-      if (i.sample) {
-        const pcm = i.sample.pcm;
-        const i16 = new Int16Array(pcm.length);
-        for (let j = 0; j < pcm.length; j++) {
-          i16[j] = Math.max(-32768, Math.min(32767, Math.round(pcm[j] * 32767)));
-        }
-        const u8 = new Uint8Array(i16.buffer);
-        let binary = '';
-        for (let j = 0; j < u8.length; j++) {
-          binary += String.fromCharCode(u8[j]);
-        }
-        sample = {
-          name: i.sample.name,
-          rootNote: i.sample.rootNote,
-          loopStart: i.sample.loopStart,
-          loopEnd: i.sample.loopEnd,
-          loopMode: i.sample.loopMode,
-          sr: 48000,
-          pcm: btoa(binary)
-        };
-      }
+      const sample = i.sample ? serializeSample(i.sample) : undefined;
       return {
         name: i.name,
         type: i.type,

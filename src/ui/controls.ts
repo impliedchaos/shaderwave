@@ -7,7 +7,8 @@ import { byType } from '../instruments/index.js';
 import { resolveAssetUrl, decodeAudioFile } from '../audio/sample-loader.js';
 import { displayAccent } from './theme.js';
 import { recordKnob, disarmRecord, instParamTarget } from './record.js';
-import { normalizeInstMod, INST_SOURCE_LABELS, INST_MOD_MAX_ROUTES } from '../tracker/instmod.js';
+import { normalizeInstMod, cloneInstMod, instModHasContent, INST_SOURCE_LABELS, INST_MOD_MAX_ROUTES } from '../tracker/instmod.js';
+import { serializeSample } from '../tracker/song-io.js';
 import { instModTargetsForType } from '../tracker/automation.js';
 import { LFO_SHAPES, LFO_SHAPE_WAVETABLE } from '../tracker/lfo.js';
 import type { ModRoute } from '../types.js';
@@ -116,10 +117,14 @@ export class Controls {
     const presetSelect = document.getElementById('instrument-preset') as HTMLSelectElement | null;
     if (presetSelect) {
       presetSelect.onchange = (e) => {
-        const presetIdx = parseInt((e.target as HTMLSelectElement).value);
-        this.loadPreset(presetIdx);
+        const v = (e.target as HTMLSelectElement).value;
+        // User presets are prefixed `u:<id>`; built-ins keep their bare numeric index.
+        if (v.startsWith('u:')) this._loadUserPreset(v.slice(2));
+        else this.loadPreset(parseInt(v));
+        this._updatePresetActions();
       };
     }
+    this._bindPresetActions();
 
     // Preload all ROM banks
     this.loadAllRoms();
@@ -195,6 +200,21 @@ export class Controls {
       icons.style.gap = '8px';
       icons.style.alignItems = 'center';
 
+      // Sliders icon → jump to the Instrument editor tab focused on this instance.
+      const openEditor = document.createElement('span');
+      openEditor.innerHTML = '<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line><line x1="1" y1="14" x2="7" y2="14"></line><line x1="9" y1="8" x2="15" y2="8"></line><line x1="17" y1="16" x2="23" y2="16"></line></svg>';
+      openEditor.title = 'Edit instrument (params & FX)';
+      openEditor.style.cursor = 'pointer';
+      openEditor.style.display = 'flex';
+      openEditor.style.opacity = '0.5';
+      openEditor.onmouseover = () => openEditor.style.opacity = '1';
+      openEditor.onmouseout = () => openEditor.style.opacity = '0.5';
+      openEditor.onclick = (e) => {
+        e.stopPropagation();
+        this.select(i);
+        this.app?.activateTab?.('instrument');
+      };
+
       const pencil = document.createElement('span');
       pencil.innerHTML = '<svg viewBox="0 0 16 16" width="12" height="12"><path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l10-10zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293l6.5-6.5zm-9.761 5.175-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325z" fill="currentColor"/></svg>';
       pencil.title = 'Edit instrument name';
@@ -253,6 +273,7 @@ export class Controls {
       colorWrapper.appendChild(colorPicker);
       colorWrapper.appendChild(colorSelect);
 
+      icons.appendChild(openEditor);
       icons.appendChild(pencil);
       icons.appendChild(colorWrapper);
       b.append(num, label, icons);
@@ -416,12 +437,27 @@ export class Controls {
       });
     }
 
+    // User presets for this engine type, grouped under "My Presets" (value `u:<id>`).
+    const mine = this.app?.presetStore?.list(instName) ?? [];
+    if (mine.length) {
+      const og = document.createElement('optgroup');
+      og.label = 'My Presets';
+      mine.forEach((m) => {
+        const opt = document.createElement('option');
+        opt.value = 'u:' + m.id;
+        opt.textContent = m.name;
+        og.appendChild(opt);
+      });
+      presetSelect.appendChild(og);
+    }
+
     const match = this._findMatchingPreset();
     if (instName === 'dx7' && match.rom && match.rom !== this.activeRomFile) {
       this.loadRom(match.rom, false);
       return;
     }
     presetSelect.value = String(match.index);
+    this._updatePresetActions();
   }
 
   loadPreset(presetIdx: number) {
@@ -446,97 +482,247 @@ export class Controls {
           ops[k].release = patch.ops[k].release !== undefined ? patch.ops[k].release : 0.25;
         }
       }
+      this._buildParams();
+      this.app?.markDirty('preset');
     } else {
       const plist = PRESETS[instName];
-      if (plist && plist[presetIdx]) {
-        const preset = plist[presetIdx];
-        const prDst = this._instr;
-        prDst.p0 = [...preset.p0];
-        prDst.p1 = [...preset.p1];
-        // Engines with extra banks (moog/e8e/groove) carry p2/p3; apply the preset's
-        // values, falling back to the engine's descriptor defaults when omitted (for
-        // moog that's the classic Model D: 3 saws at 8').
-        const def = byType(instName);
-        if (def?.defaults.p2) prDst.p2 = preset.p2 ? [...preset.p2] : [...def.defaults.p2];
-        if (def?.defaults.p3) prDst.p3 = preset.p3 ? [...preset.p3] : [...def.defaults.p3];
-        if (def?.defaults.p4) prDst.p4 = preset.p4 ? [...preset.p4] : [...def.defaults.p4];
-        // Adopt the preset's modulation matrix if it carries one; otherwise leave
-        // the instance's existing matrix untouched (built-in presets predate mod,
-        // so loading one shouldn't silently wipe a user's LFO/env routings).
-        if (preset.mod) prDst.mod = normalizeInstMod(preset.mod);
-        if (preset.sample) {
-          if (preset.sample.url) {
-            // Load over HTTP
-            fetch(resolveAssetUrl(preset.sample.url)).then(res => res.arrayBuffer()).then(buf => {
-              const ctx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 48000 });
-              return ctx.decodeAudioData(buf);
-            }).then(audio => {
-              let pcm = audio.getChannelData(0);
-              if (audio.sampleRate !== 48000) {
-                console.warn(`Resampling preset from ${audio.sampleRate} Hz to 48000 Hz`);
-                const ratio = audio.sampleRate / 48000;
-                const newLen = Math.floor(pcm.length / ratio);
-                const newPcm = new Float32Array(newLen);
-                for (let i = 0; i < newLen; i++) {
-                  const pos = i * ratio;
-                  const idx = Math.floor(pos);
-                  const frac = pos - idx;
-                  if (idx + 1 < pcm.length) {
-                    newPcm[i] = pcm[idx] * (1 - frac) + pcm[idx + 1] * frac;
-                  } else {
-                    newPcm[i] = pcm[idx];
-                  }
-                }
-                pcm = newPcm;
-              }
-              const maxLen = 4096 * (4096 / 16);
-              if (pcm.length > maxLen) pcm = pcm.slice(0, maxLen);
-
-              prDst.sample = {
-                name: preset.sample.name,
-                rootNote: preset.sample.rootNote,
-                loopStart: preset.sample.loopStart,
-                loopEnd: preset.sample.loopEnd || pcm.length,
-                loopMode: preset.sample.loopMode,
-                pcm
-              };
-              this.app?._syncRendererFx();
-              this.app?.markDirty('instrument');
-              this._buildParams();
-            }).catch(err => console.error("Failed to load preset sample from URL", err));
-          } else if (preset.sample.pcm) {
-            const binary = atob(preset.sample.pcm);
-            const u8 = new Uint8Array(binary.length);
-            for (let j = 0; j < binary.length; j++) {
-              u8[j] = binary.charCodeAt(j);
-            }
-            const i16 = new Int16Array(u8.buffer);
-            const pcm = new Float32Array(i16.length);
-            for (let j = 0; j < i16.length; j++) {
-              pcm[j] = i16[j] / 32768.0;
-            }
-            prDst.sample = {
-              name: preset.sample.name,
-              rootNote: preset.sample.rootNote,
-              loopStart: preset.sample.loopStart,
-              loopEnd: preset.sample.loopEnd,
-              loopMode: preset.sample.loopMode,
-              pcm
-            };
-            this.app?._syncRendererFx();
-          }
-        }
-        if (this.onPresetChange && preset.fx) {
-          this.onPresetChange(instName, preset.fx);
-        }
-      }
+      if (plist && plist[presetIdx]) this._applyPreset(plist[presetIdx]);
     }
-    this._buildParams();
-    this.app?.markDirty('preset');
     const presetSelect = document.getElementById('instrument-preset') as HTMLSelectElement | null;
     if (presetSelect) {
       presetSelect.value = String(presetIdx);
     }
+  }
+
+  // Apply a Preset (built-in OR user/imported) to the selected instance: param banks,
+  // DX7 operators, mod matrix, sample, fx, and chain order. Shared by loadPreset (for
+  // built-ins) and _loadUserPreset. Not used for the DX7 built-in ROM-patch path —
+  // that reads from the parsed SysEx and stays inline in loadPreset.
+  _applyPreset(preset: Preset) {
+    const instName = this._type;
+    if (!instName) return;
+    const prDst = this._instr;
+    prDst.p0 = [...preset.p0];
+    prDst.p1 = [...preset.p1];
+    // Engines with extra banks (moog/e8e/groove) carry p2/p3; apply the preset's
+    // values, falling back to the engine's descriptor defaults when omitted (for
+    // moog that's the classic Model D: 3 saws at 8').
+    const def = byType(instName);
+    if (def?.defaults.p2) prDst.p2 = preset.p2 ? [...preset.p2] : [...def.defaults.p2];
+    if (def?.defaults.p3) prDst.p3 = preset.p3 ? [...preset.p3] : [...def.defaults.p3];
+    if (def?.defaults.p4) prDst.p4 = preset.p4 ? [...preset.p4] : [...def.defaults.p4];
+    // DX7 operator config (user presets for the dx7 engine capture it; built-ins don't).
+    if (preset.ops && prDst.ops) {
+      for (let k = 0; k < prDst.ops.length && k < preset.ops.length; k++) {
+        prDst.ops[k] = { ...preset.ops[k] };
+      }
+    }
+    // Adopt the preset's modulation matrix if it carries one; otherwise leave the
+    // instance's existing matrix untouched (built-in presets predate mod, so loading
+    // one shouldn't silently wipe a user's LFO/env routings).
+    if (preset.mod) prDst.mod = normalizeInstMod(preset.mod);
+    if (preset.fxOrder) prDst.fxOrder = [...preset.fxOrder];
+    if (preset.sample) {
+      if (preset.sample.url) {
+        // Load over HTTP
+        fetch(resolveAssetUrl(preset.sample.url)).then(res => res.arrayBuffer()).then(buf => {
+          const ctx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 48000 });
+          return ctx.decodeAudioData(buf);
+        }).then(audio => {
+          let pcm = audio.getChannelData(0);
+          if (audio.sampleRate !== 48000) {
+            console.warn(`Resampling preset from ${audio.sampleRate} Hz to 48000 Hz`);
+            const ratio = audio.sampleRate / 48000;
+            const newLen = Math.floor(pcm.length / ratio);
+            const newPcm = new Float32Array(newLen);
+            for (let i = 0; i < newLen; i++) {
+              const pos = i * ratio;
+              const idx = Math.floor(pos);
+              const frac = pos - idx;
+              if (idx + 1 < pcm.length) {
+                newPcm[i] = pcm[idx] * (1 - frac) + pcm[idx + 1] * frac;
+              } else {
+                newPcm[i] = pcm[idx];
+              }
+            }
+            pcm = newPcm;
+          }
+          const maxLen = 4096 * (4096 / 16);
+          if (pcm.length > maxLen) pcm = pcm.slice(0, maxLen);
+
+          prDst.sample = {
+            name: preset.sample.name,
+            rootNote: preset.sample.rootNote,
+            loopStart: preset.sample.loopStart,
+            loopEnd: preset.sample.loopEnd || pcm.length,
+            loopMode: preset.sample.loopMode,
+            pcm
+          };
+          this.app?._syncRendererFx();
+          this.app?.markDirty('instrument');
+          this._buildParams();
+        }).catch(err => console.error("Failed to load preset sample from URL", err));
+      } else if (preset.sample.pcm) {
+        const binary = atob(preset.sample.pcm);
+        const u8 = new Uint8Array(binary.length);
+        for (let j = 0; j < binary.length; j++) {
+          u8[j] = binary.charCodeAt(j);
+        }
+        const i16 = new Int16Array(u8.buffer);
+        const pcm = new Float32Array(i16.length);
+        for (let j = 0; j < i16.length; j++) {
+          pcm[j] = i16[j] / 32768.0;
+        }
+        prDst.sample = {
+          name: preset.sample.name,
+          rootNote: preset.sample.rootNote,
+          loopStart: preset.sample.loopStart,
+          loopEnd: preset.sample.loopEnd,
+          loopMode: preset.sample.loopMode,
+          pcm
+        };
+        this.app?._syncRendererFx();
+      }
+    }
+    if (this.onPresetChange && preset.fx) {
+      this.onPresetChange(instName, preset.fx);
+    }
+    this._buildParams();
+    this.app?.markDirty('preset');
+  }
+
+  // Snapshot the selected instance into a portable Preset (the unit saved to the
+  // PresetStore and exported as .json). Inverse of _applyPreset.
+  _capturePreset(name: string): Preset {
+    const pr = this._instr;
+    return {
+      name,
+      type: pr.type,
+      p0: [...pr.p0],
+      p1: [...pr.p1],
+      ...(pr.p2 ? { p2: [...pr.p2] } : {}),
+      ...(pr.p3 ? { p3: [...pr.p3] } : {}),
+      ...(pr.p4 ? { p4: [...pr.p4] } : {}),
+      ...(pr.ops ? { ops: pr.ops.map((o) => ({ ...o })) } : {}),
+      fx: { ...pr.fx },
+      ...(pr.fxOrder ? { fxOrder: [...pr.fxOrder] } : {}),
+      ...(instModHasContent(pr.mod) ? { mod: cloneInstMod(pr.mod!) } : {}),
+      ...(pr.sample ? { sample: serializeSample(pr.sample) } : {}),
+    };
+  }
+
+  // Load + apply a user preset (PresetStore body) onto the selected instance.
+  async _loadUserPreset(id: string) {
+    const store = this.app?.presetStore;
+    if (!store) return;
+    const preset = await store.load(id);
+    if (!preset) return;
+    this._applyPreset(preset);
+    const pSel = document.getElementById('instrument-preset') as HTMLSelectElement | null;
+    if (pSel) pSel.value = 'u:' + id;
+    this._updatePresetActions();
+  }
+
+  // The id of the currently-selected user preset, or null when a built-in / blank
+  // option is showing (Rename/Delete only apply to user presets).
+  _selectedUserPresetId(): string | null {
+    const pSel = document.getElementById('instrument-preset') as HTMLSelectElement | null;
+    const v = pSel?.value ?? '';
+    return v.startsWith('u:') ? v.slice(2) : null;
+  }
+
+  // Enable Rename/Delete only when a user preset is selected.
+  _updatePresetActions() {
+    const isUser = !!this._selectedUserPresetId();
+    const rn = document.getElementById('preset-rename') as HTMLButtonElement | null;
+    const del = document.getElementById('preset-delete') as HTMLButtonElement | null;
+    if (rn) rn.disabled = !isUser;
+    if (del) del.disabled = !isUser;
+  }
+
+  // Wire the Save / Rename / Delete / Export / Import buttons (called once at init).
+  _bindPresetActions() {
+    const store = this.app?.presetStore;
+    const $ = (id: string) => document.getElementById(id);
+    const pSel = () => document.getElementById('instrument-preset') as HTMLSelectElement | null;
+
+    $('preset-save')?.addEventListener('click', async () => {
+      if (!store) { alert('Preset storage is unavailable.'); return; }
+      const name = prompt('Save preset as:', this._instr?.name || (this._type ?? 'Preset'));
+      if (name === null) return;
+      const res = await store.save(this._capturePreset(name.trim() || 'Untitled'));
+      if (!res.ok) { alert(res.error || 'Could not save the preset.'); return; }
+      this._populatePresets();
+      const sel = pSel(); if (sel && res.id) sel.value = 'u:' + res.id;
+      this._updatePresetActions();
+    });
+
+    $('preset-rename')?.addEventListener('click', async () => {
+      const id = this._selectedUserPresetId();
+      if (!store || !id) return;
+      const cur = store.metaFor(id);
+      const name = prompt('Rename preset:', cur?.name || '');
+      if (name === null || !name.trim()) return;
+      const res = await store.rename(id, name.trim());
+      if (!res.ok) { alert(res.error || 'Could not rename the preset.'); return; }
+      this._populatePresets();
+      const sel = pSel(); if (sel) sel.value = 'u:' + id;
+      this._updatePresetActions();
+    });
+
+    $('preset-delete')?.addEventListener('click', async () => {
+      const id = this._selectedUserPresetId();
+      if (!store || !id) return;
+      const cur = store.metaFor(id);
+      if (!confirm(`Delete preset "${cur?.name || ''}"? This can't be undone.`)) return;
+      await store.delete(id);
+      this._populatePresets();
+      const sel = pSel(); if (sel) sel.value = '-1';
+      this._updatePresetActions();
+    });
+
+    $('preset-export')?.addEventListener('click', async () => {
+      // Export the selected user preset's stored bytes if one is active; otherwise
+      // capture the current instrument exactly as it sounds.
+      const id = this._selectedUserPresetId();
+      const preset = (id && store && (await store.load(id))) || this._capturePreset(this._instr?.name || (this._type ?? 'Preset'));
+      const fname = (preset.name || 'preset').replace(/[^a-z0-9_-]+/gi, '-').toLowerCase();
+      this._downloadJSON(`${fname}.swpreset.json`, JSON.stringify(preset));
+    });
+
+    const fileInput = $('preset-import-file') as HTMLInputElement | null;
+    $('preset-import')?.addEventListener('click', () => fileInput?.click());
+    fileInput?.addEventListener('change', async () => {
+      const file = fileInput.files?.[0];
+      fileInput.value = '';   // allow re-importing the same file
+      if (!file || !store) return;
+      try {
+        const preset = JSON.parse(await file.text()) as Preset;
+        if (!preset || !preset.type || !Array.isArray(preset.p0) || !Array.isArray(preset.p1)) {
+          alert('That doesn’t look like a ShaderWave preset file.'); return;
+        }
+        const res = await store.save(preset);
+        if (!res.ok) { alert(res.error || 'Could not import the preset.'); return; }
+        // Surface it immediately if it belongs to the current engine; else just confirm.
+        if (preset.type === this._type) {
+          this._populatePresets();
+          const sel = pSel(); if (sel && res.id) sel.value = 'u:' + res.id;
+          this._updatePresetActions();
+        } else {
+          alert(`Imported "${preset.name}" — select a ${preset.type} instrument to use it.`);
+        }
+      } catch {
+        alert('Could not read that file as JSON.');
+      }
+    });
+  }
+
+  _downloadJSON(filename: string, text: string) {
+    const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
   async loadRom(filename: string, autoLoadFirstPreset = false) {

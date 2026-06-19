@@ -1,0 +1,68 @@
+<!doctype html>
+<meta charset="utf8">
+<title>RUNNING</title>
+<pre id="out">running…</pre>
+<script type="module">
+import { PresetStore } from '/src/tracker/preset-store.ts';
+import { serializeSample } from '/src/tracker/song-io.ts';
+
+const out = document.getElementById('out');
+const log = (m) => { out.textContent += '\n' + m; };
+const fail = (m) => { document.title = 'FAILED'; log('FAIL: ' + m); throw new Error(m); };
+const ok = (c, m) => { if (!c) fail(m); else log('ok: ' + m); };
+
+(async () => {
+  try {
+    // Fresh DB each run so reruns are deterministic.
+    indexedDB.deleteDatabase('shaderwave-presets');
+    const store = new PresetStore();
+    await store.init();
+    ok(store.available(), 'store initialised (IndexedDB available)');
+
+    // --- serializeSample round-trips Float32 -> base64 Int16 ---
+    const pcm = new Float32Array([0, 0.5, -0.5, 1, -1]);
+    const ser = serializeSample({ name: 's', rootNote: 60, loopStart: 0, loopEnd: 5, loopMode: 0, pcm });
+    ok(typeof ser.pcm === 'string' && ser.pcm.length > 0, 'serializeSample produced base64 pcm');
+    const bin = atob(ser.pcm); const u8 = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+    const i16 = new Int16Array(u8.buffer);
+    ok(Math.abs(i16[1] / 32767 - 0.5) < 0.001, 'sample value 0.5 survived the round-trip');
+
+    // --- save / list (scoped by type) ---
+    const preset = { name: 'My Acid', type: 'i303', p0: [1, 2, 3, 4], p1: [5, 6, 7, 8], fx: { distOn: 1 } };
+    const res = await store.save(preset);
+    ok(res.ok && res.id, 'save() returned an id');
+    const id = res.id;
+
+    ok(store.list('i303').length === 1, 'list("i303") shows the saved preset');
+    ok(store.list('imoog').length === 0, 'list() is scoped by engine type');
+    ok(store.metaFor(id)?.name === 'My Acid', 'metadata name is correct');
+
+    // --- load body round-trips ---
+    const body = await store.load(id);
+    ok(body && body.name === 'My Acid' && body.p1[3] === 8 && body.fx.distOn === 1, 'load() round-trips the full body');
+
+    // --- rename keeps the body, updates meta ---
+    await store.rename(id, 'Wonky');
+    ok(store.metaFor(id)?.name === 'Wonky', 'rename() updated the metadata');
+    ok((await store.load(id)).name === 'Wonky', 'rename() updated the stored body');
+    ok((await store.load(id)).p0[2] === 3, 'rename() preserved the params');
+
+    // --- persistence across a reopen (mirrors a page reload) ---
+    store.close?.();
+    const store2 = new PresetStore();
+    await store2.init();
+    ok(store2.list('i303').length === 1 && store2.metaFor(id)?.name === 'Wonky', 'preset persists across reopen');
+
+    // --- delete ---
+    await store2.delete(id);
+    ok(store2.list('i303').length === 0, 'delete() removed the preset');
+    ok((await store2.load(id)) === null, 'load() of a deleted id returns null');
+
+    document.title = 'ALL_OK';
+    log('\nALL_OK');
+  } catch (e) {
+    if (document.title !== 'FAILED') { document.title = 'ERROR'; log('ERROR: ' + (e && e.message)); }
+  }
+})();
+</script>

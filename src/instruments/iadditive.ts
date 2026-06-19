@@ -82,6 +82,10 @@ export const iadditive: InstrumentDef = {
     // — formant-driven voices (sweep/automate Formant for vowel morphs) —
     { name: 'Vowel Choir',    p0: [1024, 0.5, 0.0,  0.0], p1: [0,   0.5, 0.35, 0.0], p2: [0.2, 1.0, 0.0, 0.25], p3: [0.45, 0.35, 1.2, 0.6], p4: [0.7, 0, 0, 0] },  // resonant "aah" choir, wide
     { name: 'Talking Pad',    p0: [1280, 0.45, 0.02, 0.0], p1: [0,  0.5, 0.4,  0.0], p2: [0.3, 1.2, 0.0, 0.2],  p3: [0.5,  0.5,  1.0, 0.5], p4: [0.6, 0, 0, 0] },  // shimmer + sweepable formant, wide
+    // — bowed strings (sawtooth-like partials + body formants + bow shimmer) —
+    { name: 'Violin',         p0: [1024, 0.48, 0.0,  0.0], p1: [0,  0.5, 0.15, 0.0], p2: [0.1,  0.4, 0.0, 0.05], p3: [0.25, 0.45, 1.2, 0.8], p4: [0.3, 0, 0, 0] },
+    { name: 'Cello',          p0: [1536, 0.55, 0.0,  0.0], p1: [0,  0.5, 0.15, 0.0], p2: [0.18, 0.6, 0.0, 0.05], p3: [0.2,  0.25, 1.4, 1.2], p4: [0.4, 0, 0, 0] },
+    { name: 'Double Bass',    p0: [2048, 0.6,  0.0,  0.0], p1: [0,  0.5, 0.2,  0.0], p2: [0.25, 0.8, 0.0, 0.02], p3: [0.15, 0.1,  1.8, 1.5], p4: [0.5, 0, 0, 0] },
     // — resynthesis: load a sample, Morph crossfades the synth spectrum into its analyzed profile —
     { name: 'Kalimba (resynth)', p0: [768, 0.55, 0.0, 0.85], p1: [1.8, 0.6, 0.12, 0.0], p2: [0.004, 0.9, 0.0, 0.85], p3: [0.0, 0.0, 0.0, 0.5],
       sample: { name: 'Kalimba', url: '/samples/kalimba.ogg', rootNote: 60, loopStart: 0, loopEnd: 0, loopMode: 0 } },

@@ -13,6 +13,7 @@ import { decodeSampleUrl } from './audio/sample-loader.js';
 import type { SerializedSong } from './tracker/song-io.js';
 import { History } from './tracker/history.js';
 import { SongStore } from './tracker/song-store.js';
+import { PresetStore } from './tracker/preset-store.js';
 import { instGlow, DEFAULT_MASTER } from './constants.js';
 import { byType } from './instruments/index.js';
 import { Pattern } from './tracker/pattern.js';
@@ -68,6 +69,7 @@ export class App {
   engine: Engine;
   currentSong: CurrentSong;
   store = new SongStore();
+  presetStore = new PresetStore();
   _autosaveTimer?: ReturnType<typeof setTimeout>;
   _storageWarned = false;
   pipeline: AudioPipeline;
@@ -203,6 +205,8 @@ export class App {
     // Open the song library and fill the picker once its metadata is loaded (async;
     // the picker already rendered with demos, this adds the MY SONGS group).
     this.store.init().then(() => this._buildSongPicker());
+    // Load the user-preset library so the Instrument tab can list saved presets.
+    this.presetStore.init().then(() => this.controls?._populatePresets());
 
     this.pipeline.onStats = (s) => { this.underruns = s.underruns; };
     setInterval(() => { if (this.audioReady) this.pipeline.requestStats(); }, 500);
@@ -231,6 +235,26 @@ export class App {
 
   _buildFxPanel() { buildFxPanel(this); }
   _buildLfoUI() { buildLfoUI(this); }
+
+  // Single switch point for the editor tabs (Pattern / Song / Instrument).
+  // Called by the tab buttons and by the instrument list's "open editor" icon.
+  activateTab(name: 'pattern' | 'song' | 'instrument') {
+    const tabs: Record<typeof name, { btn: string; content: string }> = {
+      pattern: { btn: 'tab-pattern', content: 'pattern-editor-content' },
+      song: { btn: 'tab-song', content: 'song-arranger-content' },
+      instrument: { btn: 'tab-instrument', content: 'instrument-editor-content' },
+    };
+    for (const k of Object.keys(tabs) as (typeof name)[]) {
+      const sel = k === name;
+      document.getElementById(tabs[k].btn)?.classList.toggle('active', sel);
+      const content = document.getElementById(tabs[k].content);
+      if (content) content.style.display = sel ? 'flex' : 'none';
+    }
+    // Per-tab activation hooks.
+    if (name === 'pattern') { this.view._resize(); this.view.draw(); }
+    else if (name === 'song') { this._renderSongEditor(); }
+    // 'instrument': params/fx are kept live on selection — nothing to rebuild.
+  }
 
   songDisplayName(): string { return _songDisplayName(this); }
   _snapshot(): SerializedSong | null { return _snapshot(this); }
@@ -465,31 +489,10 @@ export class App {
     // Bind Tabs Switching
     const tabPat = $('tab-pattern');
     const tabSong = $('tab-song');
-    const contentPat = $('pattern-editor-content');
-    const contentSong = $('song-arranger-content');
-    
-    if (tabPat && tabSong && contentPat && contentSong) {
-      tabPat.onclick = () => {
-        tabPat.classList.add('active');
-        tabSong.classList.remove('active');
-        contentPat.style.display = 'flex';
-        contentSong.style.display = 'none';
-        
-        // Force resize and redraw of the pattern view
-        this.view._resize();
-        this.view.draw();
-      };
-      
-      tabSong.onclick = () => {
-        tabSong.classList.add('active');
-        tabPat.classList.remove('active');
-        contentSong.style.display = 'flex';
-        contentPat.style.display = 'none';
-        
-        // Render song editor DOM
-        this._renderSongEditor();
-      };
-    }
+    const tabInst = $('tab-instrument');
+    if (tabPat) tabPat.onclick = () => this.activateTab('pattern');
+    if (tabSong) tabSong.onclick = () => this.activateTab('song');
+    if (tabInst) tabInst.onclick = () => this.activateTab('instrument');
 
     const newSongBtn = $('new-song-btn');
     if (newSongBtn) {

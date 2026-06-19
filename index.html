@@ -460,7 +460,9 @@
     flex-direction: column;
   }
   
-  #tracker canvas { display: block; width: 100%; height: 100%; }
+  /* Scoped to the pattern grid only — the Instrument tab also lives inside #tracker
+     and has its own fixed-size canvases (mod-matrix envelope, wavetable scopes). */
+  #grid { display: block; width: 100%; height: 100%; }
   
   #sidebar {
     width: 380px;
@@ -485,6 +487,7 @@
   
   .pattern-editor-container::-webkit-scrollbar,
   .song-editor-container::-webkit-scrollbar,
+  .instrument-editor-container::-webkit-scrollbar,
   .lfo-sources::-webkit-scrollbar,
   #sidebar::-webkit-scrollbar,
   .arranger-list::-webkit-scrollbar {
@@ -493,6 +496,7 @@
   }
   .pattern-editor-container::-webkit-scrollbar-track,
   .song-editor-container::-webkit-scrollbar-track,
+  .instrument-editor-container::-webkit-scrollbar-track,
   .lfo-sources::-webkit-scrollbar-track,
   #sidebar::-webkit-scrollbar-track,
   .arranger-list::-webkit-scrollbar-track {
@@ -500,6 +504,7 @@
   }
   .pattern-editor-container::-webkit-scrollbar-thumb,
   .song-editor-container::-webkit-scrollbar-thumb,
+  .instrument-editor-container::-webkit-scrollbar-thumb,
   .lfo-sources::-webkit-scrollbar-thumb,
   #sidebar::-webkit-scrollbar-thumb,
   .arranger-list::-webkit-scrollbar-thumb {
@@ -508,13 +513,15 @@
   }
   .pattern-editor-container::-webkit-scrollbar-thumb:hover,
   .song-editor-container::-webkit-scrollbar-thumb:hover,
+  .instrument-editor-container::-webkit-scrollbar-thumb:hover,
   .lfo-sources::-webkit-scrollbar-thumb:hover,
   #sidebar::-webkit-scrollbar-thumb:hover,
   .arranger-list::-webkit-scrollbar-thumb:hover {
     background: var(--c-scrollbar-thumb-hover);
   }
   
-  #sidebar h2 {
+  #sidebar h2,
+  #instrument-editor-content h2 {
     font-family: var(--font-heading);
     font-size: 13px; font-weight: 800;
     color: var(--dim);
@@ -528,8 +535,9 @@
     padding-bottom: 6px;
     text-shadow: 0 0 8px rgba(255, 255, 255, 0.15);
   }
-  
-  #sidebar h2 span.glow-dot {
+
+  #sidebar h2 span.glow-dot,
+  #instrument-editor-content h2 span.glow-dot {
     display: inline-block;
     width: 6px; height: 6px;
     background: var(--accent);
@@ -550,7 +558,7 @@
     /* Interactive resizability */
     resize: vertical;
     overflow: hidden;
-    height: 320px;
+    height: 160px;
     min-height: 120px;
     max-height: 600px;
   }
@@ -1089,6 +1097,38 @@
     color: var(--text);
   }
 
+  .preset-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 0 2px;
+  }
+  .preset-actions button {
+    flex: 1;
+    min-width: 56px;
+    background: rgba(var(--c-surface), 0.5);
+    border: 1px solid var(--panel-border);
+    border-radius: 6px;
+    color: var(--c-text-bright);
+    font-size: 11px;
+    font-weight: 700;
+    font-family: var(--font-heading);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 6px 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+  .preset-actions button:hover:not(:disabled) {
+    border-color: var(--accent);
+    color: var(--accent);
+    box-shadow: 0 0 10px var(--accent-glow);
+  }
+  .preset-actions button:disabled {
+    opacity: 0.35;
+    cursor: default;
+  }
+
   /* Tracker Tabs & Song Editor UI */
   .tracker-tabs {
     display: flex;
@@ -1315,7 +1355,29 @@
     overflow-y: auto;
     overflow-x: hidden;
   }
-  
+
+  .instrument-editor-container {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    padding: 20px;
+    overflow-y: auto;
+  }
+
+  /* The editor tab is far wider than the old 380px sidebar — spread the param
+     and fx knobs across more columns so they don't sit in a sparse 2/3-wide strip. */
+  #instrument-editor-content #params {
+    grid-template-columns: repeat(4, 1fr);
+  }
+  #instrument-editor-content #fx {
+    grid-template-columns: repeat(5, 1fr);
+  }
+  #instrument-editor-content #fx h3 {
+    grid-column: span 5;
+  }
+
   .song-editor-section {
     display: flex;
     flex-direction: column;
@@ -1384,8 +1446,8 @@
   .mod-route button[data-k=del]:hover { color: #ff6b6b; }
 
   /* Wavewright per-oscillator scopes (sidebar, under the knobs). */
-  .wt-scopes { display: flex; flex-direction: column; gap: 8px; padding: 8px 10px 4px; }
-  .wt-scope { display: flex; flex-direction: column; gap: 3px; }
+  .wt-scopes { display: flex; flex-direction: row; gap: 8px; padding: 8px 10px 4px; }
+  .wt-scope { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
   .wt-scope-label { font-size: 10px; letter-spacing: 0.14em; color: var(--text-dim, var(--c-text-dim)); }
   .wt-scope canvas { width: 100%; height: 56px; background: rgb(var(--c-inset)); border: 1px solid var(--panel-border); border-radius: 5px; }
   
@@ -1619,6 +1681,7 @@
       <div class="tracker-tabs">
         <button id="tab-pattern" class="tab-btn active"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="3" y1="15" x2="21" y2="15"></line><line x1="9" y1="3" x2="9" y2="21"></line><line x1="15" y1="3" x2="15" y2="21"></line></svg> Pattern Editor</button>
         <button id="tab-song" class="tab-btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"></rect><line x1="7" y1="2" x2="7" y2="22"></line><line x1="17" y1="2" x2="17" y2="22"></line><line x1="2" y1="12" x2="22" y2="12"></line><line x1="2" y1="7" x2="7" y2="7"></line><line x1="2" y1="17" x2="7" y2="17"></line><line x1="17" y1="17" x2="22" y2="17"></line><line x1="17" y1="7" x2="22" y2="7"></line></svg> Song Editor</button>
+        <button id="tab-instrument" class="tab-btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line><line x1="1" y1="14" x2="7" y2="14"></line><line x1="9" y1="8" x2="15" y2="8"></line><line x1="17" y1="16" x2="23" y2="16"></line></svg> Instrument</button>
       </div>
       <div id="pattern-editor-content" class="tab-content">
         <div class="pattern-toolbar">
@@ -1681,6 +1744,45 @@
           </div>
         </div>
       </div>
+      <div id="instrument-editor-content" class="tab-content" style="display: none;">
+        <div class="instrument-editor-container">
+          <h2>Parameters <span class="glow-dot"></span></h2>
+          <div id="preset-controls" style="margin-bottom: 12px; display: flex; flex-direction: column; gap: 8px; padding: 0 10px;">
+            <div id="sysex-select-row" class="preset-row" style="display: none;">
+              <span>Bank</span>
+              <select id="sysex-rom"></select>
+            </div>
+            <div class="preset-row">
+              <span>Preset</span>
+              <select id="instrument-preset"></select>
+            </div>
+            <div id="preset-actions" class="preset-actions">
+              <button id="preset-save" title="Save the current instrument as a user preset">Save</button>
+              <button id="preset-rename" title="Rename the selected user preset" disabled>Rename</button>
+              <button id="preset-delete" title="Delete the selected user preset" disabled>Delete</button>
+              <button id="preset-export" title="Export the current instrument as a .json preset file">Export</button>
+              <button id="preset-import" title="Import a .json preset file">Import</button>
+              <input id="preset-import-file" type="file" accept="application/json,.json" style="display:none" />
+            </div>
+            <div id="op-select-row" class="preset-row" style="display: none;">
+              <span>Op Select</span>
+              <select id="operator-select">
+                <option value="0">Operator 1</option>
+                <option value="1">Operator 2</option>
+                <option value="2">Operator 3</option>
+                <option value="3">Operator 4</option>
+                <option value="4">Operator 5</option>
+                <option value="5">Operator 6</option>
+              </select>
+            </div>
+          </div>
+          <div id="params"></div>
+          <h2>Output <span class="glow-dot"></span></h2>
+          <div id="fx-output"></div>
+          <h2>Instrument FX <button id="fx-toggle" class="on">on</button></h2>
+          <div id="fx"></div>
+        </div>
+      </div>
     </div>
     <aside id="sidebar">
       <h2>Monitor <span class="glow-dot"></span></h2>
@@ -1689,33 +1791,6 @@
       </div>
       <h2>Instruments <span class="glow-dot"></span><select id="inst-add" class="inst-add" title="Add an instrument"></select></h2>
       <div id="instruments" class="inst-list"></div>
-      <h2>Parameters <span class="glow-dot"></span></h2>
-      <div id="preset-controls" style="margin-bottom: 12px; display: flex; flex-direction: column; gap: 8px; padding: 0 10px;">
-        <div id="sysex-select-row" class="preset-row" style="display: none;">
-          <span>Bank</span>
-          <select id="sysex-rom"></select>
-        </div>
-        <div class="preset-row">
-          <span>Preset</span>
-          <select id="instrument-preset"></select>
-        </div>
-        <div id="op-select-row" class="preset-row" style="display: none;">
-          <span>Op Select</span>
-          <select id="operator-select">
-            <option value="0">Operator 1</option>
-            <option value="1">Operator 2</option>
-            <option value="2">Operator 3</option>
-            <option value="3">Operator 4</option>
-            <option value="4">Operator 5</option>
-            <option value="5">Operator 6</option>
-          </select>
-        </div>
-      </div>
-      <div id="params"></div>
-      <h2>Output <span class="glow-dot"></span></h2>
-      <div id="fx-output"></div>
-      <h2>Instrument FX <button id="fx-toggle" class="on">on</button></h2>
-      <div id="fx"></div>
     </aside>
   </div>
   <div id="status" style="position: relative;">

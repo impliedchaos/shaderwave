@@ -339,7 +339,10 @@ export interface ParamDef {
 // on when the automation table flattens it (see tracker/automation.ts).
 export type RawTarget = Omit<ParamTarget, 'id' | 'scope' | 'type'>;
 
-// A built-in preset for an engine: synth param banks + an optional fx snapshot.
+// A preset for an engine: synth param banks + an optional fx snapshot. Used both
+// for the built-in presets baked into descriptors and for USER presets the editor
+// captures (saved in PresetStore / exported as .json) — the latter additionally
+// carry `type` (engine bucket), `ops` (DX7 operators), and `fxOrder`.
 export interface Preset {
   name: string;
   p0: number[];
@@ -347,9 +350,12 @@ export interface Preset {
   p2?: number[];
   p3?: number[];
   p4?: number[];
+  ops?: DX7Op[];           // DX7 6-operator config (user presets for the dx7 engine)
   fx?: Partial<FxParams>;
-  mod?: InstrumentMod;   // optional modulation matrix snapshot (LFOs + env → params)
-  sample?: any; // SerializedSample to hydrate on load
+  fxOrder?: string[];      // per-instance effect-chain order (effect keys)
+  mod?: InstrumentMod;     // optional modulation matrix snapshot (LFOs + env → params)
+  sample?: any;            // SerializedSample to hydrate on load (base64 Int16 pcm, or {url})
+  type?: InstrumentType;   // engine bucket — set on user/exported presets (built-ins omit it)
 }
 
 // A self-contained instrument engine — everything the app needs to register one
