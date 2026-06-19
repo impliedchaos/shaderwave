@@ -5,8 +5,9 @@ Two ways to make a song:
 
 1. **Demo song (recommended for authoring):** add a `SongDef` to the `DEMO_SONGS` array in
    `src/tracker/demo-songs.ts`. It shows up in the song dropdown. This guide is mostly about this.
-2. **Loadable file:** a `*.shaderwave.json` opened with the editor's **LOAD** button (format below).
-   Easiest produced by composing as a demo and clicking **SAVE**, or generated programmatically.
+2. **Loadable file:** a `*.shaderwave` file (compact binary; legacy `*.shaderwave.json` still
+   opens) loaded with the editor's **LOAD** button, or a **Share** permalink (`#s=…`). Easiest
+   produced by composing as a demo and clicking **SAVE** / **Share**, or generated programmatically.
 
 Verify any song with `npm run build` (typecheck) — and do NOT hand-launch the headless GPU
 harnesses for song-only changes (they're brutal on the machine; the author auditions in-browser).

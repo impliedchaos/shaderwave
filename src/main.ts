@@ -14,6 +14,7 @@ import type { SerializedSong } from './tracker/song-io.js';
 import { History } from './tracker/history.js';
 import { SongStore } from './tracker/song-store.js';
 import { PresetStore } from './tracker/preset-store.js';
+import { buildShareUrl, decodeShareHash } from './tracker/song-codec.js';
 import { instGlow, DEFAULT_MASTER } from './constants.js';
 import { byType } from './instruments/index.js';
 import { Pattern } from './tracker/pattern.js';
@@ -62,7 +63,7 @@ const PLAY_ICON = `<svg class="icon" viewBox="0 0 16 16" width="14" height="14">
 const PAUSE_ICON = `<svg class="icon" viewBox="0 0 16 16" width="14" height="14"><path d="M3 2.5h3.5v11H3zm6.5 0h3.5v11H9.5z" fill="currentColor"/></svg>`;
 
 // Which document is open: a built-in demo (by index) or a saved user song (by id).
-export type CurrentSong = { kind: 'demo'; demoIdx: number } | { kind: 'user'; id: string };
+export type CurrentSong = { kind: 'demo'; demoIdx: number } | { kind: 'user'; id: string } | { kind: 'shared' };
 
 export class App {
   gl: WebGL2RenderingContext;
@@ -210,6 +211,20 @@ export class App {
 
     this.pipeline.onStats = (s) => { this.underruns = s.underruns; };
     setInterval(() => { if (this.audioReady) this.pipeline.requestStats(); }, 500);
+
+    // If the page was opened via a share link (#s=…), replace the default song with
+    // the decoded one — loaded transiently (Save persists it to the library).
+    this._tryLoadSharedSong();
+  }
+
+  async _tryLoadSharedSong() {
+    let doc: SerializedSong | null = null;
+    try { doc = await decodeShareHash(); } catch { /* bad link → keep default */ }
+    if (!doc) return;
+    this.currentSong = { kind: 'shared' };
+    this._applySerializedSong(doc);
+    this._seedHistory();
+    this._buildSongPicker();
   }
 
   async ensureAudio() {
@@ -548,6 +563,21 @@ export class App {
         loadSongInput.value = '';   // allow re-loading the same file
       };
     }
+
+    const shareBtn = $('share-song-btn');
+    if (shareBtn) shareBtn.onclick = async () => {
+      const doc = this._snapshot();
+      if (!doc) return;
+      const { url, tooBig } = await buildShareUrl(doc);
+      if (tooBig) {
+        alert('This song is too big to share by link (it has a large sample). Save it to a file and share that instead.');
+        return;
+      }
+      const label = shareBtn.querySelector('.btn-label');
+      const flash = (msg: string) => { if (label) { const t = label.textContent; label.textContent = msg; setTimeout(() => { label.textContent = t; }, 1400); } };
+      try { await navigator.clipboard.writeText(url); flash('Copied!'); }
+      catch { prompt('Copy this share link:', url); }
+    };
 
     const exportBtn = $('export');
     if (exportBtn) {

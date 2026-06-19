@@ -1,0 +1,105 @@
+<!doctype html>
+<meta charset="utf8">
+<title>RUNNING</title>
+<pre id="out">running…</pre>
+<script type="module">
+import { DEMO_SONGS } from '/src/tracker/demo-songs.ts';
+import { loadSongInstruments } from '/src/tracker/song.ts';
+import { serializeSong, deserializeSong } from '/src/tracker/song-io.ts';
+import { defaultLfos } from '/src/tracker/lfo.ts';
+import { encodeSongBinary, decodeSongBinary, decodeSongBytes, encodeSongGz, buildShareUrl, decodeShareHash } from '/src/tracker/song-codec.ts';
+
+const out = document.getElementById('out');
+const log = (m) => { out.textContent += '\n' + m; };
+const fail = (m) => { document.title = 'FAILED'; log('FAIL: ' + m); throw new Error(m); };
+const ok = (c, m) => { if (!c) fail(m); else log('ok: ' + m); };
+const te = new TextEncoder();
+
+// Stable (sorted-key) stringify so key ORDER doesn't matter — the codec rebuilds
+// objects with different key order but identical content.
+function stable(v) {
+  if (Array.isArray(v)) return '[' + v.map(stable).join(',') + ']';
+  if (v && typeof v === 'object') return '{' + Object.keys(v).sort().map((k) => JSON.stringify(k) + ':' + stable(v[k])).join(',') + '}';
+  return JSON.stringify(v);
+}
+// Compare post-migrate (both sides through deserializeSong) with vol rounded to the
+// JSON path's 4-decimal precision (binary keeps vol as raw Float32 ≥ that precision).
+function canon(doc) {
+  const d = deserializeSong(JSON.parse(JSON.stringify(doc)));
+  for (const p of d.patterns) if (p.vol) p.vol = p.vol.map((v) => Math.round(v * 1e4) / 1e4);
+  return stable(d);
+}
+
+function docFor(song) {
+  const { instruments, data } = loadSongInstruments(song);
+  return serializeSong({
+    name: song.name, author: 'tester', note: 'note',
+    bpm: data.bpm ?? song.bpm ?? 120,
+    rowsPerBeat: data.rowsPerBeat,
+    master: data.master ?? 1,
+    pan: data.pan ?? new Array(8).fill(0),
+    instruments, order: data.order, patterns: data.patterns,
+    lfos: data.lfos ?? defaultLfos(),
+    modRoutings: data.modRoutings ?? [],
+  });
+}
+
+(async () => {
+  try {
+    ok(DEMO_SONGS.length > 0, `loaded ${DEMO_SONGS.length} demo songs`);
+
+    // --- A. every demo round-trips through the binary container, bit-for-bit ---
+    let totJson = 0, totBin = 0;
+    for (const song of DEMO_SONGS) {
+      const doc = docFor(song);
+      const enc = encodeSongBinary(doc);
+      const dec = decodeSongBinary(enc);
+      const ca = canon(doc), cb = canon(dec);
+      if (ca !== cb) {
+        let i = 0; while (i < ca.length && ca[i] === cb[i]) i++;
+        log('  A: …' + ca.slice(Math.max(0, i - 60), i + 60));
+        log('  B: …' + cb.slice(Math.max(0, i - 60), i + 60));
+        fail(`binary round-trip mismatch for "${song.name}" at char ${i}`);
+      }
+      totJson += te.encode(JSON.stringify(doc)).length;
+      totBin += enc.length;
+    }
+    ok(true, `all ${DEMO_SONGS.length} demos round-trip through encode→decode (exact)`);
+    log(`   size: JSON ${(totJson / 1024).toFixed(1)}KB → binary ${(totBin / 1024).toFixed(1)}KB (pre-gzip, ${(100 * totBin / totJson).toFixed(0)}%)`);
+
+    // --- B. gzip(binary) → decodeSongBytes (the storage/file path) ---
+    const docB = docFor(DEMO_SONGS[0]);
+    const gz = await encodeSongGz(docB);
+    ok(gz[0] === 0x1f && gz[1] === 0x8b, 'encodeSongGz produced a gzip stream');
+    const decGz = await decodeSongBytes(gz);
+    ok(canon(docB) === canon(decGz), 'gzip(binary) → decodeSongBytes round-trips');
+
+    // --- C. legacy raw-JSON bytes still decode (back-compat) ---
+    const decJson = await decodeSongBytes(te.encode(JSON.stringify(docB)));
+    ok(canon(docB) === canon(decJson), 'legacy JSON bytes decode via the same loader');
+
+    // --- D. a sample-bearing song round-trips PCM exactly ---
+    const docS = JSON.parse(JSON.stringify(docB));
+    const pcm = []; for (let i = 0; i < 2000; i++) pcm.push(Math.sin(i * 0.05));
+    const i16 = Int16Array.from(pcm.map((v) => Math.max(-32768, Math.min(32767, Math.round(v * 32767)))));
+    let bin = ''; const u8 = new Uint8Array(i16.buffer); for (let j = 0; j < u8.length; j++) bin += String.fromCharCode(u8[j]);
+    docS.instruments[0].sample = { name: 'syn', rootNote: 60, loopStart: 0, loopEnd: 2000, loopMode: 0, sr: 48000, pcm: btoa(bin) };
+    const decS = decodeSongBinary(encodeSongBinary(docS));
+    ok(decS.instruments[0].sample.pcm === docS.instruments[0].sample.pcm, 'sample PCM survives the binary round-trip exactly');
+
+    // --- E. full permalink round-trip (base64url + #s= hash) ---
+    const { url, tooBig } = await buildShareUrl(docB);
+    ok(url.includes('#s='), `buildShareUrl produced a link (${url.length} chars, tooBig=${tooBig})`);
+    location.hash = url.slice(url.indexOf('#'));
+    const decUrl = await decodeShareHash();
+    ok(decUrl && canon(docB) === canon(decUrl), 'decodeShareHash round-trips the song from the URL');
+    // The guard flag must agree with the length ceiling.
+    ok(tooBig === (url.length > 64000), 'tooBig flag matches the URL length guard');
+
+    document.title = 'ALL_OK';
+    log('\nALL_OK');
+  } catch (e) {
+    if (document.title !== 'FAILED') { document.title = 'ERROR'; log('ERROR: ' + (e && e.message) + '\n' + (e && e.stack)); }
+  }
+})();
+</script>

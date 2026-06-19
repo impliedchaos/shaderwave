@@ -566,14 +566,24 @@ Gigi guitar all shipped. Add new ideas here.)*
 
 ## Song files (save / load)
 
-The **💾 Save** / **📂 Load** toolbar buttons export and import the whole song as
-a versioned JSON document (`*.shaderwave.json`): patterns (notes/inst/vol/effect
-column + automation tracks), the instrument table (params + DX7 ops), per-engine
-fx chains, order, bpm, pan and master. The file carries `format` + `version`
-headers; `src/tracker/song-io.ts` validates them, refuses files from a newer
-format, and routes older files through a `migrate()` step so the schema can keep
-evolving without breaking saved songs. Automation stores the **frozen** target
-ids, so a saved track still resolves after new engines are appended.
+The **💾 Save** / **📂 Load** toolbar buttons export and import the whole song:
+patterns (notes/inst/vol/effect column + automation tracks), the instrument table
+(params + DX7 ops), per-engine fx chains, order, bpm, pan and master. Automation
+stores the **frozen** target ids, so a saved track still resolves after new engines
+are appended.
+
+`src/tracker/song-io.ts` maps runtime ⇄ a versioned `SerializedSong` object (`format`
++ `version` headers, validated + `migrate()`d so the schema can evolve without breaking
+saved songs). Beneath it, `src/tracker/song-codec.ts` packs that object into a **compact
+binary container** (`SWB1`: a JSON skeleton + the heavy pattern/automation arrays and
+sample PCM as raw typed-array blobs), gzipped for files (`*.shaderwave`) and IndexedDB.
+Loading **content-sniffs** the bytes (gzip → binary → legacy JSON), so older
+`*.shaderwave.json` files and previously-stored songs keep opening.
+
+**🔗 Share** copies a permalink: `binary → gzip → base64url` in the URL hash (`#s=…`).
+It's pure front-end (the fragment never hits a server), and opening such a link loads
+the song transiently (Save persists it). Songs with a large sample exceed the link
+ceiling and prompt you to share a file instead.
 
 ## Known Limitations / Next Steps
 

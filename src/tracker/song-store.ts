@@ -10,7 +10,7 @@
 // (id/name/colour/timestamps) is loaded into an in-memory cache once at init(), so
 // `list()`/`has()` stay SYNCHRONOUS for the UI; only the full bodies — `load`/
 // `save`/`delete` — touch IndexedDB asynchronously.
-import { deserializeSong } from './song-io.js';
+import { encodeSongGz, decodeSongBytes } from './song-codec.js';
 import type { SerializedSong } from './song-io.js';
 
 export interface UserSongMeta {
@@ -32,27 +32,21 @@ const META_STORE = 'meta';     // small {id,name,color,…} records — all read
 const BODY_STORE = 'bodies';   // { id, gz, data } — one gzipped song each, read on open
 const DEFAULT_COLOR = '#7d8aa0';
 
-// A stored body: gzipped bytes (ArrayBuffer) when CompressionStream is available,
-// else raw text. Both are structured-cloneable, so IndexedDB stores them directly.
+// A stored body. New bodies are gzip(binary) (an ArrayBuffer); legacy bodies were
+// gzip(JSON) (ArrayBuffer, gz:true) or raw JSON text (string, gz:false). All three
+// are content-sniffed on read by decodeSongBytes, so `gz` is now informational only.
+// All are structured-cloneable, so IndexedDB stores them directly.
 interface BodyRecord { id: string; gz: boolean; data: ArrayBuffer | string }
-
-const CAN_GZIP = typeof CompressionStream !== 'undefined';
 
 // Promise-wrap a one-shot IDBRequest (used for readonly gets).
 function req<T>(r: IDBRequest<T>): Promise<T> {
   return new Promise((res, rej) => { r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
 }
 
-async function packBody(id: string, json: string): Promise<BodyRecord> {
-  if (!CAN_GZIP) return { id, gz: false, data: json };
-  const data = await new Response(new Blob([json]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer();
-  return { id, gz: true, data };
-}
-
-async function unpackBody(rec: BodyRecord): Promise<string> {
-  if (!rec.gz) return typeof rec.data === 'string' ? rec.data : new TextDecoder().decode(rec.data);
-  const buf = rec.data as ArrayBuffer;
-  return await new Response(new Blob([buf]).stream().pipeThrough(new DecompressionStream('gzip'))).text();
+// A stored body → raw bytes for decodeSongBytes (handles gzip-binary, gzip-JSON,
+// and legacy raw-JSON-string bodies uniformly).
+function bodyBytes(rec: BodyRecord): Uint8Array {
+  return typeof rec.data === 'string' ? new TextEncoder().encode(rec.data) : new Uint8Array(rec.data);
 }
 
 export class SongStore {
@@ -118,7 +112,7 @@ export class SongStore {
     try {
       const rec = await req(this.db.transaction(BODY_STORE, 'readonly').objectStore(BODY_STORE).get(id)) as BodyRecord | undefined;
       if (!rec) { this._forgetMeta(id); return null; }
-      return deserializeSong(JSON.parse(await unpackBody(rec)));
+      return await decodeSongBytes(bodyBytes(rec));
     } catch (e) {
       console.warn('Song load failed:', e);
       return null;
@@ -141,7 +135,8 @@ export class SongStore {
     };
     this.cache.set(id, meta);   // reflect immediately for the UI
     try {
-      const body = await packBody(id, JSON.stringify(doc));
+      const bytes = await encodeSongGz(doc);   // gzip(binary)
+      const body: BodyRecord = { id, gz: true, data: bytes.buffer as ArrayBuffer };
       await this._tx([META_STORE, BODY_STORE], 'readwrite', (tx) => {
         tx.objectStore(META_STORE).put(meta);
         tx.objectStore(BODY_STORE).put(body);

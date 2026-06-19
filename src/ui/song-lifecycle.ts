@@ -1,6 +1,7 @@
 // Song lifecycle: snapshot, undo/redo, autosave, fork, save/load — extracted from main.ts.
 import type { App } from '../main.js';
-import { serializeSong, deserializeSong, patternFromSerialized, instrumentSpecs } from '../tracker/song-io.js';
+import { serializeSong, patternFromSerialized, instrumentSpecs } from '../tracker/song-io.js';
+import { encodeSongGz, decodeSongBytes } from '../tracker/song-codec.js';
 import type { SerializedSong } from '../tracker/song-io.js';
 import { DEMO_SONGS, instrumentsFromParams } from '../tracker/song.js';
 import { Pattern } from '../tracker/pattern.js';
@@ -215,28 +216,29 @@ export function restoreSnapshot(app: App, doc: SerializedSong) {
   }
 }
 
-// Serialize the current song to a versioned JSON file and download it.
-export function saveSong(app: App) {
+// Serialize the current song to a compact binary file (gzip(binary)) and download it.
+export async function saveSong(app: App) {
   const doc = snapshot(app);
   if (!doc) return;
-  const name = doc.name;
-  const blob = new Blob([JSON.stringify(doc, null, 1)], { type: 'application/json' });
+  const bytes = await encodeSongGz(doc);
+  const blob = new Blob([bytes as BlobPart], { type: 'application/octet-stream' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  const safe = name.replace(/[^\w.-]+/g, '_').slice(0, 64) || 'song';
+  const safe = doc.name.replace(/[^\w.-]+/g, '_').slice(0, 64) || 'song';
   a.href = url;
-  a.download = `${safe}.shaderwave.json`;
+  a.download = `${safe}.shaderwave`;
   a.click();
   URL.revokeObjectURL(url);
 }
 
-// Read a .json song file, validate/parse it, and load it as a new user song
-// (so an imported file joins the library and autosaves from then on).
+// Read a song file and load it as a new user song (so an import joins the library and
+// autosaves from then on). Accepts the new binary `.shaderwave` and legacy
+// `.shaderwave.json` files alike — decodeSongBytes content-sniffs the format.
 export function loadSongFile(app: App, file: File) {
   const reader = new FileReader();
-  reader.onload = () => {
+  reader.onload = async () => {
     try {
-      const doc = deserializeSong(JSON.parse(String(reader.result)));
+      const doc = await decodeSongBytes(new Uint8Array(reader.result as ArrayBuffer));
       autosaveNow(app);                 // flush the outgoing song first
       app.currentSong = { kind: 'user', id: app.store.createId() };
       applySerializedSong(app, doc);
@@ -247,7 +249,7 @@ export function loadSongFile(app: App, file: File) {
     }
   };
   reader.onerror = () => alert("Couldn't read the file.");
-  reader.readAsText(file);
+  reader.readAsArrayBuffer(file);
 }
 
 // Apply a deserialized song to the engine + UI. Identity-agnostic: the CALLER sets

@@ -86,6 +86,32 @@ An attempt to implement a WebGL 16-band Vocoder effect was completely abandoned 
 
 ## Current work
 
+### Compact binary song format + permalink sharing (2.8.0, 2026-06-19) — ✅ DONE — `project`
+ROADMAP Phase 3 core. New `src/tracker/song-codec.ts` sits BENEATH the object model —
+`song-io.ts` still maps runtime ⇄ `SerializedSong` (+ `migrate`), and undo/history still
+pass that object around untouched. The codec only turns the object into bytes:
+- **Container `SWB1`** = a JSON *skeleton* (the SerializedSong minus its heavy arrays) +
+  those arrays as raw typed-array *blobs*, pulled/reattached in ONE fixed traversal
+  (patterns → notes/inst[i16], vol[f32], fxCmd/fxVal[i16], each autoTrack data[i16]; then
+  instruments → sample pcm as raw int16, no base64). Skeleton key ORDER differs from the JSON
+  path — that's fine (content-equal); the harness compares with sorted keys.
+- **`decodeSongBytes` content-sniffs**: gzip magic `1f 8b` → gunzip; then `SWB1` → binary,
+  else UTF-8 JSON (legacy). So old `.shaderwave.json` files AND already-stored gzipped-JSON
+  IndexedDB bodies keep loading. Storage (`song-store`) + file save (`saveSong`, now async,
+  writes `.shaderwave`) + file load (`loadSongFile`, reads ArrayBuffer) all route through it.
+  `preset-store` stays on JSON (presets are tiny).
+- **Permalink**: `binary → gzip → base64url` in `#s=…` (`buildShareUrl`/`decodeShareHash`).
+  Pure front-end (fragment never hits the server — works on GitHub Pages). Startup hook in
+  main.ts (`_tryLoadSharedSong`) loads it as a NEW `CurrentSong` kind `'shared'` (transient —
+  autosave only persists `'user'`, so it won't clobber the library; Save persists it). Share
+  button in the header; `URL_MAX = 64000` chars guards multi-MB sampler songs (rich pattern
+  songs fit ~29KB).
+- **vol** is the only lossy-looking field: JSON r4-rounds it, binary stores raw Float32 (≥ as
+  precise) — harness compares vol within 4 decimals, all else exact.
+- Verified: `test/songcodec-check.html` (ALL_OK) round-trips all 34 demos + gzip + legacy-JSON +
+  sample PCM + the full `#s=` permalink. Needs a LARGE `--virtual-time-budget` (~70000) — gzip
+  streams crawl under virtual time (same as the preset/store harnesses).
+
 ### Preset explorer — A/B + morph + randomize/nudge (2.7.0, 2026-06-19) — ✅ DONE — `project`
 Phase 1's tail (the "nice-to-haves" deferred from 2.6.0). All in `src/ui/controls.ts` + the
 `#preset-morph` block in the Instrument tab — **no types/store/main changes**. Two A/B scratch
