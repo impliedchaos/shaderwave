@@ -20,7 +20,8 @@ export const iadditive: InstrumentDef = {
   stereo: true,   // emits independent L/R (partials fanned by p4.x); spread=0 → mono, bit-identical
   // p0 = (partials, tilt, stretch, MORPH 0=formula↔1=analyzed); p1 = (decay, decayTilt, detune, comb);
   // p2 = (attack, release, odd/even, COHERENCE 0=random-phase wash↔1=coherent strike);
-  // p3 = (shimmer, formant pos, formant amt [0=off], formant BW); p4 = (STEREO spread, -, -, -).
+  // p3 = (shimmer, formant pos, formant amt [0=off], formant BW);
+  // p4 = (STEREO spread, FREEZE 0=analyzed decay↔1=hold sustain forever [resynth only], -, -).
   // Default p3/p4 are NEUTRAL (shimmer/formant/stereo off) so songs that omit them (the banks are
   // back-filled from here) stay bit-identical; a fresh +Add gets a touch of coherence for a defined
   // attack. The lively shimmer/formant/stereo character lives in the presets.
@@ -43,6 +44,7 @@ export const iadditive: InstrumentDef = {
     { label: 'Fmt Amt',   bank: 'p3', i: 2, min: 0, max: 3,    step: 0.01 },
     { label: 'Fmt BW',    bank: 'p3', i: 3, min: 0.1, max: 3,  step: 0.05 },
     { label: 'Stereo',    bank: 'p4', i: 0, min: 0, max: 1,    step: 0.01 },
+    { label: 'Freeze',    bank: 'p4', i: 1, min: 0, max: 1,    step: 0.01 },
   ],
   autoTargets: [
     { code: 'PRT', label: 'Partials',  bank: 'p0', index: 0, min: 1, max: 2048, curve: 'log' },
@@ -59,6 +61,7 @@ export const iadditive: InstrumentDef = {
     { code: 'FMA', label: 'Fmt Amt',   bank: 'p3', index: 2, min: 0, max: 3, curve: 'lin' },
     { code: 'FMW', label: 'Fmt BW',    bank: 'p3', index: 3, min: 0.1, max: 3, curve: 'lin' },
     { code: 'SPR', label: 'Stereo',    bank: 'p4', index: 0, min: 0, max: 1, curve: 'lin' },
+    { code: 'FRZ', label: 'Freeze',    bank: 'p4', index: 1, min: 0, max: 1, curve: 'lin' },
   ],
   // p2[3] = Coherence (struck/plucked voices want it high for a defined attack; pads stay low/washy);
   // p3 = [Shimmer, Formant pos, Formant amt (0 = off), Formant BW].
@@ -93,6 +96,10 @@ export const iadditive: InstrumentDef = {
       sample: { name: 'Kalimba', url: '/samples/kalimba.ogg', rootNote: 60, loopStart: 0, loopEnd: 0, loopMode: 0 } },
     { name: 'Vox Pad (resynth)', p0: [1024, 0.5, 0.0, 0.9], p1: [0, 0.5, 0.35, 0.0], p2: [0.3, 1.1, 0.0, 0.2], p3: [0.4, 0.4, 0.5, 0.8], p4: [0.65, 0, 0, 0],
       sample: { name: 'Vox', url: '/samples/dvs-oh-1.ogg', rootNote: 60, loopStart: 0, loopEnd: 0, loopMode: 0 } },
+    // Freeze (p4.y=1): hold the sample's analyzed sustain spectrum forever — turns the plucky
+    // kalimba into an infinite shimmering pad with its harmonic fingerprint. Automate FRZ to sweep.
+    { name: 'Glacier (freeze)', p0: [768, 0.55, 0.0, 1.0], p1: [0, 0.5, 0.3, 0.0], p2: [0.3, 2.2, 0.0, 0.85], p3: [0.4, 0.0, 0.0, 0.5], p4: [0.6, 1.0, 0, 0],
+      sample: { name: 'Kalimba', url: '/samples/kalimba.ogg', rootNote: 60, loopStart: 0, loopEnd: 0, loopMode: 0 } },
   ],
   // Additive spectra love space + a touch of width; a freshly-added instance starts lush.
   fxDefaults: {

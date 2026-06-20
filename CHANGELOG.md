@@ -7,6 +7,17 @@ and the project follows [Semantic Versioning](https://semver.org/). The version
 in `package.json` is the source of truth; see **AGENTS.md → Git** for the bump +
 changelog rules. Dates are the commit date of that version.
 
+## [2.13.0] — 2026-06-20
+### Added
+- **Spectra Freeze** (resynthesis). A new `Freeze` knob (and `FRZ` automation target) holds
+  a loaded sample's analyzed spectrum indefinitely — turning a decaying/plucked timbre into
+  an infinite sustained pad with that instrument's harmonic fingerprint. Freezing biases the
+  held spectrum toward the bright attack (a pluck's sustain frames are near-silent), so
+  percussive samples become rich drones rather than fading out. Automate `FRZ` to sweep a
+  held note from natural decay into a frozen drone. New **Glacier (freeze)** preset showcases
+  it (kalimba → shimmering glacial pad). Freeze at 0 is bit-identical to the formula/resynth
+  spectrum.
+
 ## [2.12.1] — 2026-06-20
 ### Changed
 - **Retuned the Spectra bowed-string presets** (Violin, Cello, Double Bass) so they read

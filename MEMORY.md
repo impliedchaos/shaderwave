@@ -86,6 +86,28 @@ An attempt to implement a WebGL 16-band Vocoder effect was completely abandoned 
 
 ## Current work
 
+### Spectra Freeze — hold the analyzed spectrum forever (2.13.0, 2026-06-20) — ✅ DONE — `project`
+The other named-but-unshipped Phase 2 item. A `Freeze` knob (universal bank **p4.y**, the
+first free slot after Stereo) + `FRZ` automation target, applied only in the resynth branch
+of `synth-additive.glsl`. Two coupled effects, both gated so **freeze=0 is bit-identical**:
+- `aRate *= 1.0 - freeze` — pulls each harmonic's analyzed decay rate toward 0 → infinite hold.
+- `aBody = mix(aSus, aAtk, freeze)` then `aAmp = mix(aAtk, aBody, ap) * exp(-t*aRate)`.
+- **THE NON-OBVIOUS GOTCHA (cost a debug round):** freezing the analyzed *sustain* spectrum
+  holds **silence** for any plucked/struck sample — its latter-half "sustain" frames have
+  already decayed to ~nothing, so the analyzed sus amps are ~0. First cut froze sustain →
+  "short little noise, no sustain." Fix = bias the held body toward the **attack** frame
+  (bright, full-energy) as freeze rises. So Freeze holds the strike timbre as a drone, which
+  is exactly the "turn a pluck into a pad" use case. (Sustained samples like Vox already hold
+  with low decay, so they're barely affected — which is why Freeze's value is specifically for
+  decaying/percussive timbres, as predicted.)
+- p4.y needed NO new plumbing (the 5th bank was fully wired in 2.3.0 stereo work); just a
+  paramDef + autoTarget + the shader read. New **Glacier (freeze)** preset (kalimba sample,
+  freeze=1, slow attack/long release + shimmer) showcases it. Verified: build clean,
+  glsl-check ALL_OK, **user-auditioned in-browser 2026-06-20 — works, accepted.**
+- **Phase 2 is now fully shipped** (time-varying resynth + Freeze). Only remaining Spectra
+  idea is the GPU-showcase partial push past 2048 (perf headroom exists); user has moved on
+  from Spectra for now.
+
 ### Spectra resynthesis — time-varying analysis (2.12.0, 2026-06-20) — ✅ DONE — `project`
 Phase 2 "deepen analysis" pass. The FIRST cut of resynthesis (analyze → atlas → Morph)
 had already shipped inside the big Spectra commit (`f5f4bc5`) — the ROADMAP just wasn't

@@ -21,7 +21,7 @@
 //   uP1 = (Decay s [0 = sustain], DecayTilt 0..1 [highs die faster], Detune 0..1 [partial spread], Comb 0..1)
 //   uP2 = (Attack s, Release s, OddEven 0..1, Coherence 0..1 [0 = random phase wash, 1 = coherent strike])
 //   uP3 = (Shimmer 0..1 [per-partial animation], Formant pos 0..1 [150..5000 Hz], Formant amt [0 = off], Formant BW octaves)
-//   uP4 = (Stereo spread 0..1 [partials fanned L↔R], -, -, -)
+//   uP4 = (Stereo spread 0..1 [partials fanned L↔R], Freeze 0..1 [resynth: hold sustain spectrum], -, -)
 //
 // Velocity opens the spectrum (folds into the tilt exponent, anchored at full velocity).
 // Coherence / Shimmer / Formant / Stereo default to 0 → bit-identical to the legacy mono formula sound.
@@ -78,6 +78,7 @@ void main(){
   float fmtAmt  = max(uP3[v].z, 0.0);                   // formant peak boost (0 = off → branch skipped)
   float fmtW    = uP3[v].w;                             // formant width in octaves
   float spread  = clamp(uP4[v].x, 0.0, 1.0);            // stereo spread: 0 = mono (bit-identical), 1 = partials fanned L↔R
+  float freeze  = clamp(uP4[v].y, 0.0, 1.0);            // resynth Freeze: 0 = analyzed decay (bit-identical), 1 = hold the sustain spectrum forever
   int   slot    = int(uAddSlot[v] + 0.5);
   bool  resynth = uAddSlot[v] > -0.5 && morph > 0.0;   // analyzed spectrum available + dialed in
 
@@ -109,8 +110,13 @@ void main(){
       float aAtk  = texelFetch(uSpectra, ivec2(n - 1, base),     0).r;   // amps at the onset/attack frame
       float aSus  = texelFetch(uSpectra, ivec2(n - 1, base + 1), 0).r;   // amps in the sustain body
       float aRate = texelFetch(uSpectra, ivec2(n - 1, base + 2), 0).r;   // this harmonic's own decay rate (1/s)
+      // Freeze: stop the per-harmonic decay AND hold the energetic ATTACK spectrum, not the
+      // analyzed sustain — a plucked/struck sample's sustain frames are ~silent, so freezing
+      // the sustain would just hold silence. (freeze=0 → ×1 + aBody==aSus, bit-identical.)
+      aRate *= 1.0 - freeze;
+      float aBody = mix(aSus, aAtk, freeze);
       float ap    = clamp(t / ADD_ATK_BLEND, 0.0, 1.0);                  // bright strike → settled body
-      float aAmp  = mix(aAtk, aSus, ap) * exp(-t * aRate);              // sample-extracted per-partial decay
+      float aAmp  = mix(aAtk, aBody, ap) * exp(-t * aRate);             // sample-extracted per-partial decay
       amp = mix(amp, aAmp, morph);
     } else if (resynth) {
       amp = mix(amp, 0.0, morph);                                  // beyond the analyzed band: fade to silence
