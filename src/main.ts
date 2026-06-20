@@ -665,8 +665,11 @@ export class App {
         const doc = this._snapshot(); if (!doc) return;
         let token = getGistToken();
         if (!token) {
-          if (!confirm('Publishing to a Gist needs a GitHub token (a classic token with ONLY the "gist" scope). Open the GitHub token page now?')) return;
-          window.open(GIST_TOKEN_PAGE, '_blank', 'noopener');
+          // Offer to open the token-creation page, but always go on to the paste box —
+          // declining just means they already have a token to paste.
+          if (confirm('Publishing to a Gist needs a GitHub token (a classic token with ONLY the "gist" scope). Open the GitHub token page now?')) {
+            window.open(GIST_TOKEN_PAGE, '_blank', 'noopener');
+          }
           const entered = await this._promptGistToken();
           if (!entered) return;
           token = entered; setGistToken(token);
