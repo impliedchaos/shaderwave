@@ -21,6 +21,8 @@ import FX_CHORUS_TAP from './shaders/fx-chorus-tap.glsl?raw';
 import FX_TREMOLO from './shaders/fx-tremolo.glsl?raw';
 import FX_DELAY_UPDATE from './shaders/fx-delay-update.glsl?raw';
 import FX_DELAY_TAP from './shaders/fx-delay-tap.glsl?raw';
+import FX_PITCH_UPDATE from './shaders/fx-pitch-update.glsl?raw';
+import FX_PITCH_TAP from './shaders/fx-pitch-tap.glsl?raw';
 import FX_FDN_UPDATE from './shaders/fx-fdn-update.glsl?raw';
 import FX_FDN_TAP from './shaders/fx-fdn-tap.glsl?raw';
 import FX_BITCRUSH from './shaders/fx-bitcrush.glsl?raw';
@@ -52,6 +54,10 @@ const FDN_LEN = 2048;
 const FDN_LENS = [1557, 1617, 1491, 1422];
 // Chorus history ring: single row, comfortably longer than base+depth (~17ms).
 const CHORUS_LEN = 2048;
+// Pitch-shifter history ring: 2D, ~170ms at 48k — must exceed the grain window so a
+// "d samples ago" read always lands in valid history. Grain ~40ms (warble↔smear).
+const PITCH_W = 2048, PITCH_H = 4, PITCH_LEN = PITCH_W * PITCH_H;
+const PITCH_GRAIN_S = 0.040;
 
 // Per-block render context handed to each effect's process(). Provides the shared
 // helpers + precomputed timing so the effects don't each recompute it.
@@ -233,6 +239,66 @@ const fxDelay: FxEffectDef = {
         g.uniform1i(tap.u('uWpos'), ctx.wposD); g.uniform1i(tap.u('uDelaySamples'), ctx.delaySamples);
         g.uniform1f(tap.u('uDelayMix'), on ? p.delayMix : 0.0);
         g.viewport(0, 0, BLOCK, 1); drawQuad(g);
+      },
+    };
+  },
+};
+
+// Time-domain (granular delay-line) pitch shifter / octave pedal / harmonizer. The
+// history ring is written every block (kept warm so toggling never pops); the tap
+// reads it back at the shifted rate with two crossfaded grains. TWO independent
+// voices read the same ring — voice 1 (pitchShift) + an optional harmony voice
+// (pitchVoice2 at pitchV2Level) — so dry + two pitched voices = a stacked harmony.
+// Each voice's read phase is a scalar accumulated on the CPU across blocks (no GPU
+// state texture / no extra pass) → phase-continuous and precision-stable over long
+// playback. V2 level 0 → harmony skipped → bit-identical single-voice shifter.
+const fxPitch: FxEffectDef = {
+  key: 'pitch', name: 'Pitch Shifter', enableFlag: 'pitchOn',
+  defaults: { pitchOn: false, pitchShift: -12, pitchMix: 0.5, pitchVoice2: 7, pitchV2Level: 0 },
+  init(gl) {
+    const up = createProgram(gl, FX_PITCH_UPDATE);
+    const tap = createProgram(gl, FX_PITCH_TAP);
+    gl.useProgram(up); gl.uniform1i(up.u('uIn'), 0); gl.uniform1i(up.u('uPrev'), 1);
+    gl.useProgram(tap); gl.uniform1i(tap.u('uIn'), 0); gl.uniform1i(tap.u('uRing'), 1);
+    let read = makeTex(gl, PITCH_W, PITCH_H), write = makeTex(gl, PITCH_W, PITCH_H);
+    let phase = 0, phase2 = 0;   // per-voice read phase in [0,1), accumulated across blocks
+    const wrap01 = (x: number) => x - Math.floor(x);
+    return {
+      reset(clear) { clear(read); clear(write); phase = 0; phase2 = 0; },
+      process(ctx, inTex, outFbo) {
+        const g = ctx.gl, p = ctx.params, on = ctx.on('pitchOn');
+        const wpos = (((ctx.blockStart % PITCH_LEN) + PITCH_LEN) % PITCH_LEN);
+        const grain = Math.max(64, Math.round(PITCH_GRAIN_S * ctx.sampleRate));
+        const r = Math.pow(2, ((p.pitchShift as number) ?? -12) / 12);
+        const r2 = Math.pow(2, ((p.pitchVoice2 as number) ?? 7) / 12);
+        const rate = (1 - r) / grain, rate2 = (1 - r2) / grain;   // per-output-sample phase increments
+        // 1. Update the history ring with the incoming signal (always, to stay warm).
+        g.useProgram(up);
+        g.bindFramebuffer(g.FRAMEBUFFER, ctx.ringFbo);
+        g.framebufferTexture2D(g.FRAMEBUFFER, g.COLOR_ATTACHMENT0, g.TEXTURE_2D, write, 0);
+        g.drawBuffers([g.COLOR_ATTACHMENT0]);
+        ctx.bind(0, inTex); ctx.bind(1, read);
+        g.uniform1i(up.u('uW'), PITCH_W); g.uniform1i(up.u('uH'), PITCH_H); g.uniform1i(up.u('uLen'), PITCH_LEN);
+        g.uniform1i(up.u('uWpos'), wpos); g.uniform1i(up.u('uBlock'), BLOCK);
+        g.viewport(0, 0, PITCH_W, PITCH_H); drawQuad(g);
+        [read, write] = [write, read];
+        // 2. Tap both voices' crossfaded grains at their shifted rates + mix with dry.
+        g.useProgram(tap);
+        g.bindFramebuffer(g.FRAMEBUFFER, outFbo);
+        g.drawBuffers([g.COLOR_ATTACHMENT0]);
+        ctx.bind(0, inTex); ctx.bind(1, read);
+        g.uniform1i(tap.u('uW'), PITCH_W); g.uniform1i(tap.u('uLen'), PITCH_LEN); g.uniform1i(tap.u('uWpos'), wpos);
+        g.uniform1f(tap.u('uGrain'), grain);
+        g.uniform1f(tap.u('uPhase0'), phase);
+        g.uniform1f(tap.u('uRate'), rate);
+        g.uniform1f(tap.u('uPhase02'), phase2);
+        g.uniform1f(tap.u('uRate2'), rate2);
+        g.uniform1f(tap.u('uV2Level'), on ? ((p.pitchV2Level as number) ?? 0) : 0.0);
+        g.uniform1f(tap.u('uMix'), on ? ((p.pitchMix as number) ?? 0.5) : 0.0);
+        g.viewport(0, 0, BLOCK, 1); drawQuad(g);
+        // Advance each voice's phase by what this block consumed (continuous next block).
+        phase = wrap01(phase + rate * BLOCK);
+        phase2 = wrap01(phase2 + rate2 * BLOCK);
       },
     };
   },
@@ -539,6 +605,11 @@ const fxVocoder: FxEffectDef = {
           g.useProgram(sum);
           g.bindFramebuffer(g.FRAMEBUFFER, outFbo);
           g.drawBuffers([g.COLOR_ATTACHMENT0]);
+          // Bind BOTH samplers to inTex. uBandTex (unit 0) is unused in bypass, but
+          // leaving unit 0 with a stale binding from the previous effect risks a
+          // feedback loop if that texture == this pass's render target (the draw is
+          // then dropped → silence). Every other bypass binds unit 0; this one must too.
+          ctx.bind(0, inTex);                          // uBandTex (unused, but no stale alias)
           ctx.bind(1, inTex);                          // uDry
           g.uniform1i(sum.u('uBypass'), 1);
           g.viewport(0, 0, BLOCK, 1); drawQuad(g);
@@ -646,7 +717,7 @@ const fxWidth: FxEffectDef = {
 // Signal-flow order matches the README chain; the master accumulate always runs
 // after it. Reorder this array to rearrange the chain.
 export const FX_EFFECTS: FxEffectDef[] = [
-  fxCompressor, fxFilter, fxEq, fxVocoder, fxOverdrive, fxDistortion, fxChorus, fxTremolo, fxDelay, fxReverb, fxBitcrush, fxWidth, fxLimiter,
+  fxCompressor, fxFilter, fxEq, fxPitch, fxVocoder, fxOverdrive, fxDistortion, fxChorus, fxTremolo, fxDelay, fxReverb, fxBitcrush, fxWidth, fxLimiter,
 ];
 
 export const DEFAULT_FX_ORDER = FX_EFFECTS.map((e) => e.key);
@@ -675,7 +746,7 @@ export function defaultFxParams(): FxParams {
   // `…On` flag. The registry param values are kept as sensible baselines, so enabling
   // an effect needs only the flag (e.g. `reverbOn: true` → reverb at the default mix).
   p.distOn = p.odOn = p.filterOn = p.eqOn = p.vocoderOn = p.compOn = p.limitOn =
-    p.chorusOn = p.tremoloOn = p.delayOn = p.reverbOn = p.widthOn = p.bitcrushOn = false;
+    p.chorusOn = p.tremoloOn = p.delayOn = p.reverbOn = p.widthOn = p.bitcrushOn = p.pitchOn = false;
   return p as unknown as FxParams;
 }
 
@@ -684,11 +755,11 @@ export function defaultFxParams(): FxParams {
 // stays the song-authoring baseline; only `+ Add` uses this.)
 export function neutralFxParams(): FxParams {
   const p = defaultFxParams();
-  p.distOn = p.odOn = p.filterOn = p.eqOn = p.vocoderOn = p.compOn = p.limitOn = p.chorusOn = p.tremoloOn = p.delayOn = p.reverbOn = p.widthOn = p.bitcrushOn = false;
+  p.distOn = p.odOn = p.filterOn = p.eqOn = p.vocoderOn = p.compOn = p.limitOn = p.chorusOn = p.tremoloOn = p.delayOn = p.reverbOn = p.widthOn = p.bitcrushOn = p.pitchOn = false;
   p.dist = 0;                         // distortion drive → transparent
   p.odDrive = 1; p.odTone = 0.5;      // overdrive: unity drive, centre tone
   p.eqLow = p.eqMid = p.eqHigh = 0;   // EQ gains → neutral 0 dB
-  p.delayMix = 0; p.reverbMix = 0; p.bitcrushMix = 0;
+  p.delayMix = 0; p.reverbMix = 0; p.bitcrushMix = 0; p.pitchMix = 0; p.pitchV2Level = 0;
   p.width = 1.0;                      // unity stereo width
   return p;
 }
@@ -758,7 +829,7 @@ export class EffectsChain {
     const p = this.params as Record<string, number | boolean>;
     // Newer opt-in effects (bitcrush, overdrive) default OFF when the flag is
     // absent (truthy test); the original effects default ON (!== false).
-    const optIn = flag === 'bitcrushOn' || flag === 'odOn' || flag === 'filterOn' || flag === 'compOn' || flag === 'limitOn' || flag === 'eqOn' || flag === 'vocoderOn';
+    const optIn = flag === 'bitcrushOn' || flag === 'odOn' || flag === 'filterOn' || flag === 'compOn' || flag === 'limitOn' || flag === 'eqOn' || flag === 'vocoderOn' || flag === 'pitchOn';
     return !!this.params.enabled && (optIn ? !!p[flag] : p[flag] !== false);
   }
 

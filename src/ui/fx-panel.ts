@@ -53,6 +53,12 @@ export const FX_DEFS: FxDef[] = [
   { label: 'Low Cut', key: 'eqLowFreq', min: 50, max: 1000, step: 10, log: true, fmt: (v) => Math.round(v) + 'Hz' },
   { label: 'High Cut', key: 'eqHighFreq', min: 1000, max: 10000, step: 100, log: true, fmt: (v) => v >= 1000 ? (v / 1000).toFixed(1) + 'k' : Math.round(v) + 'Hz' },
 
+  { category: 'Pitch Shifter', fxKey: 'pitch', enableKey: 'pitchOn' },
+  { label: 'Pitch', key: 'pitchShift', min: -24, max: 24, step: 1, fmt: (v) => (v > 0 ? '+' : '') + Math.round(v) + 'st' },
+  { label: 'Mix', key: 'pitchMix', min: 0, max: 1, step: 0.01 },
+  { label: 'Harmony', key: 'pitchVoice2', min: -24, max: 24, step: 1, fmt: (v) => (v > 0 ? '+' : '') + Math.round(v) + 'st' },
+  { label: 'Harm Lvl', key: 'pitchV2Level', min: 0, max: 1, step: 0.01 },
+
   { category: 'Vocoder', fxKey: 'vocoder', enableKey: 'vocoderOn' },
   { label: 'Source', key: 'vocSource', min: -1, max: 15, step: 1 },
   { label: 'Bands', key: 'vocBands', min: 1, max: 16, step: 1, fmt: (v) => String(Math.round(v)) },

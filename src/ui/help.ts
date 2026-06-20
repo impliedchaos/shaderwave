@@ -48,6 +48,7 @@ const EFFECTS = [
   ['Overdrive', 'Ibanez TS9 Tube Screamer — bass-cut soft asymmetric clip + mid-hump — Drive, Tone, Level'],
   ['Filter', 'Resonant state-variable filter (per-sample) — Cutoff, Reso, Mode (LP/HP/BP), Mix. The marquee LFO/automation sweep target.'],
   ['Equalizer', '3-band (low shelf / peaking mid / high shelf) via per-sample crossover filters — Low, Mid, High gains + Low/High crossover frequencies'],
+  ['Pitch Shifter', 'Granular octave pedal / harmonizer — Pitch (±24 st; ±12 = octave), Mix (dry/wet), Harmony (2nd voice interval), Harm Lvl (0 = off). Dry + two pitched voices. Chromatic (not scale-aware); mono lines track best, dense chords warble.'],
   ['Vocoder', 'Channel vocoder (per-sample, up to 16 bands): a modulator instance’s spectral envelope shapes the carrier. Source (modulator instance), Bands, Q, Attack, Release, Mix, Unvoiced (sibilance passthrough), Formant (±12 st, pitch-independent). Use a BRIGHT carrier (saw/pulse).'],
   ['Compressor', 'Per-sample envelope follower, stereo-linked — Thresh, Ratio, Attack, Release, Makeup, Source (sidechain instance)'],
   ['Chorus', 'Modulated stereo delay line — Mix, Rate, Depth'],
@@ -170,7 +171,7 @@ function build() {
   section('Mouse', MOUSE, 'kbd');
   section('Instruments', INSTRUMENTS, 'name');
   section('Effect column  ·  per-cell command + 2-hex value', PATTERN_FX, 'kbd');
-  section('Effects chain (reorderable per instrument)  ·  Comp → Filter → EQ → Vocoder → OD → Dist → Chorus → Tremolo → Delay → Reverb → Bitcrush → Width → Limiter', EFFECTS, 'name');
+  section('Effects chain (reorderable per instrument)  ·  Comp → Filter → EQ → Pitch → Vocoder → OD → Dist → Chorus → Tremolo → Delay → Reverb → Bitcrush → Width → Limiter', EFFECTS, 'name');
   section('Modulation', MODULATION, 'name');
   section('Recording', RECORDING, 'name');
 

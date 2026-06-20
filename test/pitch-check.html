@@ -1,0 +1,115 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>pending</title></head>
+<body><pre id="out">running…</pre>
+<script type="module">
+// Pitch shifter behavior + chain-integration check. Drives a pure 440 Hz sine
+// through an EffectsChain and uses Goertzel energy at 220/440/880 Hz to confirm the
+// fundamental actually moves: -12 st → 220, +12 st → 880. Critically it tests the
+// FULL default chain (not just pitch in isolation): a pitch-then-vocoder feedback-loop
+// regression once silenced the signal whenever pitch ran in the real signal path, so
+// "pitch alone works" is NOT sufficient — the full-chain case is the one that bites.
+import { createGL } from '../src/gl/context.js';
+import { EffectsChain, neutralFxParams } from '../src/gl/effects.js';
+import { makeTex } from '../src/gl/program.js';
+import { BLOCK } from '../src/constants.js';
+
+const out = document.getElementById('out');
+const lines = [];
+const log = (s) => { lines.push(s); out.textContent = lines.join('\n'); console.log(s); };
+const SR = 48000;
+
+function sine(nBlocks, f) {
+  const N = nBlocks * BLOCK, x = new Float32Array(N);
+  for (let n = 0; n < N; n++) x[n] = 0.5 * Math.sin(2 * Math.PI * f * n / SR);
+  return x;
+}
+
+// Render `input` through a chain with the given pitch params (and optional explicit
+// effect order; default order = the full registry chain).
+function renderChain(gl, input, { shift, mix, on, order, harm, harmLvl }) {
+  const params = neutralFxParams();
+  params.enabled = true;
+  params.pitchOn = on; params.pitchShift = shift; params.pitchMix = mix; params.master = 1.0;
+  if (harm !== undefined) params.pitchVoice2 = harm;
+  if (harmLvl !== undefined) params.pitchV2Level = harmLvl;
+  const chain = new EffectsChain(gl, SR, params);
+  if (order) chain.order = order;
+  const inTex = makeTex(gl, BLOCK, 1), tgtTex = makeTex(gl, BLOCK, 1), tgtFbo = gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, tgtFbo);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tgtTex, 0);
+  const rgba = new Float32Array(BLOCK * 4), readBuf = new Float32Array(BLOCK * 4);
+  const nBlocks = input.length / BLOCK, o = new Float32Array(input.length);
+  for (let b = 0; b < nBlocks; b++) {
+    const bs = b * BLOCK;
+    for (let i = 0; i < BLOCK; i++) { const s = input[bs + i]; rgba[i*4]=s; rgba[i*4+1]=s; rgba[i*4+2]=0; rgba[i*4+3]=1; }
+    gl.bindTexture(gl.TEXTURE_2D, inTex);
+    gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, BLOCK, 1, gl.RGBA, gl.FLOAT, rgba);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, tgtFbo);
+    gl.clearColor(0,0,0,0); gl.clear(gl.COLOR_BUFFER_BIT);
+    chain.process(inTex, tgtFbo, bs, 1.0);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, tgtFbo);
+    gl.readPixels(0, 0, BLOCK, 1, gl.RGBA, gl.FLOAT, readBuf);
+    for (let i = 0; i < BLOCK; i++) o[bs + i] = readBuf[i*4];
+  }
+  return o;
+}
+
+function goertzel(a, f) {
+  const w = 2 * Math.PI * f / SR, c = 2 * Math.cos(w);
+  let s1 = 0, s2 = 0;
+  for (let n = 0; n < a.length; n++) { const s0 = a[n] + c * s1 - s2; s2 = s1; s1 = s0; }
+  return Math.sqrt(s1*s1 + s2*s2 - c*s1*s2) / a.length;
+}
+const maxAbs = (a) => { let m = 0; for (const v of a) m = Math.max(m, Math.abs(v)); return m; };
+const anyNaN = (a) => { for (const v of a) if (!Number.isFinite(v)) return true; return false; };
+const maxDiff = (a, b) => { let m = 0; for (let i = 0; i < a.length; i++) m = Math.max(m, Math.abs(a[i]-b[i])); return m; };
+
+try {
+  const gl = createGL(document.createElement('canvas'));
+  const NB = 48;                              // ~0.5s — well past the ring warmup (~170ms)
+  const input = sine(NB, 440);
+  const tail = (a) => a.subarray(BLOCK * 24); // analyze the settled second half
+  let ok = true;
+
+  // 1. FULL default chain (the real signal path): -12 st moves 440 → 220.
+  const full = renderChain(gl, input, { shift: -12, mix: 1.0, on: true });
+  const f = { e220: goertzel(tail(full), 220), e440: goertzel(tail(full), 440) };
+  const fullOk = !anyNaN(full) && maxAbs(full) < 2 && f.e220 > 2 * f.e440;
+  ok = ok && fullOk;
+  log(`FULL chain -12st: E220=${f.e220.toFixed(4)} E440=${f.e440.toFixed(4)} peak=${maxAbs(full).toFixed(3)} (want E220>>E440) ${fullOk?'OK':'FAIL'}`);
+
+  // 2. +12 st (full chain): 440 → 880.
+  const up = renderChain(gl, input, { shift: 12, mix: 1.0, on: true });
+  const u = { e440: goertzel(tail(up), 440), e880: goertzel(tail(up), 880) };
+  const upOk = !anyNaN(up) && maxAbs(up) < 2 && u.e880 > 2 * u.e440;
+  ok = ok && upOk;
+  log(`FULL chain +12st: E440=${u.e440.toFixed(4)} E880=${u.e880.toFixed(4)} peak=${maxAbs(up).toFixed(3)} (want E880>>E440) ${upOk?'OK':'FAIL'}`);
+
+  // 2b. Harmonizer: voice 1 at -12 (220 Hz) + harmony voice at +7 (659 Hz) both present.
+  const harm = renderChain(gl, input, { shift: -12, mix: 1.0, on: true, harm: 7, harmLvl: 1.0 });
+  const h = { e220: goertzel(tail(harm), 220), e659: goertzel(tail(harm), 659.26), e440: goertzel(tail(harm), 440) };
+  const harmOk = !anyNaN(harm) && h.e220 > 2 * h.e440 && h.e659 > 2 * h.e440;
+  ok = ok && harmOk;
+  log(`harmonizer (-12 + +7): E220=${h.e220.toFixed(4)} E659=${h.e659.toFixed(4)} E440=${h.e440.toFixed(4)} (want both >> E440) ${harmOk?'OK':'FAIL'}`);
+
+  // 3. Wet differs from dry at full mix.
+  const diff = maxDiff(tail(full), tail(input));
+  const diffOk = diff > 0.05;
+  ok = ok && diffOk;
+  log(`wet vs dry maxDiff=${diff.toFixed(4)} (want >0.05) ${diffOk?'OK':'FAIL'}`);
+
+  // 4. OFF is a transparent dry passthrough (pitch-only chain, no other effects).
+  const off = renderChain(gl, input, { shift: -12, mix: 1.0, on: false, order: ['pitch'] });
+  const bm = maxDiff(off, input);
+  const offOk = bm < 1e-5;
+  ok = ok && offOk;
+  log(`OFF transparency: maxDiff vs dry=${bm.toExponential(2)} (want ~0) ${offOk?'OK':'FAIL'}`);
+
+  document.title = ok ? 'ALL_OK' : 'FAILED';
+  log(ok ? '\n=== PITCH OK ===' : '\n=== PITCH FAILED ===');
+} catch (e) {
+  document.title = 'ERROR';
+  log('FATAL: ' + e.message + '\n' + (e.stack || ''));
+}
+</script>
+</body></html>

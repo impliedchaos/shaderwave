@@ -7,6 +7,23 @@ and the project follows [Semantic Versioning](https://semver.org/). The version
 in `package.json` is the source of truth; see **AGENTS.md → Git** for the bump +
 changelog rules. Dates are the commit date of that version.
 
+## [2.14.0] — 2026-06-20
+### Added
+- **Pitch Shifter effect (octave pedal / harmonizer).** A new effect in the chain
+  (after EQ): a time-domain granular pitch shifter that reads a history ring back at a
+  shifted rate, with two crossfaded grains to stay click-free. **Pitch** sets the
+  interval (±24 st; ±12 = octave pedal), **Mix** the dry/wet blend. A second
+  **Harmony** voice (own interval + **Harm Lvl**) stacks dry + two pitched voices for a
+  chromatic harmonizer. All four params are automatable (`PSH`, `PSM`, `PH2`, `PHL`).
+  Intervals are fixed/chromatic (not scale-aware); mono lines track best, dense chords
+  warble like a real octave pedal.
+### Fixed
+- **Vocoder bypass feedback loop.** When bypassed, the vocoder only bound texture unit 1,
+  leaving a stale unit-0 binding that could equal its own render target → a GPU feedback
+  loop silently dropped the draw (silence). It now binds unit 0 like every other effect.
+  Surfaced by the new pitch shifter (whose chain position triggered the aliasing), but a
+  latent hazard for any chain.
+
 ## [2.13.0] — 2026-06-20
 ### Added
 - **Spectra Freeze** (resynthesis). A new `Freeze` knob (and `FRZ` automation target) holds

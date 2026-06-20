@@ -180,6 +180,11 @@ export interface FxParams {
   vocMix: number;         // dry/wet (1 = fully vocoded)
   vocUnvoiced: number;    // unvoiced/sibilance passthrough amount (0 = off)
   vocFormant: number;     // formant shift in semitones (±, 0 = neutral); pitch unchanged
+  pitchOn: boolean;
+  pitchShift: number;     // voice 1 interval, semitones (±24); octave pedal lives at ±12
+  pitchMix: number;       // dry/wet (0 = dry, 1 = fully pitched/harmonized)
+  pitchVoice2: number;    // harmony voice interval, semitones (±24)
+  pitchV2Level: number;   // harmony voice level (0 = off → single-voice shifter)
   /** Legacy authoring field, migrated to `dist` by makeFx. */
   drive?: number;
   [key: string]: number | boolean | undefined;

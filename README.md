@@ -271,7 +271,7 @@ A second shader stage runs between the synth mix and the audio readback. All
 effects are editable from the **Instrument FX** panel.
 
 ```
-input → Compressor → Filter → EQ → Vocoder → Overdrive → Distortion → Chorus → Tremolo → Delay → Reverb → Bitcrusher → Width → Limiter → Master Out
+input → Compressor → Filter → EQ → Pitch Shifter → Vocoder → Overdrive → Distortion → Chorus → Tremolo → Delay → Reverb → Bitcrusher → Width → Limiter → Master Out
 ```
 
 Each effect is its own GPU pass over a `BLOCK × 1` stereo buffer. The order above is
@@ -319,6 +319,24 @@ Three bands (low shelf · peaking mid · high shelf) split by two per-sample cro
 filters (TPT, zero-delay-feedback). Perfectly transparent at 0 dB.
 - **Low / Mid / High** — per-band gain (dB)
 - **Low Cut / High Cut** — crossover frequencies (Hz, log)
+
+### Pitch Shifter — Octave Pedal / Harmonizer
+
+A time-domain (granular delay-line) pitch shifter. Input history is written to a ring
+buffer; the tap reads it back at rate `2^(semitones/12)` per output sample, so playback
+slows / speeds up → pitch shifts down / up. The read-pointer wrap is hidden by two
+Hann-windowed grain taps half a window out of phase (their windows sum to unity → no
+amplitude ripple). A **second voice** reads the same ring at its own interval, so you get
+dry + two pitched voices stacked = a chromatic harmonizer. Each voice's read phase is
+accumulated CPU-side across blocks → click-free at block boundaries, no long-playback
+drift. Intervals are fixed/chromatic (not scale-aware diatonic).
+- **Pitch** — voice 1 interval in semitones (±24; ±12 = octave pedal)
+- **Mix** — dry/wet (0 = dry, 1 = fully shifted/harmonized)
+- **Harmony** — second voice interval in semitones (±24)
+- **Harm Lvl** — harmony voice level (0 = off → plain single-voice shifter)
+
+Monophonic lines and bass track cleanly; dense chords / sharp transients get the
+characteristic granular warble (inherent to time-domain shifting, like a real octave pedal).
 
 ### Vocoder — Channel Vocoder
 
@@ -479,9 +497,9 @@ Per render block the GPU runs:
 2. **Mix pass** → sums all voice rows with gain + equal-power pan into one stereo
    row (`BLOCK × 1`).
 3. **Effects pass** → one pass per effect over a `BLOCK × 1` stereo buffer, run in
-   a data-driven, per-instance order (default: compressor → filter → EQ → vocoder →
-   overdrive → distortion → chorus → tremolo → delay → reverb → bitcrusher → width →
-   limiter → master).
+   a data-driven, per-instance order (default: compressor → filter → EQ → pitch shifter →
+   vocoder → overdrive → distortion → chorus → tremolo → delay → reverb → bitcrusher →
+   width → limiter → master).
 4. **Readback** (`readPixels`) → interleaved stereo `Float32Array` → ring buffer.
 
 The recursive ladder filter (303, Moog) can't be parallelised trivially: each
@@ -520,6 +538,7 @@ src/gl/                    context, program helpers, SynthRenderer, shaders/
   shaders/fx-filter.glsl       resonant state-variable filter (per-sample recursive)
   shaders/fx-eq.glsl           3-band EQ stage
   shaders/fx-dynamics.glsl     compressor / limiter (per-sample envelope follower)
+  shaders/fx-pitch-*.glsl      pitch shifter / harmonizer (ring update + grain tap)
   shaders/fx-vocoder*.glsl     channel vocoder (band bank + sum)
   shaders/fx-chorus-*.glsl     chorus ring update + tap
   shaders/fx-tremolo.glsl      auto-pan tremolo stage

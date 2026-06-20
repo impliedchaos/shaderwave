@@ -182,7 +182,7 @@ For the exact, current truth on any engine see its descriptor `paramDefs` + `pre
 ## 6. fxParams (per engine type)
 
 Each engine **type** used in the song gets one fx entry. Start from `defaultFxParams()` and override.
-The chain is: Compressor → Filter → EQ → Vocoder → Overdrive → Distortion → Chorus → Tremolo → Delay → Reverb → Bitcrusher → Width → Limiter → Output.
+The chain is: Compressor → Filter → EQ → Pitch Shifter → Vocoder → Overdrive → Distortion → Chorus → Tremolo → Delay → Reverb → Bitcrusher → Width → Limiter → Output.
 The order is **reorderable per instrument instance** (each instance can carry an `fxOrder: string[]` of
 effect keys; absent → default; unknown keys dropped + missing ones appended on load).
 
@@ -195,7 +195,8 @@ Common fields (booleans + scalars):
 `bitcrushOn`/`bitcrushBits`/`bitcrushRate`/`bitcrushMix`, `widthOn`/`width`, `master` (fx output level),
 `compOn`/`compThresh` (dB)/`compRatio`/`compAttack` (ms)/`compRelease` (ms)/`compMakeup` (dB)/`compSource`,
 `limitOn`/`limitCeil` (dB)/`limitRelease` (ms),
-`vocoderOn`/`vocSource`/`vocBands` (1..16)/`vocQ`/`vocAttack` (ms)/`vocRelease` (ms)/`vocMix`/`vocUnvoiced`/`vocFormant` (semitones).
+`vocoderOn`/`vocSource`/`vocBands` (1..16)/`vocQ`/`vocAttack` (ms)/`vocRelease` (ms)/`vocMix`/`vocUnvoiced`/`vocFormant` (semitones),
+`pitchOn`/`pitchShift` (voice-1 semitones ±24)/`pitchMix` (dry/wet)/`pitchVoice2` (harmony semitones ±24)/`pitchV2Level` (harmony level, 0 = off).
 The resonant **Filter** is per-sample recursive (LP/HP/BP); its `filterCutoff` (target code `FLC`, log)
 is the marquee LFO sweep target — pair it with a synced LFO for filter-sweep risers/wobbles. The
 **Compressor** + **Limiter** are also per-sample (stereo-linked envelope follower); all their params are

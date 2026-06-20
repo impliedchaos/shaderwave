@@ -209,6 +209,18 @@ const MODSRC_TARGETS: RawTarget[] = [
 ];
 for (const t of MODSRC_TARGETS) TARGETS.push({ ...t, scope: 'modsrc', type: '*', id: TARGETS.length });
 
+// Pitch-shifter fx targets — appended at the very end (id-stable), AFTER the modsrc
+// block, so every existing id (incl. the persisted modsrc/pitch ids) is unchanged.
+// fx-scope → they auto-appear in the automation picker + both LFO matrices. (Sweep
+// PSH for a portamento/dive; PSM to swell the octave in.)
+const FX_PITCH_TARGETS: RawTarget[] = [
+  { code: 'PSH', label: 'Pitch Shift', key: 'pitchShift',  min: -24, max: 24, curve: 'lin', unit: 'st' },
+  { code: 'PSM', label: 'Pitch Mix',   key: 'pitchMix',    min: 0,   max: 1,  curve: 'lin' },
+  { code: 'PH2', label: 'Harmony',     key: 'pitchVoice2', min: -24, max: 24, curve: 'lin', unit: 'st' },
+  { code: 'PHL', label: 'Harm Level',  key: 'pitchV2Level', min: 0,  max: 1,  curve: 'lin' },
+];
+for (const t of FX_PITCH_TARGETS) TARGETS.push({ ...t, scope: 'fx', type: '*', id: TARGETS.length });
+
 export function targetById(id: number): ParamTarget | null {
   return (id >= 0 && id < TARGETS.length) ? TARGETS[id] : null;
 }

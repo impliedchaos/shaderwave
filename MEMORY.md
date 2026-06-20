@@ -86,6 +86,40 @@ An attempt to implement a WebGL 16-band Vocoder effect was completely abandoned 
 
 ## Current work
 
+### Pitch Shifter / harmonizer effect (2.14.0, 2026-06-20) — ✅ DONE — `project`
+New FX-chain effect (`fxPitch`, key `pitch`, after EQ in `DEFAULT_FX_ORDER`). Time-domain
+granular (delay-line) pitch shifter: a persistent history ring (`fx-pitch-update.glsl`,
+2048×4 ≈ 170 ms, written every block) + a tap (`fx-pitch-tap.glsl`) that reads it back at
+rate `2^(st/12)` per sample with two Hann grains half a window apart (windows sum to unity).
+**Read phase is a CPU closure scalar** (`phase`/`phase2`) advanced per block — NO GPU state
+texture / no extra pass — so it's phase-continuous across blocks AND precision-stable over
+long playback (avoids `fract(rate*bigAbsoluteSample)` jitter). Two voices read the same ring:
+`pitchShift` + a harmony `pitchVoice2` at `pitchV2Level` (0 → skipped → bit-identical single
+voice). Params `pitchOn/pitchShift/pitchMix/pitchVoice2/pitchV2Level`; automation PSH/PSM/
+PH2/PHL (appended at the true end of TARGETS, after modsrc, so all existing ids stay stable).
+Intervals are fixed/chromatic — NOT scale-aware diatonic (a future feature if wanted).
+- **THE BUG THAT ATE THE SESSION — GPU framebuffer feedback loop in the VOCODER BYPASS.**
+  Pitch's DSP was correct in isolation but inaudible in the full chain. Root cause was NOT
+  pitch: the chain's ping-pong guarantees an effect's input texture ≠ its output texture, so
+  effects may leave a texture bound to a sampler unit — EVERY bypass rebinds unit 0 to clear
+  it, EXCEPT the vocoder's (it only bound unit 1 / uDry). With pitch's two-pass structure
+  setting the right parity, the stale unit-0 texture equaled the vocoder's render target →
+  texture bound as sampler AND color attachment → GL drops the draw (spec-mandated) → silence
+  propagated. Fix: vocoder bypass now also `ctx.bind(0, inTex)`. **Lesson: a bypass/passthrough
+  pass must bind ALL its program's active samplers to safe (non-target) textures, even unused
+  ones — a stale bound texture that aliases the FBO attachment silently kills the draw on
+  real GPUs (and SwiftShader).** Latent hazard for any chain, not just pitch.
+- **Debugging method that nailed it:** `test/pitch-check.html` (KEPT as a permanent harness) —
+  drives a 440 Hz sine through the chain, Goertzel at 220/440/880 confirms the fundamental
+  moves. Crucially it tests the FULL default chain, not just pitch-only (pitch-only passed
+  while the full chain was silent — that gap was the whole bug). Bisecting prefixes of the
+  default order localized the death to the pitch→vocoder boundary. (Harness self-bug en route:
+  `arguments[1]` is `input`, not the options arg — cost a detour; destructure params instead.)
+- Verified: build clean, glsl-check ALL_OK, pitch-check ALL_OK (octave up/down, harmonizer
+  -12+7 shows energy at both 220 & 659, full chain audible, OFF bit-transparent). User
+  confirmed in-browser. Docs updated: README (effect section + chain order + shader map),
+  COMPOSING (chain + fx fields), in-app help.ts.
+
 ### Spectra Freeze — hold the analyzed spectrum forever (2.13.0, 2026-06-20) — ✅ DONE — `project`
 The other named-but-unshipped Phase 2 item. A `Freeze` knob (universal bank **p4.y**, the
 first free slot after Stereo) + `FRZ` automation target, applied only in the resynth branch
