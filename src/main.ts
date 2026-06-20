@@ -246,6 +246,39 @@ export class App {
     overlay.onclick = (e) => { if (e.target === overlay) close(); };   // click backdrop to dismiss
   }
 
+  // In-app token prompt. We can't use a native prompt() here: it's invoked right after
+  // window.open() steals focus to the new GitHub tab, and browsers suppress alert/prompt/
+  // confirm in a backgrounded tab (returns null instantly → publish silently aborts). An
+  // HTML overlay isn't subject to that. Resolves to the trimmed token, or null if cancelled.
+  _promptGistToken(): Promise<string | null> {
+    const $$ = (id: string) => document.getElementById(id);
+    const overlay = $$('gist-token-overlay');
+    const input = $$('gist-token-input') as HTMLInputElement | null;
+    if (!overlay || !input) return Promise.resolve(null);
+    return new Promise((resolve) => {
+      let done = false;
+      const finish = (val: string | null) => {
+        if (done) return; done = true;
+        overlay.style.display = 'none';
+        input.value = '';
+        input.onkeydown = null; overlay.onclick = null;
+        resolve(val);
+      };
+      const submit = () => { const t = input.value.trim(); finish(t || null); };
+      const saveBtn = $$('gist-token-save'), cancelBtn = $$('gist-token-cancel');
+      if (saveBtn) (saveBtn as HTMLButtonElement).onclick = submit;
+      if (cancelBtn) (cancelBtn as HTMLButtonElement).onclick = () => finish(null);
+      input.onkeydown = (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); submit(); }
+        else if (e.key === 'Escape') { e.preventDefault(); finish(null); }
+      };
+      overlay.onclick = (e) => { if (e.target === overlay) finish(null); };
+      overlay.style.display = 'flex';
+      input.value = '';
+      input.focus();
+    });
+  }
+
   async _tryLoadSharedSong() {
     let doc: SerializedSong | null = null;
     // #s=… inline permalink, or #gist=… durable gist (both load transiently).
@@ -634,9 +667,9 @@ export class App {
         if (!token) {
           if (!confirm('Publishing to a Gist needs a GitHub token (a classic token with ONLY the "gist" scope). Open the GitHub token page now?')) return;
           window.open(GIST_TOKEN_PAGE, '_blank', 'noopener');
-          const entered = prompt('Paste your GitHub token (classic, "gist" scope):');
-          if (!entered || !entered.trim()) return;
-          token = entered.trim(); setGistToken(token);
+          const entered = await this._promptGistToken();
+          if (!entered) return;
+          token = entered; setGistToken(token);
         }
         flashShare('Publishing…');
         try {

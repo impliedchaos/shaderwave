@@ -125,6 +125,15 @@ controlled). Fully serverless:
   file" message. Device Flow stays a DEAD END (no CORS at github.com).
 - Verified: `test/gist-check.html` (ALL_OK) — pure header+payload round-trip for all 34 demos +
   header shape. The live GitHub POST/GET is manual-only (needs a real PAT).
+- **Gotcha — DON'T use native `prompt()` for the token (fixed 2.10.5).** The first-publish flow
+  does `window.open(GIST_TOKEN_PAGE)` then asks for the paste. A native `prompt()`/`alert()`/
+  `confirm()` right after `window.open` is **silently suppressed** by Chrome/Firefox: the new tab
+  steals focus, our tab is now backgrounded, and browsers refuse dialogs from backgrounded tabs
+  (returns `null` instantly → publish aborts with no dialog ever shown). Symptom: token page opens
+  but the paste box never appears. Fix = an in-app HTML modal overlay (`#gist-token-overlay` +
+  `App._promptGistToken()` in `main.ts`), which isn't subject to that suppression and survives the
+  focus switch so the user can paste on return. Same caveat applies to any future "open a tab then
+  ask" flow.
 
 ### Compact binary song format + permalink sharing (2.8.0, 2026-06-19) — ✅ DONE — `project`
 ROADMAP Phase 3 core. New `src/tracker/song-codec.ts` sits BENEATH the object model —
