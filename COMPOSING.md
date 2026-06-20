@@ -301,14 +301,15 @@ wavetable that breathes, vibrato on a lead) rather than an arrangement-wide swee
 params: [
   { type: 'wvt', /* p0/p1/... */ mod: {
     sources: [
-      { kind: 'lfo', retrigger: false, lfo: { ...defaultLfo(), sync: true, rateBeats: 8 }, env: { a:0.01,d:0.3,s:0.6,r:0.4 } }, // LFO 1
-      { kind: 'lfo', retrigger: true,  lfo: { ...defaultLfo(), sync: false, rateHz: 5.5 }, env: { a:0.01,d:0.3,s:0.6,r:0.4 } },  // LFO 2 (per-note)
-      { kind: 'env', retrigger: false, lfo: { ...defaultLfo() }, env: { a:0.4, d:0.8, s:0.0, r:0.5 } },                          // mod-env
+      { kind: 'lfo', retrigger: false, amount: 1, lfo: { ...defaultLfo(), sync: true, rateBeats: 8 }, env: { a:0.01,d:0.3,s:0.6,r:0.4 } }, // LFO 1
+      { kind: 'lfo', retrigger: true,  amount: 0, lfo: { ...defaultLfo(), sync: false, rateHz: 5.5 }, env: { a:0.01,d:0.3,s:0.6,r:0.4 } },  // LFO 2 (per-note, starts silent)
+      { kind: 'env', retrigger: false, amount: 1, lfo: { ...defaultLfo() }, env: { a:0.4, d:0.8, s:0.0, r:0.5 } },                          // mod-env
     ],
     routes: [
       { source: 0, targetParamId: tgt('wvt','PS1').id, depth: 0.5, bipolar: true },   // LFO1 → wavetable Pos
       { source: 1, targetParamId: PITCH_WVT, depth: 0.03, bipolar: true },            // LFO2 → vibrato (see below)
       { source: 2, targetParamId: tgt('wvt','RVM').id, depth: 0.6, bipolar: false },  // mod-env → reverb mix
+      { source: 2, targetParamId: L2M, depth: 0.5, bipolar: false },                  // mod-env → LFO2 Amount (vibrato fade-in)
     ],
   } },
 ],
@@ -327,7 +328,23 @@ params: [
   `tgt(...)` automation target (it'd fight note triggers), so it's only reachable from this matrix.
 - Route fields: `source` (0–2), `targetParamId`, `depth` 0..1, `bipolar`, `invert` (optional — negates
   the offset; route one source to two targets and invert one for opposite motion).
-- Routes with no target / `depth 0` are inert; an instance with no wired routes renders bit-identically.
+- **`amount`** (per source, 0..2, default 1): a master multiplier on EVERY route from that source —
+  and itself a modulation target (see below). Start a source at `amount: 0` to have it produce nothing
+  until another source opens it up.
+- **Sources can modulate EACH OTHER (modsrc targets).** Besides inst/fx/pitch, a route's target can be
+  another source's knob: **LFO Rate / WtPos / Amount** and **Env A/D/S/R / Amount**. These aren't
+  `tgt(...)` targets — resolve them with `modSrcTargets()` (from `tracker/automation.ts`), e.g.
+  `const L2M = modSrcTargets().find(t => t.code === 'L2M')!.id;` (codes: `L1R L1W L1M` for LFO 1
+  rate/wtpos/amount, `L2R L2W L2M` for LFO 2, `EnA EnD EnS EnR EnM` for the env). A source may not
+  target its OWN slot (no LFO1→LFO1), but
+  LFO1→LFO2, env→LFO Amount (vibrato/movement fade-in), LFO→env shape, etc. all work. Source→source
+  links carry one render-block (~11 ms) of latency, which is inaudible. Modulating an LFO's **Rate**
+  switches it to phase-accumulation so the rate change stays click-free.
+- The **global** song-wide LFOs (§8) can ALSO target these per-instrument source knobs — pick the
+  `i:SHORT · LFO 1 Rate`-style entries in the routing dropdown — so an arrangement LFO can sweep an
+  instrument's own LFO/env.
+- Routes with no target / `depth 0` are inert; an instance with no `modsrc`/amount movement renders
+  bit-identically to before (the closed-form LFO path is preserved when a rate isn't being modulated).
 
 ---
 

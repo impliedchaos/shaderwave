@@ -21,7 +21,7 @@ export function defaultModEnv(): ModEnv {
 }
 
 export function defaultModSource(kind: ModSource['kind']): ModSource {
-  return { kind, retrigger: false, lfo: defaultLfo(), env: defaultModEnv() };
+  return { kind, retrigger: false, amount: 1, lfo: defaultLfo(), env: defaultModEnv() };
 }
 
 // A fresh matrix: two LFOs + one envelope, NO routes (so it's inert until the
@@ -35,7 +35,7 @@ export function defaultInstMod(): InstrumentMod {
 
 export function cloneInstMod(m: InstrumentMod): InstrumentMod {
   return {
-    sources: m.sources.map((s) => ({ kind: s.kind, retrigger: s.retrigger, lfo: { ...s.lfo }, env: { ...s.env } })),
+    sources: m.sources.map((s) => ({ kind: s.kind, retrigger: s.retrigger, amount: s.amount ?? 1, lfo: { ...s.lfo }, env: { ...s.env } })),
     routes: m.routes.map((r) => ({ ...r })),
   };
 }
@@ -64,6 +64,7 @@ export function normalizeInstMod(raw: Partial<InstrumentMod> | undefined): Instr
     return {
       kind: slot.kind,                       // slot kind is fixed by position
       retrigger: r?.retrigger ?? false,
+      amount: r?.amount ?? 1,
       lfo: normalizeLfo(r?.lfo),
       env: normalizeEnv(r?.env),
     };

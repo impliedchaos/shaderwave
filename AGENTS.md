@@ -190,4 +190,5 @@ and `git status` before committing** so they don't get swept into a commit.
 - End commit messages with:
   `Co-Authored-By: ` and then the name of the agent and model it's using.
 - Before pushing, increment the patch version in `package.json`. If it's a larger change increment the minor version, and if there are breaking changes, increment the major version. **Adding a demo song is only a patch bump** (it's content, not an engine change) — don't bump the minor version for it.
+- **Every version bump MUST add a matching entry to `CHANGELOG.md`** (newest first, `## [x.y.z] — YYYY-MM-DD`, grouped Added/Changed/Fixed/Removed as needed). Keep it user-facing and concise; a cluster of patch bumps can share one dated heading with sub-bullets. Bump `package.json` and write the changelog entry in the same change — don't push one without the other.
 - The remote prints a jokey server-hook banner on push — it's not an error.

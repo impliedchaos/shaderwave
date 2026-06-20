@@ -86,6 +86,37 @@ An attempt to implement a WebGL 16-band Vocoder effect was completely abandoned 
 
 ## Current work
 
+### Mod-matrix self-targeting + global→per-inst source modulation (2.11.0, 2026-06-20) — ✅ DONE — `project`
+Per-instrument mod SOURCES (LFO 1/2 + Env) are now modulation TARGETS, reachable from
+BOTH the per-instrument matrix (sources targeting each other) AND the global LFO matrix.
+Targetable knobs: **LFO Rate, WtPos, Amount** and **Env A/D/S/R, Amount**. New
+`ModSource.amount` (0..2, default 1) = a master multiplier on every route from a source
+(serialized via `cloneInstMod`; `defaultModSource`/`normalizeInstMod` default it to 1).
+- **New target kind `scope:'modsrc'`** (`automation.ts`, appended after the pitch loop →
+  id-stable). 11 targets, `type:'*'`, carrying `modSlot` (0 LFO1·1 LFO2·2 Env) + `modField`.
+  Like `pitch`, they're SPECIAL — applied bespoke in the engine, NOT via denorm. Excluded
+  from `targetsForType` (so they never show in the automation picker / can't be a pattern
+  lane); INCLUDED in `instModTargetsForType`; new `modSrcTargets()` lists them for both UIs.
+- **Engine (`_applyInstMod` rewritten two-phase):** Phase A resolves each source's EFFECTIVE
+  params (base + per-inst modsrc routes + global modsrc routings via the new
+  `_globalRoutingOffset` helper), then Phase B applies destination routes scaled by the
+  resolved Amount. `_applyLfos` now SKIPS modsrc routings (handled earlier in the block, so
+  global→source→destination resolves with no latency — both read the same `_songBeats`
+  before it advances). `_modSourceOffset` takes a resolved `SlotResolved` now.
+- **Source→source is acyclic via one-block latency:** a source used AS a modulator reads its
+  output from the PREVIOUS block (`_instModLastVal`), so mutual LFO1↔LFO2 just costs ~11 ms.
+- **LFO Rate mod = octave shift** on the period (`RATE_OCT=4`, sync-agnostic). A rate-modulated
+  LFO switches to PHASE ACCUMULATION (`_instModPhase`, seeded continuously from the closed-form
+  value) so the rate change can't make phase jump. An UNMODULATED-rate slot keeps the
+  closed-form phase → **bit-identical to the pre-modsrc engine** (regression-tested:
+  `mod-matrix.test.ts` asserts `vd.freq === Math.fround(closed-form)`). Both runtime maps
+  cleared in `_restoreLfoFx` (play/stop/loadSong).
+- **UI:** `controls.ts` adds an Amt slider to every source panel + modsrc entries in the route
+  dropdown, hiding a row's OWN slot (re-filtered on source change). `lfo-panel.ts` adds
+  `i:SHORT · LFO 1 Rate`-style entries per instance to the global matrix.
+- Verified: build clean, 66/66 logic tests (4 new: env→amount fade-in, LFO→LFO rate, global→
+  per-inst rate, bit-identical guard). No GLSL touched. NOT yet user-auditioned in-browser.
+
 ### Box-selection interpolation / LERP (2.10.0, 2026-06-19) — ✅ DONE — `project`
 Box-select in the tracker → ramp values linearly first→last. Trigger: **Ctrl/Cmd+L** AND a
 pattern-toolbar **#interpolate-btn** (disabled unless `canInterpolate` — refreshed each frame

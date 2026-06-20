@@ -15,7 +15,7 @@ import { defaultLfos, lfoOffset, lfoPeriodSec, LFO_COUNT } from './lfo.js';
 import { modEnvValue } from './instmod.js';
 import { byType } from '../instruments/index.js';
 import type {
-  FxParamsByType, InstrumentInstance, InstrumentType, LfoConfig, ModRoute, ModRouting, ModSource, SongData, VoiceData,
+  FxParamsByType, InstrumentInstance, InstrumentType, LfoConfig, ModEnv, ModRoute, ModRouting, ModSource, SongData, VoiceData,
 } from '../types.js';
 
 export const HELD = 1e9; // offRel sentinel: note is still held
@@ -106,6 +106,15 @@ export class Engine {
   // instance+fx field is unsupported — they'd fight; last writer per block wins.)
   _instModFxBase: Map<string, number>;
   _instModFxLast: Map<string, number>;
+  // Per-instrument mod-SOURCE runtime (transient, reset per run). `_instModPhase`
+  // keyed `${instIdx}:${slot}` accumulates an LFO's phase across blocks — used ONLY
+  // when that source's rate is being modulated (a modsrc route targets it), so an
+  // unmodulated source keeps its closed-form phase and stays bit-identical.
+  // `_instModLastVal` holds each source's output value from the PREVIOUS block, so
+  // a source→source link (LFO1→LFO2, env→LFO amount, …) reads a stable input and
+  // the whole graph stays acyclic (one block ≈ 11 ms latency, inaudible).
+  _instModPhase: Map<string, number>;
+  _instModLastVal: Map<string, number>;
   vd: VoiceData;
   _preview: number;
 
@@ -173,6 +182,8 @@ export class Engine {
     this._lfoFxLast = new Map();
     this._instModFxBase = new Map();
     this._instModFxLast = new Map();
+    this._instModPhase = new Map();
+    this._instModLastVal = new Map();
 
     // GPU-facing buffers, updated in place every block.
     this.vd = {
@@ -265,6 +276,10 @@ export class Engine {
     };
     if (this._lfoFxBase.size) restore(this._lfoFxBase, this._lfoFxLast);
     if (this._instModFxBase.size) restore(this._instModFxBase, this._instModFxLast);
+    // Drop the mod-source runtime too (phase + last-block values) — same lifetime as
+    // the fx overrides: a fresh run / song swap starts the source graph clean.
+    this._instModPhase.clear();
+    this._instModLastVal.clear();
   }
 
   // Set the song's base global volume from the UI (the Song Editor's Volume knob).
@@ -875,26 +890,34 @@ export class Engine {
   // deterministic for export. When automation + a routing hit the same param,
   // inst-scope stacks (center = autoLive); other scopes modulate the base, last
   // routing wins on a collision.
+  // The signed offset a single global routing contributes this block, in normalized
+  // param space ([-depth,depth] bipolar / [0,depth] unipolar), or NaN if its source
+  // is missing. Factored out of _applyLfos so _applyInstMod can reuse it for global
+  // routings that target a per-instrument mod source (modsrc) — both read the SAME
+  // this._songBeats (advanced once, at the end of _applyLfos), so there's no double
+  // advance and global→source→destination all resolve within one block.
+  _globalRoutingOffset(r: ModRouting, songSec: number): number {
+    const src = this.lfos[r.source];
+    if (!src) return NaN;
+    const cyclePos = src.sync
+      ? this._songBeats / Math.max(1e-3, src.rateBeats)
+      : songSec / lfoPeriodSec(src, this.bpm);
+    const cycle = Math.floor(cyclePos);
+    const rawOffset = lfoOffset(src, r.depth, r.bipolar, cyclePos - cycle, cycle);
+    return r.invert ? -rawOffset : rawOffset;   // invert → one source drives two targets opposite ways
+  }
+
   _applyLfos(blockStart: number) {
     if (!this.playing) return;
     const start = this.startFrame ?? blockStart;
     const songSec = (blockStart - start) / this.sampleRate;
     for (const r of this.modRoutings) {
       if (!r || r.targetParamId < 0 || r.depth <= 0) continue;
-      const src = this.lfos[r.source];
-      if (!src) continue;
       const t = targetById(r.targetParamId);
       if (!t) continue;
-      // Synced LFOs advance in BEATS (this._songBeats integrates tempo), so a mid-song
-      // BPM change only changes the future rate of accrual — it never retroactively
-      // rescales the elapsed timeline (which made the synced phase jump). Free-run LFOs
-      // stay in seconds (their period has no bpm dependence). Mirrors the row clock.
-      const cyclePos = src.sync
-        ? this._songBeats / Math.max(1e-3, src.rateBeats)
-        : songSec / lfoPeriodSec(src, this.bpm);
-      const cycle = Math.floor(cyclePos);
-      const rawOffset = lfoOffset(src, r.depth, r.bipolar, cyclePos - cycle, cycle);
-      const offset = r.invert ? -rawOffset : rawOffset;   // invert → one source drives two targets opposite ways
+      if (t.scope === 'modsrc') continue;   // mod-source knobs are resolved in _applyInstMod (runs earlier this block)
+      const offset = this._globalRoutingOffset(r, songSec);
+      if (!Number.isFinite(offset)) continue;
 
       if (t.scope === 'global') {
         if (t.code === 'BPM') continue;            // excluded → keeps export length exact
@@ -944,76 +967,197 @@ export class Engine {
     this._songBeats += (BLOCK / this.sampleRate) * (this.bpm / 60);
   }
 
-  // The normalized offset one mod ROUTE contributes for a given voice (v = -1 for
-  // the song-time / free-run value, used by non-retriggered LFOs + shared fx with
-  // no active voice). Envelopes + retriggered LFOs derive their phase from the
-  // voice's own note-on/off frames; free-running LFOs from song time/beats (same
-  // clock the global LFOs use). Output is in normalized param space, like lfoOffset.
-  _modSourceOffset(src: ModSource, r: ModRoute, v: number, blockStart: number, songSec: number, songBeats: number): number {
-    if (src.kind === 'env') {
+  // Resolved per-block state for one mod-source slot: the EFFECTIVE config after any
+  // modsrc routes have modulated it, plus the shared free-running LFO's phase.
+  // _modSourceOffset reads this instead of the raw source so source→source mod lands.
+
+  // The signed offset a source CONTRIBUTES when it drives ANOTHER source (a modsrc
+  // route), from its raw output value (`rawVal`: an LFO wave in [-1,1] / pump [-1,0],
+  // or an env level in [0,1]). Mirrors lfoOffset/_modSourceOffset polarity, then folds
+  // in the SOURCE's own amount so its master level scales how hard it modulates.
+  _routeContribution(kind: ModSource['kind'], rawVal: number, depth: number, bipolar: boolean, invert: boolean, amount: number): number {
+    let off: number;
+    if (kind === 'env') off = bipolar ? depth * (2 * rawVal - 1) : depth * rawVal;
+    else { let v = rawVal; if (!bipolar) v = v * 0.5 + 0.5; off = v * depth; }
+    off *= amount;
+    return invert ? -off : off;
+  }
+
+  // The normalized offset one mod ROUTE contributes for a given voice, reading a
+  // RESOLVED slot (effective cfg/env/phase). v = -1 for the shared free-run value
+  // (non-retriggered LFOs). Envelopes + retriggered LFOs derive phase from the
+  // voice's own note-on/off frames; free-running LFOs use the resolved shared phase
+  // (which already integrates any rate modulation). Like lfoOffset, depth/bipolar/
+  // invert are applied here; the per-source AMOUNT is applied by the caller.
+  _modSourceOffset(slot: SlotResolved, r: ModRoute, v: number, blockStart: number): number {
+    if (slot.kind === 'env') {
       if (v < 0) return 0;                       // env at rest (no voice) → no contribution
       const vc = this.voices[v];
       const t = (blockStart - vc.onFrame) / this.sampleRate;
       const tRel = vc.offFrame === HELD ? -1 : (blockStart - vc.offFrame) / this.sampleRate;
-      const e = modEnvValue(src.env, t, tRel);
+      const e = modEnvValue(slot.env, t, tRel);
       const off = r.bipolar ? r.depth * (2 * e - 1) : r.depth * e;
       return r.invert ? -off : off;
     }
-    // LFO: per-voice phase when retriggered, else the shared song clock.
-    let sec = songSec, beats = songBeats;
-    if (src.retrigger && v >= 0) {
-      sec = Math.max(0, (blockStart - this.voices[v].onFrame) / this.sampleRate);
-      beats = sec * (this.bpm / 60);
+    let phase01 = slot.phase01, cycle = slot.cycle;
+    if (slot.retrigger) {
+      if (v < 0) return 0;                       // retriggered LFO needs a voice for its phase
+      const sec = Math.max(0, (blockStart - this.voices[v].onFrame) / this.sampleRate);
+      const beats = sec * (this.bpm / 60);
+      const cfg = slot.cfg;
+      const cyclePos = (cfg.sync ? beats / Math.max(1e-3, cfg.rateBeats) : sec / lfoPeriodSec(cfg, this.bpm)) * slot.rateMul;
+      cycle = Math.floor(cyclePos); phase01 = cyclePos - cycle;
     }
-    const cfg = src.lfo;
-    const cyclePos = cfg.sync ? beats / Math.max(1e-3, cfg.rateBeats) : sec / lfoPeriodSec(cfg, this.bpm);
-    const cycle = Math.floor(cyclePos);
-    const off = lfoOffset(cfg, r.depth, r.bipolar, cyclePos - cycle, cycle);
+    const off = lfoOffset(slot.cfg, r.depth, r.bipolar, phase01, cycle);
     return r.invert ? -off : off;
   }
 
   // Apply each instrument INSTANCE's own modulation matrix, once per block, in the
   // same transient-offset-above-centre spirit as _applyLfos but scoped to the
-  // instance that owns the matrix. Three destination kinds:
-  //   pitch → multiplies vd.freq for each active voice (vibrato); runs BEFORE
-  //           _accumPhaseOff so closed-form engines stay click-free, and stacks
-  //           multiplicatively with the effect column + other pitch routes.
-  //   inst  → writes the param bank per active voice (centre = autoLive or base).
-  //   fx    → writes the shared instance fx field (one representative source value:
-  //           song-time for a free-running LFO, else the newest active voice).
+  // instance that owns the matrix. Two phases:
+  //   A — RESOLVE each source's effective params: a modsrc route (or a global LFO
+  //       routing pointed at this instance) can modulate another source's Rate /
+  //       WtPos / Amount / Env-ADSR. Source→source links read the modulator's value
+  //       from the PREVIOUS block (_instModLastVal) so the graph is acyclic (mutual
+  //       LFO1↔LFO2 just gets one block of latency). A modulated LFO Rate switches
+  //       that slot to accumulated phase (_instModPhase, seeded continuously) so the
+  //       rate change doesn't make the phase jump; an unmodulated slot keeps the
+  //       closed-form phase and stays bit-identical.
+  //   B — APPLY destination routes (pitch / inst / fx), as before, scaled by the
+  //       resolved source AMOUNT:
+  //         pitch → multiplies vd.freq for each active voice (vibrato); runs BEFORE
+  //                 _accumPhaseOff so closed-form engines stay click-free.
+  //         inst  → writes the param bank per active voice (centre = autoLive/base).
+  //         fx    → writes the shared instance fx field (representative source value).
   // A matrix with no routes does nothing → instances render bit-identically.
   _applyInstMod(blockStart: number) {
     if (!this.playing) return;
+    const RATE_OCT = 4;                 // ±octaves a full-depth Rate route shifts an LFO
     const start = this.startFrame ?? blockStart;
     const songSec = (blockStart - start) / this.sampleRate;
     const songBeats = this._songBeats;
+    const dt = BLOCK / this.sampleRate;
+    const dBeats = dt * (this.bpm / 60);
+    const clamp = (x: number, lo: number, hi: number) => x < lo ? lo : x > hi ? hi : x;
     const vd = this.vd;
     for (let ii = 0; ii < this.instruments.length; ii++) {
       const instr = this.instruments[ii];
       const mod = instr.mod;
       if (!mod || !mod.routes.length) continue;
+      const sources = mod.sources;
+      const nSlots = sources.length;
       // The newest active voice of this instance — the representative for shared
-      // (fx) targets driven by a per-voice source (env / retriggered LFO).
+      // (fx) targets + per-voice sources used as a modulator (env / retriggered LFO).
       let newestV = -1, newestOn = -Infinity;
       for (let v = 0; v < VOICES; v++) {
         const vc = this.voices[v];
         if (vc.active && vc.instrument === ii && vc.onFrame > newestOn) { newestOn = vc.onFrame; newestV = v; }
       }
-      for (const r of mod.routes) {
-        if (r.targetParamId < 0 || r.depth === 0) continue;
-        const src = mod.sources[r.source];
-        if (!src) continue;
+
+      // ── Phase A.1: gather modsrc contributions into per-slot accumulators ──
+      const octAdd = new Array(nSlots).fill(0);
+      const wtAdd = new Array(nSlots).fill(0);
+      const amtAdd = new Array(nSlots).fill(0);
+      const envAdd = sources.map(() => ({ a: 0, d: 0, s: 0, r: 0 }));
+      const rateRouted = new Array(nSlots).fill(false);
+      const addModsrc = (slot: number, field: string, c: number) => {
+        switch (field) {
+          case 'rate':   octAdd[slot] += c * RATE_OCT; rateRouted[slot] = true; break;
+          case 'wtpos':  wtAdd[slot] += c; break;            // span 1
+          case 'amount': amtAdd[slot] += c * 2; break;       // span 2
+          case 'a':      envAdd[slot].a += c * 2; break;     // span ~2
+          case 'd':      envAdd[slot].d += c * 2; break;
+          case 's':      envAdd[slot].s += c; break;         // span 1
+          case 'r':      envAdd[slot].r += c * 4; break;     // span ~4
+        }
+      };
+      // per-instrument routes whose target is a mod source (self-targeting)
+      for (const route of mod.routes) {
+        if (route.targetParamId < 0 || route.depth === 0) continue;
+        const t = targetById(route.targetParamId);
+        if (!t || t.scope !== 'modsrc' || t.modSlot == null || t.modField == null) continue;
+        if (t.modSlot === route.source || t.modSlot >= nSlots || route.source >= nSlots) continue;  // no self-targeting
+        const ms = sources[route.source];
+        const rawVal = this._instModLastVal.get(`${ii}:${route.source}`) ?? 0;
+        addModsrc(t.modSlot, t.modField, this._routeContribution(ms.kind, rawVal, route.depth, route.bipolar, !!route.invert, ms.amount ?? 1));
+      }
+      // global LFO routings pointed at THIS instance's sources
+      for (const r of this.modRoutings) {
+        if (!r || r.targetParamId < 0 || r.depth <= 0 || r.targetInstIdx !== ii) continue;
         const t = targetById(r.targetParamId);
-        if (!t) continue;
-        // A free-running LFO yields one value for every voice; envelopes and
-        // retriggered LFOs are per-voice.
-        const shared = src.kind === 'lfo' && !src.retrigger;
+        if (!t || t.scope !== 'modsrc' || t.modSlot == null || t.modField == null || t.modSlot >= nSlots) continue;
+        const off = this._globalRoutingOffset(r, songSec);
+        if (Number.isFinite(off)) addModsrc(t.modSlot, t.modField, off);
+      }
+
+      // ── Phase A.2: resolve effective slot state + advance/seed shared LFO phase ──
+      const resolved: SlotResolved[] = sources.map((s, si) => {
+        const amount = clamp((s.amount ?? 1) + amtAdd[si], 0, 2);
+        const wtPos = clamp(s.lfo.wtPos + wtAdd[si], 0, 1);
+        const cfg: LfoConfig = { ...s.lfo, wtPos };
+        const env: ModEnv = {
+          a: clamp(s.env.a + envAdd[si].a, 0.001, 2),
+          d: clamp(s.env.d + envAdd[si].d, 0.001, 2),
+          s: clamp(s.env.s + envAdd[si].s, 0, 1),
+          r: clamp(s.env.r + envAdd[si].r, 0.001, 4),
+        };
+        const rateMul = octAdd[si] === 0 ? 1 : Math.pow(2, octAdd[si]);
+        const shared = s.kind === 'lfo' && !s.retrigger;
+        let phase01 = 0, cycle = 0;
+        if (shared) {
+          if (rateRouted[si]) {
+            // Accumulate phase so a modulated rate stays continuous (no jump). Seed
+            // from the closed-form value the first time, so it picks up seamlessly.
+            const key = `${ii}:${si}`;
+            let phase = this._instModPhase.get(key);
+            if (phase === undefined) phase = cfg.sync ? songBeats / Math.max(1e-3, s.lfo.rateBeats) : songSec / lfoPeriodSec(s.lfo, this.bpm);
+            cycle = Math.floor(phase); phase01 = phase - cycle;
+            const dPhase = cfg.sync ? dBeats * rateMul / Math.max(1e-3, s.lfo.rateBeats) : dt * Math.max(1e-3, s.lfo.rateHz) * rateMul;
+            this._instModPhase.set(key, phase + dPhase);
+          } else {
+            // Unmodulated rate → closed-form (identical to the pre-modsrc engine).
+            const cp = cfg.sync ? songBeats / Math.max(1e-3, s.lfo.rateBeats) : songSec / lfoPeriodSec(s.lfo, this.bpm);
+            cycle = Math.floor(cp); phase01 = cp - cycle;
+          }
+        }
+        return { kind: s.kind, retrigger: s.retrigger, amount, cfg, env, rateMul, shared, phase01, cycle };
+      });
+
+      // Store each source's THIS-block raw output for next block's source→source links.
+      resolved.forEach((slot, si) => {
+        let rawVal = 0;
+        if (slot.kind === 'env') {
+          if (newestV >= 0) {
+            const vc = this.voices[newestV];
+            const tt = (blockStart - vc.onFrame) / this.sampleRate;
+            const tRel = vc.offFrame === HELD ? -1 : (blockStart - vc.offFrame) / this.sampleRate;
+            rawVal = modEnvValue(slot.env, tt, tRel);
+          }
+        } else if (slot.shared) {
+          rawVal = lfoOffset(slot.cfg, 1, true, slot.phase01, slot.cycle);   // raw wave in [-1,1]
+        } else if (newestV >= 0) {                                            // retriggered LFO → newest voice
+          const sec = Math.max(0, (blockStart - this.voices[newestV].onFrame) / this.sampleRate);
+          const beats = sec * (this.bpm / 60);
+          const cp = (slot.cfg.sync ? beats / Math.max(1e-3, slot.cfg.rateBeats) : sec / lfoPeriodSec(slot.cfg, this.bpm)) * slot.rateMul;
+          rawVal = lfoOffset(slot.cfg, 1, true, cp - Math.floor(cp), Math.floor(cp));
+        }
+        this._instModLastVal.set(`${ii}:${si}`, rawVal);
+      });
+
+      // ── Phase B: apply destination routes (pitch / inst / fx) ──
+      for (const r of mod.routes) {
+        if (r.targetParamId < 0 || r.depth === 0 || r.source >= nSlots) continue;
+        const t = targetById(r.targetParamId);
+        if (!t || t.scope === 'modsrc') continue;        // source→source handled in Phase A
+        const slot = resolved[r.source];
+        const amount = slot.amount;
+        const shared = slot.shared;
 
         if (t.pitch) {
           for (let v = 0; v < VOICES; v++) {
             const vc = this.voices[v];
             if (!vc.active || vc.instrument !== ii) continue;
-            const off = this._modSourceOffset(src, r, shared ? -1 : v, blockStart, songSec, songBeats);
+            const off = this._modSourceOffset(slot, r, shared ? -1 : v, blockStart) * amount;
             if (off !== 0) vd.freq[v] *= Math.pow(2, off * t.max / 12);   // off·max = semitones
           }
         } else if (t.scope === 'inst' && t.bank && t.index != null) {
@@ -1025,15 +1169,14 @@ export class Engine {
           for (let v = 0; v < VOICES; v++) {
             const vc = this.voices[v];
             if (!vc.active || vc.instrument !== ii) continue;
-            const off = this._modSourceOffset(src, r, shared ? -1 : v, blockStart, songSec, songBeats);
+            const off = this._modSourceOffset(slot, r, shared ? -1 : v, blockStart) * amount;
             vdArr[v * 4 + t.index] = denormUnit(t, center + off);
           }
         } else if (t.scope === 'fx' && t.key && instr.fx) {
-          // One value drives the shared chain: song-time for a free-running LFO,
-          // else the newest active voice (env/retrigger). No active voice + a
-          // per-voice source → leave the field alone (source is at rest).
+          // One value drives the shared chain: shared free-run LFO, else the newest
+          // active voice (env/retrigger). No active voice + per-voice source → skip.
           if (!shared && newestV < 0) continue;
-          const off = this._modSourceOffset(src, r, shared ? -1 : newestV, blockStart, songSec, songBeats);
+          const off = this._modSourceOffset(slot, r, shared ? -1 : newestV, blockStart) * amount;
           const sk = `${ii}:${t.key}`;
           // Same live-edit re-baselining as the global-LFO fx path (see _applyLfos):
           // if the field no longer matches what we last wrote, the user/preset
@@ -1052,4 +1195,17 @@ export class Engine {
       }
     }
   }
+}
+
+// Resolved per-block state for one mod-source slot (see Engine._applyInstMod Phase A).
+interface SlotResolved {
+  kind: ModSource['kind'];
+  retrigger: boolean;
+  amount: number;       // effective master amount (modulatable)
+  cfg: LfoConfig;       // effective LFO config (wtPos already resolved)
+  env: ModEnv;          // effective envelope (ADSR already resolved)
+  rateMul: number;      // phase-rate multiplier from Rate modulation (1 = none)
+  shared: boolean;      // free-running LFO (single phase for all voices)
+  phase01: number;      // resolved shared phase in [0,1) (valid when shared)
+  cycle: number;        // integer cycle index (for S&H), valid when shared
 }

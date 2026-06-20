@@ -3,7 +3,7 @@ import type { App } from '../main.js';
 
 import { LFO_SHAPES, LFO_SHAPE_WAVETABLE, MAX_ROUTINGS, defaultRouting } from '../tracker/lfo.js';
 import { WT_BANKS } from '../instruments/wavetables.js';
-import { TARGETS, targetsForType } from '../tracker/automation.js';
+import { TARGETS, targetsForType, modSrcTargets } from '../tracker/automation.js';
 import { byType } from '../instruments/index.js';
 
 // Build the global-LFO control panels in the Song Editor. Rebuilds from
@@ -31,6 +31,9 @@ export function buildLfoUI(app: App) {
       if (t.scope === 'inst') opts.push({ paramId: t.id, instIdx: i, label: `${i}:${short} · ${t.label}` });
       else if (t.scope === 'fx') opts.push({ paramId: t.id, instIdx: i, label: `${i}:${short} · FX ${t.label}` });
     }
+    // This instance's mod SOURCES (its LFOs / env) are modulation targets too — a
+    // global LFO can sweep an instrument's own LFO rate, env shape, amount, etc.
+    for (const t of modSrcTargets()) opts.push({ paramId: t.id, instIdx: i, label: `${i}:${short} · ${t.label}` });
   }
 
   const BEATS: [number, string][] = [[16, '4 bars'], [8, '2 bars'], [4, '1 bar'], [2, '1/2 bar'], [1, '1 beat'], [0.5, '1/2'], [0.25, '1/4'], [0.125, '1/8']];

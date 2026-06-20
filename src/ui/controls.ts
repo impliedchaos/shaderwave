@@ -1125,6 +1125,7 @@ export class Controls {
           <label class="mod-row" data-when="free">Hz <input type="range" data-k="hz" min="0.05" max="20" step="0.05"><span data-k="hzv" class="mod-val"></span></label>
           <label class="mod-row" data-when="wt">Bank <select data-k="wtbank">${bankOpts}</select></label>
           <label class="mod-row" data-when="wt">Pos <input type="range" data-k="wtpos" min="0" max="1" step="0.01"></label>
+          <label class="mod-row" title="master depth on every route from this source (a modulation target)">Amt <input type="range" data-k="amt" min="0" max="2" step="0.01"><span data-k="amtv" class="mod-val"></span></label>
           <label class="mod-row"><input type="checkbox" data-k="retrig"> Retrigger</label>`;
         wrap.appendChild(panel);
         const shape = q<HTMLSelectElement>(panel, 'shape');
@@ -1133,12 +1134,14 @@ export class Controls {
         const hz = q<HTMLInputElement>(panel, 'hz'); const hzv = q<HTMLSpanElement>(panel, 'hzv');
         const wtbank = q<HTMLSelectElement>(panel, 'wtbank');
         const wtpos = q<HTMLInputElement>(panel, 'wtpos');
+        const amt = q<HTMLInputElement>(panel, 'amt'); const amtv = q<HTMLSpanElement>(panel, 'amtv');
         const retrig = q<HTMLInputElement>(panel, 'retrig');
         const refresh = () => {
           shape.value = String(src.lfo.shape); sync.checked = src.lfo.sync;
           beats.value = String(src.lfo.rateBeats);
           hz.value = String(src.lfo.rateHz); hzv.textContent = src.lfo.rateHz.toFixed(2) + 'Hz';
           wtbank.value = String(src.lfo.wtBank); wtpos.value = String(src.lfo.wtPos);
+          amt.value = String(src.amount ?? 1); amtv.textContent = (src.amount ?? 1).toFixed(2) + '×';
           retrig.checked = src.retrigger;
           const isWt = src.lfo.shape === LFO_SHAPE_WAVETABLE;
           panel.querySelectorAll<HTMLElement>('[data-when]').forEach((el) => {
@@ -1154,6 +1157,8 @@ export class Controls {
         wtbank.onchange = () => { src.lfo.wtBank = +wtbank.value; dirty(); };
         wtpos.oninput = () => { src.lfo.wtPos = +wtpos.value; };
         wtpos.onchange = dirty;
+        amt.oninput = () => { src.amount = +amt.value; amtv.textContent = src.amount.toFixed(2) + '×'; };
+        amt.onchange = dirty;
         retrig.onchange = () => { src.retrigger = retrig.checked; dirty(); };
         refresh();
       } else {
@@ -1165,7 +1170,8 @@ export class Controls {
           <label class="mod-row">A <input type="range" data-k="a" min="0.001" max="2" step="0.001"></label>
           <label class="mod-row">D <input type="range" data-k="d" min="0.001" max="2" step="0.001"></label>
           <label class="mod-row">S <input type="range" data-k="s" min="0" max="1" step="0.01"></label>
-          <label class="mod-row">R <input type="range" data-k="r" min="0.001" max="4" step="0.001"></label>`;
+          <label class="mod-row">R <input type="range" data-k="r" min="0.001" max="4" step="0.001"></label>
+          <label class="mod-row" title="master depth on every route from this source (a modulation target)">Amt <input type="range" data-k="amt" min="0" max="2" step="0.01"><span data-k="amtv" class="mod-val"></span></label>`;
         wrap.appendChild(panel);
 
         const canvas = q<HTMLCanvasElement>(panel, 'env-canvas');
@@ -1199,14 +1205,21 @@ export class Controls {
           el.onchange = dirty;
         };
         bind('a'); bind('d'); bind('s'); bind('r');
+        const amt = q<HTMLInputElement>(panel, 'amt'); const amtv = q<HTMLSpanElement>(panel, 'amtv');
+        amt.value = String(src.amount ?? 1); amtv.textContent = (src.amount ?? 1).toFixed(2) + '×';
+        amt.oninput = () => { src.amount = +amt.value; amtv.textContent = src.amount.toFixed(2) + '×'; };
+        amt.onchange = dirty;
         drawEnv();
       }
     });
 
     // ── Routes: source → this instance's target, depth, polarity ──
     const targets = instModTargetsForType(name);
-    const tgtOpts = '<option value="-1">— Off —</option>' +
-      targets.map((t) => `<option value="${t.id}">${t.pitch ? 'Pitch' : t.scope === 'fx' ? 'FX ' + t.label : t.label}</option>`).join('');
+    // Per-row options: hide a modsrc target that addresses the row's OWN source slot
+    // (no self-targeting — LFO 1 can drive LFO 2 / the env, but not itself).
+    const tgtOptsFor = (sourceSlot: number) => '<option value="-1">— Off —</option>' +
+      targets.filter((t) => !(t.scope === 'modsrc' && t.modSlot === sourceSlot))
+        .map((t) => `<option value="${t.id}">${t.pitch ? 'Pitch' : t.scope === 'fx' ? 'FX ' + t.label : t.scope === 'modsrc' ? '→ ' + t.label : t.label}</option>`).join('');
     const srcOpts = mod.sources.map((_, i) => `<option value="${i}">${INST_SOURCE_LABELS[i]}</option>`).join('');
 
     const matrix = document.createElement('div');
@@ -1218,7 +1231,7 @@ export class Controls {
       row.className = 'mod-route';
       row.innerHTML = `
         <select data-k="src" title="source">${srcOpts}</select>
-        <select data-k="tgt" title="destination">${tgtOpts}</select>
+        <select data-k="tgt" title="destination">${tgtOptsFor(r.source)}</select>
         <input type="range" data-k="depth" min="0" max="1" step="0.01" title="depth">
         <label class="mod-bip" title="bipolar (±swing vs one-sided)"><input type="checkbox" data-k="bip"> ±</label>
         <label class="mod-bip" title="invert (flip the sign — pair with another route for opposite motion)"><input type="checkbox" data-k="inv"> ∓</label>
@@ -1234,7 +1247,15 @@ export class Controls {
       depth.value = String(r.depth);
       bip.checked = r.bipolar;
       inv.checked = !!r.invert;
-      srcSel.onchange = () => { r.source = +srcSel.value; dirty(); };
+      srcSel.onchange = () => {
+        r.source = +srcSel.value;
+        // The new source can't target its own slot — drop the route if it now would.
+        const ct = targets.find((t) => t.id === r.targetParamId);
+        if (ct && ct.scope === 'modsrc' && ct.modSlot === r.source) r.targetParamId = -1;
+        tgt.innerHTML = tgtOptsFor(r.source);
+        tgt.value = String(r.targetParamId);
+        dirty();
+      };
       tgt.onchange = () => { r.targetParamId = +tgt.value; dirty(); };
       depth.oninput = () => { r.depth = +depth.value; };
       depth.onchange = dirty;

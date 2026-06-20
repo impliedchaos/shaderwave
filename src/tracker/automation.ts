@@ -188,6 +188,27 @@ for (const type of autoTypes) {
   TARGETS.push({ code: 'PCH', label: 'Pitch', min: -12, max: 12, curve: 'lin', unit: 'st', scope: 'inst', type, id: TARGETS.length, pitch: true });
 }
 
+// Mod-SOURCE targets — appended at the very end (id-stable). Each addresses one
+// knob of a per-instrument mod source SLOT (0 LFO1 · 1 LFO2 · 2 Env), so they are
+// engine-agnostic (type '*'). Applied bespoke by the engine (NOT via denorm), like
+// pitch: `rate` is an octave shift on the LFO period; `wtpos`/`amount`/a/d/s/r are
+// additive within [min,max]. Routable ONLY by the two mod matrices (per-instrument
+// self-targeting + the global LFO matrix) — kept out of the automation picker.
+const MODSRC_TARGETS: RawTarget[] = [
+  { code: 'L1R', label: 'LFO 1 Rate',    min: 0, max: 1, curve: 'lin', modSlot: 0, modField: 'rate' },
+  { code: 'L1W', label: 'LFO 1 WtPos',   min: 0, max: 1, curve: 'lin', modSlot: 0, modField: 'wtpos' },
+  { code: 'L1M', label: 'LFO 1 Amount',  min: 0, max: 2, curve: 'lin', modSlot: 0, modField: 'amount' },
+  { code: 'L2R', label: 'LFO 2 Rate',    min: 0, max: 1, curve: 'lin', modSlot: 1, modField: 'rate' },
+  { code: 'L2W', label: 'LFO 2 WtPos',   min: 0, max: 1, curve: 'lin', modSlot: 1, modField: 'wtpos' },
+  { code: 'L2M', label: 'LFO 2 Amount',  min: 0, max: 2, curve: 'lin', modSlot: 1, modField: 'amount' },
+  { code: 'EnA', label: 'Env Attack',    min: 0.001, max: 2, curve: 'lin', unit: 's', modSlot: 2, modField: 'a' },
+  { code: 'EnD', label: 'Env Decay',     min: 0.001, max: 2, curve: 'lin', unit: 's', modSlot: 2, modField: 'd' },
+  { code: 'EnS', label: 'Env Sustain',   min: 0, max: 1, curve: 'lin', modSlot: 2, modField: 's' },
+  { code: 'EnR', label: 'Env Release',   min: 0.001, max: 4, curve: 'lin', unit: 's', modSlot: 2, modField: 'r' },
+  { code: 'EnM', label: 'Env Amount',    min: 0, max: 2, curve: 'lin', modSlot: 2, modField: 'amount' },
+];
+for (const t of MODSRC_TARGETS) TARGETS.push({ ...t, scope: 'modsrc', type: '*', id: TARGETS.length });
+
 export function targetById(id: number): ParamTarget | null {
   return (id >= 0 && id < TARGETS.length) ? TARGETS[id] : null;
 }
@@ -195,14 +216,22 @@ export function targetById(id: number): ParamTarget | null {
 // Targets selectable for a given engine type: its own inst targets + all fx +
 // all per-channel (chan) targets + all global targets.
 export function targetsForType(type: InstrumentType): ParamTarget[] {
-  return TARGETS.filter((t) => !t.pitch && (t.scope === 'fx' || t.scope === 'chan' || t.scope === 'global' || t.type === type));
+  return TARGETS.filter((t) => !t.pitch && t.scope !== 'modsrc' && (t.scope === 'fx' || t.scope === 'chan' || t.scope === 'global' || t.type === type));
 }
 
 // Targets the per-instrument modulation matrix can route to: this engine's own
-// inst params (incl. its pitch target) + all fx params. Excludes chan/global,
-// which are song-scope and belong to the global-LFO matrix instead.
+// inst params (incl. its pitch target) + all fx params + the mod-source knobs
+// (modsrc) of this instance's own sources (self-targeting; the UI hides a route's
+// own slot). Excludes chan/global, which are song-scope and belong to the
+// global-LFO matrix instead.
 export function instModTargetsForType(type: InstrumentType): ParamTarget[] {
-  return TARGETS.filter((t) => t.scope === 'fx' || (t.scope === 'inst' && t.type === type));
+  return TARGETS.filter((t) => t.scope === 'fx' || t.scope === 'modsrc' || (t.scope === 'inst' && t.type === type));
+}
+
+// The mod-source knob targets (LFO/env rate/wtpos/amount/adsr), for both matrices'
+// "target a source" sections. Engine-agnostic; ordered by source slot.
+export function modSrcTargets(): ParamTarget[] {
+  return TARGETS.filter((t) => t.scope === 'modsrc');
 }
 
 export function targetByCode(type: InstrumentType, code: string): ParamTarget | null {

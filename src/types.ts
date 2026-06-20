@@ -82,12 +82,17 @@ export interface InstrumentSpec extends InstrumentParams {
 
 // ── Automation ────────────────────────────────────────────────────────────
 export type ParamCurve = 'log' | 'lin' | 'enum';
-export type ParamScope = 'inst' | 'fx' | 'chan' | 'global';
+export type ParamScope = 'inst' | 'fx' | 'chan' | 'global' | 'modsrc';
+
+// Which knob of a per-instrument mod SOURCE a `modsrc` target addresses.
+export type ModField = 'rate' | 'wtpos' | 'amount' | 'a' | 'd' | 's' | 'r';
 
 // One automatable parameter. `scope` selects which fields are meaningful:
-//   inst → bank + index (into p0/p1/p2/p3/p4) and a concrete engine `type`
-//   fx   → key (a FxParams field), type '*'
-//   chan → key (a per-channel mix param, e.g. pan), type '*'
+//   inst   → bank + index (into p0/p1/p2/p3/p4) and a concrete engine `type`
+//   fx     → key (a FxParams field), type '*'
+//   chan   → key (a per-channel mix param, e.g. pan), type '*'
+//   modsrc → modSlot + modField: a knob of a per-instrument mod source (LFO/env);
+//            applied bespoke by the engine (NOT via denorm), like `pitch`.
 export interface ParamTarget {
   id: number;
   code: string;
@@ -104,6 +109,8 @@ export interface ParamTarget {
   toggle?: boolean;   // fx on/off "stomp box": byte 0 = off, anything else = on (written as a bool)
   pitch?: boolean;    // special inst-scope target: modulates voice frequency (vibrato), not a param bank.
                       // min/max are in semitones; only the per-instrument mod matrix routes to these.
+  modSlot?: number;   // modsrc: which source slot (0 LFO1 · 1 LFO2 · 2 Env)
+  modField?: ModField;// modsrc: which knob of that source
 }
 
 // ── Effects ─────────────────────────────────────────────────────────────────
@@ -227,6 +234,7 @@ export interface ModEnv {
 export interface ModSource {
   kind: ModSourceKind;
   retrigger: boolean;   // lfo: phase restarts at each voice's note-on (else free-runs on song time); env: always note-gated
+  amount: number;       // master multiplier (0..2, default 1) on EVERY route from this source — a modsrc target
   lfo: LfoConfig;       // meaningful when kind === 'lfo'
   env: ModEnv;          // meaningful when kind === 'env'
 }
