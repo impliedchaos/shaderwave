@@ -183,7 +183,7 @@ thunk** transient. Parameters: **Decay**, **Inharm**, **Hardness**, **Hammer**,
 **Partials**, **Detune**, **Damping**, **Release** (a long Release ≈ holding the
 sustain pedal). Presets: Grand, Mellow, Bright, Honky-Tonk, Upright, Bell Piano.
 
-### Gigi — Acoustic / Electric Guitar (short name **GIG**)
+### Gigi — Acoustic / Electric Guitar (short name **GTR**)
 
 A plucked-string synth (modal, closed-form) that **morphs between acoustic and electric**
 via the **Body** control. The string is a sum of decaying near-harmonic partials combed by
@@ -479,14 +479,15 @@ Per render block the GPU runs:
 2. **Mix pass** → sums all voice rows with gain + equal-power pan into one stereo
    row (`BLOCK × 1`).
 3. **Effects pass** → one pass per effect over a `BLOCK × 1` stereo buffer, run in
-   a data-driven order (distortion → chorus → tremolo → delay → reverb →
-   bitcrusher → width → master).
+   a data-driven, per-instance order (default: compressor → filter → EQ → vocoder →
+   overdrive → distortion → chorus → tremolo → delay → reverb → bitcrusher → width →
+   limiter → master).
 4. **Readback** (`readPixels`) → interleaved stereo `Float32Array` → ring buffer.
 
 The recursive ladder filter (303, Moog) can't be parallelised trivially: each
 output sample recomputes its voice's filter from a checkpoint using carried-in
 state. To keep that from being an O(N²) recompute per block, the ladder is
-rendered in strips of `subBlock` samples (default 64), each picking up from the
+rendered in strips of `subBlock` samples (default 256), each picking up from the
 previous strip's saved state — O(N·subBlock), and bit-identical to the old
 single-pass render. See `synth-renderer.ts`.
 
@@ -510,12 +511,21 @@ src/gl/                    context, program helpers, SynthRenderer, shaders/
   shaders/synth-tabla.glsl     Tabla — modal Indian hand drums (dayan/bayan)
   shaders/synth-pipi.glsl      Pipi — physically-informed modal piano
   shaders/synth-guitar.glsl    Guitar — modal plucked string (acoustic/electric)
+  shaders/synth-wvt.glsl       Wavewright — band-limited wavetable (16 morph banks)
+  shaders/synth-sampler.glsl   Sampler — GPU PCM playback from the atlas texture
+  shaders/synth-additive.glsl  Spectra — massive GPU-parallel additive (tile pass)
+  shaders/additive-reduce.glsl   Spectra log-reduce (sums the partial tiles)
   shaders/fx-distortion.glsl   DS-1 distortion stage
+  shaders/fx-overdrive.glsl    TS9 overdrive stage
+  shaders/fx-filter.glsl       resonant state-variable filter (per-sample recursive)
+  shaders/fx-eq.glsl           3-band EQ stage
+  shaders/fx-dynamics.glsl     compressor / limiter (per-sample envelope follower)
+  shaders/fx-vocoder*.glsl     channel vocoder (band bank + sum)
   shaders/fx-chorus-*.glsl     chorus ring update + tap
   shaders/fx-tremolo.glsl      auto-pan tremolo stage
   shaders/fx-delay-*.glsl      stereo delay ring update + tap
   shaders/fx-fdn-*.glsl        FDN reverb ring update + tap
-  shaders/fx-bitcrush.glsl     bit-depth / sample-rate crush stage
+  shaders/fx-bitcrush*.glsl    bit-depth / sample-rate crush stage
   shaders/fx-width.glsl        mid/side stereo width stage
   shaders/fx-master.glsl       master gain + additive accumulate
   shaders/mix.glsl             voice mixdown
@@ -593,4 +603,7 @@ Loading **content-sniffs** the bytes (gzip → binary → legacy JSON), so older
 
 ## Known Limitations / Next Steps
 
-- Instrument editor for creating and editing instrument patches from scratch.
+- **Spectra resynthesis** — analyse a sample's partials and drive the additive engine
+  from that table (morph / freeze), instead of the current formula-driven spectrum.
+  (The instrument editor + user presets and the compact binary save / permalink / gist
+  sharing have shipped — see `ROADMAP.md`.)

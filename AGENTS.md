@@ -6,7 +6,9 @@ streamed to the audio device. Pure front-end, no backend, no framework — TypeS
 modules bundled by Vite.
 
 For the deep architecture, instrument/effect descriptions, and the file-by-file
-layout, read **`README.md`** (kept current) and **`design.md`**. This file is the
+layout, read **`README.md`** (kept current); **`MEMORY.md`** holds the why/gotchas
+behind recent work. (`design.md` is just the original one-paragraph project sketch —
+not a current reference.) This file is the
 quick operational guide + the non-obvious gotchas. **To create songs** (demo tracks
 or loadable files) read **`COMPOSING.md`** — a self-contained authoring guide (the
 `SongDef`/`Pattern` API, per-engine param banks, automation/LFO codes, gotchas) so
@@ -80,7 +82,8 @@ and `git status` before committing** so they don't get swept into a commit.
   so under CPU load you get silent underruns, never skipped/dropped blocks.
 - **Instruments**: a **registry** of engine descriptors in `src/instruments/` (one file
   per engine — `i303`, `idx7`, `i808`, `imoog`, `itanpura`, `ie8e`, `igroove`, `itabla`,
-  `ipipi`, `iguitar` — listed in `index.ts`'s `REGISTRY`). `constants.ts` re-exports `INSTRUMENTS` from it; every per-engine table
+  `ipipi`, `iguitar`, `iwvt`, `isampler`, `iadditive` (13 total) — listed in `index.ts`'s
+  `REGISTRY`). `constants.ts` re-exports `INSTRUMENTS` from it; every per-engine table
   (param defs, presets, automation targets, defaults, help) derives from the descriptor.
   **Adding an engine = one descriptor + one `.glsl` + one `REGISTRY` line** (append at the
   end — automation target ids are persisted). A song's `params` is a table of *instances*
@@ -112,7 +115,9 @@ and `git status` before committing** so they don't get swept into a commit.
 - **Effect column** (per-cell note articulations — slides/vibrato/arp/volume-slide, distinct
   from automation tracks): `Pattern.fxCmd`/`fxVal`, command set in `src/tracker/fx.ts`,
   modulated per render block in `engine._modulateVoices` (`3xx`+note is the no-retrigger
-  meend). Smooth pitch only on the phase-accumulating engines (303, moog). See MEMORY.md.
+  meend). Click-free pitch on EVERY pitched engine: natively on the phase-accumulating
+  ones (303, moog, wvt), and on the closed-form ones via the `uPhaseOff` fundamental-phase
+  correction (`engine._accumPhaseOff`). Drums (808, groove) ignore pitch. See MEMORY.md.
 - **Automation** (`src/tracker/automation.ts` + `Pattern.autoTracks`): dedicated
   per-pattern **tracks**, each sequencing one `ParamTarget` over the rows as an
   `Int16Array` (`-1` = hold, `0–255` = a normalized value byte — the universal
@@ -156,9 +161,9 @@ and `git status` before committing** so they don't get swept into a commit.
   the file you're in. Demo songs (`src/tracker/demo-songs.ts`) build patterns with small
   local helper closures in each song's `data()` — follow that pattern.
 - **The recursive ladder is rendered in strips** (`synth-renderer.ts` `this.subBlock`,
-  default 64) to avoid O(BLOCK²) recompute. Any change there must keep output
-  **bit-identical** — verify by A/B rendering `subBlock = BLOCK` (old single-pass) vs
-  `64` and confirming `maxDiff ≈ 0`.
+  default 256 — perf-tuned from 64, see MEMORY.md) to avoid O(BLOCK²) recompute. Any
+  change there must keep output **bit-identical** — verify by A/B rendering
+  `subBlock = BLOCK` (old single-pass) vs the default and confirming `maxDiff ≈ 0`.
 - **Noise hashing**: in `common.glsl`, the noise multiplier must not be a short-period
   rational. `1/π` is fatal (≈135 Hz buzz); use Dave Hoskins' `0.1031`. (See memory.)
 - **Automation value precision**: endpoints are 8-bit, so e.g. 844 Hz on a log curve may

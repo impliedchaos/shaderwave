@@ -189,8 +189,9 @@ effect keys; absent → default; unknown keys dropped + missing ones appended on
 Common fields (booleans + scalars):
 `enabled` (master), `distOn`/`dist`/`tone`/`level`, `odOn`/`odDrive`/`odTone`/`odLevel`,
 `filterOn`/`filterCutoff` (Hz)/`filterReso` (0..1 Q)/`filterMode` (0 LP·1 HP·2 BP)/`filterMix`,
+`eqOn`/`eqLow`/`eqMid`/`eqHigh` (dB)/`eqLowFreq`/`eqHighFreq` (Hz crossovers),
 `chorusOn`/`chorusMix`/`chorusRate`/`chorusDepth`, `tremoloOn`/`tremoloMix`/`tremoloRate`,
-`delayOn`/`delayTime`/`delayFeedback`/`delayMix`, `reverbOn`/`reverbDecay`/`reverbDamp`/`reverbMix`,
+`delayOn`/`delayTime`/`delayFeedback`/`delayMix`, `reverbOn`/`reverbDecay`/`reverbDamp`/`reverbSend`/`reverbMix`,
 `bitcrushOn`/`bitcrushBits`/`bitcrushRate`/`bitcrushMix`, `widthOn`/`width`, `master` (fx output level),
 `compOn`/`compThresh` (dB)/`compRatio`/`compAttack` (ms)/`compRelease` (ms)/`compMakeup` (dB)/`compSource`,
 `limitOn`/`limitCeil` (dB)/`limitRelease` (ms),
@@ -218,9 +219,10 @@ sweeps. Resolution is limited by `vocBands`, so big shifts smear; ±7 st is the 
 ```ts
 '303': Object.assign(defaultFxParams(), { distOn: true, dist: 10, delayOn: true, delayMix: 0.3, master: 0.85 }),
 ```
-NOTE: `defaultFxParams()` has the classic effects **on** by default (distortion/chorus/tremolo/
-delay/reverb/width), with chorus/tremolo at 0 mix. So set `…Mix`/`…On` explicitly for what you want.
-(`+ Add` in the editor uses a different all-off "neutral" default; demo songs use `defaultFxParams`.)
+NOTE: `defaultFxParams()` now defaults **every effect OFF** (the param baselines are kept, so opting
+in needs only the flag, e.g. `reverbOn: true` → reverb at its default mix). So enable each effect you
+want with its `…On: true` and set the `…Mix`/scalars. (`+ Add` in the editor uses the same all-off
+`neutralFxParams()` baseline; demo songs build on `defaultFxParams()`.)
 
 **Crucial advice for the 808:** Delay on the 808 sounds terrible in most mixes. Always explicitly disable it (`delayOn: false`) unless you're designing a sparse, dubby effect!
 
@@ -242,7 +244,7 @@ for (let r = 0; r < N; r++) track[r] = normByte(CUT, 400 + r * 30);   // sweep c
 - **Codes by scope:**
   - `inst` (per engine, pass the matching instrument index): e.g. `303`: CUT RES ENV ACC WAV FDC ADC PWM ·
     `moog`: CUT RES FEN DTC SUS FDC ADC · `wvt`: ATK DEC SUS REL PS1 PS2 DT2 FM · `808`: TON DEC SNP ·
-    `e8e`: ATK DEC SUS DT2 DT3 BIT DRV · `sampler`: TUN STA LVL ATK DEC SUS REL · (others in their descriptors).
+    `e8e`: ATK DEC SUS DT2 DT3 BIT DRV · `sampler`: TUN STR GAN ATK DEC SUS REL · (others in their descriptors).
   - `fx` (engine-agnostic): LVL DRV OVD OVT OVL DLM DLF RVM RVD CHM WID BCB BCR BCM, plus on/off
     **toggles** DSO OVO CHO TRO DLO RVO WDO BCO (byte 0 = off, anything else = on).
   - `chan`: PAN (pass the channel index). `global`: BPM, VOL.

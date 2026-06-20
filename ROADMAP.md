@@ -33,9 +33,14 @@ completion; conservative vs the shipped async path). Run it in a *real* browser 
   of active voices — skipping idle engines is the highest-leverage floor reduction *if perf
   ever matters* (it doesn't today). Verify the mix-mask-to-zero assumption before acting.
 
-## Phase 1 — Instrument editor *(low-risk, high leverage)*
+## Phase 1 — Instrument editor *(✅ DONE, 2.6.0–2.7.0)*
 
 Turn the closed preset system into an open one — design patches without touching code.
+
+**Shipped:** an instrument-editor tab; save / rename / delete / import / export **user
+presets** (own IndexedDB, `src/tracker/preset-store.ts`); A/B compare, morph, randomize /
+nudge; and a per-instrument **modulation matrix** (2 LFOs + mod-env, incl. vibrato). See
+MEMORY.md for the full notes.
 
 - The architecture is already the substrate: universal param banks `uP0`–`uP4`, the
   descriptor registry (`src/instruments/`), presets keyed by engine type
@@ -68,7 +73,12 @@ Make the GPU premise pay off the way only a GPU can: sample-driven additive resy
 
 ## Phase 3 — Reach *(packaging, deliberately last)*
 
-- **Compact binary save format.** Replace the versioned JSON document with a packed binary
+**Status:** the save/share trio has shipped (2.8.0–2.9.0) — compact binary format
+(`src/tracker/song-codec.ts`, `SWB1`), permalink (`#s=…`), and gist publishing
+(`src/tracker/gist.ts`, `#gist=…`). **Still open:** the embeddable read-only player and
+a guided first-run. The original spec is kept below for reference.
+
+- **Compact binary save format.** *(✅ DONE)* Replace the versioned JSON document with a packed binary
   encoding (`src/tracker/song-io.ts`). Today's format is human-readable JSON that's then
   gzipped; a purpose-built binary layout (typed arrays for pattern note/automation data,
   varint-packed where it helps, sample audio as raw blobs rather than base64) is smaller,
@@ -76,10 +86,10 @@ Make the GPU premise pay off the way only a GPU can: sample-driven additive resy
   preserve the existing `format` + `version` headers and route old JSON files through the
   `migrate()` step so saved songs keep loading. **Do this before permalinks** — the binary
   size is what makes URL-hash sharing practical.
-- **Permalink sharing (the default)** is nearly free once the format is compact: a share
+- **Permalink sharing (the default)** *(✅ DONE)* is nearly free once the format is compact: a share
   link is `binary → base64url` in the URL hash — no backend, no third party, true to the
   pure-front-end design. The compact format is what keeps these URLs short enough to use.
-- **Gist publishing (the durable / big-song option).** For songs too big for a URL, or
+- **Gist publishing (the durable / big-song option).** *(✅ DONE)* For songs too big for a URL, or
   when a permanent link is wanted, publish to a **secret GitHub Gist**. This fits the
   GitHub Pages deployment and stays fully serverless:
   - **Reads need no auth.** A secret gist (`"public": false` — unlisted, link-only, but
@@ -130,6 +140,9 @@ beat at the end of each phase. This is how the project deepens instead of wideni
 - **Permalink sharing can jump the queue anytime** — but it really wants the compact
   binary format first, so the two move together within Phase 3.
 
-## Suggested first task
+## Suggested next task
 
-**Phase 0.** Roughly a half-day of work that makes every later decision evidence-based.
+**Phase 2 — Spectra resynthesis.** Phases 0, 1, and the Phase 3 save/share trio have
+shipped; resynthesis is the remaining headline feature (and the natural home for a GPU
+showcase — push partials/voices past 2048 to find the genuine GPU-bound crossover). The
+small Phase 3 tail (embeddable read-only player, guided first-run) can slot in anytime.
