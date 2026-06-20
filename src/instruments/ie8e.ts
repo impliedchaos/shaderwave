@@ -21,7 +21,7 @@ export const ie8e: InstrumentDef = {
     { label: 'Release', bank: 'p0', i: 3, min: 0,    max: 2,    step: 0.005 },
     { label: 'Detune2', bank: 'p1', i: 0, min: -24,  max: 24,   step: 0.01 },
     { label: 'Detune3', bank: 'p1', i: 1, min: -24,  max: 24,   step: 0.01 },
-    { label: 'Bits',    bank: 'p1', i: 2, min: 1,    max: 16,   step: 1 },
+    { label: 'Bits',    bank: 'p1', i: 2, min: 2,    max: 17,   step: 1 },
     { label: 'Drive',   bank: 'p1', i: 3, min: 0,    max: 1,    step: 0.01 },
     { label: 'Wave1',   bank: 'p2', i: 0, min: 0,    max: 4,    step: 1 },
     { label: 'Wave2',   bank: 'p2', i: 1, min: 0,    max: 4,    step: 1 },
@@ -38,7 +38,7 @@ export const ie8e: InstrumentDef = {
     { code: 'SUS', label: 'Sustain', bank: 'p0', index: 2, min: 0,   max: 1,  curve: 'lin' },
     { code: 'DT2', label: 'Detune2', bank: 'p1', index: 0, min: -24, max: 24, curve: 'lin', unit: 'st' },
     { code: 'DT3', label: 'Detune3', bank: 'p1', index: 1, min: -24, max: 24, curve: 'lin', unit: 'st' },
-    { code: 'BIT', label: 'Bits',    bank: 'p1', index: 2, min: 1,   max: 16, curve: 'lin' },
+    { code: 'BIT', label: 'Bits',    bank: 'p1', index: 2, min: 2,   max: 17, curve: 'lin' },
     { code: 'DRV', label: 'Drive',   bank: 'p1', index: 3, min: 0,   max: 1,  curve: 'lin' },
   ],
   presets: [

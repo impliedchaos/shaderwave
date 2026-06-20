@@ -604,22 +604,7 @@
     border-radius: 4px;
   }
   
-  .inst-add {
-    float: right;
-    background: rgba(var(--c-surface), 0.6);
-    color: var(--dim);
-    border: 1px solid var(--panel-border);
-    border-radius: 4px;
-    font-family: 'Rajdhani', sans-serif;
-    font-size: 11px; font-weight: 700;
-    letter-spacing: 1px;
-    text-transform: uppercase;
-    padding: 2px 6px;
-    cursor: pointer;
-  }
-  .inst-add:hover { border-color: var(--accent); color: var(--accent); }
-  /* Dark the native dropdown popup (options render with OS-default light bg otherwise). */
-  .inst-add option { background: rgb(var(--c-surface)); color: var(--c-text-bright); }
+  .inst-list button select option { background: rgb(var(--c-surface)); color: var(--c-text-bright); }
 
   .inst-list {
     display: grid;
@@ -1893,7 +1878,7 @@
       <div class="visualizer-card">
         <canvas id="visualizer"></canvas>
       </div>
-      <h2>Instruments <span class="glow-dot"></span><select id="inst-add" class="inst-add" title="Add an instrument"></select></h2>
+      <h2>Instruments <span class="glow-dot"></span></h2>
       <div id="instruments" class="inst-list"></div>
     </aside>
   </div>

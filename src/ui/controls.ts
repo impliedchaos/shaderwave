@@ -139,7 +139,6 @@ export class Controls {
     // Preload all ROM banks
     this.loadAllRoms();
 
-    this._buildAddMenu();
     this._buildInstruments();
     this._buildParams();
   }
@@ -166,31 +165,6 @@ export class Controls {
   // The currently selected instrument-table instance and its engine type.
   get _instr(): InstrumentInstance { return this.engine.instruments[this.selected]; }
   get _type(): InstrumentType | null { return this._instr ? this._instr.type : null; }
-
-  // The "+ Add" dropdown (above the list) — pick an engine type to append.
-  _buildAddMenu() {
-    const sel = document.getElementById('inst-add') as HTMLSelectElement | null;
-    if (!sel) return;
-    sel.innerHTML = '<option value="">+ Add</option>'
-      + INSTRUMENTS.map((t) => `<option value="${t}">${byType(t)?.name ?? t.toUpperCase()}</option>`).join('');
-    sel.value = '';
-    sel.onchange = (e) => {
-      const target = e.target as HTMLSelectElement;
-      const type = target.value as InstrumentType;
-      target.value = '';
-      if (!type) return;
-
-      const idx = this.engine.addInstrument(type);   // new instance with its own default fx
-      // Start a freshly-added instrument DRY so it doesn't surprise with reverb/delay.
-      const fx = this.engine.instruments[idx]?.fx;
-      if (fx) {
-        fx.enabled = fx.distOn = fx.chorusOn = fx.tremoloOn = fx.delayOn = fx.reverbOn = fx.widthOn = fx.bitcrushOn = false;
-      }
-      this.app?._syncRendererFx();
-      this.select(idx);   // select() rebuilds the list
-      this.app?.markDirty('instrument');
-    };
-  }
 
   _buildInstruments() {
     this.instEl.innerHTML = '';
@@ -313,6 +287,50 @@ export class Controls {
       };
       this.instEl.appendChild(b);
     });
+
+    const addBtn = document.createElement('button');
+    addBtn.style.position = 'relative';
+    addBtn.style.opacity = '0.7';
+
+    const plusSpan = document.createElement('span');
+    plusSpan.className = 'inst-num';
+    plusSpan.textContent = '+';
+
+    const addLabel = document.createElement('span');
+    addLabel.className = 'inst-name';
+    addLabel.textContent = 'Add Instrument...';
+
+    const addSelect = document.createElement('select');
+    addSelect.style.opacity = '0';
+    addSelect.style.position = 'absolute';
+    addSelect.style.left = '0';
+    addSelect.style.top = '0';
+    addSelect.style.width = '100%';
+    addSelect.style.height = '100%';
+    addSelect.style.cursor = 'pointer';
+
+    addSelect.innerHTML = '<option value="">+ Add Instrument</option>'
+      + INSTRUMENTS.map((t) => `<option value="${t}">${byType(t)?.name ?? t.toUpperCase()}</option>`).join('');
+    addSelect.value = '';
+    
+    addSelect.onchange = (e) => {
+      const target = e.target as HTMLSelectElement;
+      const type = target.value as InstrumentType;
+      target.value = '';
+      if (!type) return;
+
+      const idx = this.engine.addInstrument(type);
+      const fx = this.engine.instruments[idx]?.fx;
+      if (fx) {
+        fx.enabled = fx.distOn = fx.chorusOn = fx.tremoloOn = fx.delayOn = fx.reverbOn = fx.widthOn = fx.bitcrushOn = false;
+      }
+      this.app?._syncRendererFx();
+      this.select(idx);
+      this.app?.markDirty('instrument');
+    };
+
+    addBtn.append(plusSpan, addLabel, addSelect);
+    this.instEl.appendChild(addBtn);
   }
 
   select(i: number) {
