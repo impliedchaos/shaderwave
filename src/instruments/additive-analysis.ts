@@ -1,16 +1,20 @@
 // Additive resynthesis — offline spectral analysis (Phase 2 for the Spectra engine).
 //
-// Turns a PCM sample into a HARMONIC AMPLITUDE PROFILE amp[1..K]: the relative
-// strength of each harmonic of the sample's detected fundamental. The Spectra shader
-// then plays that profile back as a sustained additive tone (freq_n = playedNote·n),
-// and the Morph knob crossfades between the synthetic formula spectrum and this
-// analyzed one. We deliberately resample onto the HARMONIC grid (rather than tracking
-// arbitrary inharmonic peaks) so both spectra share partial frequencies — that keeps
-// Morph click-free and automatable, and reuses the engine's existing f·t phase path.
+// Turns a PCM sample into a TIME-VARYING HARMONIC PROFILE: the relative strength of
+// each harmonic of the sample's detected fundamental, captured at TWO moments — the
+// onset/attack and the steady sustain — plus a per-harmonic DECAY RATE. The Spectra
+// shader plays this back as freq_n = playedNote·n, crossfading attack→sustain over the
+// onset and applying each harmonic's own decay, so a resynth tone has a bright, complex
+// strike that settles into a simpler body and dies naturally (instead of the static
+// averaged profile the first cut produced). The Morph knob crossfades between the
+// synthetic formula spectrum and this analyzed one.
 //
-// This is the analysis half of resynthesis; "true" time-varying partial tracking
-// (scrubbable phase-vocoder frames) is a possible Phase 3. Pure module — no GLSL — so
-// it runs under plain node for tests.
+// We deliberately resample onto the HARMONIC grid (rather than tracking arbitrary
+// inharmonic peaks) so both spectra share partial frequencies — that keeps Morph
+// click-free and automatable, and reuses the engine's existing f·t phase path.
+//
+// "True" scrubbable phase-vocoder frames (full time-varying inharmonic partial tracks)
+// remain a possible later step. Pure module — no GLSL — so it runs under plain node.
 
 // In-place iterative radix-2 Cooley–Tukey FFT (length must be a power of two).
 function fft(re: Float32Array, im: Float32Array): void {
@@ -60,54 +64,123 @@ function magAt(mag: Float32Array, bin: number): number {
   return mag[i] * (1 - f) + mag[i + 1] * f;
 }
 
+// Decay rates above this (1/s) are clamped — a partial that vanishes faster than
+// τ ≈ 25 ms reads as an instantaneous transient, and unbounded rates from noisy fits
+// would make exp(-t·rate) underflow instantly. Informational only; not shader-shared.
+const DECAY_RATE_CAP = 40;
+
 export interface SpectrumAnalysis {
-  amps: Float32Array;   // length K, harmonic amplitudes (peak-normalized to 1)
+  atk: Float32Array;    // length K — harmonic amplitudes at the onset/attack frame
+  sus: Float32Array;    // length K — harmonic amplitudes in the sustain region
+                        // (atk & sus are jointly peak-normalized so their relative loudness survives)
+  decay: Float32Array;  // length K — per-harmonic decay RATE in 1/s (0 = sustained); shader applies exp(-t·rate)
   f0: number;           // detected fundamental (Hz) — informational; playback is pitch-relative
 }
 
-// Analyze `pcm` into a K-harmonic amplitude profile. Averages a few windows from the
-// sample's sustain region for stability, detects f0 via the Harmonic Product Spectrum,
-// then samples the magnitude at each harmonic. Falls back to a 1/n profile if no clear
-// pitch is found (so a percussive/noisy sample degrades gracefully instead of NaNing).
+// Analyze `pcm` into a time-varying K-harmonic profile (attack spectrum + sustain
+// spectrum + per-harmonic decay). Frames the whole sample, detects f0 via the Harmonic
+// Product Spectrum (parabolically refined) over the steady region, then samples each
+// harmonic across frames. Falls back to a static 1/n profile if no clear pitch is found
+// (so a percussive/noisy sample degrades gracefully instead of NaNing).
 export function analyzeHarmonicSpectrum(
   pcm: Float32Array, sampleRate: number, K = 512, fftSize = 4096,
 ): SpectrumAnalysis {
-  const amps = new Float32Array(K);
-  if (!pcm || pcm.length < 64) { for (let n = 1; n <= K; n++) amps[n - 1] = 1 / n; return { amps, f0: 0 }; }
+  const atk = new Float32Array(K), sus = new Float32Array(K), decay = new Float32Array(K);
+  const fallback = (f0 = 0): SpectrumAnalysis => {
+    for (let n = 1; n <= K; n++) { atk[n - 1] = 1 / n; sus[n - 1] = 1 / n; }
+    return { atk, sus, decay, f0 };
+  };
+  if (!pcm || pcm.length < 64) return fallback();
 
-  // Average magnitude over up to 3 windows across the middle 60% of the sample.
-  const usable = Math.max(0, pcm.length - fftSize);
-  const starts = usable <= 0
-    ? [0]
-    : [0.2, 0.4, 0.6].map((p) => Math.floor(usable * p));
   const half = fftSize >> 1;
-  const mag = new Float32Array(half);
-  for (const st of starts) {
-    const m = magFrame(pcm, st, fftSize);
-    for (let k = 0; k < half; k++) mag[k] += m[k] / starts.length;
-  }
 
-  // f0 via Harmonic Product Spectrum over a musical range (~50–1200 Hz).
+  // --- Frame the whole sample (centres span onset → tail) so decay is observable. ---
+  const hop = fftSize >> 1;
+  const lastStart = Math.max(0, pcm.length - fftSize);
+  const nFrames = Math.min(48, Math.max(1, Math.floor(lastStart / hop) + 1));
+  const starts: number[] = [];
+  if (nFrames === 1) starts.push(0);
+  else for (let f = 0; f < nFrames; f++) starts.push(Math.round((f * lastStart) / (nFrames - 1)));
+  const frameMag = starts.map((st) => magFrame(pcm, st, fftSize));
+  const frameTime = starts.map((st) => (st + fftSize / 2) / sampleRate);   // centre time (s)
+
+  // --- f0 from the steady region (middle..end frames averaged), HPS + parabolic refine. ---
+  const susLo = nFrames === 1 ? 0 : Math.floor(nFrames * 0.4);   // skip the transient when detecting pitch
+  const avg = new Float32Array(half);
+  let avgCount = 0;
+  for (let f = susLo; f < nFrames; f++) { const m = frameMag[f]; for (let k = 0; k < half; k++) avg[k] += m[k]; avgCount++; }
+  if (avgCount > 0) for (let k = 0; k < half; k++) avg[k] /= avgCount;
+
   const loBin = Math.max(2, Math.floor((50 * fftSize) / sampleRate));
   const hiBin = Math.min(half >> 2, Math.ceil((1200 * fftSize) / sampleRate));
   let bestBin = 0, bestVal = 0;
   for (let k = loBin; k <= hiBin; k++) {
-    const hps = mag[k] * mag[2 * k] * mag[3 * k] * mag[Math.min(4 * k, half - 1)];
+    const hps = avg[k] * avg[2 * k] * avg[3 * k] * avg[Math.min(4 * k, half - 1)];
     if (hps > bestVal) { bestVal = hps; bestBin = k; }
   }
-  const f0 = bestBin > 0 ? (bestBin * sampleRate) / fftSize : 0;
-
-  if (f0 <= 0) { for (let n = 1; n <= K; n++) amps[n - 1] = 1 / n; return { amps, f0: 0 }; }
-
-  // Sample the magnitude at each harmonic n·f0; band-limit to Nyquist.
-  let peak = 0;
-  for (let n = 1; n <= K; n++) {
-    const bin = (n * f0 * fftSize) / sampleRate;
-    const a = bin < half - 1 ? magAt(mag, bin) : 0;
-    amps[n - 1] = a;
-    if (a > peak) peak = a;
+  if (bestBin <= 0) return fallback();
+  // Parabolic interpolation of the peak bin → sub-bin f0 (sharper harmonic sampling).
+  let delta = 0;
+  if (bestBin > 0 && bestBin < half - 1) {
+    const a = avg[bestBin - 1], b = avg[bestBin], c = avg[bestBin + 1];
+    const denom = a - 2 * b + c;
+    if (denom !== 0) delta = Math.max(-0.5, Math.min(0.5, (0.5 * (a - c)) / denom));
   }
-  if (peak > 0) for (let n = 0; n < K; n++) amps[n] /= peak;   // peak-normalize → max 1
-  else for (let n = 1; n <= K; n++) amps[n - 1] = 1 / n;
-  return { amps, f0 };
+  const f0 = ((bestBin + delta) * sampleRate) / fftSize;
+  if (!(f0 > 0)) return fallback();
+
+  // --- Sample each harmonic across every frame → Hn[frame][n]. ---
+  const Hn: Float32Array[] = frameMag.map((mag) => {
+    const h = new Float32Array(K);
+    for (let n = 1; n <= K; n++) {
+      const bin = (n * f0 * fftSize) / sampleRate;
+      h[n - 1] = bin < half - 1 ? magAt(mag, bin) : 0;
+    }
+    return h;
+  });
+
+  // --- Attack frame = the frame with the most harmonic energy (the onset peak). ---
+  let attackFrame = 0, attackEnergy = -1;
+  for (let f = 0; f < nFrames; f++) {
+    let e = 0; const h = Hn[f]; for (let n = 0; n < K; n++) e += h[n];
+    if (e > attackEnergy) { attackEnergy = e; attackFrame = f; }
+  }
+  for (let n = 0; n < K; n++) atk[n] = Hn[attackFrame][n];
+
+  // --- Sustain = mean over the latter-half frames (steady body). ---
+  let susN = 0;
+  for (let f = susLo; f < nFrames; f++) { const h = Hn[f]; for (let n = 0; n < K; n++) sus[n] += h[n]; susN++; }
+  if (susN > 0) for (let n = 0; n < K; n++) sus[n] /= susN;
+  else for (let n = 0; n < K; n++) sus[n] = atk[n];
+
+  // --- Joint peak-normalize atk & sus → max 1 (relative attack-vs-body loudness kept). ---
+  let peak = 0;
+  for (let n = 0; n < K; n++) { if (atk[n] > peak) peak = atk[n]; if (sus[n] > peak) peak = sus[n]; }
+  if (peak > 0) for (let n = 0; n < K; n++) { atk[n] /= peak; sus[n] /= peak; }
+  else return fallback(f0);
+
+  // --- Per-harmonic decay rate: slope of ln(amp) vs time from the attack frame on. ---
+  // Linear-regress only frames above 5% of that harmonic's peak (ignore noise-floor tail);
+  // rate = -slope, clamped ≥ 0 (no growth) and ≤ cap. Needs ≥ 2 usable frames.
+  for (let n = 0; n < K; n++) {
+    let hPeak = 0;
+    for (let f = attackFrame; f < nFrames; f++) if (Hn[f][n] > hPeak) hPeak = Hn[f][n];
+    if (hPeak <= 0) continue;
+    const floor = hPeak * 0.05;
+    let sx = 0, sy = 0, sxx = 0, sxy = 0, cnt = 0;
+    const t0 = frameTime[attackFrame];
+    for (let f = attackFrame; f < nFrames; f++) {
+      const a = Hn[f][n];
+      if (a < floor) continue;
+      const x = frameTime[f] - t0, y = Math.log(a);
+      sx += x; sy += y; sxx += x * x; sxy += x * y; cnt++;
+    }
+    if (cnt < 2) continue;
+    const denom = cnt * sxx - sx * sx;
+    if (denom === 0) continue;
+    const slope = (cnt * sxy - sx * sy) / denom;
+    decay[n] = Math.max(0, Math.min(DECAY_RATE_CAP, -slope));
+  }
+
+  return { atk, sus, decay, f0 };
 }

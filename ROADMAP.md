@@ -53,23 +53,26 @@ MEMORY.md for the full notes.
   exotic furniture goes in.
 - **Deliverable:** design and save your own patches in-app.
 
-## Phase 2 — Spectra resynthesis *(the research bet)*
+## Phase 2 — Spectra resynthesis *(mostly shipped)*
 
 Make the GPU premise pay off the way only a GPU can: sample-driven additive resynthesis.
 
-- **Not starting from zero** — `src/instruments/additive-analysis.ts` already exists, and
-  MEMORY.md calls the Spectra spectrum "resynthesis-ready." (Read that file first to see
-  how much of the analysis half is already done before scoping.)
-- **Work:** analyze a sample (peak / partial tracking → per-partial freq / amp / decay) →
-  pack into a texture → drive `synth-additive.glsl` from the *table* instead of the
-  formula → expose morph / freeze.
-- **Depends on:** Phase 0 (partial budget); benefits from Phase 1 (the editor hosts
-  "load sample → resynthesize → morph").
-- **Highest risk** (partial tracking is genuinely hard). **Justified by *sound*, not speed**
-  — Phase 0 showed the engine isn't GPU-bound even at 2048 partials, so resynthesis earns its
-  place as a *musical* capability (sample-driven additive), not a performance win. Don't sell
-  it as "the thing a CPU can't do" — that's only true if the partial/voice counts are pushed
-  far higher (see the branch point below).
+- **First cut — ✅ DONE (shipped in the Spectra commit `f5f4bc5`).** Load a sample → its
+  harmonic profile is analyzed (`additive-analysis.ts`, HPS f0 → per-harmonic amps) → packed
+  into a spectral atlas (`SynthRenderer.syncAdditiveSpectra`) → `synth-additive.glsl` reads the
+  *table* and the **Morph** knob crossfades formula↔analyzed (click-free, automatable). UI is
+  the "Load Sample…" button in the instrument editor; two resynth presets ship (Kalimba, Vox).
+- **Time-varying analysis — ✅ DONE (2.12.0).** The analysis now extracts an **attack**
+  spectrum, a **sustain** spectrum, and a **per-harmonic decay rate** (not one averaged
+  frame). The shader crossfades attack→sustain over the onset and applies each harmonic's own
+  decay, so resynth tones strike bright and die naturally instead of sounding frozen.
+- **Still open (optional later passes):** spectral **Freeze** (hold/sustain a captured moment
+  indefinitely) — the one originally-named Phase 2 item not yet built; and "true" scrubbable
+  phase-vocoder partial *tracks* (full time-varying inharmonic tracking) if the harmonic-grid
+  approach ever proves limiting.
+- **Justified by *sound*, not speed** — Phase 0 showed the engine isn't GPU-bound even at 2048
+  partials, so resynthesis earns its place as a *musical* capability, not a performance win.
+  The GPU-showcase angle (push partials/voices far past 2048) stays a separate branch below.
 
 ## Phase 3 — Reach *(packaging, deliberately last)*
 
@@ -142,7 +145,10 @@ beat at the end of each phase. This is how the project deepens instead of wideni
 
 ## Suggested next task
 
-**Phase 2 — Spectra resynthesis.** Phases 0, 1, and the Phase 3 save/share trio have
-shipped; resynthesis is the remaining headline feature (and the natural home for a GPU
-showcase — push partials/voices past 2048 to find the genuine GPU-bound crossover). The
-small Phase 3 tail (embeddable read-only player, guided first-run) can slot in anytime.
+Phases 0, 1, the Phase 3 save/share trio, **and Phase 2 resynthesis** (incl. the 2.12.0
+time-varying analysis) have all shipped. The remaining headline options are flexible:
+- **Spectral Freeze** for Spectra — the last named-but-unbuilt Phase 2 item; small, musical.
+- **GPU showcase** — push Spectra's partials/voices far past 2048 to find the genuine
+  GPU-bound crossover (Phase 0 measured ~4–5× idle headroom; the current cap is too low to
+  make the "GPU audio" case).
+- **Phase 3 tail** — embeddable read-only player + guided first-run; slots in anytime.

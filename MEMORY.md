@@ -86,6 +86,44 @@ An attempt to implement a WebGL 16-band Vocoder effect was completely abandoned 
 
 ## Current work
 
+### Spectra resynthesis — time-varying analysis (2.12.0, 2026-06-20) — ✅ DONE — `project`
+Phase 2 "deepen analysis" pass. The FIRST cut of resynthesis (analyze → atlas → Morph)
+had already shipped inside the big Spectra commit (`f5f4bc5`) — the ROADMAP just wasn't
+updated, so it still listed Phase 2 as the next task. This pass upgrades the *analysis*
+from a single averaged harmonic profile to a **time-varying** one.
+- **`additive-analysis.ts` rewritten.** `analyzeHarmonicSpectrum` now frames the WHOLE
+  sample (hop = fftSize/2, ≤48 frames) and returns `{ atk, sus, decay, f0 }`:
+  **atk** = harmonic amps at the onset/attack frame (argmax broadband energy), **sus** =
+  mean amps over the latter-half (steady) frames, **decay** = per-harmonic decay RATE in
+  1/s from a log-amplitude linear regression (attack frame → end, frames above 5% of that
+  harmonic's peak; clamped 0..40). atk & sus are JOINTLY peak-normalized so attack-vs-body
+  loudness survives. f0 via HPS + **parabolic sub-bin refine**. Fallback to a static 1/n
+  profile when no pitch is found. Verified under node: synthetic 220 Hz tone with per-
+  harmonic decay τ=1.5/h recovers decay rates EXACTLY (h/1.5) and atk is brighter than sus.
+- **Atlas is now 3 rows per slot** (`ADD_SPECTRA_ROWS=3`, shared const in BOTH
+  `synth-renderer.ts` and `synth-additive.glsl` — keep in sync, like ADD_TILE/ADD_MAXN).
+  Texture height = `ADD_SPECTRA_SLOTS*ADD_SPECTRA_ROWS` (48). A slot's base row = slot*3
+  (row 0 atk, 1 sus, 2 decay). `syncAdditiveSpectra` packs `[atk|sus|decay]` into one
+  `Float32Array(K*3)` (cached by PCM ref) and uploads it as a K×3 sub-image at y=slot*3.
+  `_addSlotByInstIdx[i]` still stores the SLOT (not the row); the shader multiplies.
+- **Shader (`synth-additive.glsl`):** in the resynth branch each partial reads aAtk/aSus/
+  aRate, computes `aAmp = mix(aAtk, aSus, clamp(t/ADD_ATK_BLEND,0,1)) * exp(-t*aRate)`
+  (`ADD_ATK_BLEND=0.08s`), then the EXISTING `amp = mix(amp, aAmp, morph)`. So the analyzed
+  contribution carries its own attack→sustain morph + per-partial decay; the global aenv
+  (Attack/Release knobs) and formula per-partial Decay still apply on top.
+- **Bit-identical invariant preserved THE EASY WAY:** the resynth branch is gated on
+  `morph>0` (`resynth = uAddSlot>-0.5 && morph>0`), so morph=0 / no-sample skips it entirely
+  → identical to the formula engine. No reordering of the formula path's float math.
+- **Re-tuned Kalimba (resynth) preset:** zeroed its formula Decay (was 1.8 — would now
+  STACK on the extracted decay) and pushed Morph 0.85→1.0 so the sample's own per-partial
+  decay rings out cleanly. Vox Pad (sustained) left as-is. NOTE: the two resynth presets
+  now sound different/better — accepted (the point of the pass), like the pipi/guitar
+  overhauls. Non-resynth songs/patches are byte-for-byte unaffected.
+- Verified: build clean, `glsl-check`/`additive-check` ALL_OK (resynth renders finite +
+  audibly changes tone, NaN=0). NOT yet user-auditioned in-browser. **Still open for a
+  later Phase 2 pass if wanted:** spectral *Freeze* (the other named-but-unshipped ROADMAP
+  item), and the GPU-showcase partial push past 2048.
+
 ### Mod-matrix self-targeting + global→per-inst source modulation (2.11.0, 2026-06-20) — ✅ DONE — `project`
 Per-instrument mod SOURCES (LFO 1/2 + Env) are now modulation TARGETS, reachable from
 BOTH the per-instrument matrix (sources targeting each other) AND the global LFO matrix.

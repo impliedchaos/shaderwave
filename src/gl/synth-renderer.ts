@@ -26,9 +26,12 @@ import ADDITIVE_REDUCE_FS from './shaders/additive-reduce.glsl?raw';
 const ADD_TILE = 32;
 const ADD_MAXN = 2048;
 const ADD_TILES = ADD_MAXN / ADD_TILE;     // 64 → 6 log-reduce passes
-// Resynthesis (Phase 2): analyzed harmonic profiles live in a spectral atlas, one row
-// per Spectra instance. ADD_SPECTRA_K MUST match the shader; bound to texture unit 5.
+// Resynthesis (Phase 2): analyzed harmonic profiles live in a spectral atlas. Each
+// Spectra instance owns ADD_SPECTRA_ROWS consecutive rows (attack amps / sustain amps /
+// per-harmonic decay rate), so its base row is slot·ADD_SPECTRA_ROWS. ADD_SPECTRA_K and
+// ADD_SPECTRA_ROWS MUST match the shader; bound to texture unit 5.
 const ADD_SPECTRA_K = 512;
+const ADD_SPECTRA_ROWS = 3;     // per slot: row 0 = attack, 1 = sustain, 2 = decay rate
 const ADD_SPECTRA_SLOTS = 16;
 const ADD_SPECTRA_UNIT = 5;
 
@@ -96,7 +99,7 @@ export class SynthRenderer {
   samplerTex: WebGLTexture;     // shared sampler PCM atlas (bound to unit 4)
   addSpectraTex: WebGLTexture;  // Spectra resynthesis: analyzed harmonic profiles (unit 5), 1 row per instance
   _addSlotByInstIdx: Int32Array;// instrument-instance index → spectral atlas row (-1 = no analyzed sample)
-  _addAnalysisCache: WeakMap<Float32Array, Float32Array>;  // PCM → harmonic amps (analyze once per sample)
+  _addAnalysisCache: WeakMap<Float32Array, Float32Array>;  // PCM → packed atk|sus|decay rows (analyze once per sample)
   _addSlotScratch: Float32Array;// per-voice spectral row, uploaded as uAddSlot each additive block
   _smpSlotByInstIdx: Int32Array;
   _smpBaseRow: Float32Array;
@@ -193,12 +196,13 @@ export class SynthRenderer {
     this._addAnalysisCache = new WeakMap();
     this._addSlotScratch = new Float32Array(VOICES);
 
-    // Spectra resynthesis atlas: R32F, ADD_SPECTRA_K harmonics wide × ADD_SPECTRA_SLOTS
-    // rows (one analyzed instance per row). Bound permanently to unit 5.
+    // Spectra resynthesis atlas: R32F, ADD_SPECTRA_K harmonics wide × (ADD_SPECTRA_SLOTS·
+    // ADD_SPECTRA_ROWS) rows — each instance owns 3 consecutive rows (attack / sustain /
+    // decay rate). Bound permanently to unit 5.
     this.addSpectraTex = gl.createTexture()!;
     gl.activeTexture(gl.TEXTURE0 + ADD_SPECTRA_UNIT);
     gl.bindTexture(gl.TEXTURE_2D, this.addSpectraTex);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.R32F, ADD_SPECTRA_K, ADD_SPECTRA_SLOTS, 0, gl.RED, gl.FLOAT, null);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.R32F, ADD_SPECTRA_K, ADD_SPECTRA_SLOTS * ADD_SPECTRA_ROWS, 0, gl.RED, gl.FLOAT, null);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
@@ -340,12 +344,18 @@ export class SynthRenderer {
       if (!inst || inst.type !== 'additive' || !inst.sample || inst.sample.pcm.length === 0) continue;
       if (slot >= ADD_SPECTRA_SLOTS) break;
       const pcm = inst.sample.pcm as Float32Array;
-      let amps = this._addAnalysisCache.get(pcm);
-      if (!amps) {
-        amps = analyzeHarmonicSpectrum(pcm, this.sampleRate, ADD_SPECTRA_K).amps;
-        this._addAnalysisCache.set(pcm, amps);
+      let packed = this._addAnalysisCache.get(pcm);
+      if (!packed) {
+        // Pack attack / sustain / decay into ADD_SPECTRA_ROWS consecutive K-wide rows
+        // (row-major, the layout texSubImage2D fills) — one analyze per unique sample.
+        const a = analyzeHarmonicSpectrum(pcm, this.sampleRate, ADD_SPECTRA_K);
+        packed = new Float32Array(ADD_SPECTRA_K * ADD_SPECTRA_ROWS);
+        packed.set(a.atk, 0);
+        packed.set(a.sus, ADD_SPECTRA_K);
+        packed.set(a.decay, ADD_SPECTRA_K * 2);
+        this._addAnalysisCache.set(pcm, packed);
       }
-      gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, slot, ADD_SPECTRA_K, 1, gl.RED, gl.FLOAT, amps);
+      gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, slot * ADD_SPECTRA_ROWS, ADD_SPECTRA_K, ADD_SPECTRA_ROWS, gl.RED, gl.FLOAT, packed);
       this._addSlotByInstIdx[i] = slot;
       slot++;
     }

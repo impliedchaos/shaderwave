@@ -14,7 +14,7 @@ export const iadditive: InstrumentDef = {
   name: 'Spectra',
   short: 'SPC',
   label: 'Spectra — Massive Additive (GPU)',
-  blurb: 'A GPU-parallel additive synth: up to 2048 partials per voice summed across the chip (one tile of partials per fragment, then a log-reduce). A stretched harmonic series shaped by Partials, Tilt (dark↔bright), Stretch (inharmonicity → bell/metallic), a pluck Comb, Odd/Even, per-partial Decay/DecayTilt and a Detune spread. RESYNTHESIS: give an instance a sample and the Morph knob crossfades the synthetic spectrum into the sample\'s analyzed harmonic profile (click-free, automatable/LFO-able — the marquee spectral movement). Organ, bell, choir, metallic and "what does a kalimba pad sound like" tones.',
+  blurb: 'A GPU-parallel additive synth: up to 2048 partials per voice summed across the chip (one tile of partials per fragment, then a log-reduce). A stretched harmonic series shaped by Partials, Tilt (dark↔bright), Stretch (inharmonicity → bell/metallic), a pluck Comb, Odd/Even, per-partial Decay/DecayTilt and a Detune spread. RESYNTHESIS: give an instance a sample and the Morph knob crossfades the synthetic spectrum into the sample\'s analyzed profile — a bright attack spectrum that settles into the sustain body, with each harmonic decaying at its own sampled rate (click-free, automatable/LFO-able — the marquee spectral movement). Organ, bell, choir, metallic and "what does a kalimba pad sound like" tones.',
   shader,
   additive: true,
   stereo: true,   // emits independent L/R (partials fanned by p4.x); spread=0 → mono, bit-identical
@@ -87,7 +87,7 @@ export const iadditive: InstrumentDef = {
     { name: 'Cello',          p0: [1536, 0.55, 0.0,  0.0], p1: [0,  0.5, 0.15, 0.0], p2: [0.18, 0.6, 0.0, 0.05], p3: [0.2,  0.25, 1.4, 1.2], p4: [0.4, 0, 0, 0] },
     { name: 'Double Bass',    p0: [2048, 0.6,  0.0,  0.0], p1: [0,  0.5, 0.2,  0.0], p2: [0.25, 0.8, 0.0, 0.02], p3: [0.15, 0.1,  1.8, 1.5], p4: [0.5, 0, 0, 0] },
     // — resynthesis: load a sample, Morph crossfades the synth spectrum into its analyzed profile —
-    { name: 'Kalimba (resynth)', p0: [768, 0.55, 0.0, 0.85], p1: [1.8, 0.6, 0.12, 0.0], p2: [0.004, 0.9, 0.0, 0.85], p3: [0.0, 0.0, 0.0, 0.5],
+    { name: 'Kalimba (resynth)', p0: [768, 0.55, 0.0, 1.0], p1: [0, 0.6, 0.12, 0.0], p2: [0.004, 0.9, 0.0, 0.85], p3: [0.0, 0.0, 0.0, 0.5],
       sample: { name: 'Kalimba', url: '/samples/kalimba.ogg', rootNote: 60, loopStart: 0, loopEnd: 0, loopMode: 0 } },
     { name: 'Vox Pad (resynth)', p0: [1024, 0.5, 0.0, 0.9], p1: [0, 0.5, 0.35, 0.0], p2: [0.3, 1.1, 0.0, 0.2], p3: [0.4, 0.4, 0.5, 0.8], p4: [0.65, 0, 0, 0],
       sample: { name: 'Vox', url: '/samples/dvs-oh-1.ogg', rootNote: 60, loopStart: 0, loopEnd: 0, loopMode: 0 } },

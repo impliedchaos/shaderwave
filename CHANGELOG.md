@@ -7,6 +7,18 @@ and the project follows [Semantic Versioning](https://semver.org/). The version
 in `package.json` is the source of truth; see **AGENTS.md → Git** for the bump +
 changelog rules. Dates are the commit date of that version.
 
+## [2.12.0] — 2026-06-20
+### Changed
+- **Spectra resynthesis is now time-varying** (Phase 2 "deepen analysis"). Loading a
+  sample no longer captures a single averaged spectrum — the analysis extracts an
+  **attack** spectrum, a **sustain** spectrum, and a **per-harmonic decay rate**. A
+  resynth voice now opens with a bright, complex strike that settles into the body, and
+  each harmonic dies at the rate measured from the sample (highs typically decaying
+  faster) — so plucked/struck resynth (e.g. the Kalimba preset) rings out naturally
+  instead of sounding frozen. Pitch detection gained sub-bin (parabolic) refinement.
+- Morph at 0 (or no sample) is unchanged — bit-identical to the formula spectrum.
+- Re-tuned the **Kalimba (resynth)** preset to let the sample's own decay drive the tone.
+
 ## [2.11.0] — 2026-06-20
 ### Added
 - **Mod-matrix self-targeting + global → per-instrument source modulation.** A

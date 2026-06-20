@@ -27,16 +27,21 @@
 // Coherence / Shimmer / Formant / Stereo default to 0 → bit-identical to the legacy mono formula sound.
 //
 // RESYNTHESIS (Phase 2): if this voice's instance has an analyzed sample, uSpectra holds
-// its harmonic amplitude profile (row uAddSlot[v], harmonic n at texel n-1) and Morph
-// crossfades the formula amplitude into it. Frequencies stay on the harmonic grid for
-// both, so Morph is click-free and automatable.
+// a TIME-VARYING harmonic profile in 3 rows from slot*ADD_SPECTRA_ROWS — attack amps,
+// sustain amps, and a per-harmonic decay rate (harmonic n at texel n-1). Each partial's
+// analyzed amplitude morphs attack→sustain over the onset then decays at its own rate, so
+// the strike is bright/complex and settles into the body. Morph crossfades the formula
+// amplitude into this. Frequencies stay on the harmonic grid for both, so Morph is
+// click-free and automatable; morph==0 skips the whole branch → bit-identical to formula.
 
 const int TILE_SZ  = 32;       // partials summed per fragment (must match ADD_TILE in synth-renderer.ts)
 const int ADD_MAXN = 2048;     // hard cap (must match ADD_MAXN in synth-renderer.ts)
-const int ADD_SPECTRA_K = 512; // analyzed harmonics stored per slot (must match ADD_SPECTRA_K in synth-renderer.ts)
+const int ADD_SPECTRA_K    = 512;  // analyzed harmonics stored per slot (must match synth-renderer.ts)
+const int ADD_SPECTRA_ROWS = 3;    // rows per slot: 0 = attack amps, 1 = sustain amps, 2 = decay rate (1/s)
+const float ADD_ATK_BLEND  = 0.08; // seconds over which the analyzed attack spectrum morphs into the sustain one
 
-uniform sampler2D uSpectra;    // analyzed harmonic profiles: row = slot, texel x = harmonic n-1
-uniform float uAddSlot[VOICES];// this voice's spectral slot row, or <0 if none
+uniform sampler2D uSpectra;    // analyzed profiles: each slot owns ADD_SPECTRA_ROWS rows from slot*ROWS; texel x = harmonic n-1
+uniform float uAddSlot[VOICES];// this voice's spectral slot, or <0 if none
 
 void main(){
   int x   = int(gl_FragCoord.x);          // sample within the block
@@ -99,9 +104,16 @@ void main(){
     float amp = pow(1.0 / float(n), tiltExp);                       // spectral tilt
     amp *= (n % 2 == 0) ? mix(1.0, 0.35, oddeven) : mix(0.6, 1.0, oddeven);   // odd/even balance
     amp *= mix(1.0, abs(sin(float(n) * PI * 0.125)), comb);         // pluck-position comb notch
-    if (resynth) {                                                  // crossfade into the analyzed harmonic profile
-      float aAmp = (n <= ADD_SPECTRA_K) ? texelFetch(uSpectra, ivec2(n - 1, slot), 0).r : 0.0;
+    if (resynth && n <= ADD_SPECTRA_K) {                            // crossfade into the analyzed, TIME-VARYING profile
+      int base    = slot * ADD_SPECTRA_ROWS;
+      float aAtk  = texelFetch(uSpectra, ivec2(n - 1, base),     0).r;   // amps at the onset/attack frame
+      float aSus  = texelFetch(uSpectra, ivec2(n - 1, base + 1), 0).r;   // amps in the sustain body
+      float aRate = texelFetch(uSpectra, ivec2(n - 1, base + 2), 0).r;   // this harmonic's own decay rate (1/s)
+      float ap    = clamp(t / ADD_ATK_BLEND, 0.0, 1.0);                  // bright strike → settled body
+      float aAmp  = mix(aAtk, aSus, ap) * exp(-t * aRate);              // sample-extracted per-partial decay
       amp = mix(amp, aAmp, morph);
+    } else if (resynth) {
+      amp = mix(amp, 0.0, morph);                                  // beyond the analyzed band: fade to silence
     }
     if (fmtAmt > 0.0) {                                             // movable formant resonance (vowel / body)
       float lf = log2(fn / mix(150.0, 5000.0, fmtPos)) / max(fmtW, 0.05);
