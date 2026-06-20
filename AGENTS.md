@@ -7,8 +7,7 @@ modules bundled by Vite.
 
 For the deep architecture, instrument/effect descriptions, and the file-by-file
 layout, read **`README.md`** (kept current); **`MEMORY.md`** holds the why/gotchas
-behind recent work. (`design.md` is just the original one-paragraph project sketch —
-not a current reference.) This file is the
+behind recent work. This file is the
 quick operational guide + the non-obvious gotchas. **To create songs** (demo tracks
 or loadable files) read **`COMPOSING.md`** — a self-contained authoring guide (the
 `SongDef`/`Pattern` API, per-engine param banks, automation/LFO codes, gotchas) so
