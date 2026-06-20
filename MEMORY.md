@@ -120,7 +120,8 @@ from a single averaged harmonic profile to a **time-varying** one.
   now sound different/better — accepted (the point of the pass), like the pipi/guitar
   overhauls. Non-resynth songs/patches are byte-for-byte unaffected.
 - Verified: build clean, `glsl-check`/`additive-check` ALL_OK (resynth renders finite +
-  audibly changes tone, NaN=0). NOT yet user-auditioned in-browser. **Still open for a
+  audibly changes tone, NaN=0). **User-auditioned in-browser 2026-06-20 — sounds good,
+  accepted.** **Still open for a
   later Phase 2 pass if wanted:** spectral *Freeze* (the other named-but-unshipped ROADMAP
   item), and the GPU-showcase partial push past 2048.
 
@@ -153,7 +154,8 @@ Targetable knobs: **LFO Rate, WtPos, Amount** and **Env A/D/S/R, Amount**. New
   dropdown, hiding a row's OWN slot (re-filtered on source change). `lfo-panel.ts` adds
   `i:SHORT · LFO 1 Rate`-style entries per instance to the global matrix.
 - Verified: build clean, 66/66 logic tests (4 new: env→amount fade-in, LFO→LFO rate, global→
-  per-inst rate, bit-identical guard). No GLSL touched. NOT yet user-auditioned in-browser.
+  per-inst rate, bit-identical guard). No GLSL touched. **User-auditioned in-browser
+  2026-06-20 — sounds good, accepted.**
 
 ### Box-selection interpolation / LERP (2.10.0, 2026-06-19) — ✅ DONE — `project`
 Box-select in the tracker → ramp values linearly first→last. Trigger: **Ctrl/Cmd+L** AND a

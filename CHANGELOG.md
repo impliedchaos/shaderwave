@@ -7,6 +7,14 @@ and the project follows [Semantic Versioning](https://semver.org/). The version
 in `package.json` is the source of truth; see **AGENTS.md → Git** for the bump +
 changelog rules. Dates are the commit date of that version.
 
+## [2.12.1] — 2026-06-20
+### Changed
+- **Retuned the Spectra bowed-string presets** (Violin, Cello, Double Bass) so they read
+  as focused bowed strings instead of a diffuse synth-strings wash: raised coherence out
+  of the near-zero random-phase range, balanced the odd/even mix (was even-heavy, which
+  put the octave above the fundamental and smeared the pitch), and added detune, a touch
+  of natural inharmonicity, and tasteful per-instrument body formants.
+
 ## [2.12.0] — 2026-06-20
 ### Changed
 - **Spectra resynthesis is now time-varying** (Phase 2 "deepen analysis"). Loading a
