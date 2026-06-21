@@ -596,7 +596,12 @@ export class SynthRenderer {
       const params = this.instFxParams[k];
       if (params) fx.params = params;
       if (this.instFxOrder[k]) fx.order = this.instFxOrder[k];   // per-instance chain order
-      fx.process(this.chanDryTex, this.mixFbo, blockStart, vd.master, this.instDryTex, k);
+      // Representative played note for diatonic pitch-shifter harmony: the LOWEST
+      // active voice of this instance reads as the chord root (-1 if silent).
+      let noteFreq = -1;
+      for (let v = 0; v < VOICES; v++)
+        if (vd.active[v] && vd.instId[v] === k && (noteFreq < 0 || vd.freq[v] < noteFreq)) noteFreq = vd.freq[v];
+      fx.process(this.chanDryTex, this.mixFbo, blockStart, vd.master, this.instDryTex, k, noteFreq);
     }
   }
 

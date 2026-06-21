@@ -73,6 +73,7 @@ export interface FxCtx {
   delaySamples: number;               // clamped delay length in samples
   instDryTex?: WebGLTexture | null;   // all instances' mixed dry signals
   instIdx?: number;                   // current instrument instance index
+  noteFreq?: number;                  // representative played note (Hz) for this instance's voices, -1 if none (pitch shifter diatonic harmony)
   bind(unit: number, tex: WebGLTexture): void;
   stereoPass(prog: GLProgram, inTex: WebGLTexture, outFbo: WebGLFramebuffer | null): GLProgram;
   // Per-sample recursive strip pass (filter etc.). `prog` must already be in use
@@ -244,34 +245,88 @@ const fxDelay: FxEffectDef = {
   },
 };
 
-// Time-domain (granular delay-line) pitch shifter / octave pedal / harmonizer. The
-// history ring is written every block (kept warm so toggling never pops); the tap
-// reads it back at the shifted rate with two crossfaded grains. TWO independent
-// voices read the same ring — voice 1 (pitchShift) + an optional harmony voice
-// (pitchVoice2 at pitchV2Level) — so dry + two pitched voices = a stacked harmony.
-// Each voice's read phase is a scalar accumulated on the CPU across blocks (no GPU
-// state texture / no extra pass) → phase-continuous and precision-stable over long
-// playback. V2 level 0 → harmony skipped → bit-identical single-voice shifter.
+// Diatonic scales as semitone offsets from the key root within one octave (index 0 =
+// "Off" = chromatic: interval values are read as raw semitones, no snapping). When a
+// scale is selected the harmonizer reads each voice's interval as SCALE STEPS relative
+// to the played note: the note is snapped to its nearest scale degree, the step count
+// added, and the result mapped back to semitones — so "+2" is always a diatonic third
+// in the chosen key, "+4" a fifth, etc., regardless of which degree you play.
+export const PITCH_SCALES: { name: string; deg: number[] }[] = [
+  { name: 'Off',     deg: [] },
+  { name: 'Major',   deg: [0, 2, 4, 5, 7, 9, 11] },
+  { name: 'Minor',   deg: [0, 2, 3, 5, 7, 8, 10] },
+  { name: 'HarmMin', deg: [0, 2, 3, 5, 7, 8, 11] },
+  { name: 'Dorian',  deg: [0, 2, 3, 5, 7, 9, 10] },
+  { name: 'Phrygian',deg: [0, 1, 3, 5, 7, 8, 10] },
+  { name: 'Lydian',  deg: [0, 2, 4, 6, 7, 9, 11] },
+  { name: 'Mixolyd', deg: [0, 2, 4, 5, 7, 9, 10] },
+  { name: 'Locrian', deg: [0, 1, 3, 5, 6, 8, 10] },
+];
+
+// Semitone shift to apply to a played note so it lands `steps` scale-degrees away in
+// the given key. The note is snapped to its nearest in-key degree first; the answer is
+// octave-independent (uses only the note's pitch class relative to the key root).
+function diatonicSemitones(noteMidi: number, keyPc: number, deg: number[], steps: number): number {
+  const n = deg.length;
+  if (n === 0) return steps;                                  // chromatic
+  const pc = (((Math.round(noteMidi) - keyPc) % 12) + 12) % 12;
+  let best = 0, bd = 99;                                       // nearest scale degree to the played note
+  for (let i = 0; i < n; i++) { const d = Math.abs(deg[i] - pc); if (d < bd) { bd = d; best = i; } }
+  const d2 = best + Math.round(steps);
+  const oct = Math.floor(d2 / n);
+  const within = ((d2 % n) + n) % n;
+  return deg[within] + 12 * oct - pc;                          // shift relative to the actual played note
+}
+
+// Time-domain (granular delay-line) pitch shifter / octave pedal / scale-aware
+// harmonizer. The history ring is written every block (kept warm so toggling never
+// pops); the tap reads it back at the shifted rate with two crossfaded grains. FOUR
+// independent voices read the same ring — voice 1 (pitchShift) + up to three harmony
+// voices (pitchVoiceN at pitchVNLevel) — so dry + four pitched voices = a stacked
+// chord. With a Scale selected, each interval snaps diatonically to the played note
+// (fed via ctx.noteFreq — the tracker knows the note, so no pitch detection). pitchSpread
+// fans the harmony voices across the stereo field. Each voice's read phase is a scalar
+// accumulated on the CPU across blocks (no GPU state texture / no extra pass) →
+// phase-continuous and precision-stable. All harmony levels 0 + spread 0 + Scale Off →
+// bit-identical to the original single-voice shifter.
 const fxPitch: FxEffectDef = {
   key: 'pitch', name: 'Pitch Shifter', enableFlag: 'pitchOn',
-  defaults: { pitchOn: false, pitchShift: -12, pitchMix: 0.5, pitchVoice2: 7, pitchV2Level: 0 },
+  defaults: {
+    pitchOn: false, pitchShift: -12, pitchMix: 0.5,
+    pitchVoice2: 7, pitchV2Level: 0, pitchVoice3: 4, pitchV3Level: 0, pitchVoice4: 12, pitchV4Level: 0,
+    pitchKey: 0, pitchScale: 0, pitchSpread: 0,
+  },
   init(gl) {
     const up = createProgram(gl, FX_PITCH_UPDATE);
     const tap = createProgram(gl, FX_PITCH_TAP);
     gl.useProgram(up); gl.uniform1i(up.u('uIn'), 0); gl.uniform1i(up.u('uPrev'), 1);
     gl.useProgram(tap); gl.uniform1i(tap.u('uIn'), 0); gl.uniform1i(tap.u('uRing'), 1);
     let read = makeTex(gl, PITCH_W, PITCH_H), write = makeTex(gl, PITCH_W, PITCH_H);
-    let phase = 0, phase2 = 0;   // per-voice read phase in [0,1), accumulated across blocks
+    const phase = [0, 0, 0, 0];   // per-voice read phase in [0,1), accumulated across blocks
     const wrap01 = (x: number) => x - Math.floor(x);
+    // Voice 1 stays centred (it carries the lead with the dry); harmonies fan outward.
+    const PAN = [0, -1, 1, -0.5];
     return {
-      reset(clear) { clear(read); clear(write); phase = 0; phase2 = 0; },
+      reset(clear) { clear(read); clear(write); phase[0] = phase[1] = phase[2] = phase[3] = 0; },
       process(ctx, inTex, outFbo) {
         const g = ctx.gl, p = ctx.params, on = ctx.on('pitchOn');
         const wpos = (((ctx.blockStart % PITCH_LEN) + PITCH_LEN) % PITCH_LEN);
         const grain = Math.max(64, Math.round(PITCH_GRAIN_S * ctx.sampleRate));
-        const r = Math.pow(2, ((p.pitchShift as number) ?? -12) / 12);
-        const r2 = Math.pow(2, ((p.pitchVoice2 as number) ?? 7) / 12);
-        const rate = (1 - r) / grain, rate2 = (1 - r2) / grain;   // per-output-sample phase increments
+        const noteFreq = ctx.noteFreq ?? -1;
+        const noteMidi = noteFreq > 0 ? 69 + 12 * Math.log2(noteFreq / 440) : -1;
+        const deg = (PITCH_SCALES[(p.pitchScale as number) | 0] ?? PITCH_SCALES[0]).deg;
+        const keyPc = (((p.pitchKey as number) | 0) % 12 + 12) % 12;
+        // Resolve each voice's interval → semitone shift (diatonic when a scale is set
+        // and a note is playing; raw semitones otherwise) → per-sample phase increment.
+        const intervals = [
+          (p.pitchShift as number) ?? -12, (p.pitchVoice2 as number) ?? 7,
+          (p.pitchVoice3 as number) ?? 4, (p.pitchVoice4 as number) ?? 12,
+        ];
+        const rate = intervals.map((iv) => {
+          const st = (deg.length && noteMidi > 0) ? diatonicSemitones(noteMidi, keyPc, deg, iv) : iv;
+          return (1 - Math.pow(2, st / 12)) / grain;
+        });
+        const spread = on ? ((p.pitchSpread as number) ?? 0) : 0;
         // 1. Update the history ring with the incoming signal (always, to stay warm).
         g.useProgram(up);
         g.bindFramebuffer(g.FRAMEBUFFER, ctx.ringFbo);
@@ -282,23 +337,25 @@ const fxPitch: FxEffectDef = {
         g.uniform1i(up.u('uWpos'), wpos); g.uniform1i(up.u('uBlock'), BLOCK);
         g.viewport(0, 0, PITCH_W, PITCH_H); drawQuad(g);
         [read, write] = [write, read];
-        // 2. Tap both voices' crossfaded grains at their shifted rates + mix with dry.
+        // 2. Tap every voice's crossfaded grains at their shifted rates + mix with dry.
         g.useProgram(tap);
         g.bindFramebuffer(g.FRAMEBUFFER, outFbo);
         g.drawBuffers([g.COLOR_ATTACHMENT0]);
         ctx.bind(0, inTex); ctx.bind(1, read);
         g.uniform1i(tap.u('uW'), PITCH_W); g.uniform1i(tap.u('uLen'), PITCH_LEN); g.uniform1i(tap.u('uWpos'), wpos);
         g.uniform1f(tap.u('uGrain'), grain);
-        g.uniform1f(tap.u('uPhase0'), phase);
-        g.uniform1f(tap.u('uRate'), rate);
-        g.uniform1f(tap.u('uPhase02'), phase2);
-        g.uniform1f(tap.u('uRate2'), rate2);
-        g.uniform1f(tap.u('uV2Level'), on ? ((p.pitchV2Level as number) ?? 0) : 0.0);
+        g.uniform4f(tap.u('uPhase'), phase[0], phase[1], phase[2], phase[3]);
+        g.uniform4f(tap.u('uRate'), rate[0], rate[1], rate[2], rate[3]);
+        g.uniform4f(tap.u('uPan'), PAN[0] * spread, PAN[1] * spread, PAN[2] * spread, PAN[3] * spread);
+        g.uniform4f(tap.u('uLevel'),
+          1.0,                                                       // voice 1 always full (dry/wet via uMix)
+          on ? ((p.pitchV2Level as number) ?? 0) : 0.0,
+          on ? ((p.pitchV3Level as number) ?? 0) : 0.0,
+          on ? ((p.pitchV4Level as number) ?? 0) : 0.0);
         g.uniform1f(tap.u('uMix'), on ? ((p.pitchMix as number) ?? 0.5) : 0.0);
         g.viewport(0, 0, BLOCK, 1); drawQuad(g);
         // Advance each voice's phase by what this block consumed (continuous next block).
-        phase = wrap01(phase + rate * BLOCK);
-        phase2 = wrap01(phase2 + rate2 * BLOCK);
+        for (let i = 0; i < 4; i++) phase[i] = wrap01(phase[i] + rate[i] * BLOCK);
       },
     };
   },
@@ -759,7 +816,8 @@ export function neutralFxParams(): FxParams {
   p.dist = 0;                         // distortion drive → transparent
   p.odDrive = 1; p.odTone = 0.5;      // overdrive: unity drive, centre tone
   p.eqLow = p.eqMid = p.eqHigh = 0;   // EQ gains → neutral 0 dB
-  p.delayMix = 0; p.reverbMix = 0; p.bitcrushMix = 0; p.pitchMix = 0; p.pitchV2Level = 0;
+  p.delayMix = 0; p.reverbMix = 0; p.bitcrushMix = 0; p.pitchMix = 0;
+  p.pitchV2Level = p.pitchV3Level = p.pitchV4Level = p.pitchSpread = 0; p.pitchScale = 0;
   p.width = 1.0;                      // unity stereo width
   return p;
 }
@@ -874,7 +932,7 @@ export class EffectsChain {
 
   // Run the chain: dry stereo from mixTex flows through `this.order`, then the
   // master pass accumulates (additive) into targetFbo.
-  process(mixTex: WebGLTexture, targetFbo: WebGLFramebuffer | null, blockStart: number, masterScale = 1.0, instDryTex: WebGLTexture | null = null, instIdx = -1) {
+  process(mixTex: WebGLTexture, targetFbo: WebGLFramebuffer | null, blockStart: number, masterScale = 1.0, instDryTex: WebGLTexture | null = null, instIdx = -1, noteFreq = -1) {
     const gl = this.gl, p = this.params;
     const D = Math.round(p.delayTime * this.sampleRate);
     const ctx: FxCtx = {
@@ -886,6 +944,7 @@ export class EffectsChain {
       delaySamples: Math.max(BLOCK, Math.min(DELAY_LEN - 1, D)),   // keep ≥ BLOCK for parallelism
       instDryTex,
       instIdx,
+      noteFreq,
       bind: (u, t) => this._bind(u, t),
       stereoPass: (prog, inTex, outFbo) => this._stereoPass(prog, inTex, outFbo),
       recursive: (prog, inTex, outFbo, r, w) => this._recursive(prog, inTex, outFbo, r, w),

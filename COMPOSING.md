@@ -196,7 +196,7 @@ Common fields (booleans + scalars):
 `compOn`/`compThresh` (dB)/`compRatio`/`compAttack` (ms)/`compRelease` (ms)/`compMakeup` (dB)/`compSource`,
 `limitOn`/`limitCeil` (dB)/`limitRelease` (ms),
 `vocoderOn`/`vocSource`/`vocBands` (1..16)/`vocQ`/`vocAttack` (ms)/`vocRelease` (ms)/`vocMix`/`vocUnvoiced`/`vocFormant` (semitones),
-`pitchOn`/`pitchShift` (voice-1 semitones ±24)/`pitchMix` (dry/wet)/`pitchVoice2` (harmony semitones ±24)/`pitchV2Level` (harmony level, 0 = off).
+`pitchOn`/`pitchShift` (voice-1 interval)/`pitchMix` (dry/wet)/`pitchVoice2`/`pitchVoice3`/`pitchVoice4` (harmony intervals) + `pitchV2Level`/`pitchV3Level`/`pitchV4Level` (per-voice levels, 0 = off)/`pitchKey` (0..11, C..B)/`pitchScale` (0 = Off→raw semitones, else 1 Major·2 Minor·3 HarmMin·4 Dorian·5 Phrygian·6 Lydian·7 Mixolyd·8 Locrian → intervals become diatonic scale **steps** snapped to the played note, e.g. `pitchVoice2:2` = a third in key)/`pitchSpread` (0 = mono, fans the harmony voices L↔R). Automation codes: PSH/PSM/PH2/PHL/PH3/PL3/PH4/PL4/PSP.
 The resonant **Filter** is per-sample recursive (LP/HP/BP); its `filterCutoff` (target code `FLC`, log)
 is the marquee LFO sweep target — pair it with a synced LFO for filter-sweep risers/wobbles. The
 **Compressor** + **Limiter** are also per-sample (stereo-linked envelope follower); all their params are

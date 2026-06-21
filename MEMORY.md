@@ -86,6 +86,31 @@ An attempt to implement a WebGL 16-band Vocoder effect was completely abandoned 
 
 ## Current work
 
+### Pitch Shifter — scale-aware harmony + 4 voices + stereo spread (2.15.0, 2026-06-21) — ✅ DONE — `project`
+Extended the 2.14.0 shifter into a diatonic chord harmonizer. Two harmony voices → **four**
+total (voice 1 `pitchShift` + `pitchVoice2/3/4` at `pitchV2/3/4Level`, level 0 → skipped),
+plus `pitchKey` (0..11 C..B), `pitchScale` (0 Off → 8 modes), `pitchSpread` (stereo fan).
+- **Scale-aware WITHOUT pitch detection — the whole trick.** It's a tracker, so the engine
+  knows the played note. `SynthRenderer._renderToMix` pass B computes the instance's LOWEST
+  active voice freq (the chord root) and passes it as a new last arg to `EffectsChain.process`
+  → `FxCtx.noteFreq`. `fxPitch.process` converts to MIDI and, when a scale is selected, runs
+  `diatonicSemitones(noteMidi, keyPc, deg, steps)`: snap the note to its nearest scale degree,
+  add the interval as scale STEPS, map back → semitone shift. So "+2" is always a third in
+  key (+3 or +4 depending on degree). **Scale=Off → intervals are raw semitones → behaviour is
+  the 2.14.0 chromatic shifter.** `PITCH_SCALES` (exported from effects.ts; fx-panel imports it
+  for the Scale-knob labels) holds Major/Minor/HarmMin + Dorian/Phrygian/Lydian/Mixolyd/Locrian.
+- **Shader (`fx-pitch-tap.glsl`):** the 6 scalar per-voice uniforms became `vec4 uPhase/uRate/
+  uLevel/uPan` (4 voices packed). New `balance(v,d)` applies an equal-image stereo law per voice
+  (d=0 → unchanged). CPU `phase`/`phase2` scalars → a `phase[4]` array; the `PAN` base positions
+  `[0,-1,1,-0.5]` (voice 1 centred, harmonies fanned) are scaled by `pitchSpread`.
+- **Bit-identical default proven by `pitch-check` ALL_OK** (harmony levels 0 + spread 0 + Scale
+  Off → voice-1-only, uPan.x=0 → balance is identity, uMix path unchanged). Diatonic math
+  spot-checked under node (C-major thirds alternate maj/min correctly; fifths land on G/A).
+  Automation: appended `PH3/PL3/PH4/PL4/PSP` at the true end of TARGETS (id-stable). Display
+  gotcha: the interval-knob `fmt` can't see the scale, so it shows a plain signed number (no
+  "st" suffix) — reads as semitones with Scale=Off, scale-steps otherwise. **User-auditioned
+  in-browser 2026-06-21 — sounds good, accepted** (build clean, glsl-check + pitch-check ALL_OK).
+
 ### Pitch Shifter / harmonizer effect (2.14.0, 2026-06-20) — ✅ DONE — `project`
 New FX-chain effect (`fxPitch`, key `pitch`, after EQ in `DEFAULT_FX_ORDER`). Time-domain
 granular (delay-line) pitch shifter: a persistent history ring (`fx-pitch-update.glsl`,

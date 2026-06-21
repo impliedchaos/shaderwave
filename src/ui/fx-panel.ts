@@ -1,6 +1,6 @@
 // FX panel definitions + builder — extracted from main.ts.
 import type { App } from '../main.js';
-import { normalizeFxOrder } from '../gl/effects.js';
+import { normalizeFxOrder, PITCH_SCALES } from '../gl/effects.js';
 import { bindKnob } from './controls.js';
 import { recordKnob, disarmRecord, fxParamTarget } from './record.js';
 
@@ -9,6 +9,9 @@ const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getEleme
 
 // A knob <div> the UI loop drives externally (see bindKnob in controls.ts).
 export type KnobEl = HTMLElement & { _extSet?: (v: number) => void };
+
+// Pitch-shifter key labels (pitch class 0..11) for the diatonic-harmony Key knob.
+const PITCH_KEYS = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 
 // FX panel layout: category headers (with bypass toggle) interleaved with knob
 // rows. Ordered to follow the signal-flow chain (see DEFAULT_FX_ORDER in
@@ -53,11 +56,20 @@ export const FX_DEFS: FxDef[] = [
   { label: 'Low Cut', key: 'eqLowFreq', min: 50, max: 1000, step: 10, log: true, fmt: (v) => Math.round(v) + 'Hz' },
   { label: 'High Cut', key: 'eqHighFreq', min: 1000, max: 10000, step: 100, log: true, fmt: (v) => v >= 1000 ? (v / 1000).toFixed(1) + 'k' : Math.round(v) + 'Hz' },
 
+  // Interval knobs read as semitones when Scale=Off, else diatonic scale steps — so
+  // the value is shown as a plain signed number (a "+2" = a third in the chosen key).
   { category: 'Pitch Shifter', fxKey: 'pitch', enableKey: 'pitchOn' },
-  { label: 'Pitch', key: 'pitchShift', min: -24, max: 24, step: 1, fmt: (v) => (v > 0 ? '+' : '') + Math.round(v) + 'st' },
+  { label: 'Pitch', key: 'pitchShift', min: -24, max: 24, step: 1, fmt: (v) => (v > 0 ? '+' : '') + Math.round(v) },
   { label: 'Mix', key: 'pitchMix', min: 0, max: 1, step: 0.01 },
-  { label: 'Harmony', key: 'pitchVoice2', min: -24, max: 24, step: 1, fmt: (v) => (v > 0 ? '+' : '') + Math.round(v) + 'st' },
+  { label: 'Key', key: 'pitchKey', min: 0, max: 11, step: 1, fmt: (v) => PITCH_KEYS[((Math.round(v) % 12) + 12) % 12] },
+  { label: 'Scale', key: 'pitchScale', min: 0, max: PITCH_SCALES.length - 1, step: 1, fmt: (v) => PITCH_SCALES[Math.max(0, Math.min(PITCH_SCALES.length - 1, Math.round(v)))].name },
+  { label: 'Harmony', key: 'pitchVoice2', min: -24, max: 24, step: 1, fmt: (v) => (v > 0 ? '+' : '') + Math.round(v) },
   { label: 'Harm Lvl', key: 'pitchV2Level', min: 0, max: 1, step: 0.01 },
+  { label: 'Harm 3', key: 'pitchVoice3', min: -24, max: 24, step: 1, fmt: (v) => (v > 0 ? '+' : '') + Math.round(v) },
+  { label: 'H3 Lvl', key: 'pitchV3Level', min: 0, max: 1, step: 0.01 },
+  { label: 'Harm 4', key: 'pitchVoice4', min: -24, max: 24, step: 1, fmt: (v) => (v > 0 ? '+' : '') + Math.round(v) },
+  { label: 'H4 Lvl', key: 'pitchV4Level', min: 0, max: 1, step: 0.01 },
+  { label: 'Spread', key: 'pitchSpread', min: 0, max: 1, step: 0.01 },
 
   { category: 'Vocoder', fxKey: 'vocoder', enableKey: 'vocoderOn' },
   { label: 'Source', key: 'vocSource', min: -1, max: 15, step: 1 },

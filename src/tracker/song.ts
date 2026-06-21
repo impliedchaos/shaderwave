@@ -41,7 +41,9 @@ export function instrumentsFromParams(
         color: pr.color || INSTRUMENT_COLORS[i % INSTRUMENT_COLORS.length],
         p0: [...pr.p0],
         p1: [...pr.p1],
-        fx: pr.fx ? { ...pr.fx } : defaultFxParams(),    // per-instance fx (spec carries it, else default)
+        // Per-instance fx; default-filled so older saved songs gain any newer params
+        // (e.g. the pitch shifter's Key/Scale/extra voices) at their inert defaults.
+        fx: pr.fx ? Object.assign(defaultFxParams(), pr.fx) : defaultFxParams(),
       };
       if (pr.ops) e.ops = pr.ops.map((o) => ({ ...o }));
       if (pr.fxOrder) e.fxOrder = [...pr.fxOrder];     // per-instance chain order (saved songs)

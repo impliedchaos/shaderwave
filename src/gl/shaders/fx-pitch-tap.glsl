@@ -17,11 +17,10 @@ uniform sampler2D uIn;     // stage input, BLOCK×1 (RG) — the dry signal
 uniform sampler2D uRing;   // updated history ring (RG)
 uniform int uW, uLen, uWpos;
 uniform float uGrain;      // grain / window length in samples
-uniform float uPhase0;     // voice 1 read phase at sample 0 of this block, in [0,1)
-uniform float uRate;       // voice 1 per-sample phase increment = (1 - r) / grain
-uniform float uPhase02;    // voice 2 (harmony) read phase at sample 0, in [0,1)
-uniform float uRate2;      // voice 2 (harmony) per-sample phase increment
-uniform float uV2Level;    // harmony voice level (0 = off → bit-identical single voice)
+uniform vec4 uPhase;       // per-voice read phase at sample 0 of this block, in [0,1)
+uniform vec4 uRate;        // per-voice per-sample phase increment = (1 - r) / grain
+uniform vec4 uLevel;       // per-voice level (.x = voice 1, always 1; harmonies 0 = off → skipped)
+uniform vec4 uPan;         // per-voice stereo position in [-1,1] (0 = centre → bit-identical)
 uniform float uMix;        // dry/wet (0 = dry, 1 = fully harmonized voices)
 
 out vec4 outColor;
@@ -51,14 +50,21 @@ vec2 pitchVoice(float phase0, float rate, float fi, float head){
   return g0 * w0 + g1 * w1;
 }
 
+// Equal-image stereo balance: d<0 favours left (attenuates right), d>0 vice-versa.
+// d=0 → gains (1,1) → output unchanged → bit-identical to the un-spread path.
+vec2 balance(vec2 v, float d){
+  return vec2(v.x * (1.0 - max(d, 0.0)), v.y * (1.0 - max(-d, 0.0)));
+}
+
 void main(){
   int i = int(gl_FragCoord.x);
   vec2 dry = texelFetch(uIn, ivec2(i, 0), 0).rg;
   float fi = float(i), head = float(uWpos + i);    // ring index of this output sample's "now"
 
-  vec2 wet = pitchVoice(uPhase0, uRate, fi, head);              // voice 1
-  if (uV2Level > 0.0)
-    wet += uV2Level * pitchVoice(uPhase02, uRate2, fi, head);   // voice 2 (harmony), 0 → skipped
+  vec2 wet = balance(pitchVoice(uPhase.x, uRate.x, fi, head), uPan.x);  // voice 1 (always full)
+  if (uLevel.y > 0.0) wet += uLevel.y * balance(pitchVoice(uPhase.y, uRate.y, fi, head), uPan.y);
+  if (uLevel.z > 0.0) wet += uLevel.z * balance(pitchVoice(uPhase.z, uRate.z, fi, head), uPan.z);
+  if (uLevel.w > 0.0) wet += uLevel.w * balance(pitchVoice(uPhase.w, uRate.w, fi, head), uPan.w);
 
   outColor = vec4(mix(dry, wet, uMix), 0.0, 1.0);
 }

@@ -181,10 +181,17 @@ export interface FxParams {
   vocUnvoiced: number;    // unvoiced/sibilance passthrough amount (0 = off)
   vocFormant: number;     // formant shift in semitones (±, 0 = neutral); pitch unchanged
   pitchOn: boolean;
-  pitchShift: number;     // voice 1 interval, semitones (±24); octave pedal lives at ±12
+  pitchShift: number;     // voice 1 interval (semitones when Scale=Off, else scale steps)
   pitchMix: number;       // dry/wet (0 = dry, 1 = fully pitched/harmonized)
-  pitchVoice2: number;    // harmony voice interval, semitones (±24)
-  pitchV2Level: number;   // harmony voice level (0 = off → single-voice shifter)
+  pitchVoice2: number;    // harmony voice 2 interval
+  pitchV2Level: number;   // harmony voice 2 level (0 = off → skipped)
+  pitchVoice3: number;    // harmony voice 3 interval
+  pitchV3Level: number;   // harmony voice 3 level (0 = off → skipped)
+  pitchVoice4: number;    // harmony voice 4 interval
+  pitchV4Level: number;   // harmony voice 4 level (0 = off → skipped)
+  pitchKey: number;       // diatonic key root, pitch class 0..11 (0 = C)
+  pitchScale: number;     // scale index into PITCH_SCALES (0 = Off → raw semitones)
+  pitchSpread: number;    // stereo fan of the harmony voices (0 = mono → bit-identical)
   /** Legacy authoring field, migrated to `dist` by makeFx. */
   drive?: number;
   [key: string]: number | boolean | undefined;

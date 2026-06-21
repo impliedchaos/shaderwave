@@ -326,17 +326,27 @@ A time-domain (granular delay-line) pitch shifter. Input history is written to a
 buffer; the tap reads it back at rate `2^(semitones/12)` per output sample, so playback
 slows / speeds up → pitch shifts down / up. The read-pointer wrap is hidden by two
 Hann-windowed grain taps half a window out of phase (their windows sum to unity → no
-amplitude ripple). A **second voice** reads the same ring at its own interval, so you get
-dry + two pitched voices stacked = a chromatic harmonizer. Each voice's read phase is
+amplitude ripple). **Four voices** read the same ring at their own intervals, so you get
+dry + up to four pitched voices stacked = a chord harmonizer. Each voice's read phase is
 accumulated CPU-side across blocks → click-free at block boundaries, no long-playback
-drift. Intervals are fixed/chromatic (not scale-aware diatonic).
-- **Pitch** — voice 1 interval in semitones (±24; ±12 = octave pedal)
+drift.
+
+**Scale-aware diatonic harmony.** This is a tracker — the engine *knows* the note being
+played, so it feeds the chain the instance's lowest active voice (the chord root) and the
+shifter snaps each interval diatonically with no pitch detection. Pick a **Key** + **Scale**
+and an interval reads as *scale steps* (a "+2" is always a third in the key — +4 or +3
+semitones depending on the played degree, "+4" a fifth, etc.). With **Scale = Off** the
+intervals are raw chromatic semitones (and behave exactly as before, ±12 = octave pedal).
+- **Pitch** — voice 1 interval (semitones when Scale=Off, else scale steps; ±12 = octave)
 - **Mix** — dry/wet (0 = dry, 1 = fully shifted/harmonized)
-- **Harmony** — second voice interval in semitones (±24)
-- **Harm Lvl** — harmony voice level (0 = off → plain single-voice shifter)
+- **Key / Scale** — diatonic root (C..B) + scale (Off/Major/Minor/HarmMin + church modes)
+- **Harmony / H3 / H4** — voices 2–4 interval + level (level 0 = off → that voice skipped)
+- **Spread** — fans the harmony voices across the stereo field (0 = centred/mono)
 
 Monophonic lines and bass track cleanly; dense chords / sharp transients get the
 characteristic granular warble (inherent to time-domain shifting, like a real octave pedal).
+With a scale set and the harmony voices fanned, a single held lead note blooms into a wide,
+in-key pad/chord.
 
 ### Vocoder — Channel Vocoder
 

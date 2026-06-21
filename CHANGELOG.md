@@ -7,6 +7,20 @@ and the project follows [Semantic Versioning](https://semver.org/). The version
 in `package.json` is the source of truth; see **AGENTS.md → Git** for the bump +
 changelog rules. Dates are the commit date of that version.
 
+## [2.15.0] — 2026-06-21
+### Added
+- **Scale-aware harmonizer + more voices in the Pitch Shifter.** Pick a **Key** (C..B)
+  and **Scale** (Major / Minor / Harmonic Minor + Dorian, Phrygian, Lydian, Mixolydian,
+  Locrian) and each harmony interval snaps **diatonically** to the note you're playing —
+  a "+2" is always a third *in the key* (major or minor depending on the degree), "+4" a
+  fifth, and so on. No pitch detection: being a tracker, the engine already knows the note
+  and feeds the chain the instance's lowest active voice. With **Scale = Off** intervals
+  stay raw chromatic semitones (existing patches are unchanged).
+- **Two more harmony voices** (now dry + up to 4 pitched voices = a full chord): **Harm 3 /
+  Harm 4** with their own interval + level, plus a **Spread** knob that fans the harmony
+  voices across the stereo field. New automation targets `PH3`, `PL3`, `PH4`, `PL4`, `PSP`.
+  Defaults (levels 0, spread 0, Scale Off) keep the effect bit-identical to 2.14.0.
+
 ## [2.14.0] — 2026-06-20
 ### Added
 - **Pitch Shifter effect (octave pedal / harmonizer).** A new effect in the chain

@@ -221,6 +221,18 @@ const FX_PITCH_TARGETS: RawTarget[] = [
 ];
 for (const t of FX_PITCH_TARGETS) TARGETS.push({ ...t, scope: 'fx', type: '*', id: TARGETS.length });
 
+// Pitch-shifter harmony voices 3 & 4, stereo spread — appended after the original
+// pitch block (still id-stable; existing ids above are untouched). Intervals are
+// semitones when Scale=Off, else diatonic scale steps (same as voices 1 & 2).
+const FX_PITCH2_TARGETS: RawTarget[] = [
+  { code: 'PH3', label: 'Harmony 3',   key: 'pitchVoice3', min: -24, max: 24, curve: 'lin', unit: 'st' },
+  { code: 'PL3', label: 'Harm 3 Lvl',  key: 'pitchV3Level', min: 0,  max: 1,  curve: 'lin' },
+  { code: 'PH4', label: 'Harmony 4',   key: 'pitchVoice4', min: -24, max: 24, curve: 'lin', unit: 'st' },
+  { code: 'PL4', label: 'Harm 4 Lvl',  key: 'pitchV4Level', min: 0,  max: 1,  curve: 'lin' },
+  { code: 'PSP', label: 'Pitch Spread', key: 'pitchSpread', min: 0,  max: 1,  curve: 'lin' },
+];
+for (const t of FX_PITCH2_TARGETS) TARGETS.push({ ...t, scope: 'fx', type: '*', id: TARGETS.length });
+
 export function targetById(id: number): ParamTarget | null {
   return (id >= 0 && id < TARGETS.length) ? TARGETS[id] : null;
 }
