@@ -7,6 +7,11 @@ and the project follows [Semantic Versioning](https://semver.org/). The version
 in `package.json` is the source of truth; see **AGENTS.md → Git** for the bump +
 changelog rules. Dates are the commit date of that version.
 
+## [2.15.3] — 2026-06-22
+### Changed
+- **Wider modulation-matrix amount sliders** (3×) in both the global LFO matrix and the
+  per-instrument mod matrix, for finer depth control.
+
 ## [2.15.2] — 2026-06-22
 ### Fixed
 - **Stereo chorus startup click.** On play (and after any reset) the chorus delay-line
