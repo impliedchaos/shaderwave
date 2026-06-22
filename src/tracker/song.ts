@@ -1,12 +1,14 @@
 // Song = ordered list of patterns + the default instrument parameter banks, plus
 // a built-in demo so the app makes sound on first load.
 import { EMPTY } from './pattern.js';
-import { INSTRUMENTS, INSTRUMENT_COLORS } from '../constants.js';
+import { INSTRUMENTS, INSTRUMENT_COLORS, DEFAULT_MASTER } from '../constants.js';
 import { byType } from '../instruments/index.js';
 import { targetById } from './automation.js';
 import { defaultFxParams } from '../gl/effects.js';
+import { defaultLfos } from './lfo.js';
 import { DEMO_SONGS, defaultParams, makeParams, makeFx } from './demo-songs.js';
 import { defaultInstMod, normalizeInstMod } from './instmod.js';
+import type { SongIOInput } from './song-io.js';
 import type { InstrumentInstance, InstrumentParams, InstrumentSpec, InstrumentType, SongData, SongDef } from '../types.js';
 
 // MIDI note → 808 drum slot (GM-ish drum map). The 808 shader reads the slot
@@ -151,6 +153,31 @@ export function loadSongInstruments(songDef: SongDef): { instruments: Instrument
     if (typeFx) inst.fx = { ...typeFx };
   }
   return { instruments, data };
+}
+
+// Convert a `SongDef` (the demo-authoring format — see COMPOSING.md) into the
+// `SongIOInput` that `serializeSong` consumes, so a song authored as a SongDef can be
+// written straight to a `.shaderwave` file (or share permalink) without going through
+// the live App. Runs the SAME `loadSongInstruments` prune/remap the app uses, then
+// fills the optional `data()` fields (pan/lfos/modRoutings/master) with their defaults
+// so the assembled input is always complete. Pairs with `serializeSong` +
+// `encodeSongBinary` (song-codec) — see COMPOSING.md §12 for the one-call recipe.
+export function songDefToIOInput(def: SongDef): SongIOInput {
+  const { instruments, data } = loadSongInstruments(def);
+  return {
+    name: def.name,
+    author: def.author ?? '',
+    note: def.note ?? '',
+    bpm: data.bpm ?? def.bpm,
+    rowsPerBeat: data.rowsPerBeat,
+    master: data.master ?? def.master ?? DEFAULT_MASTER,
+    pan: data.pan ?? new Array(8).fill(0.5),
+    instruments,
+    order: data.order,
+    patterns: data.patterns,
+    lfos: data.lfos ?? defaultLfos(),
+    modRoutings: data.modRoutings ?? [],
+  };
 }
 
 export { DEMO_SONGS, defaultParams, makeParams, makeFx };

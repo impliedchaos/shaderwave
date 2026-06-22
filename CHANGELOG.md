@@ -7,6 +7,18 @@ and the project follows [Semantic Versioning](https://semver.org/). The version
 in `package.json` is the source of truth; see **AGENTS.md → Git** for the bump +
 changelog rules. Dates are the commit date of that version.
 
+## [2.15.1] — 2026-06-22
+### Added
+- **`songDefToIOInput(def)` authoring helper** (`tracker/song.ts`): turns a `SongDef` (the demo
+  authoring format) into the `SongIOInput` that `serializeSong` consumes, running the same
+  instrument prune/remap the app does and filling every optional `data()` field. Lets an agent
+  write a standalone `.shaderwave` file in one chain (`songDefToIOInput → serializeSong →
+  encodeSongBinary`) without going through the live App or hand-assembling the serialized shape.
+### Changed
+- **COMPOSING.md:** §12 now leads with the programmatic `.shaderwave` recipe (the legacy JSON shape
+  moved to §12.1 as reference); §3 documents the slide-into-a-note idiom (tone-portamento `3` +
+  vibrato `4`) used to author slide/steel-guitar leads.
+
 ## [2.15.0] — 2026-06-21
 ### Added
 - **Scale-aware harmonizer + more voices in the Pitch Shifter.** Pick a **Key** (C..B)

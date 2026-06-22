@@ -107,6 +107,13 @@ pat.setFx(row, channel, cmd, val);             // effect-column command (per-cel
 - A channel is monophonic: a new note on a channel replaces the previous. For a **chord**, use
   several channels with the same `instIdx`.
 - **channel index == voice index == pan index** (8 channels, 8 voices).
+- **Sliding INTO a note (steel/slide-guitar glide, vocal portamento):** place the *start* note normally,
+  then on a LATER row place the *destination* note with `setFx(row, ch, 3, rate)` (tone portamento /
+  meend). The `3` makes the voice glide to that row's note WITHOUT re-attacking, so it sounds like one
+  note bending. `rate` ≈ semitones/sec × 1.67 per unit (`0x12`≈slow swoop, `0x2a`≈fast grace slide).
+  Add a `setFx(later, ch, 4, 0xSD)` vibrato (S=speed, D=depth nibble) on the sustain for a crying steel.
+  End with an `OFF`. (Worked example: this is how a lap-steel lead is built — start a step or two below
+  the target and slide up.)
 
 ---
 
@@ -396,10 +403,41 @@ not throw or leave `undefined` holes in the instrument table. Then audition in-b
 
 ---
 
-## 12. The `*.shaderwave.json` file format (for LOAD)
+## 12. Generating a `*.shaderwave` file programmatically (without the App)
 
-Best produced by composing as a demo and clicking **SAVE**, or generated programmatically — it's
-verbose to hand-write (patterns store flat arrays). Shape (format `shaderwave-song`, version **1**):
+The fastest way for an agent to produce a standalone, loadable `.shaderwave` file: author the
+song as a **`SongDef`** (exactly the demo format above — `params`/`fxParams`/`data()`), then run it
+through `songDefToIOInput` → `serializeSong` → `encodeSongBinary`. The first call does the same
+instrument prune/remap the App does and fills every optional `data()` field, so you never hand-assemble
+the serialized shape. Run it under node by bundling with esbuild (`--loader:.glsl=text`, see AGENTS.md):
+
+```ts
+import { writeFileSync } from 'node:fs';
+import { songDefToIOInput } from 'src/tracker/song.js';
+import { serializeSong } from 'src/tracker/song-io.js';
+import { encodeSongBinary, decodeSongBytes } from 'src/tracker/song-codec.js';
+
+const def = { name: 'My Song', author: 'AI', note: 'desc. Prompt: …', bpm: 128, master: 0.78,
+              params: [ /* InstrumentSpec[] — each may carry its OWN `fx` */ ], data: () => ({ … }) };
+
+const bytes = encodeSongBinary(serializeSong(songDefToIOInput(def)));   // compact SWB1 binary
+writeFileSync('My Song.shaderwave', bytes);
+await decodeSongBytes(new Uint8Array(bytes));   // optional: round-trip to confirm it loads
+```
+
+- **Per-instance fx for a standalone file:** use the `params: InstrumentSpec[]` form and put an `fx`
+  object on each spec (and omit that type from `fxParams`) — two instances of the SAME engine then get
+  different chains. If you instead set `fxParams[type]`, it OVERRIDES every instance of that type
+  (the demo convenience). Don't do both for one type.
+- `encodeSongBinary` is sync and needs no browser APIs (good under node). `decodeSongBytes` is async
+  and content-sniffs (gzip → SWB1 → legacy JSON), so the file also loads via the editor's **LOAD** button.
+- Duration: `order.length * rows * 60 / (bpm * rowsPerBeat)` seconds — see §9.
+
+### 12.1 The legacy `*.shaderwave.json` shape (for reference / hand-editing)
+
+`decodeSongBytes` also accepts a plain UTF-8 JSON document (format `shaderwave-song`, version **1**),
+so a `.shaderwave` file may be JSON. It's verbose to hand-write (patterns store flat arrays); prefer the
+`SongDef` recipe above. Shape:
 
 ```jsonc
 {
