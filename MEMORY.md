@@ -86,6 +86,30 @@ An attempt to implement a WebGL 16-band Vocoder effect was completely abandoned 
 
 ## Current work
 
+### Stereo chorus startup click — ✅ FIXED (2.15.2, 2026-06-22) — `project`
+User reported "the stereo chorus sounds kinda clicky." It was a **delay-line startup
+transient**, not a block-boundary or precision bug. `fx-chorus-tap.glsl` reads ~12–17 ms
+behind the write head; for the first ~`base+depth` samples after a reset the ring hasn't
+filled, so the read position wraps PAST the write head and linearly interpolates real audio
+(memory[0]) against a still-zero, never-written texel (memory[2047]) at the ring seam → one
+~0.4 discontinuity ~14 ms in. Loudest on the R channel of a TRUE-stereo source (L≠R), because
+the R tap's cos-phase delay lands the wrap-straddle right where memory[0] is large; mono/L
+masked it. **Fix:** clamp the read delay to `avail = uBlockStart + i` (samples written since
+reset) — `d = min(lfoDelay, avail)`. Mid-song `avail` is huge so `min` is a no-op → output
+bit-identical once the ring fills; only the first ~43 ms change (clean fill vs click).
+- **Debugging method that nailed it:** a CPU port of the exact ring/tap math reproduced it
+  (proving it's algorithmic, not GPU precision), then `test/chorus-check.html` (KEPT as a
+  permanent harness) confirmed on the real GPU path — it scans a continuous sine for
+  sample-to-sample jumps far above the band-limited slope, separating block-boundary from
+  interior clicks, and tests mono / true-stereo / deep-mod / late-time(>2^24 samples).
+- **GENERAL HAZARD — other ring effects may have a milder version of this.** Any delay-line
+  read that can reach back further than the ring has been written since `resetState` will
+  interpolate against zero pre-history at the seam: **delay, reverb FDN, the pitch-shifter
+  history ring** all read a ring. They weren't reported (longer/softer onsets mask it, or the
+  first echo is meant to be silent), but if a startup tick ever surfaces there, the same
+  `min(delay, samplesWrittenSoFar)` clamp is the fix.
+
+
 ### Pitch Shifter — scale-aware harmony + 4 voices + stereo spread (2.15.0, 2026-06-21) — ✅ DONE — `project`
 Extended the 2.14.0 shifter into a diatonic chord harmonizer. Two harmony voices → **four**
 total (voice 1 `pitchShift` + `pitchVoice2/3/4` at `pitchV2/3/4Level`, level 0 → skipped),

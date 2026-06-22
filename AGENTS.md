@@ -50,8 +50,9 @@ There is **no unit-test framework**. Verification is done two ways:
    path produces finite, non-NaN audio), `phaseoff-check` (effect-column pitch stays
    click-free + bit-identical-when-unmodulated on the closed-form engines),
    `additive-check` (Spectra renders finite/bounded across 64→2048 partials + prints
-   ms/block scaling), `instance-check`, `onset-check`, `drum-analyze`. `audio-check`
-   needs a real audio device and won't pass headless.
+   ms/block scaling), `chorus-check` (chorus delay-line is click-free — scans a sine for
+   discontinuities, mono/stereo/late-time), `instance-check`, `onset-check`, `drum-analyze`.
+   `audio-check` needs a real audio device and won't pass headless.
    **SwiftShader is software-rendered, so it validates correctness, NOT performance.**
 
 ### Running project logic under plain Node

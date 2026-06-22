@@ -29,8 +29,13 @@ void main() {
 
   float base = 0.012 * uSampleRate;                       // 12 ms base delay
   float depth = (uChorusDepth / 1000.0) * uSampleRate;
-  float dL = base + depth * sin(2.0 * 3.14159265 * uChorusRate * t);
-  float dR = base + depth * sin(2.0 * 3.14159265 * uChorusRate * t + 1.57079632);
+  // Clamp the read delay to the history actually written since reset: until the ring
+  // fills (~first base+depth samples) a longer delay would wrap past the write head
+  // and interpolate real audio against still-zero texels → a startup CLICK at the ring
+  // seam. `avail` is huge mid-song, so min() leaves the delay (and output) untouched.
+  float avail = float(uBlockStart + i);
+  float dL = min(base + depth * sin(2.0 * 3.14159265 * uChorusRate * t), avail);
+  float dR = min(base + depth * sin(2.0 * 3.14159265 * uChorusRate * t + 1.57079632), avail);
 
   vec2 cho = vec2(tapRing(dL, i).r, tapRing(dR, i).g);
   outColor = vec4(mix(dry, cho, uChorusMix), 0.0, 1.0);

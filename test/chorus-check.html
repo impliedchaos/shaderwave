@@ -1,0 +1,106 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>pending</title></head>
+<body><pre id="out">running…</pre>
+<script type="module">
+// Stereo chorus click-hunt. Drives a CONTINUOUS sine through a chorus-only
+// EffectsChain on the real GPU path and scans the output for discontinuities. A
+// click = a sample-to-sample jump far larger than the band-limited input could
+// produce. We compare block-boundary deltas to interior deltas (a boundary-only
+// click points at LFO/ring state not carrying across blocks), test a true STEREO
+// input (L≠R), and test at a LATE block-start offset (to expose float-precision
+// loss in the absolute-time LFO, t = (blockStart+i)/SR, past ~2^24 samples).
+import { createGL } from '../src/gl/context.js';
+import { EffectsChain, neutralFxParams } from '../src/gl/effects.js';
+import { makeTex } from '../src/gl/program.js';
+import { BLOCK } from '../src/constants.js';
+
+const out = document.getElementById('out');
+const lines = [];
+const log = (s) => { lines.push(s); out.textContent = lines.join('\n'); console.log(s); };
+const SR = 48000;
+
+// Render a stereo input stream through a chorus-only chain; return {L,R}.
+function renderChorus(gl, L, R, { rate, depth, mix, startBlock = 0 }) {
+  const params = neutralFxParams();
+  params.enabled = true; params.master = 1.0;
+  params.chorusOn = true; params.chorusMix = mix; params.chorusRate = rate; params.chorusDepth = depth;
+  const chain = new EffectsChain(gl, SR, params);
+
+  const inTex = makeTex(gl, BLOCK, 1), tgtTex = makeTex(gl, BLOCK, 1);
+  const tgtFbo = gl.createFramebuffer();
+  gl.bindFramebuffer(gl.FRAMEBUFFER, tgtFbo);
+  gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tgtTex, 0);
+
+  const rgba = new Float32Array(BLOCK * 4), readBuf = new Float32Array(BLOCK * 4);
+  const nBlocks = L.length / BLOCK;
+  const oL = new Float32Array(L.length), oR = new Float32Array(L.length);
+  for (let b = 0; b < nBlocks; b++) {
+    const bs = b * BLOCK;
+    for (let i = 0; i < BLOCK; i++) { rgba[i * 4] = L[bs + i]; rgba[i * 4 + 1] = R[bs + i]; rgba[i * 4 + 2] = 0; rgba[i * 4 + 3] = 1; }
+    gl.bindTexture(gl.TEXTURE_2D, inTex);
+    gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, BLOCK, 1, gl.RGBA, gl.FLOAT, rgba);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, tgtFbo);
+    gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
+    chain.process(inTex, tgtFbo, (startBlock + b) * BLOCK, 1.0);
+    gl.bindFramebuffer(gl.FRAMEBUFFER, tgtFbo);
+    gl.readPixels(0, 0, BLOCK, 1, gl.RGBA, gl.FLOAT, readBuf);
+    for (let i = 0; i < BLOCK; i++) { oL[bs + i] = readBuf[i * 4]; oR[bs + i] = readBuf[i * 4 + 1]; }
+  }
+  return { L: oL, R: oR };
+}
+
+// Scan one channel: max |Δ| at block boundaries vs interior, and count "clicks".
+function scan(o, expectedSlope) {
+  let maxInt = 0, maxBound = 0, atBound = -1, clicks = 0;
+  const thresh = expectedSlope * 6;     // a real click is many× the band-limited slope
+  for (let k = 1; k < o.length; k++) {
+    if (!Number.isFinite(o[k])) return { nan: true };
+    const d = Math.abs(o[k] - o[k - 1]);
+    if (d > thresh) clicks++;
+    if (k % BLOCK === 0) { if (d > maxBound) { maxBound = d; atBound = k; } }
+    else if (d > maxInt) maxInt = d;
+  }
+  return { maxInt, maxBound, atBound, clicks, thresh };
+}
+
+const sine = (n, f, amp = 1, ph = 0) => { const x = new Float32Array(n); for (let i = 0; i < n; i++) x[i] = amp * Math.sin(2 * Math.PI * f * i / SR + ph); return x; };
+
+try {
+  const gl = createGL(document.createElement('canvas'));
+  const NB = 256;                       // ~2.7 s — several LFO cycles
+  const N = NB * BLOCK;
+  const F = 220;
+  const slope = 2 * Math.PI * F / SR;   // ~0.0288 max per-sample delta of the input sine
+  let ok = true;
+  const report = (label, r) => {
+    if (r.nan) { ok = false; return log(`${label}: NaN in output  FAIL`); }
+    const pass = r.clicks === 0 && r.maxBound < r.maxInt * 1.5;
+    ok = ok && pass;
+    log(`${label}: maxInteriorΔ=${r.maxInt.toFixed(5)}  maxBoundaryΔ=${r.maxBound.toFixed(5)} @${r.atBound}  clicks(>${r.thresh.toFixed(3)})=${r.clicks}  ${pass ? 'OK' : 'CLICKY'}`);
+  };
+
+  // 1. Mono-fed sine (L==R), default-ish settings.
+  let mono = sine(N, F);
+  report('mono in, rate1.5 depth2 mix1', { ...scan(renderChorus(gl, mono, mono, { rate: 1.5, depth: 2, mix: 1.0 }).L, slope), thresh: slope * 6 });
+
+  // 2. True STEREO input (L=220, R=220 shifted 90°) — the "stereo chorus" the user hears.
+  const sL = sine(N, F), sR = sine(N, F, 1, Math.PI / 2);
+  const st = renderChorus(gl, sL, sR, { rate: 1.5, depth: 2, mix: 0.5 });
+  report('stereo in L (mix0.5)', { ...scan(st.L, slope), thresh: slope * 6 });
+  report('stereo in R (mix0.5)', { ...scan(st.R, slope), thresh: slope * 6 });
+
+  // 3. Deep + fast modulation (stress the delay sweep).
+  report('deep rate5 depth5 mix1', { ...scan(renderChorus(gl, mono, mono, { rate: 5, depth: 5, mix: 1.0 }).L, slope), thresh: slope * 6 });
+
+  // 4. LATE start (~360 s in): tests float-precision loss in the absolute-time LFO.
+  const lateStart = Math.round(360 * SR / BLOCK);   // block index ~ 33750 → bs ~17.3M > 2^24
+  report('late-time (~360s) rate1.5 depth2', { ...scan(renderChorus(gl, mono, mono, { rate: 1.5, depth: 2, mix: 1.0, startBlock: lateStart }).L, slope), thresh: slope * 6 });
+
+  document.title = ok ? 'ALL_OK' : 'FAILED';
+  log(ok ? '\n=== CHORUS CLEAN ===' : '\n=== CHORUS CLICKY ===');
+} catch (e) {
+  document.title = 'ERROR';
+  log('FATAL: ' + e.message + '\n' + (e.stack || ''));
+}
+</script>
+</body></html>

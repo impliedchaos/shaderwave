@@ -7,6 +7,15 @@ and the project follows [Semantic Versioning](https://semver.org/). The version
 in `package.json` is the source of truth; see **AGENTS.md → Git** for the bump +
 changelog rules. Dates are the commit date of that version.
 
+## [2.15.2] — 2026-06-22
+### Fixed
+- **Stereo chorus startup click.** On play (and after any reset) the chorus delay-line
+  read reached ~12–17 ms back before the ring had filled, interpolating real audio against
+  still-zero texels at the ring wrap → a click in the first ~43 ms (most audible on the
+  right channel of a true-stereo source). The read delay is now clamped to the history
+  actually written, so the line fills cleanly; output is bit-identical once full. New
+  permanent regression harness `test/chorus-check.html`.
+
 ## [2.15.1] — 2026-06-22
 ### Added
 - **`songDefToIOInput(def)` authoring helper** (`tracker/song.ts`): turns a `SongDef` (the demo
