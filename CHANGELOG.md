@@ -7,6 +7,12 @@ and the project follows [Semantic Versioning](https://semver.org/). The version
 in `package.json` is the source of truth; see **AGENTS.md → Git** for the bump +
 changelog rules. Dates are the commit date of that version.
 
+## [2.15.4] — 2026-06-22
+### Added
+- **Ping-Pong loop mode** for the sampler (alongside One-Shot and Forward): the read
+  position bounces back and forth between the loop start and end (triangle sweep,
+  click-free at the turns). Pick it from the instrument panel's Loop Mode selector.
+
 ## [2.15.3] — 2026-06-22
 ### Changed
 - **Wider modulation-matrix amount sliders** (3×) in both the global LFO matrix and the

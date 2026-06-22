@@ -39,7 +39,7 @@ export interface SampleData {
   rootNote: number;      // MIDI note the sample plays back at unity rate (default 60)
   loopStart: number;     // sample frames; 0 if none
   loopEnd: number;       // sample frames; pcm.length if none
-  loopMode: number;      // 0 = one-shot, 1 = forward loop
+  loopMode: number;      // 0 = one-shot, 1 = forward loop, 2 = ping-pong (bounce)
   url?: string;          // optional HTTP source; if set with empty pcm, hydrated on load
                          // (lets presets/demo songs ship a sample by reference, not bytes)
 }

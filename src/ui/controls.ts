@@ -1475,7 +1475,7 @@ export class Controls {
       sel.style.background = '#111'; sel.style.color = '#fff';
       sel.style.border = '1px solid #333'; sel.style.padding = '2px 4px';
       sel.style.width = '100%'; sel.style.boxSizing = 'border-box';
-      sel.innerHTML = `<option value="0">One-Shot</option><option value="1">Forward</option>`;
+      sel.innerHTML = `<option value="0">One-Shot</option><option value="1">Forward</option><option value="2">Ping-Pong</option>`;
       sel.value = String(pr.sample.loopMode);
       sel.onchange = (e) => {
         pr.sample!.loopMode = Number((e.target as HTMLSelectElement).value);

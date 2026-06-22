@@ -38,7 +38,15 @@ void main(){
 
   float ls = uSmpLoopStart[v], le = uSmpLoopEnd[v];
   if (uSmpLoopMode[v] > 0.5 && le > ls + 1.0) {
-    if (pos >= le) pos = ls + mod(pos - ls, le - ls);          // forward loop
+    float L = le - ls;
+    if (pos >= le) {
+      if (uSmpLoopMode[v] > 1.5) {                             // 2 = ping-pong: bounce ls↔le
+        float ph = mod(pos - ls, 2.0 * L);                     // triangle wave over [0, 2L)
+        pos = ls + (ph < L ? ph : 2.0 * L - ph);               // forward then backward (continuous at the turns)
+      } else {
+        pos = ls + mod(pos - ls, L);                           // 1 = forward loop
+      }
+    }
   } else if (pos >= uSmpLen[v] - 1.0) {                        // one-shot: done
     outAudio = vec4(0.0); return;
   }
