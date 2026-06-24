@@ -7,6 +7,14 @@ and the project follows [Semantic Versioning](https://semver.org/). The version
 in `package.json` is the source of truth; see **AGENTS.md → Git** for the bump +
 changelog rules. Dates are the commit date of that version.
 
+## [2.15.6] — 2026-06-24
+### Fixed
+- **Per-instrument LFOs/envelopes now modulate live-previewed notes.** A note
+  played from the keyboard or MIDI while the transport was stopped triggered the
+  voice but ran it dry — the mod matrix only updated during playback. It now runs
+  whenever a voice is sounding, with its LFO clock anchored on note-on and fx
+  state restored when the preview fades. (Global song-LFOs stay playback-only.)
+
 ## [2.15.5] — 2026-06-24
 ### Fixed
 - **Synth time clock rebased on each play.** The shaders' absolute sample clock

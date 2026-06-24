@@ -92,7 +92,8 @@ export class Engine {
   songMaster = DEFAULT_MASTER;   // the loaded song's base global volume; VOL automation overrides vd.master transiently
   lfos: LfoConfig[];             // song-wide LFO sources (waveform generators)
   modRoutings: ModRouting[];     // modulation matrix: source→target assignments
-  _songBeats = 0;                // beats elapsed since play(); integrates BPM so synced-LFO phase stays continuous across tempo changes
+  _songBeats = 0;                // beats elapsed since play()/first live note; integrates BPM so synced-LFO phase stays continuous across tempo changes
+  _modWasActive = false;         // did the mod matrix run last block? (true while playing OR a live voice sounds) — false→true edge anchors the clock, true→false restores fx
   // Snapshot of fx-param values an LFO is transiently overriding, keyed
   // `${instIdx}:${key}`. fx params are read by reference + persist, so the LFO
   // must restore them on play/stop (inst/chan/global overrides self-heal via
@@ -516,6 +517,10 @@ export class Engine {
   previewOff(ch: number) {
     if (ch != null) this.voices[ch].offFrame = this.lastBlockStart + BLOCK;
   }
+  _anyActiveVoice(): boolean {
+    for (const v of this.voices) if (v.active) return true;
+    return false;
+  }
 
   // --- per-block update ---------------------------------------------------
 
@@ -590,10 +595,25 @@ export class Engine {
     }
 
     this._refreshVoiceData(blockStart);
+
+    // The mod matrix (per-instrument LFOs/envelopes) also runs for LIVE-previewed
+    // notes while stopped, so a keyboard/MIDI note modulates exactly as it does
+    // under the transport. Its time base (startFrame/_songBeats) is anchored on the
+    // first sounding block and advances every block while sound is present; when the
+    // last live voice fades we restore any fx params an inst-mod route was driving.
+    const modActive = this.playing || this._anyActiveVoice();
+    if (modActive && !this.playing && this.startFrame === null) this.startFrame = blockStart;
+    if (this._modWasActive && !modActive) {
+      this._restoreLfoFx();                          // fx an inst-mod route was driving → back to base
+      if (!this.playing) { this.startFrame = null; this._songBeats = 0; }   // fresh preview re-anchors at 0
+    }
+    this._modWasActive = modActive;
+
     this._modulateVoices(blockStart);
     this._applyInstMod(blockStart);     // per-instrument matrix (incl. pitch) BEFORE phaseOff
     this._accumPhaseOff(blockStart);    // so closed-form engines stay click-free on vibrato
     this._applyLfos(blockStart);
+    if (modActive) this._songBeats += (BLOCK / this.sampleRate) * (this.bpm / 60);
 
     // Refresh each active DX7 voice's operator config from ITS instrument, packed
     // into the per-voice vec4 arrays. Refreshing every block (not just at trigger)
@@ -900,8 +920,9 @@ export class Engine {
   // param space ([-depth,depth] bipolar / [0,depth] unipolar), or NaN if its source
   // is missing. Factored out of _applyLfos so _applyInstMod can reuse it for global
   // routings that target a per-instrument mod source (modsrc) — both read the SAME
-  // this._songBeats (advanced once, at the end of _applyLfos), so there's no double
-  // advance and global→source→destination all resolve within one block.
+  // this._songBeats (advanced once per block at the end of advance(), after both
+  // _applyInstMod and _applyLfos read it), so there's no double advance and
+  // global→source→destination all resolve within one block.
   _globalRoutingOffset(r: ModRouting, songSec: number): number {
     const src = this.lfos[r.source];
     if (!src) return NaN;
@@ -968,9 +989,6 @@ export class Engine {
         }
       }
     }
-    // Advance the beat clock once per block, using the post-automation bpm — so synced
-    // LFOs accrue phase smoothly through tempo changes. Deterministic for export.
-    this._songBeats += (BLOCK / this.sampleRate) * (this.bpm / 60);
   }
 
   // Resolved per-block state for one mod-source slot: the EFFECTIVE config after any
@@ -1037,7 +1055,7 @@ export class Engine {
   //         fx    → writes the shared instance fx field (representative source value).
   // A matrix with no routes does nothing → instances render bit-identically.
   _applyInstMod(blockStart: number) {
-    if (!this.playing) return;
+    if (!this.playing && !this._anyActiveVoice()) return;   // also runs for live-previewed notes
     const RATE_OCT = 4;                 // ±octaves a full-depth Rate route shifts an LFO
     const start = this.startFrame ?? blockStart;
     const songSec = (blockStart - start) / this.sampleRate;
