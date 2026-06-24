@@ -88,6 +88,10 @@ export class App {
   songNote = '';
   lastRecordedRow = 0;        // video-export progress cursor
   _playbackVolume?: number;
+  // Absolute producer frame captured at the last fresh play(); subtracted from
+  // blockStart so the synth shaders' time clock restarts near 0 each play and
+  // never accumulates enough to lose float32 precision (low-end pitch drift).
+  _playEpoch = 0;
   _fxKnobs: { el: KnobEl; key: string }[] = [];
   _songVolumeKnob?: KnobEl;
   _fxPanelInst?: number;   // instrument-instance index the FX panel is editing
@@ -148,6 +152,9 @@ export class App {
     }
 
     this.pipeline = new AudioPipeline();
+    // On a fresh play, snapshot the producer's current absolute frame so the
+    // value handed to advance()/the shaders restarts near 0 (see _playEpoch).
+    this.engine.onPlay = () => { this._playEpoch = this.pipeline.writtenFrames; };
     this.renderer = null;
     this.audioReady = false;
     this.underruns = 0;
@@ -302,7 +309,13 @@ export class App {
     // flight) so the GPU→CPU copy never stalls the producer's main thread. Offline
     // WAV export keeps using the synchronous renderBlock (it wants exact, full-length
     // output and has no main-thread-stall concern).
-    const produce = (blockStart: number) => this.renderer!.renderBlockAsync(this.engine.advance(blockStart), blockStart);
+    // Rebase against the last fresh-play epoch so the value handed to the engine
+    // and shaders stays small (the pipeline's own writtenFrames stays monotonic —
+    // it's a JS double used only for queue bookkeeping, exact far beyond audio).
+    const produce = (blockStart: number) => {
+      const t = blockStart - this._playEpoch;
+      return this.renderer!.renderBlockAsync(this.engine.advance(t), t);
+    };
     await this.pipeline.start(produce);
     this.pipeline.setVolume(this._playbackVolume ?? 1.0); // apply the slider's monitor gain
     this.audioReady = true;

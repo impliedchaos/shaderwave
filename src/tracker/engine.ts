@@ -76,6 +76,10 @@ export class Engine {
   // in frame order from advance(); cleared on play/stop/pause.
   _pending: { frame: number; ch: number; note: number; inst: number; vol: number }[];
   lastBlockStart: number;
+  // Fired at the end of a FRESH play() (not resume) so the host can rebase the
+  // absolute frame clock to ~0. uBlockStart (= pipeline.writtenFrames) otherwise
+  // grows monotonically while audio runs and loses float32 precision over time.
+  onPlay: (() => void) | null;
   displayRow: number;
   displayOrder: number;
   playMode: string;
@@ -144,6 +148,7 @@ export class Engine {
     this._nextRowFrame = null;
     this._pending = [];
     this.lastBlockStart = 0;
+    this.onPlay = null;
     this.displayRow = 0;
     this.displayOrder = 0;
     this.playMode = 'song';
@@ -360,6 +365,7 @@ export class Engine {
     this.vd.master = this.songMaster;   // drop any VOL automation override
     this._restoreLfoFx();               // fresh run → drop any prior fx-LFO override
     this._songBeats = 0;                // restart the LFO beat clock
+    this.onPlay?.();                    // host rebases the absolute frame clock to ~0
   }
   // Pause: hold the current song position (so resume() continues from here) and
   // silence the voices. The transport clock keeps running while paused; the

@@ -7,6 +7,13 @@ and the project follows [Semantic Versioning](https://semver.org/). The version
 in `package.json` is the source of truth; see **AGENTS.md → Git** for the bump +
 changelog rules. Dates are the commit date of that version.
 
+## [2.15.5] — 2026-06-24
+### Fixed
+- **Synth time clock rebased on each play.** The shaders' absolute sample clock
+  (`uBlockStart`) used to grow monotonically for as long as audio was running,
+  eventually losing float32 precision (audible low-end pitch drift / detuning on
+  long sessions). Pressing Play or Play-Pattern now restarts it near zero.
+
 ## [2.15.4] — 2026-06-22
 ### Added
 - **Ping-Pong loop mode** for the sampler (alongside One-Shot and Forward): the read
