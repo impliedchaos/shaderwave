@@ -7,6 +7,12 @@ and the project follows [Semantic Versioning](https://semver.org/). The version
 in `package.json` is the source of truth; see **AGENTS.md → Git** for the bump +
 changelog rules. Dates are the commit date of that version.
 
+## [2.15.7] — 2026-06-24
+### Added
+- **8 new Wavewright presets** exploring the newer morph banks and the
+  envelope→Position sweep: Glass Bells, Hollow Power, Vox Morph, Sync Lead,
+  Comb Drift, Sat Bass, Breath Pad, and FM EP.
+
 ## [2.15.6] — 2026-06-24
 ### Fixed
 - **Per-instrument LFOs/envelopes now modulate live-previewed notes.** A note

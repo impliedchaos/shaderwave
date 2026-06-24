@@ -54,5 +54,14 @@ export const iwvt: InstrumentDef = {
     { name: 'Vowel Pad',     p0: [0.2, 0.6, 0.8, 0.6], p1: [0.1, 0.6, 0.1, 0.0], p2: [3, 3, 0.0, -1], p3: [0.8, 0.6, 0, 0] },
     { name: 'Metallic FM',   p0: [0.005, 0.3, 0.4, 0.3], p1: [0.3, 0.5, 0.0, 0.5], p2: [5, 5, 0.0, -1], p3: [0.8, 0.5, 0, 0] },
     { name: 'Sub Bass',      p0: [0.005, 0.2, 0.6, 0.15], p1: [0.0, 0.2, 0.0, 0.0], p2: [0, 0, 0.8, -1], p3: [0.7, 0.3, 0, 0] },
+    // EnvPos1/2 (p3.z/.w) make the ADSR sweep each osc's morph Position — these lean on it.
+    { name: 'Glass Bells',   p0: [0.001, 1.1, 0.0, 0.7], p1: [0.2, 0.5, 0.04, 0.0], p2: [15, 15, 0.0, -1], p3: [0.85, 0.5, 0.7, 0.45] },   // bright strike → pure tail
+    { name: 'Hollow Power',  p0: [0.004, 0.35, 0.7, 0.3], p1: [0.35, 0.6, 0.1, 0.0], p2: [14, 14, 0.0, -1], p3: [0.8, 0.5, 0, 0] },        // stacked-fifth chip lead
+    { name: 'Vox Morph',     p0: [0.35, 0.7, 0.85, 0.8], p1: [0.0, 0.25, 0.06, 0.0], p2: [3, 3, 0.0, -1], p3: [0.8, 0.7, 0.55, 0.35] },    // choir that sweeps U→A→E
+    { name: 'Sync Lead',     p0: [0.003, 0.5, 0.6, 0.3], p1: [0.0, 0.3, 0.12, 0.0], p2: [9, 9, 0.0, -1], p3: [0.85, 0.5, 0.8, 0.5] },      // env-driven hard-sync scream
+    { name: 'Comb Drift',    p0: [0.5, 1.0, 0.8, 0.9], p1: [0.1, 0.7, 0.14, 0.0], p2: [11, 11, 0.0, -1], p3: [0.8, 0.7, 0.5, -0.35] },     // phaser pad, oscs drift apart
+    { name: 'Sat Bass',      p0: [0.004, 0.28, 0.55, 0.2], p1: [0.2, 0.4, 0.05, 0.0], p2: [10, 10, 0.7, -1], p3: [0.85, 0.4, 0.4, 0.0] },  // tanh-driven bass + sub
+    { name: 'Breath Pad',    p0: [0.6, 1.0, 0.7, 1.0], p1: [0.3, 0.55, 0.08, 0.0], p2: [13, 13, 0.0, -1], p3: [0.7, 0.55, 0.5, 0.3] },     // tone breathes into air
+    { name: 'FM EP',         p0: [0.004, 0.7, 0.35, 0.45], p1: [0.0, 0.4, 0.0, 0.45], p2: [0, 1, 0.0, -1], p3: [0.85, 0.6, 0.3, 0.0] },    // sine carrier × harmonic → Rhodes
   ],
 };
